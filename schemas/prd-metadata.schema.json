@@ -1,0 +1,46 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "PRDMetadata",
+  "description": "PRD 阶段机读镜像的公共结构定义",
+  "type": "object",
+  "required": ["schema_version", "stage", "artifact_path", "entities", "relations"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1.0.0" },
+    "stage": { "type": "string", "const": "prd" },
+    "artifact_path": { "type": "string" },
+    "entities": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/entity" }
+    },
+    "relations": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/relation" }
+    }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "entity": {
+      "type": "object",
+      "required": ["id", "type", "title"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^(MODULE|PAGE|FIELD|RULE|FLOW)-prd-[0-9]{3}$" },
+        "type": { "type": "string", "enum": ["module", "page", "field", "rule", "flow"] },
+        "title": { "type": "string" },
+        "source_ref": { "type": ["string", "null"] },
+        "attributes": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "relation": {
+      "type": "object",
+      "required": ["id", "type", "from", "to"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^REL-prd-[0-9]{3}$" },
+        "type": { "type": "string", "enum": ["derived_from", "refines", "depends_on", "contains", "uses", "verifies"] },
+        "from": { "type": "string" },
+        "to": { "type": "string" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

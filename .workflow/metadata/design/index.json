@@ -1,0 +1,16 @@
+{
+  "schema_version": "1.0.0",
+  "stage": "design",
+  "artifact_path": "output/design/design.md",
+  "generated_at": "2026-05-09T16:49:00.120257+00:00",
+  "entity_count": 4,
+  "relation_count": 0,
+  "total_records": {
+    "modules": 2,
+    "pages": 4,
+    "fields": 8,
+    "rules": 2,
+    "states": 1,
+    "permissions": 1
+  }
+}

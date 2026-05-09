@@ -1,0 +1,73 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "DesignMetadata",
+  "description": "design 阶段机读镜像的公共结构定义",
+  "type": "object",
+  "required": ["schema_version", "stage", "artifact_path", "entities", "relations"],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0",
+      "description": "schema 版本号"
+    },
+    "stage": {
+      "type": "string",
+      "const": "design",
+      "description": "所属阶段"
+    },
+    "artifact_path": {
+      "type": "string",
+      "description": "人读产物路径"
+    },
+    "entities": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/entity" },
+      "description": "实体列表"
+    },
+    "relations": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/relation" },
+      "description": "关系列表"
+    }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "entity": {
+      "type": "object",
+      "required": ["id", "type", "title"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^(MODULE|PAGE|FIELD|RULE|FLOW|REL)-design-[0-9]{3}$",
+          "description": "稳定 ID，仅存在于机读物"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["module", "page", "field", "rule", "flow", "role", "state", "permission"],
+          "description": "实体类型"
+        },
+        "title": { "type": "string", "description": "实体标题" },
+        "source_ref": { "type": ["string", "null"], "description": "来源追溯" },
+        "attributes": { "type": "object", "description": "实体属性" }
+      },
+      "additionalProperties": true
+    },
+    "relation": {
+      "type": "object",
+      "required": ["id", "type", "from", "to"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^REL-design-[0-9]{3}$"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["derived_from", "refines", "depends_on", "contains", "uses", "verifies"]
+        },
+        "from": { "type": "string", "description": "来源实体 ID" },
+        "to": { "type": "string", "description": "目标实体 ID" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,0 +1,26 @@
+[
+  {
+    "id": "MODULE-design-001",
+    "type": "module",
+    "title": "记账管理模块",
+    "line": 22
+  },
+  {
+    "id": "MODULE-design-002",
+    "type": "module",
+    "title": "统计分析模块",
+    "line": 27
+  },
+  {
+    "id": "RULE-design-001",
+    "type": "rule",
+    "title": "业务规则",
+    "line": 70
+  },
+  {
+    "id": "RULE-design-002",
+    "type": "rule",
+    "title": "统计规则",
+    "line": 78
+  }
+]

@@ -1,0 +1,14 @@
+[
+  {
+    "id": "MODULE-design-001",
+    "type": "module",
+    "title": "记账管理模块",
+    "line": 22
+  },
+  {
+    "id": "MODULE-design-002",
+    "type": "module",
+    "title": "统计分析模块",
+    "line": 27
+  }
+]

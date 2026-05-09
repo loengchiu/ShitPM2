@@ -1,0 +1,10 @@
+[
+  {"prd_field": "记录ID", "design_field": "FIELD-design-001", "prd_line": 91, "data_dict": true},
+  {"prd_field": "收支类型", "design_field": "FIELD-design-002", "prd_line": 92, "data_dict": true},
+  {"prd_field": "金额", "design_field": "FIELD-design-003", "prd_line": 93, "data_dict": true},
+  {"prd_field": "分类", "design_field": "FIELD-design-004", "prd_line": 94, "data_dict": true},
+  {"prd_field": "备注", "design_field": "FIELD-design-005", "prd_line": 95, "data_dict": true},
+  {"prd_field": "日期", "design_field": "FIELD-design-006", "prd_line": 96, "data_dict": true},
+  {"prd_field": "创建时间", "design_field": "FIELD-design-007", "prd_line": 97, "data_dict": true},
+  {"prd_field": "更新时间", "design_field": "FIELD-design-008", "prd_line": 98, "data_dict": true}
+]

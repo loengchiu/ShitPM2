@@ -1,0 +1,14 @@
+[
+  {
+    "id": "RULE-design-001",
+    "type": "rule",
+    "title": "业务规则",
+    "line": 70
+  },
+  {
+    "id": "RULE-design-002",
+    "type": "rule",
+    "title": "统计规则",
+    "line": 78
+  }
+]

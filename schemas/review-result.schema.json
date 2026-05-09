@@ -1,0 +1,59 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ReviewResult",
+  "description": "review 结果机读 JSON",
+  "type": "object",
+  "required": ["stage", "verdict", "issues", "issue_layer", "affected_objects", "needs_upstream_sync", "next_recommended"],
+  "properties": {
+    "stage": {
+      "type": "string",
+      "enum": ["design", "prd", "prototype"],
+      "description": "被 review 的阶段"
+    },
+    "verdict": {
+      "type": "string",
+      "enum": ["通过", "有问题需修改", "阻塞，不能继续"],
+      "description": "review 结论，只允许三档"
+    },
+    "issues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "severity", "description"],
+        "properties": {
+          "id": { "type": "string" },
+          "severity": { "type": "string", "enum": ["P0", "P1", "P2"] },
+          "description": { "type": "string" },
+          "location": { "type": ["string", "null"] },
+          "suggestion": { "type": ["string", "null"] }
+        },
+        "additionalProperties": false
+      },
+      "description": "问题列表"
+    },
+    "issue_layer": {
+      "type": "object",
+      "description": "问题归属层分布",
+      "properties": {
+        "structure": { "type": "integer", "description": "结构性问题数" },
+        "content": { "type": "integer", "description": "内容质量问题数" },
+        "consistency": { "type": "integer", "description": "一致性问题数" }
+      },
+      "additionalProperties": false
+    },
+    "affected_objects": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "受影响对象列表（稳定 ID 或对象名）"
+    },
+    "needs_upstream_sync": {
+      "type": "boolean",
+      "description": "是否需要回上游同步修复"
+    },
+    "next_recommended": {
+      "type": "string",
+      "description": "下一步建议"
+    }
+  },
+  "additionalProperties": false
+}

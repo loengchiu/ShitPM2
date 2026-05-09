@@ -1,0 +1,27 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "PrototypeMetadata",
+  "description": "prototype 阶段机读镜像的结构定义",
+  "type": "object",
+  "required": ["schema_version", "stage", "artifact_path"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1.0.0" },
+    "stage": { "type": "string", "const": "prototype" },
+    "artifact_path": { "type": "string" },
+    "page_map": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["page_id", "title", "source_page_ref"],
+        "properties": {
+          "page_id": { "type": "string" },
+          "title": { "type": "string" },
+          "source_page_ref": { "type": "string", "description": "design 中的 PAGE-* ID" },
+          "html_section": { "type": ["string", "null"] }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": true
+}

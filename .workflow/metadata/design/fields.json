@@ -1,0 +1,10 @@
+[
+  {"id": "FIELD-design-001", "type": "field", "title": "记录ID", "attributes": {"数据类型": "string", "长度": 36, "必填": true, "默认值": "系统生成", "枚举值": null, "格式": "UUID", "业务来源": "系统生成", "说明": "全局唯一标识"}},
+  {"id": "FIELD-design-002", "type": "field", "title": "收支类型", "attributes": {"数据类型": "string", "长度": null, "必填": true, "默认值": null, "枚举值": ["收入", "支出"], "格式": null, "业务来源": "用户选择", "说明": "区分收入和支出"}},
+  {"id": "FIELD-design-003", "type": "field", "title": "金额", "attributes": {"数据类型": "decimal", "长度": "10,2", "必填": true, "默认值": null, "枚举值": null, "格式": "≥ 0.01", "业务来源": "用户输入", "说明": "单位：元"}},
+  {"id": "FIELD-design-004", "type": "field", "title": "分类", "attributes": {"数据类型": "string", "长度": 20, "必填": true, "默认值": null, "枚举值": "见枚举定义", "格式": null, "业务来源": "用户选择", "说明": "收入和支出各有独立分类集"}},
+  {"id": "FIELD-design-005", "type": "field", "title": "备注", "attributes": {"数据类型": "string", "长度": 200, "必填": false, "默认值": "空", "枚举值": null, "格式": null, "业务来源": "用户输入", "说明": "自由文本"}},
+  {"id": "FIELD-design-006", "type": "field", "title": "日期", "attributes": {"数据类型": "date", "长度": null, "必填": true, "默认值": "当天", "枚举值": null, "格式": "YYYY-MM-DD", "业务来源": "用户选择或默认当天", "说明": "记录发生的日期"}},
+  {"id": "FIELD-design-007", "type": "field", "title": "创建时间", "attributes": {"数据类型": "datetime", "长度": null, "必填": true, "默认值": "系统生成", "枚举值": null, "格式": "ISO 8601", "业务来源": "系统生成", "说明": "不可编辑"}},
+  {"id": "FIELD-design-008", "type": "field", "title": "更新时间", "attributes": {"数据类型": "datetime", "长度": null, "必填": true, "默认值": "系统生成", "枚举值": null, "格式": "ISO 8601", "业务来源": "系统生成", "说明": "每次修改自动更新"}}
+]

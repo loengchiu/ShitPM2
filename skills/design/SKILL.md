@@ -1,0 +1,162 @@
+---
+name: spm-design
+description: 设计阶段——把对齐结果结构化成稳定基线
+triggers:
+  - "开始设计"
+  - "做设计"
+  - "进入设计"
+---
+
+# 设计
+
+## 触发条件
+
+用户要求开始设计，或 stage-context 建议进入 design 阶段。
+
+## 前置检查
+
+运行 `stage-context.py` 检查准入：
+
+1. align.md 存在
+2. metadata/align 完整
+3. align-notes.json 中 `can_enter_design` = true
+
+如检查不通过，停止，不写任何产物。
+
+## 最小读取集合
+
+1. `.workflow/status.json`
+2. `output/align/align.md`（对齐产物）
+3. `.workflow/metadata/align/index.json`
+4. `.workflow/metadata/align/entities.json`
+5. `.workflow/metadata/align/relations.json`
+6. `.workflow/runtime/align/align-notes.json`
+7. `templates/design.md`（产物骨架）
+8. `references/design-writing.md`（写法参考）
+
+## 执行顺序
+
+1. 运行前置检查
+2. 读取最小读取集合
+3. 按以下顺序生成设计：
+   - 角色定义
+   - 模块定义
+   - 页面清单
+   - 字段完整定义
+   - 流程设计
+   - 状态设计
+   - 规则设计
+   - 权限定义（细到字段级）
+4. 生成 design.md 人读产物
+5. 生成 metadata/design 机读镜像
+6. 更新 status.json
+
+## 硬规则
+
+### 设计是唯一事实源
+
+以下三类内容的完整定义必须在 design 中：
+
+1. 字段完整定义
+2. 权限完整定义
+3. 状态完整定义
+
+PRD 可为交付目的镜像这些内容，但不得独立改写语义。
+
+### 字段级权限组织
+
+1. 字段定义章节只写字段业务定义，不写字段级权限表
+2. 权限定义章节负责字段级权限
+3. 按"页面 > 角色 > 字段权限例外"组织
+4. 先写默认权限规则，再写例外字段
+5. 不要求把所有字段逐个平铺成巨大权限表
+
+### 不可做
+
+1. 不写研发级页面正文
+2. 不写高保真视觉表达
+3. 不新增 align 没确认的范围
+4. 不把 prototype 的表现层问题直接提升为业务事实
+5. 不重新判断建设类型
+6. 不重新解释原始材料
+7. 不静默合并新材料
+
+### 稳定 ID 规则
+
+1. 稳定 ID 首次在 design 阶段生成
+2. 只存在于外置机读物
+3. design.md 正文不得出现稳定 ID
+4. 第一版只使用以下前缀：
+   - `MODULE-design-NNN`
+   - `PAGE-design-NNN`
+   - `FIELD-design-NNN`
+   - `RULE-design-NNN`
+   - `FLOW-design-NNN`
+   - `REL-design-NNN`
+5. 不引入 `REQ-*`、`RISK-*`、`CASE-*`、`WVR-*`
+
+### 大型设计分块
+
+如页面 > 10 个或字段 > 50 个：
+
+1. 先生成索引（模块 → 页面 → 字段概览）
+2. 再逐块生成，每块局部自检
+3. 最后组装
+
+## 输出要求
+
+### 人读产物
+
+写入 `output/design/design.md`，按 `templates/design.md` 骨架组织。
+
+核心章节必须全部存在：
+- 角色定义
+- 模块定义
+- 页面清单
+- 字段定义
+- 规则与状态定义
+- 权限定义
+
+辅助章节可选：
+- 文档概述
+- 范围与建设方式
+- 核心业务流程
+
+### 机读产物
+
+运行 `stage-prep.py --stage design` 生成 `.workflow/metadata/design/` 下的文件：
+
+- `index.json`：总索引
+- `entities.json`：实体列表（含稳定 ID）
+- `relations.json`：关系列表
+- `modules.json`：模块定义
+- `pages.json`：页面清单
+- `fields.json`：字段定义
+- `rules.json`：规则定义
+- `states.json`：状态定义（轻量抽取）
+- `permissions.json`：权限定义（轻量抽取）
+
+### 状态更新
+
+更新 `.workflow/status.json`：
+
+- `current_stage`：更新为 `"design"`
+- `artifacts.design`：指向 `output/design/design.md`
+- `metadata_paths.design`：指向 `.workflow/metadata/design/`
+- `next_recommended`：`"prd"` 或 `"prototype"`
+
+## 停止条件
+
+1. design.md 核心章节全部存在
+2. 机读镜像已生成
+3. 人读稿与机读镜像一致
+4. 无新增 align 未确认的范围
+
+满足以上 4 条后停止，建议进入 PRD 或 prototype 阶段。
+
+## 明确不做什么
+
+1. 不写研发级页面正文（那是 PRD 的职责）
+2. 不写高保真视觉表达
+3. 不执行 review（建议 `/spm-design-review`）
+4. 不自动推进到下一阶段

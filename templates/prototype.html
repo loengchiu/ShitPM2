@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>原型 - {{项目名称}}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    .page { display: none; padding: 20px; }
+    .page.active { display: block; }
+    .nav { background: #f5f5f5; padding: 10px 20px; border-bottom: 1px solid #ddd; }
+    .nav a { margin-right: 15px; text-decoration: none; color: #333; cursor: pointer; }
+    .nav a:hover { color: #1890ff; }
+    .section { margin: 20px 0; padding: 15px; border: 1px solid #eee; border-radius: 4px; }
+    .placeholder { color: #999; font-style: italic; }
+  </style>
+</head>
+<body>
+  <nav class="nav" id="nav">
+    <!-- 按 design 页面清单生成导航 -->
+  </nav>
+
+  <!-- 每个页面一个 div.page -->
+
+  <script>
+    // 页面切换逻辑
+    document.querySelectorAll('.nav a').forEach(link => {
+      link.addEventListener('click', function(e) {
+        e.preventDefault();
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        document.getElementById(this.dataset.page).classList.add('active');
+      });
+    });
+    // 默认显示第一个页面
+    const first = document.querySelector('.page');
+    if (first) first.classList.add('active');
+  </script>
+</body>
+</html>

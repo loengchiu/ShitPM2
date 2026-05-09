@@ -1,0 +1,20 @@
+{
+  "current_stage": "prd",
+  "artifacts": {
+    "align": "output/align/align.md",
+    "design": "output/design/design.md",
+    "prd": "output/prd/prd.md"
+  },
+  "metadata_paths": {
+    "align": ".workflow/metadata/align/",
+    "design": ".workflow/metadata/design/",
+    "prd": ".workflow/metadata/prd/"
+  },
+  "latest_reviews": {},
+  "align_notes": {
+    "blocking_gaps": [],
+    "needs_ask_back": false,
+    "can_enter_design": true
+  },
+  "next_recommended": "prd-review"
+}

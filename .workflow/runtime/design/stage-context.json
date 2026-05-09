@@ -1,0 +1,17 @@
+{
+  "stage": "design",
+  "generated_at": "2026-05-09T16:49:00.123492+00:00",
+  "entity_count": 4,
+  "relation_count": 0,
+  "metadata_files": [
+    "index.json",
+    "entities.json",
+    "relations.json",
+    "modules.json",
+    "pages.json",
+    "fields.json",
+    "rules.json",
+    "states.json",
+    "permissions.json"
+  ]
+}
