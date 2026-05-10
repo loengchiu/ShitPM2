@@ -3,6 +3,6 @@
   "needs_ask_back": false,
   "ask_back_reason": null,
   "can_enter_design": true,
-  "judgement_note": "需求范围清晰：个人记账工具，一期 Web 端，3 个核心功能（记录收支、月度汇总、分类占比），边界明确（不做移动端/多人/预算）。可进入设计。",
-  "last_updated_at": "2026-05-09T17:00:00.000000+00:00"
+  "judgement_note": "需求明确，无阻塞问题，可进入设计阶段",
+  "last_updated_at": "2026-05-10T01:42:00"
 }

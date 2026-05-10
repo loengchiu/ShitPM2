@@ -1,6 +1,6 @@
 # Metadata Anchor 规则
 
-> 本文件是 anchor-build.py 和 anchor-verify.py 的规则来源。
+> 本文件是 stage-prep.py（anchor 生成）和 anchor-verify.py（anchor 校验）的规则来源。
 > 引用规约 §3.6 和 §5.2。
 
 ## 一、稳定 ID 前缀规范

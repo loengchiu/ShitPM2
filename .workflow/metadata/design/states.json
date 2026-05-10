@@ -1,9 +1,6 @@
 [
   {
-    "id": "RULE-design-003",
-    "type": "state",
-    "title": "收支记录无工作流状态",
-    "description": "收支记录创建即完成，无状态迁移",
-    "applies_to": "收支记录实体"
+    "title": "状态定义",
+    "line": 92
   }
 ]

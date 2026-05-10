@@ -1,0 +1,16 @@
+{
+  "issues": [
+    {
+      "code": "STYLE002",
+      "severity": "warning",
+      "line": 119,
+      "message": "疑似动作流水账：连续 8 个短步骤",
+      "suggestion": "改用自然段落描述，加入展示规则、状态流转和异常边界"
+    }
+  ],
+  "summary": {
+    "error": 0,
+    "warning": 1,
+    "info": 0
+  }
+}

@@ -3,7 +3,7 @@
   "title": "ReviewResult",
   "description": "review 结果机读 JSON",
   "type": "object",
-  "required": ["stage", "verdict", "issues", "issue_layer", "affected_objects", "needs_upstream_sync", "next_recommended"],
+  "required": ["stage", "verdict", "issues", "issue_layer", "affected_objects", "needs_upstream_sync", "next_recommended", "reviewed_at"],
   "properties": {
     "stage": {
       "type": "string",
@@ -53,6 +53,10 @@
     "next_recommended": {
       "type": "string",
       "description": "下一步建议"
+    },
+    "reviewed_at": {
+      "type": "string",
+      "description": "ISO 8601 时间戳"
     }
   },
   "additionalProperties": false

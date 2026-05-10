@@ -1,6 +1,26 @@
 [
-  {"id": "PAGE-design-001", "type": "page", "title": "收支记录列表页", "line": 30, "module": "记账管理模块", "description": "展示所有收支记录，支持按月份筛选、搜索、删除"},
-  {"id": "PAGE-design-002", "type": "page", "title": "新增编辑收支页", "line": 31, "module": "记账管理模块", "description": "新增或编辑一笔收支记录"},
-  {"id": "PAGE-design-003", "type": "page", "title": "月度汇总页", "line": 32, "module": "统计分析模块", "description": "按月展示收入总额、支出总额、净收支"},
-  {"id": "PAGE-design-004", "type": "page", "title": "分类占比页", "line": 33, "module": "统计分析模块", "description": "按分类展示支出占比饼图"}
+  {
+    "id": "PAGE-design-001",
+    "type": "page",
+    "title": "我的周报列表页",
+    "line": 59
+  },
+  {
+    "id": "PAGE-design-002",
+    "type": "page",
+    "title": "周报填写页",
+    "line": 59
+  },
+  {
+    "id": "PAGE-design-003",
+    "type": "page",
+    "title": "团队周报汇总页",
+    "line": 59
+  },
+  {
+    "id": "PAGE-design-004",
+    "type": "page",
+    "title": "历史归档页",
+    "line": 59
+  }
 ]

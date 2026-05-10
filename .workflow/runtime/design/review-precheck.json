@@ -1,0 +1,109 @@
+{
+  "stage": "design",
+  "artifact_path": "output/design/design.md",
+  "metadata_paths": [
+    ".workflow/metadata/design/entities.json",
+    ".workflow/metadata/design/fields.json",
+    ".workflow/metadata/design/index.json",
+    ".workflow/metadata/design/modules.json",
+    ".workflow/metadata/design/pages.json",
+    ".workflow/metadata/design/permissions.json",
+    ".workflow/metadata/design/relations.json",
+    ".workflow/metadata/design/rules.json",
+    ".workflow/metadata/design/states.json"
+  ],
+  "deterministic_checks": [
+    {
+      "check": "artifact_exists",
+      "passed": true,
+      "detail": "output/design/design.md",
+      "size_chars": 2357
+    },
+    {
+      "check": "core_section_present",
+      "passed": true,
+      "detail": "角色定义"
+    },
+    {
+      "check": "core_section_present",
+      "passed": true,
+      "detail": "模块定义"
+    },
+    {
+      "check": "core_section_present",
+      "passed": true,
+      "detail": "页面清单"
+    },
+    {
+      "check": "core_section_present",
+      "passed": true,
+      "detail": "字段定义"
+    },
+    {
+      "check": "core_section_present",
+      "passed": true,
+      "detail": "规则与状态定义"
+    },
+    {
+      "check": "core_section_present",
+      "passed": true,
+      "detail": "权限定义"
+    },
+    {
+      "check": "metadata_file_exists",
+      "passed": true,
+      "detail": ".workflow/metadata/design/index.json"
+    },
+    {
+      "check": "metadata_file_exists",
+      "passed": true,
+      "detail": ".workflow/metadata/design/entities.json"
+    },
+    {
+      "check": "metadata_file_exists",
+      "passed": true,
+      "detail": ".workflow/metadata/design/relations.json"
+    },
+    {
+      "check": "metadata_file_exists",
+      "passed": true,
+      "detail": ".workflow/metadata/design/modules.json"
+    },
+    {
+      "check": "metadata_file_exists",
+      "passed": true,
+      "detail": ".workflow/metadata/design/pages.json"
+    },
+    {
+      "check": "metadata_file_exists",
+      "passed": true,
+      "detail": ".workflow/metadata/design/fields.json"
+    },
+    {
+      "check": "metadata_file_exists",
+      "passed": true,
+      "detail": ".workflow/metadata/design/rules.json"
+    },
+    {
+      "check": "metadata_file_exists",
+      "passed": true,
+      "detail": ".workflow/metadata/design/states.json"
+    },
+    {
+      "check": "metadata_file_exists",
+      "passed": true,
+      "detail": ".workflow/metadata/design/permissions.json"
+    },
+    {
+      "check": "stable_id_leak",
+      "passed": false,
+      "detail": "人读稿中发现 4 处稳定 ID 泄漏"
+    }
+  ],
+  "blocking_issues": [],
+  "warnings": [
+    "人读稿中发现 4 处稳定 ID 泄漏"
+  ],
+  "can_start_review": true,
+  "recommended_focus": "正文写法与一致性"
+}

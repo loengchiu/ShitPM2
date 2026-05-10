@@ -4,7 +4,7 @@
 职责：检查 PRD 正文中可机械识别的 8 类问题。
 不做业务语义判断，不做全文重写。
 
-用法：python prd-style-lint.py <prd_file_path> [--format text|json]
+用法：python prd-style-lint.py <prd_file_path> [--format text|json] [--output <path>]
 
 问题类型：
   STYLE001 - 标签式正文
@@ -325,7 +325,7 @@ def format_json(issues: list) -> str:
 
 def main():
     if len(sys.argv) < 2:
-        print("用法: python prd-style-lint.py <prd_file> [--format text|json]", file=sys.stderr)
+        print("用法: python prd-style-lint.py <prd_file> [--format text|json] [--output <path>]", file=sys.stderr)
         sys.exit(1)
 
     prd_path = Path(sys.argv[1]).resolve()
@@ -339,13 +339,26 @@ def main():
         if idx + 1 < len(sys.argv):
             output_format = sys.argv[idx + 1]
 
+    output_path = None
+    if "--output" in sys.argv:
+        idx = sys.argv.index("--output")
+        if idx + 1 < len(sys.argv):
+            output_path = Path(sys.argv[idx + 1])
+
     with open(prd_path, encoding="utf-8") as f:
         content = f.read()
 
     issues = run_lint(content)
 
+    json_output = format_json(issues)
+
+    if output_path:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write(json_output)
+
     if output_format == "json":
-        print(format_json(issues))
+        print(json_output)
     else:
         print(format_text(issues))
 

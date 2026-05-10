@@ -1,0 +1,86 @@
+{
+  "stage": "prd",
+  "artifact_path": "output/prd/prd.md",
+  "metadata_paths": [
+    ".workflow/metadata/prd/entities.json",
+    ".workflow/metadata/prd/field-anchor.json",
+    ".workflow/metadata/prd/index.json",
+    ".workflow/metadata/prd/page-anchor.json",
+    ".workflow/metadata/prd/relations.json",
+    ".workflow/metadata/prd/rule-anchor.json"
+  ],
+  "deterministic_checks": [
+    {
+      "check": "artifact_exists",
+      "passed": true,
+      "detail": "output/prd/prd.md",
+      "size_chars": 4231
+    },
+    {
+      "check": "core_section_present",
+      "passed": true,
+      "detail": "详细需求说明"
+    },
+    {
+      "check": "core_section_present",
+      "passed": true,
+      "detail": "权限汇总"
+    },
+    {
+      "check": "core_section_present",
+      "passed": true,
+      "detail": "数据字典"
+    },
+    {
+      "check": "core_section_present",
+      "passed": true,
+      "detail": "状态机"
+    },
+    {
+      "check": "metadata_file_exists",
+      "passed": true,
+      "detail": ".workflow/metadata/prd/index.json"
+    },
+    {
+      "check": "metadata_file_exists",
+      "passed": true,
+      "detail": ".workflow/metadata/prd/entities.json"
+    },
+    {
+      "check": "metadata_file_exists",
+      "passed": true,
+      "detail": ".workflow/metadata/prd/relations.json"
+    },
+    {
+      "check": "metadata_file_exists",
+      "passed": true,
+      "detail": ".workflow/metadata/prd/page-anchor.json"
+    },
+    {
+      "check": "metadata_file_exists",
+      "passed": true,
+      "detail": ".workflow/metadata/prd/rule-anchor.json 为空数组（允许为空）"
+    },
+    {
+      "check": "metadata_file_exists",
+      "passed": true,
+      "detail": ".workflow/metadata/prd/field-anchor.json"
+    },
+    {
+      "check": "stable_id_leak",
+      "passed": true,
+      "detail": "无稳定 ID 泄漏"
+    },
+    {
+      "check": "prd_style_lint",
+      "passed": false,
+      "detail": "lint 发现 1 个问题"
+    }
+  ],
+  "blocking_issues": [],
+  "warnings": [
+    "STYLE002: 疑似动作流水账：连续 8 个短步骤"
+  ],
+  "can_start_review": true,
+  "recommended_focus": "正文写法与一致性"
+}

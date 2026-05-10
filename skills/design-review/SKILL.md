@@ -17,8 +17,10 @@ triggers:
 
 ### 第一段：确定性预检查
 
-1. 检查 design.md 是否存在
-2. 检查核心章节是否全部存在：
+1. 运行 `review-precheck.py --stage design`，生成 `.workflow/runtime/design/review-precheck.json`
+2. 如 `can_start_review` = false，停止并输出阻塞项
+3. 检查 design.md 是否存在
+4. 检查核心章节是否全部存在：
    - 角色定义
    - 模块定义
    - 页面清单
@@ -57,7 +59,7 @@ triggers:
 
 ### 机读结果
 
-写入 `.workflow/reviews/design-review.json`，包含：
+写入 `.workflow/reviews/design-review-N.json`（N 为同阶段递增序号），包含：
 
 - `stage`: `"design"`
 - `verdict`: `"通过"` / `"有问题需修改"` / `"阻塞，不能继续"`
@@ -66,10 +68,11 @@ triggers:
 - `affected_objects`: 受影响对象
 - `needs_upstream_sync`: 是否需要回上游
 - `next_recommended`: 下一步建议
+- `reviewed_at`: ISO 8601 时间戳
 
 ### 人读摘要
 
-简短 Markdown，包含：
+写入 `.workflow/reviews/design-review-N.md`（N 为同阶段递增序号），包含：
 
 1. 结论
 2. 主要问题

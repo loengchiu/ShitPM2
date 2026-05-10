@@ -1,10 +1,22 @@
 [
   {
-    "title": "四、详细需求说明",
-    "line": 15
+    "prd_page": "我的周报列表页",
+    "design_page": "PAGE-design-001",
+    "prd_line": 31
   },
   {
-    "title": "页面级权限",
-    "line": 85
+    "prd_page": "周报填写页",
+    "design_page": "PAGE-design-002",
+    "prd_line": 43
+  },
+  {
+    "prd_page": "团队周报汇总页",
+    "design_page": "PAGE-design-003",
+    "prd_line": 59
+  },
+  {
+    "prd_page": "历史归档页",
+    "design_page": "PAGE-design-004",
+    "prd_line": 71
   }
 ]

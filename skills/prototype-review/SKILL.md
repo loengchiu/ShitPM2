@@ -17,7 +17,9 @@ triggers:
 
 ### 第一段：确定性预检查
 
-1. 检查 index.html 是否存在且为有效 HTML
+1. 运行 `review-precheck.py --stage prototype`，生成 `.workflow/runtime/prototype/review-precheck.json`
+2. 如 `can_start_review` = false，停止并输出阻塞项
+3. 检查 index.html 是否存在且为有效 HTML
 2. 检查 metadata/prototype 是否完整（index.json、page-map.json）
 3. 检查原型是否读取了 design.md
 
@@ -43,12 +45,14 @@ triggers:
 
 ### 机读结果
 
-写入 `.workflow/reviews/prototype-review.json`，结构同 review-result.schema.json。
+写入 `.workflow/reviews/prototype-review-N.json`（N 为同阶段递增序号），结构同 review-result.schema.json。
 verdict 字段只允许三档值。
+
+最小字段：`stage`、`verdict`、`issues`、`issue_layer`、`affected_objects`、`needs_upstream_sync`、`next_recommended`、`reviewed_at`。
 
 ### 人读摘要
 
-简短 Markdown，包含：
+写入 `.workflow/reviews/prototype-review-N.md`（N 为同阶段递增序号），包含：
 
 1. 结论
 2. 主要问题

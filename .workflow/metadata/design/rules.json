@@ -2,13 +2,31 @@
   {
     "id": "RULE-design-001",
     "type": "rule",
-    "title": "业务规则",
-    "line": 70
+    "title": "规则",
+    "line": 85
   },
   {
-    "id": "RULE-design-002",
+    "id": "RULE-design-005",
     "type": "rule",
-    "title": "统计规则",
-    "line": 78
+    "title": "每人每周仅可创建一份周报，如已有草稿或已提交的周报，不可重复...",
+    "line": 87
+  },
+  {
+    "id": "RULE-design-006",
+    "type": "rule",
+    "title": "组长仅可查看本组所有成员的周报，不可查看其他组",
+    "line": 88
+  },
+  {
+    "id": "RULE-design-007",
+    "type": "rule",
+    "title": "提交人字段仅可设置为固定用户列表中的成员，不可任意填写",
+    "line": 89
+  },
+  {
+    "id": "RULE-design-008",
+    "type": "rule",
+    "title": "周报删除为物理删除，删除后不可恢复",
+    "line": 90
   }
 ]

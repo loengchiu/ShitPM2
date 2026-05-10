@@ -1,8 +1,1 @@
-[
-  {"prd_rule": "金额必须大于0", "design_rule": "RULE-design-001", "prd_lines": [24, 43]},
-  {"prd_rule": "分类从枚举列表选择", "design_rule": "RULE-design-002", "prd_lines": [44]},
-  {"prd_rule": "日期不得晚于当天", "design_rule": "RULE-design-003", "prd_lines": [49]},
-  {"prd_rule": "删除为物理删除", "design_rule": "RULE-design-004", "prd_lines": [35]},
-  {"prd_rule": "月度汇总按自然月计算", "design_rule": "RULE-design-005", "prd_lines": [57]},
-  {"prd_rule": "分类占比仅统计支出", "design_rule": "RULE-design-006", "prd_lines": [77]}
-]
+[]

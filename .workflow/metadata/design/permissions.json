@@ -5,7 +5,7 @@
     "title": "用户完整权限",
     "description": "单用户系统，用户对所有页面和字段拥有完整读写权限",
     "pages": ["PAGE-design-001", "PAGE-design-002", "PAGE-design-003", "PAGE-design-004"],
-    "fields": ["FIELD-design-001", "FIELD-design-002", "FIELD-design-003", "FIELD-design-004", "FIELD-design-005", "FIELD-design-006", "FIELD-design-007", "FIELD-design-008"],
+    "fields": ["FIELD-design-001", "FIELD-design-002", "FIELD-design-003", "FIELD-design-004", "FIELD-design-005", "FIELD-design-006", "FIELD-design-007", "FIELD-design-008", "FIELD-design-009"],
     "access": "full"
   }
 ]

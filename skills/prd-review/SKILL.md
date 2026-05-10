@@ -17,8 +17,10 @@ triggers:
 
 ### 第一段：确定性预检查
 
-1. 检查 prd.md 是否存在
-2. 检查核心章节是否全部存在：
+1. 运行 `review-precheck.py --stage prd`，生成 `.workflow/runtime/prd/review-precheck.json`
+2. 如 `can_start_review` = false，停止并输出阻塞项
+3. 检查 prd.md 是否存在
+4. 检查核心章节是否全部存在：
    - 详细需求说明
    - 权限汇总
    - 数据字典
@@ -78,11 +80,13 @@ triggers:
 
 ### 机读结果
 
-写入 `.workflow/reviews/prd-review.json`，结构同 review-result.schema.json。
+写入 `.workflow/reviews/prd-review-N.json`（N 为同阶段递增序号），结构同 review-result.schema.json。
+
+最小字段：`stage`、`verdict`、`issues`、`issue_layer`、`affected_objects`、`needs_upstream_sync`、`next_recommended`、`reviewed_at`。
 
 ### 人读摘要
 
-简短 Markdown，包含：
+写入 `.workflow/reviews/prd-review-N.md`（N 为同阶段递增序号），包含：
 
 1. 结论
 2. 主要问题（逐页引用）
