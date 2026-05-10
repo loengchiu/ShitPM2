@@ -1,16 +1,5 @@
 [
-  {
-    "id": "STATE-design-001",
-    "type": "state",
-    "title": "草稿",
-    "description": "周报已保存但未提交，仅本人可见",
-    "line": 96
-  },
-  {
-    "id": "STATE-design-002",
-    "type": "state",
-    "title": "已提交",
-    "description": "周报已提交，组长可在汇总页查看",
-    "line": 97
-  }
+  {"id": "STATE-design-001", "type": "state", "title": "draft", "entity_ref": "MODULE-design-001"},
+  {"id": "STATE-design-002", "type": "state", "title": "submitted", "entity_ref": "MODULE-design-001"},
+  {"id": "STATE-design-003", "type": "state", "title": "withdrawn", "entity_ref": "MODULE-design-001"}
 ]

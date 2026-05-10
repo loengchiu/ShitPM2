@@ -1,11 +1,7 @@
 [
-  {
-    "id": "RULE-design-004",
-    "type": "permission",
-    "title": "用户完整权限",
-    "description": "单用户系统，用户对所有页面和字段拥有完整读写权限",
-    "pages": ["PAGE-design-001", "PAGE-design-002", "PAGE-design-003", "PAGE-design-004"],
-    "fields": ["FIELD-design-001", "FIELD-design-002", "FIELD-design-003", "FIELD-design-004", "FIELD-design-005", "FIELD-design-006", "FIELD-design-007", "FIELD-design-008", "FIELD-design-009", "FIELD-design-010"],
-    "access": "full"
-  }
+  {"id": "PERM-design-001", "type": "permission", "title": "member:创建周报", "role": "member", "action": "create"},
+  {"id": "PERM-design-002", "type": "permission", "title": "member:编辑草稿", "role": "member", "action": "edit"},
+  {"id": "PERM-design-003", "type": "permission", "title": "member:撤回周报", "role": "member", "action": "withdraw"},
+  {"id": "PERM-design-004", "type": "permission", "title": "admin:查看所有周报", "role": "admin", "action": "view_all"},
+  {"id": "PERM-design-005", "type": "permission", "title": "admin:导出周报", "role": "admin", "action": "export"}
 ]

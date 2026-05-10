@@ -1,7 +1,7 @@
 # 对齐写法参考
 
 > 本文件是对齐阶段的示例和对照说明。
-> 硬规则在 `skills/align/SKILL.md`。
+> 硬规则在 `skills/spm-align/SKILL.md`。
 
 ## 一、目标写法
 

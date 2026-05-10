@@ -70,7 +70,8 @@ def safe_remove_junction(path: Path, label: str) -> None:
     """安全移除 junction。如果不是 ShitPM 管理的，报错。"""
     if not path.exists() and not path.is_symlink():
         return
-    if path.is_symlink() or path.is_junction():
+    is_junction = getattr(path, 'is_junction', lambda: False)()
+    if path.is_symlink() or is_junction:
         if not is_shitpm_junction(path):
             raise RuntimeError(
                 f'{label}: 路径已存在但不是 ShitPM 管理的 junction: {path}\n'

@@ -2,7 +2,12 @@
   "schema_version": "1.0.0",
   "stage": "design",
   "artifact_path": "output/design/design.md",
-  "generated_at": "2026-05-10T04:13:39.038490+00:00",
-  "entity_count": 24,
-  "relation_count": 0
+  "entities": [
+    {"id": "MODULE-design-001", "type": "module", "title": "report"},
+    {"id": "PAGE-design-001", "type": "page", "title": "我的周报列表"},
+    {"id": "PAGE-design-002", "type": "page", "title": "填写周报"},
+    {"id": "PAGE-design-003", "type": "page", "title": "团队汇总"},
+    {"id": "PAGE-design-004", "type": "page", "title": "历史归档"}
+  ],
+  "relations": []
 }

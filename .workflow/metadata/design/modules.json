@@ -1,14 +1,1 @@
-[
-  {
-    "id": "MODULE-design-001",
-    "type": "module",
-    "title": "周报管理模块",
-    "line": 25
-  },
-  {
-    "id": "MODULE-design-002",
-    "type": "module",
-    "title": "周报汇总模块",
-    "line": 30
-  }
-]
+[{"id": "MODULE-design-001", "type": "module", "title": "report"}]

@@ -24,6 +24,9 @@ ID_PREFIXES = {
     "field": "FIELD",
     "rule": "RULE",
     "flow": "FLOW",
+    "permission": "PERM",
+    "state": "STATE",
+    "role": "ROLE",
 }
 
 # 中文关键词到实体类型的映射
@@ -102,7 +105,7 @@ def read_existing_entities(stage: str, project_root: Path) -> tuple:
     if not metadata_dir.exists():
         return title_to_id, max_ids
 
-    id_pattern = re.compile(r'^(MODULE|PAGE|FIELD|RULE|FLOW)-' + re.escape(stage) + r'-(\d{3})$')
+    id_pattern = re.compile(r'^(MODULE|PAGE|FIELD|RULE|FLOW|PERM|STATE|ROLE)-' + re.escape(stage) + r'-(\d{3})$')
     for json_file in metadata_dir.glob("*.json"):
         try:
             with open(json_file, encoding="utf-8") as f:
@@ -491,11 +494,9 @@ def generate_design_metadata(content: str, stage: str, project_root: Path) -> di
         "fields": fields,
         "rules": rules,
     }
-    # 只在表格解析到内容时才写入，避免覆盖手动维护的文件
-    if table_states:
-        result["states"] = table_states
-    if table_perms:
-        result["permissions"] = table_perms
+    # 始终写入 states 和 permissions，覆盖可能存在的陈旧文件
+    result["states"] = table_states
+    result["permissions"] = table_perms
     return result
 
 
@@ -635,9 +636,12 @@ def _extract_prd_page_anchors(content: str, headings: list, page_title_to_id: di
 
 
 def _clean_page_title(title: str) -> str:
-    """去除标题中的中文序号前缀，如 '（一）我的周报列表页' → '我的周报列表页'"""
-    # 匹配 （一）、（二）等前缀
+    """去除标题中的中文序号前缀
+    如 '（一）我的周报列表页' → '我的周报列表页'
+    如 '1．我的周报列表页' → '我的周报列表页'
+    """
     cleaned = re.sub(r'^[（(][一二三四五六七八九十\d]+[）)]\s*', '', title)
+    cleaned = re.sub(r'^\d+[．.]\s*', '', cleaned)
     return cleaned.strip()
 
 
@@ -645,35 +649,29 @@ def _extract_prd_rule_anchors(content: str, rule_title_to_id: dict) -> list:
     """从 PRD 正文中提取规则描述，匹配 design RULE ID
 
     匹配策略：
-    1. 在"规则"章节找编号规则文本（如 "1. 每人每周仅可..."）
-    2. 对每段规则文本，检查是否包含 design 规则标题中的关键词
+    1. 对 PRD 全文逐行扫描
+    2. 对每行文本，检查是否包含 design 规则标题中的关键词
     3. 如果匹配成功，建立 PRD 规则行 → design RULE ID 的 anchor
     """
     anchors = []
     if not rule_title_to_id:
         return anchors
 
-    # 提取 PRD 正文中"规则"章节的编号规则文本
-    prd_rules = _extract_numbered_rules(content)
-    if not prd_rules:
-        return anchors
-
-    # 对每条 PRD 规则，尝试匹配 design 规则标题
-    for prd_rule in prd_rules:
+    lines = content.split('\n')
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if not stripped or stripped.startswith('#'):
+            continue
         for design_title, design_id in rule_title_to_id.items():
-            # 跳过过于泛化的标题（如仅"规则"二字）
             if len(design_title) <= 3:
                 continue
-            # 检查 PRD 规则文本是否包含 design 规则标题的关键片段
-            if _fuzzy_match(prd_rule["text"], design_title):
+            if _fuzzy_match(stripped, design_title):
                 anchors.append({
                     "prd_rule": design_title,
                     "design_rule": design_id,
-                    "prd_line": prd_rule["line"],
+                    "prd_line": i + 1,
                 })
-                break
 
-    # 去重：同一条 design_rule 只保留第一个匹配
     seen_ids = set()
     deduped = []
     for a in anchors:
@@ -948,14 +946,26 @@ def update_status(stage: str, project_root: Path, dry_run: bool = False):
     with open(status_path, encoding="utf-8") as f:
         status = json.load(f)
 
-    status["current_stage"] = stage
+    STAGE_ORDER = {"align": 0, "design": 1, "prd": 2, "prototype": 3}
+    old_stage = status.get("current_stage", "align")
+    if STAGE_ORDER.get(stage, 0) >= STAGE_ORDER.get(old_stage, 0):
+        status["current_stage"] = stage
     artifact_path = ARTIFACT_PATHS.get(stage)
     if artifact_path:
         status.setdefault("artifacts", {})[stage] = artifact_path
     status.setdefault("metadata_paths", {})[stage] = f".workflow/metadata/{stage}/"
 
-    next_map = {"align": "design", "design": "prd", "prd": "prototype", "prototype": "done"}
-    status["next_recommended"] = next_map.get(stage, stage)
+    next_map = {"align": "design", "design": "prd", "prd": "prototype", "prototype": "done", "fix": "design"}
+    base_next = next_map.get(stage, stage)
+
+    if base_next == "done":
+        status["next_recommended"] = "done"
+    else:
+        latest_review = status.get("latest_reviews", {}).get(stage, {})
+        if latest_review.get("verdict") == "通过":
+            status["next_recommended"] = base_next
+        else:
+            status["next_recommended"] = f"{stage}-review"
 
     # 读取当前阶段的 review 文件，取最新的 verdict 和 reviewed_at
     reviews_dir = project_root / ".workflow" / "reviews"
@@ -970,7 +980,6 @@ def update_status(stage: str, project_root: Path, dry_run: bool = False):
                     "file": review_file.name,
                     "verdict": review_data.get("verdict"),
                     "reviewed_at": review_data.get("reviewed_at"),
-                    "review_round": review_data.get("review_round"),
                 })
             except (json.JSONDecodeError, OSError):
                 continue

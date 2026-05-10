@@ -1,5 +1,5 @@
 {
-  "current_stage": "prd",
+  "current_stage": "prototype",
   "artifacts": {
     "align": "output/align/align.md",
     "design": "output/design/design.md",
@@ -13,17 +13,17 @@
     "prototype": ".workflow/metadata/prototype/"
   },
   "latest_reviews": {
-    "prototype": {
-      "verdict": "通过",
-      "reviewed_at": "2026-05-10T02:02:00"
-    },
     "design": {
       "verdict": "通过",
       "reviewed_at": "2026-05-10T18:30:00+08:00"
     },
     "prd": {
       "verdict": "通过",
-      "reviewed_at": "2026-05-10T18:30:00+08:00"
+      "reviewed_at": "2026-05-10T19:00:00+08:00"
+    },
+    "prototype": {
+      "verdict": "通过",
+      "reviewed_at": "2026-05-10T02:02:00+08:00"
     }
   },
   "align_notes": {
@@ -32,7 +32,7 @@
     "ask_back_reason": null,
     "can_enter_design": true,
     "judgement_note": "需求明确，无阻塞问题，可进入设计阶段",
-    "last_updated_at": "2026-05-10T01:42:00"
+    "last_updated_at": "2026-05-10T01:42:00+08:00"
   },
-  "next_recommended": "prototype"
+  "next_recommended": "done"
 }

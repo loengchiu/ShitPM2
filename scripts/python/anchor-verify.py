@@ -35,7 +35,7 @@ METADATA_FILE_MAP = {
     "prototype": ["index.json", "page-map.json"],
 }
 
-STABLE_ID_PATTERN = re.compile(r'^(MODULE|PAGE|FIELD|RULE|FLOW|REL)-(design|prd)-\d{3}$')
+STABLE_ID_PATTERN = re.compile(r'^(MODULE|PAGE|FIELD|RULE|FLOW|REL|PERM|STATE|ROLE|REQ|RISK|CASE|WVR)-(design|prd)-\d{3}$')
 
 
 class VerifyResult:

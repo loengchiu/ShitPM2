@@ -1,7 +1,1 @@
-{
-  "system_or_page_clues": [],
-  "material_paths": [],
-  "confirmed_roles": ["成员", "组长"],
-  "confirmed_scenes": ["成员提交周报", "组长查看本组汇总", "按周归档查看历史周报"],
-  "confirmed_objects": ["周报"]
-}
+[{"id": "E01", "name": "report", "description": "周报"}]

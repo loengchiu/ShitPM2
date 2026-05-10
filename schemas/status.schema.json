@@ -7,7 +7,7 @@
   "properties": {
     "current_stage": {
       "type": "string",
-      "enum": ["align", "design", "prd", "prototype", "fix"],
+      "enum": ["align", "design", "design-review", "prd", "prd-review", "prototype", "prototype-review", "fix", "done"],
       "description": "当前所处阶段"
     },
     "artifacts": {
@@ -48,7 +48,7 @@
     },
     "next_recommended": {
       "type": "string",
-      "enum": ["align", "design", "prd", "prototype", "fix"],
+      "enum": ["align", "design", "design-review", "prd", "prd-review", "prototype", "prototype-review", "fix", "done"],
       "description": "下一步唯一建议"
     }
   },

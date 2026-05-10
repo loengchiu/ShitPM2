@@ -1,9 +1,5 @@
 {
-  "schema_version": "1.0.0",
-  "stage": "align",
-  "generated_at": "2026-05-09T17:43:50.131210+00:00",
-  "request_summary": "建设一套团队周报收集工具，支持成员提交周报、组长查看本组汇总、按周归档历史周报",
-  "solution_shape": "new_build",
-  "business_stage": "初期",
-  "context_gaps": []
+  "project_name": "团队周报收集工具",
+  "pages": ["page-1", "page-2", "page-3", "page-4"],
+  "roles": ["member", "admin"]
 }

@@ -45,7 +45,7 @@ CORE_SECTIONS = {
     "prototype": [],
 }
 
-STABLE_ID_PATTERN = re.compile(r'(MODULE|PAGE|FIELD|RULE|FLOW|REL)-(design|prd)-\d{3}')
+STABLE_ID_PATTERN = re.compile(r'(MODULE|PAGE|FIELD|RULE|FLOW|REL|REQ|RISK|CASE|WVR)-(design|prd)-\d{3}')
 
 
 def check_artifact_exists(project_root: Path, stage: str) -> dict:

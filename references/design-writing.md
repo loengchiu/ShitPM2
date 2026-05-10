@@ -1,7 +1,7 @@
 # 设计写法参考
 
 > 本文件是设计阶段的示例和对照说明。
-> 硬规则在 `skills/design/SKILL.md`。
+> 硬规则在 `skills/spm-design/SKILL.md`。
 
 ## 一、模块定义写法
 

@@ -11,7 +11,7 @@ import json
 import sys
 from pathlib import Path
 
-VALID_STAGES = ["align", "design", "prd", "prototype", "fix"]
+VALID_STAGES = ["align", "design", "design-review", "prd", "prd-review", "prototype", "prototype-review", "fix", "done"]
 
 # 每个阶段的上游依赖
 UPSTREAM_DEPS = {
@@ -67,6 +67,7 @@ MINIMAL_READ_SET = {
         "output/design/design.md",
         ".workflow/metadata/design/",
         "templates/prototype.html",
+        "references/prototype-writing.md",
     ],
     "fix": [
         ".workflow/status.json",
@@ -119,6 +120,7 @@ def determine_stage(project_root: Path, status: dict) -> str:
     has_align = artifacts.get("align") and (project_root / artifacts["align"]).exists()
     has_design = artifacts.get("design") and (project_root / artifacts["design"]).exists()
     has_prd = artifacts.get("prd") and (project_root / artifacts["prd"]).exists()
+    has_prototype = artifacts.get("prototype") and (project_root / artifacts["prototype"]).exists()
 
     if not has_align:
         return "align"
@@ -126,12 +128,15 @@ def determine_stage(project_root: Path, status: dict) -> str:
         return "design"
     if not has_prd:
         return "prd"
-    return status.get("current_stage", "align")
+    if not has_prototype:
+        return "prototype"
+    return status.get("current_stage", "prototype")
 
 
 def determine_next(status: dict, align_notes) -> str:
-    """给出下一步建议"""
+    """给出下一步建议，考虑 review 结果"""
     current = status.get("current_stage", "align")
+    reviews = status.get("latest_reviews", {})
 
     if current == "align":
         if align_notes and align_notes.get("can_enter_design"):
@@ -141,13 +146,25 @@ def determine_next(status: dict, align_notes) -> str:
         return "align"
 
     if current == "design":
-        return "prd"
+        design_review = reviews.get("design", {})
+        if design_review.get("verdict") == "通过":
+            return "prd"
+        return "design-review"
 
     if current == "prd":
-        return "prototype"
+        prd_review = reviews.get("prd", {})
+        if prd_review.get("verdict") == "通过":
+            return "prototype"
+        return "prd-review"
 
     if current == "prototype":
-        return "done"
+        proto_review = reviews.get("prototype", {})
+        if proto_review.get("verdict") == "通过":
+            return "done"
+        return "prototype-review"
+
+    if current == "fix":
+        return "design"
 
     return current
 
@@ -217,7 +234,7 @@ def collect_context(project_root: Path) -> dict:
         "metadata_paths": status.get("metadata_paths", {}),
         "latest_reviews": status.get("latest_reviews", {}),
         "align_notes": align_notes if align_notes else {},
-        "next_recommended": determine_next(status, align_notes) if can_proceed else current_stage,
+        "next_recommended": determine_next({**status, "current_stage": actual_stage}, align_notes) if can_proceed else actual_stage,
         "gate": {
             "can_proceed": can_proceed,
             "blocking_issues": blocking_issues,

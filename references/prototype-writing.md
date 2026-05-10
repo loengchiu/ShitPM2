@@ -1,7 +1,7 @@
 # 原型写法参考
 
 > 本文件是原型阶段的示例和对照说明。
-> 硬规则在 `skills/prototype/SKILL.md`（第一轮暂不创建）。
+> 硬规则在 `skills/spm-prototype/SKILL.md`。
 
 ## 一、原型定位
 

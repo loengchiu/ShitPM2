@@ -1,4 +1,10 @@
 # === 工作流运行产物 ===
+# 以下文件由 stage-prep.py / stage-context.py / review-precheck.py 等脚本
+# 从人读产物（output/）自动生成。不纳入版本控制的原因：
+# 1. 可从人读产物确定性重建（运行 stage-prep.py --stage <stage>）
+# 2. 避免人读产物与机读镜像的合并冲突
+# 3. 单人/单分支工作流下，当前真相在磁盘上即可
+# 如需团队协作，考虑改为跟踪这些文件或引入 CI 重建步骤
 # 机读元数据（由 stage-prep.py 从 output 自动生成，含子目录）
 .workflow/metadata/**/*.json
 # 运行时上下文（如 stage-context.py / review-precheck.py 运行快照，含子目录）
@@ -21,3 +27,7 @@ __pycache__/
 
 # === Claude Code 本地配置 ===
 .claude/
+
+# === 内部规划文档 ===
+01-新辅助器实现总规约.md
+02-测试与验收.md

@@ -2,7 +2,10 @@
   "schema_version": "1.0.0",
   "stage": "prototype",
   "artifact_path": "output/prototype/index.html",
-  "generated_at": "2026-05-09T18:36:53.560695+00:00",
-  "entity_count": 0,
-  "relation_count": 0
+  "page_map": [
+    {"page_id": "page-1", "title": "我的周报列表", "source_page_ref": "PAGE-design-001"},
+    {"page_id": "page-2", "title": "填写周报", "source_page_ref": "PAGE-design-002"},
+    {"page_id": "page-3", "title": "团队汇总", "source_page_ref": "PAGE-design-003"},
+    {"page_id": "page-4", "title": "历史归档", "source_page_ref": "PAGE-design-004"}
+  ]
 }
