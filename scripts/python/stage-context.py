@@ -146,6 +146,9 @@ def determine_next(status: dict, align_notes) -> str:
     if current == "prd":
         return "prototype"
 
+    if current == "prototype":
+        return "done"
+
     return current
 
 

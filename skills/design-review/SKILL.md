@@ -85,6 +85,20 @@ triggers:
 - **有问题需修改**：零 P0，1 个 P1
 - **阻塞，不能继续**：有 P0 或 2+ 个 P1
 
+### 严重级别说明
+
+- **P0**：阻塞性缺陷（核心章节缺失、字段定义丢失、design 新增 align 未确认范围等）
+- **P1**：影响质量但不阻塞推进（字段属性缺失、权限未覆盖到字段级等）
+- **P2**：格式/风格类问题，不影响功能（稳定 ID 泄漏、lint warning 等）。**P2 必须写入 issues 数组**，但 **不计入 verdict 判定**（见上）
+
+### issue_layer 格式
+
+必须为对象 `{"structure": N, "content": N, "consistency": N}`，三个字段均为必填整数。不可使用字符串等其他类型。
+
+- `structure`：归入结构层的 issue 数
+- `content`：归入内容层的 issue 数
+- `consistency`：归入一致性层的 issue 数
+
 ## 硬规则
 
 1. review 通过后不自动推进阶段，由 PM 手动进入下一阶段

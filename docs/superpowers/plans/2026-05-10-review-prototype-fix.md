@@ -37,7 +37,7 @@
 - Create: `.workflow/reviews/prd-review-1.json`
 - Modify: `.workflow/status.json`
 
-- [ ] **Step 1: 读取 design.md 和 metadata/design，执行 design-review 检查项**
+- [x] **Step 1: 读取 design.md 和 metadata/design，执行 design-review 检查项**
 
 读取以下文件：
 - `output/design/design.md`
@@ -52,7 +52,7 @@
 6. 稳定 ID 正确
 7. 不新增 align 未确认范围
 
-- [ ] **Step 2: 写入 design-review-1.json**
+- [x] **Step 2: 写入 design-review-1.json**
 
 将 review 结果写入 `.workflow/reviews/design-review-1.json`，结构严格符合 `schemas/review-result.schema.json`：
 
@@ -73,7 +73,7 @@
 {"id": "DR-001", "severity": "P0|P1|P2", "description": "...", "location": "文件:行号", "suggestion": "..."}
 ```
 
-- [ ] **Step 3: 读取 prd.md 和 metadata/prd，执行 prd-review 检查项**
+- [x] **Step 3: 读取 prd.md 和 metadata/prd，执行 prd-review 检查项**
 
 读取以下文件：
 - `output/prd/prd.md`
@@ -84,7 +84,7 @@
 - 三层覆盖（展示规则、交互逻辑、异常边界）
 - 一致性（与 design 镜像）
 
-- [ ] **Step 4: 写入 prd-review-1.json**
+- [x] **Step 4: 写入 prd-review-1.json**
 
 ```json
 {
@@ -98,7 +98,7 @@
 }
 ```
 
-- [ ] **Step 5: 更新 status.json 的 latest_reviews**
+- [x] **Step 5: 更新 status.json 的 latest_reviews**
 
 ```json
 {
@@ -117,7 +117,7 @@
 }
 ```
 
-- [ ] **Step 6: 验证**
+- [x] **Step 6: 验证**
 
 ```bash
 python -c "import json; json.load(open('.workflow/reviews/design-review-1.json')); json.load(open('.workflow/reviews/prd-review-1.json')); print('OK')"
@@ -130,7 +130,7 @@ python -c "import json; json.load(open('.workflow/reviews/design-review-1.json')
 **Files:**
 - Modify: `scripts/python/stage-prep.py`
 
-- [ ] **Step 1: 在 stage-prep.py 的 main() 末尾增加 status.json 同步逻辑**
+- [x] **Step 1: 在 stage-prep.py 的 main() 末尾增加 status.json 同步逻辑**
 
 在 `print(json.dumps(result, ...))` 之前，增加 `update_status()` 调用：
 
@@ -169,13 +169,13 @@ def update_status(stage: str, project_root: Path, dry_run: bool = False):
     update_status(stage, project_root, dry_run=args.dry_run)
 ```
 
-- [ ] **Step 2: 验证 stage-prep.py 语法**
+- [x] **Step 2: 验证 stage-prep.py 语法**
 
 ```bash
 python -c "import py_compile; py_compile.compile('scripts/python/stage-prep.py', doraise=True); print('OK')"
 ```
 
-- [ ] **Step 3: 运行 stage-prep.py --stage prd --dry-run 确认不报错**
+- [x] **Step 3: 运行 stage-prep.py --stage prd --dry-run 确认不报错**
 
 ```bash
 python scripts/python/stage-prep.py --stage prd --project-root . --dry-run
@@ -191,7 +191,7 @@ python scripts/python/stage-prep.py --stage prd --project-root . --dry-run
 - Create: `.workflow/metadata/prototype/page-map.json`
 - Modify: `.workflow/status.json`
 
-- [ ] **Step 1: 运行 stage-context.py 确认可进入 prototype**
+- [x] **Step 1: 运行 stage-context.py 确认可进入 prototype**
 
 ```bash
 python scripts/python/stage-context.py .
@@ -199,163 +199,19 @@ python scripts/python/stage-context.py .
 
 预期：`next_recommended` = `"prototype"`，`gate.can_proceed` = true。
 
-- [ ] **Step 2: 读取 design.md 的页面清单**
+- [x] **Step 2: 读取 design.md 的页面清单**
 
-从 `output/design/design.md` 提取 4 个页面：
-1. 收支记录列表页
-2. 新增编辑收支页
-3. 月度汇总页
-4. 分类占比页
+从 `output/design/design.md` 提取页面清单，生成原型。
 
-- [ ] **Step 3: 生成 output/prototype/index.html**
+- [x] **Step 3: 生成 output/prototype/index.html**
 
-按 `templates/prototype.html` 骨架，生成轻量原型。只做页面骨架和导航，不做真实数据交互。
+按 `templates/prototype.html` 骨架，生成轻量原型。包含页面骨架和导航，关键交互元素的静态展示。
 
-每个页面一个 `<div class="page" id="page-N">`，包含：
-- 页面标题
-- 主要区域占位（用 section div）
-- 关键交互元素的静态展示（按钮、表单字段、表格列头）
+- [x] **Step 4: 写入 metadata/prototype/index.json**
 
-```html
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>原型 - 个人记账工具</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    .nav { background: #f5f5f5; padding: 10px 20px; border-bottom: 1px solid #ddd; }
-    .nav a { margin-right: 15px; text-decoration: none; color: #333; cursor: pointer; padding: 5px 10px; }
-    .nav a:hover, .nav a.active { color: #1890ff; border-bottom: 2px solid #1890ff; }
-    .page { display: none; padding: 20px; max-width: 1200px; margin: 0 auto; }
-    .page.active { display: block; }
-    .page-title { font-size: 20px; font-weight: bold; margin-bottom: 20px; }
-    .section { margin: 16px 0; padding: 16px; border: 1px solid #eee; border-radius: 4px; }
-    .section-title { font-size: 14px; color: #666; margin-bottom: 12px; }
-    .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid #eee; }
-    th { background: #fafafa; font-weight: 500; }
-    .tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; }
-    .tag-income { background: #e6f7e6; color: #52c41a; }
-    .tag-expense { background: #fff1f0; color: #f5222d; }
-    .card { display: inline-block; width: 30%; padding: 16px; margin: 8px 1%; border: 1px solid #eee; border-radius: 8px; text-align: center; }
-    .card-value { font-size: 24px; font-weight: bold; }
-    .card-label { font-size: 14px; color: #666; margin-top: 4px; }
-    .btn { padding: 6px 16px; border: 1px solid #d9d9d9; border-radius: 4px; background: #fff; cursor: pointer; }
-    .btn-primary { background: #1890ff; color: #fff; border-color: #1890ff; }
-    .form-row { margin-bottom: 12px; }
-    .form-label { display: block; font-size: 14px; margin-bottom: 4px; }
-    .form-input { width: 100%; padding: 6px 12px; border: 1px solid #d9d9d9; border-radius: 4px; }
-    .chart-placeholder { height: 300px; background: #fafafa; border: 1px dashed #ddd; display: flex; align-items: center; justify-content: center; color: #999; }
-  </style>
-</head>
-<body>
-  <nav class="nav">
-    <a data-page="page-1" class="active">收支记录</a>
-    <a data-page="page-2">记一笔</a>
-    <a data-page="page-3">月度汇总</a>
-    <a data-page="page-4">分类占比</a>
-  </nav>
+- [x] **Step 5: 写入 metadata/prototype/page-map.json**
 
-  <div class="page active" id="page-1">
-    <div class="page-title">收支记录列表</div>
-    <div class="toolbar">
-      <div>
-        <select class="form-input" style="width:150px"><option>2026年5月</option></select>
-        <span style="margin-left:16px;color:#52c41a">收入: ¥0.00</span>
-        <span style="margin-left:16px;color:#f5222d">支出: ¥0.00</span>
-        <span style="margin-left:16px">净收支: ¥0.00</span>
-      </div>
-      <div>
-        <input class="form-input" style="width:200px" placeholder="搜索备注...">
-        <button class="btn btn-primary" style="margin-left:8px">+ 记一笔</button>
-      </div>
-    </div>
-    <div class="section">
-      <table>
-        <tr><th>日期</th><th>类型</th><th>分类</th><th>金额</th><th>备注</th><th>操作</th></tr>
-        <tr><td colspan="6" style="text-align:center;color:#999;padding:40px">本月暂无记录，点击右上角"记一笔"开始记账</td></tr>
-      </table>
-    </div>
-  </div>
-
-  <div class="page" id="page-2">
-    <div class="page-title">新增收支记录</div>
-    <div class="section" style="max-width:600px">
-      <div class="form-row">
-        <label class="form-label">收支类型</label>
-        <button class="btn" style="margin-right:8px">收入</button><button class="btn btn-primary">支出</button>
-      </div>
-      <div class="form-row"><label class="form-label">金额 *</label><input class="form-input" placeholder="0.00"></div>
-      <div class="form-row"><label class="form-label">分类 *</label><select class="form-input"><option>请选择分类</option></select></div>
-      <div class="form-row"><label class="form-label">备注</label><textarea class="form-input" rows="3" placeholder="可选，最多200字符"></textarea></div>
-      <div class="form-row"><label class="form-label">日期 *</label><input class="form-input" type="date"></div>
-      <div style="margin-top:16px"><button class="btn btn-primary">保存</button><button class="btn" style="margin-left:8px">取消</button></div>
-    </div>
-  </div>
-
-  <div class="page" id="page-3">
-    <div class="page-title">月度汇总</div>
-    <div class="toolbar"><select class="form-input" style="width:150px"><option>2026年5月</option></select></div>
-    <div>
-      <div class="card"><div class="card-value" style="color:#52c41a">¥0.00</div><div class="card-label">收入</div></div>
-      <div class="card"><div class="card-value" style="color:#f5222d">¥0.00</div><div class="card-label">支出</div></div>
-      <div class="card"><div class="card-value">¥0.00</div><div class="card-label">净收支</div></div>
-    </div>
-    <div class="section" style="margin-top:16px"><div class="chart-placeholder">柱状图区域（按日展示收入/支出）</div></div>
-  </div>
-
-  <div class="page" id="page-4">
-    <div class="page-title">分类占比</div>
-    <div class="toolbar"><select class="form-input" style="width:150px"><option>2026年5月</option></select></div>
-    <div style="display:flex;gap:20px">
-      <div class="section" style="flex:1"><div class="chart-placeholder" style="height:250px">饼图区域（支出分类占比）</div></div>
-      <div class="section" style="flex:1"><p style="color:#999;text-align:center;padding:40px">本月暂无支出记录</p></div>
-    </div>
-  </div>
-
-  <script>
-    document.querySelectorAll('.nav a').forEach(link => {
-      link.addEventListener('click', function(e) {
-        e.preventDefault();
-        document.querySelectorAll('.nav a').forEach(a => a.classList.remove('active'));
-        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-        this.classList.add('active');
-        document.getElementById(this.dataset.page).classList.add('active');
-      });
-    });
-  </script>
-</body>
-</html>
-```
-
-- [ ] **Step 4: 写入 metadata/prototype/index.json**
-
-```json
-{
-  "schema_version": "1.0.0",
-  "stage": "prototype",
-  "artifact_path": "output/prototype/index.html",
-  "generated_at": "2026-05-10T...",
-  "page_count": 4
-}
-```
-
-- [ ] **Step 5: 写入 metadata/prototype/page-map.json**
-
-```json
-[
-  {"page_id": "page-1", "title": "收支记录列表页", "source_page_ref": "PAGE-design-001"},
-  {"page_id": "page-2", "title": "新增编辑收支页", "source_page_ref": "PAGE-design-002"},
-  {"page_id": "page-3", "title": "月度汇总页", "source_page_ref": "PAGE-design-003"},
-  {"page_id": "page-4", "title": "分类占比页", "source_page_ref": "PAGE-design-004"}
-]
-```
-
-- [ ] **Step 6: 运行 stage-prep.py --stage prototype**
+- [x] **Step 6: 运行 stage-prep.py --stage prototype**
 
 ```bash
 python scripts/python/stage-prep.py --stage prototype --project-root .
@@ -363,7 +219,7 @@ python scripts/python/stage-prep.py --stage prototype --project-root .
 
 预期：status.json 自动更新 `current_stage: "prototype"`，`next_recommended: "fix"`。
 
-- [ ] **Step 7: 运行 prototype-review**
+- [x] **Step 7: 运行 prototype-review**
 
 读取 `output/prototype/index.html` 和 `.workflow/metadata/prototype/`，按 `skills/prototype-review/SKILL.md` 的 5 项检查清单审查。将结果写入 `.workflow/reviews/prototype-review-1.json`。
 
@@ -375,19 +231,19 @@ python scripts/python/stage-prep.py --stage prototype --project-root .
 - Modify: `output/design/design.md` — 增加"标签"字段
 - Modify: `.workflow/metadata/design/fields.json` — 同步
 - Modify: `output/prd/prd.md` — 同步
-- Modify: `output/prototype/index.html` — 同步（可选）
+- Modify: `output/prototype/index.html` — 同步
 - Modify: `.workflow/status.json`
 
-- [ ] **Step 1: 按 fix SKILL.md 最小判断清单 6 步执行**
+- [x] **Step 1: 按 fix SKILL.md 最小判断清单 6 步执行**
 
-1. **读取修改指令**：在 design.md 的收支记录实体中增加一个"标签"字段
+1. **读取修改指令**：在 design.md 的周报实体中增加一个"标签"字段
 2. **判断修改指向的对象**：字段（FIELD 级别）
 3. **判定问题归属层**：设计层（design 是事实源）
 4. **判定事实源所在阶段**：design
-5. **判定受影响的最深阶段**：prd（数据字典 + 详细需求说明）、prototype（可选）
+5. **判定受影响的最深阶段**：prd（数据字典 + 详细需求说明）、prototype（列表页 + 填写页）
 6. **生成修复顺序**：design → prd → prototype
 
-- [ ] **Step 2: 更新 design.md — 增加"标签"字段**
+- [x] **Step 2: 更新 design.md — 增加"标签"字段**
 
 在字段定义表格中追加一行：
 
@@ -395,49 +251,42 @@ python scripts/python/stage-prep.py --stage prototype --project-root .
 | 标签 | string | 50 | 否 | 空 | — | — | 用户输入 | 自定义标签，用于分类标记 |
 ```
 
-在支出分类枚举后增加标签相关说明。
+- [x] **Step 3: 更新 metadata/design/fields.json**
 
-- [ ] **Step 3: 更新 metadata/design/fields.json**
+追加 FIELD-design-010 标签字段实体。
 
-追加：
-```json
-{"id": "FIELD-design-009", "type": "field", "title": "标签", "attributes": {"数据类型": "string", "长度": 50, "必填": false, "默认值": "空", "枚举值": null, "格式": null, "业务来源": "用户输入", "说明": "自定义标签，用于分类标记"}}
-```
-
-- [ ] **Step 4: 运行 stage-prep.py --stage design 同步 metadata**
+- [x] **Step 4: 运行 stage-prep.py --stage design 同步 metadata**
 
 ```bash
 python scripts/python/stage-prep.py --stage design --project-root .
 ```
 
-- [ ] **Step 5: 更新 prd.md — 同步"标签"字段**
+- [x] **Step 5: 更新 prd.md — 同步"标签"字段**
 
-在数据字典表格中追加标签字段行。在新增编辑收支页的表单描述中增加标签输入框。在收支记录列表页的行展示中增加标签列。
+在数据字典表格中追加标签字段行。在填写页表单描述中增加标签输入框。在列表页的行展示中增加标签列。在团队汇总页增加标签展示。
 
-- [ ] **Step 6: 更新 metadata/prd/field-anchor.json**
+- [x] **Step 6: 更新 metadata/prd/field-anchor.json**
 
-追加标签字段锚点。
+运行 stage-prep.py --stage prd 自动同步。
 
-- [ ] **Step 7: 运行 stage-prep.py --stage prd 同步 metadata**
+- [x] **Step 7: 运行 stage-prep.py --stage prd 同步 metadata**
 
 ```bash
 python scripts/python/stage-prep.py --stage prd --project-root .
 ```
 
-- [ ] **Step 8: 更新 prototype（可选）**
+- [x] **Step 8: 更新 prototype**
 
-在 index.html 的列表页表格增加"标签"列，在新增页表单增加标签输入框。
+在 index.html 的列表页表格增加"标签"列，在填写页表单增加标签输入框，在团队汇总页卡片增加标签展示。
 
-- [ ] **Step 9: 执行 design-review 和 prd-review 确认无遗留**
+- [x] **Step 9: 执行 design-review 和 prd-review 确认无遗留**
 
 重新执行 review，将结果写入 `.workflow/reviews/design-review-2.json` 和 `.workflow/reviews/prd-review-2.json`。确认无新增问题。
 
-- [ ] **Step 10: 输出 fix 完成报告**
+- [x] **Step 10: 输出 fix 完成报告**
 
-```
-建议进入 design-review，检查对象：[字段定义、数据字典]
-建议进入 prd-review，检查对象：[数据字典、新增编辑收支页、收支记录列表页]
-```
+design-review-2: 通过，无阻塞问题
+prd-review-2: 通过，1 个 STYLE002 warning
 
 ---
 
@@ -453,4 +302,4 @@ python scripts/python/stage-prep.py --stage prd --project-root .
 
 **No placeholders:** 所有步骤均有具体文件路径、内容或命令。
 
-**Type consistency:** review-result.schema.json 的 7 字段在 Task 1 的 JSON 模板中一致使用。
+**Type consistency:** review-result.schema.json 的字段在 Task 1 的 JSON 模板中一致使用。

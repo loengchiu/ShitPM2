@@ -17,7 +17,7 @@
       "check": "artifact_exists",
       "passed": true,
       "detail": "output/design/design.md",
-      "size_chars": 2357
+      "size_chars": 2305
     },
     {
       "check": "core_section_present",
@@ -62,7 +62,7 @@
     {
       "check": "metadata_file_exists",
       "passed": true,
-      "detail": ".workflow/metadata/design/relations.json"
+      "detail": ".workflow/metadata/design/relations.json 为空数组（允许为空）"
     },
     {
       "check": "metadata_file_exists",
@@ -96,14 +96,12 @@
     },
     {
       "check": "stable_id_leak",
-      "passed": false,
-      "detail": "人读稿中发现 4 处稳定 ID 泄漏"
+      "passed": true,
+      "detail": "无稳定 ID 泄漏"
     }
   ],
   "blocking_issues": [],
-  "warnings": [
-    "人读稿中发现 4 处稳定 ID 泄漏"
-  ],
+  "warnings": [],
   "can_start_review": true,
-  "recommended_focus": "正文写法与一致性"
+  "recommended_focus": "字段定义属性齐全性、权限覆盖、状态完整性"
 }

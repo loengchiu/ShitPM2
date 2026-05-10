@@ -1,1 +1,22 @@
-[]
+[
+  {
+    "prd_rule": "每人每周仅可创建一份周报，不可重复创建",
+    "design_rule": "RULE-design-001",
+    "prd_line": 121
+  },
+  {
+    "prd_rule": "组长仅可查看本组所有成员的周报",
+    "design_rule": "RULE-design-002",
+    "prd_line": 83
+  },
+  {
+    "prd_rule": "提交人字段仅可设置为固定用户列表中的成员",
+    "design_rule": "RULE-design-003",
+    "prd_line": 98
+  },
+  {
+    "prd_rule": "周报删除为物理删除，删除后不可恢复",
+    "design_rule": "RULE-design-004",
+    "prd_line": 90
+  }
+]

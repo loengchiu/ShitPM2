@@ -19,11 +19,11 @@
     },
     "design": {
       "verdict": "通过",
-      "reviewed_at": "2026-05-10T18:30:00"
+      "reviewed_at": "2026-05-10T18:30:00+08:00"
     },
     "prd": {
       "verdict": "通过",
-      "reviewed_at": "2026-05-10T18:30:00"
+      "reviewed_at": "2026-05-10T18:30:00+08:00"
     }
   },
   "align_notes": {

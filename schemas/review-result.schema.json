@@ -34,6 +34,7 @@
     "issue_layer": {
       "type": "object",
       "description": "问题归属层分布",
+      "required": ["structure", "content", "consistency"],
       "properties": {
         "structure": { "type": "integer", "description": "结构性问题数" },
         "content": { "type": "integer", "description": "内容质量问题数" },

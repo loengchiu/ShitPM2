@@ -1,8 +1,8 @@
 {
   "stage": "design",
-  "generated_at": "2026-05-09T23:57:06.490031+00:00",
+  "generated_at": "2026-05-10T04:13:39.041002+00:00",
   "entity_count": 24,
-  "relation_count": 3,
+  "relation_count": 0,
   "metadata_files": [
     "index.json",
     "entities.json",

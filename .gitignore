@@ -1,10 +1,11 @@
-# === 工作流产物 ===
-# 机读元数据（由 stage-prep.py 从 output 自动生成）
-.workflow/metadata/*.json
-# 运行时上下文（如 stage-context.py 运行快照）
-.workflow/runtime/*.json
+# === 工作流运行产物 ===
+# 机读元数据（由 stage-prep.py 从 output 自动生成，含子目录）
+.workflow/metadata/**/*.json
+# 运行时上下文（如 stage-context.py / review-precheck.py 运行快照，含子目录）
+.workflow/runtime/**/*.json
 # 人读审查结果（由 review 流程生成）
 .workflow/reviews/*.json
+.workflow/reviews/*.md
 # 人读产物（design.md / prd.md / index.html 等）
 output/*
 # 归档目录（旧项目归档存放在此）
@@ -13,7 +14,10 @@ output/*
 # === 例外：保留 status.json（工作流状态中枢） ===
 !.workflow/status.json
 
-# === Claude Code 本地配置 ===
-.claude/
+# === Python 缓存 ===
 __pycache__/
 *.pyc
+*.pyo
+
+# === Claude Code 本地配置 ===
+.claude/

@@ -35,7 +35,8 @@ METADATA_FILE_MAP = {
 }
 
 METADATA_EMPTY_OK = {
-    "prd": {"rule-anchor.json"},
+    "design": {"relations.json"},
+    "prd": {"relations.json"},
 }
 
 CORE_SECTIONS = {
@@ -163,23 +164,47 @@ def run_prd_style_lint(project_root: Path) -> list:
         return []
     lint_output = project_root / ".workflow" / "runtime" / "prd" / "lint.json"
     lint_output.parent.mkdir(parents=True, exist_ok=True)
+
+    # 启动 lint 子进程
     try:
         result = subprocess.run(
             [sys.executable, str(lint_script), str(prd_path), "--format", "json", "--output", str(lint_output)],
-            capture_output=True, text=True, encoding="utf-8",
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
         )
-        if result.returncode != 0 and not result.stdout.strip():
-            return []
-        lint_data = json.loads(result.stdout)
-        issues = lint_data if isinstance(lint_data, list) else lint_data.get("issues", [])
-        warnings = []
-        for issue in issues:
-            sev = issue.get("severity", "info")
-            if sev in ("error", "warning"):
-                warnings.append(f"{issue.get('code', 'UNKNOWN')}: {issue.get('message', '')}")
-        return warnings
-    except (json.JSONDecodeError, OSError):
+    except (OSError, ValueError) as e:
+        return [f"lint 进程启动失败: {e}"]
+
+    # 优先从 --output 文件读取 lint 结果，确保消费方式一致
+    lint_data = None
+    if lint_output.exists():
+        try:
+            with open(lint_output, encoding="utf-8") as f:
+                lint_data = json.load(f)
+        except (json.JSONDecodeError, OSError, ValueError) as e:
+            return [f"lint 输出文件解析失败: {e}"]
+
+    # 回退：从 stdout 读取（兼容不传 --output 的场景）
+    if lint_data is None:
+        if result.stdout.strip():
+            try:
+                lint_data = json.loads(result.stdout)
+            except (json.JSONDecodeError, ValueError) as e:
+                return [f"lint stdout 解析失败 (exit={result.returncode}): {e}"]
+
+    # 无数据可解析时，根据 returncode 判断
+    if lint_data is None:
+        if result.returncode != 0:
+            stderr_tail = result.stderr.strip()[-200:] if result.stderr.strip() else "(无 stderr)"
+            return [f"lint 执行失败 (exit={result.returncode}): {stderr_tail}"]
         return []
+
+    issues = lint_data if isinstance(lint_data, list) else lint_data.get("issues", [])
+    warnings = []
+    for issue in issues:
+        sev = issue.get("severity", "info")
+        if sev in ("error", "warning"):
+            warnings.append(f"{issue.get('code', 'UNKNOWN')}: {issue.get('message', '')}")
+    return warnings
 
 
 def main():

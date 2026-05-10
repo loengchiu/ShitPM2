@@ -1,8 +1,8 @@
 {
   "stage": "prd",
-  "generated_at": "2026-05-10T00:00:29.288818+00:00",
-  "entity_count": 24,
-  "relation_count": 3,
+  "generated_at": "2026-05-10T04:18:52.247565+00:00",
+  "entity_count": 23,
+  "relation_count": 0,
   "metadata_files": [
     "index.json",
     "entities.json",

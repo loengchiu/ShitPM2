@@ -3,14 +3,21 @@
     {
       "code": "STYLE002",
       "severity": "warning",
-      "line": 119,
+      "line": 181,
       "message": "疑似动作流水账：连续 8 个短步骤",
+      "suggestion": "改用自然段落描述，加入展示规则、状态流转和异常边界"
+    },
+    {
+      "code": "STYLE002",
+      "severity": "warning",
+      "line": 192,
+      "message": "疑似动作流水账：连续 3 个短步骤",
       "suggestion": "改用自然段落描述，加入展示规则、状态流转和异常边界"
     }
   ],
   "summary": {
     "error": 0,
-    "warning": 1,
+    "warning": 2,
     "info": 0
   }
 }
