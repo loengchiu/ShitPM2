@@ -239,6 +239,34 @@ def parse_tables_with_context(content: str, headings: list) -> list:
     return tables
 
 
+def _build_field_attributes(row: list, headers: list) -> dict:
+    """根据列数适配 5 列或 9 列字段格式
+
+    5 列格式（当前设计稿）：字段 | 类型 | 必填 | 枚举值 / 规则 | 说明
+    9 列格式（原模板）：字段 | 类型 | 长度 | 必填 | 默认值 | 枚举值 | 格式 | 业务来源 | 说明
+    """
+    if len(headers) >= 7:
+        # 9 列格式
+        return {
+            "数据类型": row[1] if len(row) > 1 else None,
+            "长度": row[2] if len(row) > 2 else None,
+            "必填": row[3] == "是" if len(row) > 3 else None,
+            "默认值": row[4] if len(row) > 4 else None,
+            "枚举值": row[5] if len(row) > 5 else None,
+            "格式": row[6] if len(row) > 6 else None,
+            "业务来源": row[7] if len(row) > 7 else None,
+            "说明": row[8] if len(row) > 8 else None,
+        }
+    else:
+        # 5 列格式
+        return {
+            "数据类型": row[1] if len(row) > 1 else None,
+            "必填": row[2] == "是" if len(row) > 2 else None,
+            "枚举值": row[3] if len(row) > 3 else None,
+            "说明": row[4] if len(row) > 4 else None,
+        }
+
+
 def extract_entities_from_tables(content: str, headings: list, stage: str, counter: dict, title_to_id: dict = None) -> tuple:
     """从 design.md 的表格中提取页面和字段实体
 
@@ -257,8 +285,8 @@ def extract_entities_from_tables(content: str, headings: list, stage: str, count
         section = table["section_title"]
         headers = table["headers"]
 
-        # 页面清单表：表头含"名称"或"页面"（子串匹配，而非精确匹配列表元素）
-        if "页面清单" in section and (any("名称" in h for h in headers) or any("页面" in h for h in headers)):
+        # 页面清单表：检查是否在"页面清单"父标题下，且表头含"页面"或"名称"
+        if _is_under_heading(table["line_offset"], headings, "页面清单") and (any("页面" in h for h in headers) or any("名称" in h for h in headers)):
             name_idx = next((i for i, h in enumerate(headers) if h == "名称" or "页面名称" in h or "页面" == h), None)
             if name_idx is None:
                 name_idx = next((i for i, h in enumerate(headers) if "页面" in h or "名称" in h), None)
@@ -280,8 +308,8 @@ def extract_entities_from_tables(content: str, headings: list, stage: str, count
                             "line": table["line_offset"],
                         })
 
-        # 字段定义表：表头含"字段"和"类型"列（9 列格式）
-        if "字段" in headers and "类型" in headers and len(headers) >= 8:
+        # 字段定义表：表头含"字段"和"类型"列（支持 5 列或 9 列格式）
+        if "字段" in headers and "类型" in headers and len(headers) >= 4:
             for row in table["rows"]:
                 if len(row) >= 2 and row[0] and row[0] not in ("---", "字段"):
                     title = row[0]
@@ -297,16 +325,7 @@ def extract_entities_from_tables(content: str, headings: list, stage: str, count
                         "type": "field",
                         "title": title,
                         "line": table["line_offset"],
-                        "attributes": {
-                            "数据类型": row[1] if len(row) > 1 else None,
-                            "长度": row[2] if len(row) > 2 else None,
-                            "必填": row[3] == "是" if len(row) > 3 else None,
-                            "默认值": row[4] if len(row) > 4 else None,
-                            "枚举值": row[5] if len(row) > 5 else None,
-                            "格式": row[6] if len(row) > 6 else None,
-                            "业务来源": row[7] if len(row) > 7 else None,
-                            "说明": row[8] if len(row) > 8 else None,
-                        },
+                        "attributes": _build_field_attributes(row, headers),
                     })
 
         # 规则与状态定义章节中的状态内容

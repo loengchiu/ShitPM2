@@ -1,0 +1,115 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1778487460336,
+  "projectRoot": "D:\\work\\ShitPM",
+  "techStack": {
+    "languages": [],
+    "frameworks": [],
+    "packageManager": null,
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": null,
+    "testCommand": null,
+    "lintCommand": null,
+    "devCommand": null,
+    "scripts": {}
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "scripts"
+    ],
+    "gitBranches": null
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "contracts": {
+      "path": "contracts",
+      "purpose": null,
+      "fileCount": 4,
+      "lastAccessed": 1778487460316,
+      "keyFiles": [
+        "fix-propagation-rules.md",
+        "metadata-anchor-rules.md",
+        "prd-fact-boundary-rules.md",
+        "review-checklist.md"
+      ]
+    },
+    "output": {
+      "path": "output",
+      "purpose": null,
+      "fileCount": 0,
+      "lastAccessed": 1778487460316,
+      "keyFiles": []
+    },
+    "references": {
+      "path": "references",
+      "purpose": null,
+      "fileCount": 5,
+      "lastAccessed": 1778487460316,
+      "keyFiles": [
+        "align-writing.md",
+        "design-writing.md",
+        "prd-writing.md",
+        "prd-writing.profile.json",
+        "prototype-writing.md"
+      ]
+    },
+    "schemas": {
+      "path": "schemas",
+      "purpose": "Schema definitions",
+      "fileCount": 6,
+      "lastAccessed": 1778487460317,
+      "keyFiles": [
+        "align-notes.schema.json",
+        "design-metadata.schema.json",
+        "prd-metadata.schema.json",
+        "prototype-metadata.schema.json",
+        "review-result.schema.json"
+      ]
+    },
+    "scripts": {
+      "path": "scripts",
+      "purpose": "Build/utility scripts",
+      "fileCount": 0,
+      "lastAccessed": 1778487460317,
+      "keyFiles": []
+    },
+    "skills": {
+      "path": "skills",
+      "purpose": null,
+      "fileCount": 0,
+      "lastAccessed": 1778487460317,
+      "keyFiles": []
+    },
+    "templates": {
+      "path": "templates",
+      "purpose": null,
+      "fileCount": 4,
+      "lastAccessed": 1778487460317,
+      "keyFiles": [
+        "align.md",
+        "design.md",
+        "prd.md",
+        "prototype.html"
+      ]
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "",
+      "accessCount": 1,
+      "lastAccessed": 1778487505434,
+      "type": "directory"
+    }
+  ],
+  "userDirectives": []
+}
