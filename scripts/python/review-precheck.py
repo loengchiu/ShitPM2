@@ -29,7 +29,7 @@ ARTIFACT_PATHS = {
 }
 
 METADATA_FILE_MAP = {
-    "design": ["index.json", "entities.json", "relations.json", "modules.json", "pages.json", "fields.json", "rules.json", "states.json", "permissions.json"],
+    "design": ["index.json", "entities.json", "relations.json", "modules.json", "pages.json", "fields.json", "rules.json", "states.json", "permissions.json", "page-fields.json", "non-page-fields.json"],
     "prd": ["index.json", "entities.json", "relations.json", "page-anchor.json", "rule-anchor.json", "field-anchor.json"],
     "prototype": ["index.json", "page-map.json"],
 }
@@ -40,7 +40,7 @@ METADATA_EMPTY_OK = {
 }
 
 CORE_SECTIONS = {
-    "design": ["角色定义", "模块定义", "页面清单", "字段定义", "规则与状态定义", "权限定义"],
+    "design": ["角色定义", "模块定义", "页面清单", "字段定义", "页面与字段落点", "规则与状态定义", "权限定义"],
     "prd": ["详细需求说明", "权限汇总", "数据字典", "状态机"],
     "prototype": [],
 }
@@ -155,6 +155,136 @@ def check_stable_id_leak(project_root: Path, stage: str) -> dict:
     return {"check": "stable_id_leak", "passed": True, "detail": "无稳定 ID 泄漏"}
 
 
+def check_design_page_field_coverage(project_root: Path) -> dict:
+    """校验 design 的字段全集与页面字段落点/例外表是否全量对齐"""
+    meta_dir = project_root / ".workflow" / "metadata" / "design"
+    pages_path = meta_dir / "pages.json"
+    fields_path = meta_dir / "fields.json"
+    page_fields_path = meta_dir / "page-fields.json"
+    non_page_fields_path = meta_dir / "non-page-fields.json"
+
+    if not (pages_path.exists() and fields_path.exists() and page_fields_path.exists() and non_page_fields_path.exists()):
+        return {
+            "check": "design_page_field_coverage",
+            "passed": False,
+            "detail": "缺少 pages.json / fields.json / page-fields.json / non-page-fields.json，无法校验字段覆盖",
+        }
+
+    try:
+        with open(pages_path, encoding="utf-8") as f:
+            pages = json.load(f)
+        with open(fields_path, encoding="utf-8") as f:
+            fields = json.load(f)
+        with open(page_fields_path, encoding="utf-8") as f:
+            page_fields = json.load(f)
+        with open(non_page_fields_path, encoding="utf-8") as f:
+            non_page_fields = json.load(f)
+    except (json.JSONDecodeError, OSError) as e:
+        return {
+            "check": "design_page_field_coverage",
+            "passed": False,
+            "detail": f"页面与字段落点校验读取失败: {e}",
+        }
+
+    page_ids = {p.get("id") for p in pages if isinstance(p, dict) and p.get("id")}
+    field_ids = {f.get("id") for f in fields if isinstance(f, dict) and f.get("id")}
+    field_title_by_id = {f.get("id"): f.get("title") for f in fields if isinstance(f, dict) and f.get("id")}
+    page_title_by_id = {p.get("id"): p.get("title") for p in pages if isinstance(p, dict) and p.get("id")}
+
+    mapped_pages = set()
+    mapped_fields = set()
+    exempted_fields = set()
+    missing_page_refs = []
+    missing_field_refs = []
+    unmatched_fields = []
+    empty_pages = []
+    invalid_exempt_fields = []
+    missing_exempt_reasons = []
+    overlap_fields = []
+
+    for entry in page_fields if isinstance(page_fields, list) else []:
+        if not isinstance(entry, dict):
+            continue
+        page_id = entry.get("design_page")
+        page_title = entry.get("page_title", "")
+        if page_id:
+            if page_id in page_ids:
+                mapped_pages.add(page_id)
+            else:
+                missing_page_refs.append(page_title or page_id)
+        else:
+            missing_page_refs.append(page_title or "(未命名页面)")
+
+        for token in entry.get("unmatched_fields", []):
+            unmatched_fields.append(f"{page_title}: {token}")
+
+        refs = entry.get("field_refs", [])
+        if refs:
+            for fid in refs:
+                if fid in field_ids:
+                    mapped_fields.add(fid)
+                else:
+                    missing_field_refs.append(f"{page_title}: {fid}")
+        elif not entry.get("declared_empty"):
+            empty_pages.append(page_title or page_id or "(未命名页面)")
+
+    missing_pages = sorted(page_ids - mapped_pages)
+    for entry in non_page_fields if isinstance(non_page_fields, list) else []:
+        if not isinstance(entry, dict):
+            continue
+        fid = entry.get("design_field")
+        title = entry.get("field_title", "")
+        reason = (entry.get("reason") or "").strip()
+        if fid:
+            if fid in field_ids:
+                exempted_fields.add(fid)
+            else:
+                invalid_exempt_fields.append(title or fid)
+        else:
+            invalid_exempt_fields.append(title or "(未命名字段)")
+        if not reason:
+            missing_exempt_reasons.append(title or fid or "(未命名字段)")
+
+    overlap_ids = sorted(mapped_fields & exempted_fields)
+    missing_fields = sorted(field_ids - mapped_fields - exempted_fields)
+
+    problems = []
+    if missing_page_refs:
+        problems.append(f"页面落点引用了无效页面: {', '.join(missing_page_refs[:5])}")
+    if missing_field_refs:
+        problems.append(f"页面落点引用了无效字段 ID: {', '.join(missing_field_refs[:5])}")
+    if unmatched_fields:
+        problems.append(f"页面落点出现未在数据字典定义的字段: {', '.join(unmatched_fields[:5])}")
+    if empty_pages:
+        problems.append(f"以下页面未声明字段且未标记无业务字段: {', '.join(empty_pages[:5])}")
+    if missing_pages:
+        missing_page_titles = [page_title_by_id.get(pid, pid) for pid in missing_pages]
+        problems.append(f"页面清单中的页面未出现在页面与字段落点: {', '.join(missing_page_titles[:5])}")
+    if invalid_exempt_fields:
+        problems.append(f"非页面落点字段中引用了数据字典未定义字段: {', '.join(invalid_exempt_fields[:8])}")
+    if missing_exempt_reasons:
+        problems.append(f"非页面落点字段缺少原因说明: {', '.join(missing_exempt_reasons[:8])}")
+    if overlap_ids:
+        overlap_fields = [field_title_by_id.get(fid, fid) for fid in overlap_ids]
+        problems.append(f"字段同时出现在页面落点和非页面落点: {', '.join(overlap_fields[:8])}")
+    if missing_fields:
+        missing_field_titles = [field_title_by_id.get(fid, fid) for fid in missing_fields]
+        problems.append(f"数据字典中的字段既未在页面与字段落点出现，也未在非页面落点字段声明: {', '.join(missing_field_titles[:8])}")
+
+    if problems:
+        return {
+            "check": "design_page_field_coverage",
+            "passed": False,
+            "detail": "；".join(problems),
+        }
+
+    return {
+        "check": "design_page_field_coverage",
+        "passed": True,
+        "detail": f"字段覆盖通过：{len(mapped_pages)}/{len(page_ids)} 个页面，{len(mapped_fields)} 个页面落点字段，{len(exempted_fields)} 个非页面落点字段",
+    }
+
+
 def run_prd_style_lint(project_root: Path) -> list:
     prd_path = project_root / ARTIFACT_PATHS["prd"]
     if not prd_path.exists():
@@ -241,6 +371,12 @@ def main():
     deterministic_checks.append(id_leak_check)
     if not id_leak_check["passed"]:
         warnings.append(id_leak_check["detail"])
+
+    if stage == "design":
+        coverage_check = check_design_page_field_coverage(project_root)
+        deterministic_checks.append(coverage_check)
+        if not coverage_check["passed"]:
+            blocking_issues.append(coverage_check["detail"])
 
     if stage == "prd":
         lint_warnings = run_prd_style_lint(project_root)

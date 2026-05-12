@@ -1,1 +1,8 @@
-[{"id": "MODULE-design-001", "type": "module", "title": "report"}]
+[
+  {
+    "id": "MODULE-design-002",
+    "type": "module",
+    "title": "周报管理模块",
+    "line": 10
+  }
+]

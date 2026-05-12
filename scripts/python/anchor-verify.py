@@ -30,7 +30,7 @@ ARTIFACT_PATHS = {
 }
 
 METADATA_FILE_MAP = {
-    "design": ["index.json", "entities.json", "relations.json", "modules.json", "pages.json", "fields.json", "rules.json", "states.json", "permissions.json"],
+    "design": ["index.json", "entities.json", "relations.json", "modules.json", "pages.json", "fields.json", "rules.json", "states.json", "permissions.json", "page-fields.json", "non-page-fields.json"],
     "prd": ["index.json", "entities.json", "relations.json", "page-anchor.json", "rule-anchor.json", "field-anchor.json"],
     "prototype": ["index.json", "page-map.json"],
 }

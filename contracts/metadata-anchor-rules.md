@@ -42,7 +42,7 @@
 
 ## 四、metadata 文件清单
 
-### design 阶段（9 个文件）
+### design 阶段（11 个文件）
 
 - `index.json`：总索引
 - `entities.json`：实体列表
@@ -53,6 +53,8 @@
 - `rules.json`：规则定义
 - `states.json`：状态定义
 - `permissions.json`：权限定义
+- `page-fields.json`：页面与字段落点映射
+- `non-page-fields.json`：非页面落点字段例外表
 
 ### PRD 阶段（6 个文件）
 

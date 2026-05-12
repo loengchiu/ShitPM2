@@ -55,7 +55,7 @@ CHAPTER_HEADING_PATTERN = re.compile(r'^[一二三四五六七八九十]+[、．
 # Metadata 文件映射
 METADATA_FILE_MAP = {
     "align": ["index.json", "entities.json", "relations.json"],
-    "design": ["index.json", "entities.json", "relations.json", "modules.json", "pages.json", "fields.json", "rules.json", "states.json", "permissions.json"],
+    "design": ["index.json", "entities.json", "relations.json", "modules.json", "pages.json", "fields.json", "rules.json", "states.json", "permissions.json", "page-fields.json", "non-page-fields.json"],
     "prd": ["index.json", "entities.json", "relations.json", "page-anchor.json", "rule-anchor.json", "field-anchor.json"],
     "prototype": ["index.json", "page-map.json"],
 }
@@ -161,6 +161,8 @@ def infer_entities_from_headings(headings: list, stage: str, project_root: Path 
 
         # 跳过纯章节编号标题（如 "一、角色定义"、"（一）入库管理"）
         if CHAPTER_HEADING_PATTERN.match(title):
+            continue
+        if "非页面落点字段" in title:
             continue
 
         entity_type = None
@@ -340,12 +342,171 @@ def extract_entities_from_tables(content: str, headings: list, stage: str, count
             if h["level"] >= 3 and "状态" in h["title"]:
                 states.append({"title": h["title"], "line": h["line"]})
 
-    # 权限定义：从标题推断（权限通常不是表格形式）
+    # 权限定义：提取“权限定义”章节下的页面/角色小节
+    in_permission_section = False
+    section_level = None
     for h in headings:
-        if "权限" in h["title"] and h["level"] >= 3:
+        if "权限定义" in h["title"] and h["level"] <= 2:
+            in_permission_section = True
+            section_level = h["level"]
+            continue
+        if in_permission_section and h["level"] <= section_level:
+            in_permission_section = False
+            continue
+        if in_permission_section and h["level"] >= 3:
             permissions.append({"title": h["title"], "line": h["line"]})
 
     return pages, fields, states, permissions
+
+
+def _split_field_tokens(raw_text: str) -> list:
+    """拆分字段单元格中的字段名列表"""
+    if not raw_text:
+        return []
+    normalized = raw_text.replace("\n", "、")
+    parts = re.split(r"[、，,；;/｜|]+", normalized)
+    tokens = []
+    for part in parts:
+        token = part.strip()
+        if not token or token in ("—", "-", "无", "无业务字段"):
+            continue
+        tokens.append(token)
+    return tokens
+
+
+def _extract_design_page_field_map(content: str, headings: list, pages: list, fields: list) -> list:
+    """从“页面与字段落点”章节提取页面字段映射"""
+    tables = parse_tables_with_context(content, headings)
+    page_title_to_id = {p["title"]: p["id"] for p in pages}
+    field_title_to_id = {f["title"]: f["id"] for f in fields}
+    mappings = {}
+
+    # 先登记“页面与字段落点”章节下出现过的页面小节，确保能做页面覆盖校验
+    in_section = False
+    section_level = None
+    for h in headings:
+        title = h["title"]
+        if ("页面与字段落点" in title or "页面数据落点" in title) and h["level"] <= 2:
+            in_section = True
+            section_level = h["level"]
+            continue
+        if in_section and h["level"] <= section_level:
+            break
+        if in_section and h["level"] == section_level + 1:
+            page_title = _clean_page_title(title)
+            if "非页面落点字段" in page_title:
+                continue
+            mappings.setdefault(page_title, {
+                "page_title": page_title,
+                "design_page": page_title_to_id.get(page_title),
+                "line": h["line"],
+                "field_refs": [],
+                "field_titles": [],
+                "unmatched_fields": [],
+                "declared_empty": False,
+            })
+
+    for table in tables:
+        if not (_is_under_heading(table["line_offset"], headings, "页面与字段落点") or _is_under_heading(table["line_offset"], headings, "页面数据落点")):
+            continue
+        page_title = _clean_page_title(table["section_title"])
+        if "非页面落点字段" in page_title:
+            continue
+        if not page_title:
+            continue
+        entry = mappings.setdefault(page_title, {
+            "page_title": page_title,
+            "design_page": page_title_to_id.get(page_title),
+            "line": table["line_offset"],
+            "field_refs": [],
+            "field_titles": [],
+            "unmatched_fields": [],
+            "declared_empty": False,
+        })
+
+        headers = table["headers"]
+        field_idx = next((i for i, h in enumerate(headers) if "字段" in h), None)
+        if field_idx is None:
+            continue
+
+        for row in table["rows"]:
+            cell = row[field_idx] if field_idx < len(row) else ""
+            if any(flag in cell for flag in ("无业务字段", "无字段")):
+                entry["declared_empty"] = True
+                continue
+            for token in _split_field_tokens(cell):
+                design_field = field_title_to_id.get(token)
+                if design_field:
+                    entry["field_refs"].append(design_field)
+                    entry["field_titles"].append(token)
+                else:
+                    entry["unmatched_fields"].append(token)
+
+    results = []
+    for entry in mappings.values():
+        entry["field_refs"] = sorted(set(entry["field_refs"]))
+        entry["field_titles"] = sorted(set(entry["field_titles"]))
+        entry["unmatched_fields"] = sorted(set(entry["unmatched_fields"]))
+        results.append(entry)
+    return results
+
+
+def _extract_design_non_page_fields(content: str, headings: list, fields: list) -> list:
+    """从“非页面落点字段”例外表提取内部字段声明"""
+    tables = parse_tables_with_context(content, headings)
+    field_title_to_id = {f["title"]: f["id"] for f in fields}
+    results = []
+
+    for table in tables:
+        section_title = table["section_title"]
+        if "非页面落点字段" not in section_title:
+            continue
+        headers = table["headers"]
+        field_idx = next((i for i, h in enumerate(headers) if "字段" in h), None)
+        reason_idx = next((i for i, h in enumerate(headers) if "原因" in h or "说明" in h), None)
+        if field_idx is None:
+            continue
+
+        for row in table["rows"]:
+            raw_field = row[field_idx] if field_idx < len(row) else ""
+            reason = row[reason_idx] if reason_idx is not None and reason_idx < len(row) else ""
+            for token in _split_field_tokens(raw_field):
+                results.append({
+                    "field_title": token,
+                    "design_field": field_title_to_id.get(token),
+                    "reason": reason.strip(),
+                    "line": table["line_offset"],
+                })
+
+    deduped = []
+    seen = set()
+    for item in results:
+        key = item["field_title"]
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(item)
+    return deduped
+
+
+def _build_page_field_relations(page_fields: list, stage: str, counter: dict) -> list:
+    """基于页面字段落点生成 page -> field 的 uses 关系"""
+    relations = []
+    rel_counter = counter.get("REL", 0)
+    for entry in page_fields:
+        page_id = entry.get("design_page")
+        if not page_id:
+            continue
+        for field_id in entry.get("field_refs", []):
+            rel_counter += 1
+            relations.append({
+                "id": f"REL-{stage}-{rel_counter:03d}",
+                "type": "uses",
+                "from": page_id,
+                "to": field_id,
+            })
+    counter["REL"] = rel_counter
+    return relations
 
 
 def infer_relations_from_content(content: str, entities: list, stage: str) -> list:
@@ -484,10 +645,15 @@ def generate_design_metadata(content: str, stage: str, project_root: Path) -> di
     # 编号规则提取：从"规则"章节的编号列表中提取独立规则实体
     numbered_rules = _extract_numbered_rules_from_design(content, stage, counter, title_to_id)
 
+    # 抽取页面与字段落点（页面 -> 字段）
+    page_fields = _extract_design_page_field_map(content, headings, table_pages, table_fields)
+    non_page_fields = _extract_design_non_page_fields(content, headings, table_fields)
+
     # 合并所有实体（标题推断的 modules/rules + 表格解析的 pages/fields + 编号规则）
     entities = heading_entities + table_pages + table_fields + numbered_rules
 
     relations = infer_relations_from_content(content, entities, stage)
+    relations.extend(_build_page_field_relations(page_fields, stage, counter))
 
     index = {
         "schema_version": "1.0.0",
@@ -512,6 +678,8 @@ def generate_design_metadata(content: str, stage: str, project_root: Path) -> di
         "pages": pages,
         "fields": fields,
         "rules": rules,
+        "page_fields": page_fields,
+        "non_page_fields": non_page_fields,
     }
     # 始终写入 states 和 permissions，覆盖可能存在的陈旧文件
     result["states"] = table_states
@@ -661,6 +829,7 @@ def _clean_page_title(title: str) -> str:
     """
     cleaned = re.sub(r'^[（(][一二三四五六七八九十\d]+[）)]\s*', '', title)
     cleaned = re.sub(r'^\d+[．.]\s*', '', cleaned)
+    cleaned = re.sub(r'^page[-_\s]?\d+\s*', '', cleaned, flags=re.IGNORECASE)
     return cleaned.strip()
 
 
@@ -880,6 +1049,8 @@ def write_metadata(stage: str, data: dict, project_root: Path, dry_run: bool = F
         "rules": "rules.json",
         "states": "states.json",
         "permissions": "permissions.json",
+        "page_fields": "page-fields.json",
+        "non_page_fields": "non-page-fields.json",
         "page_anchor": "page-anchor.json",
         "rule_anchor": "rule-anchor.json",
         "field_anchor": "field-anchor.json",

@@ -1,10 +1,162 @@
 [
-  {"id": "FIELD-design-001", "type": "field", "title": "report.id", "entity_ref": "MODULE-design-001", "data_type": "string", "required": true},
-  {"id": "FIELD-design-002", "type": "field", "title": "report.submitter", "entity_ref": "MODULE-design-001", "data_type": "string", "required": true},
-  {"id": "FIELD-design-003", "type": "field", "title": "report.week", "entity_ref": "MODULE-design-001", "data_type": "string", "required": true},
-  {"id": "FIELD-design-004", "type": "field", "title": "report.this_week", "entity_ref": "MODULE-design-001", "data_type": "text", "required": true},
-  {"id": "FIELD-design-005", "type": "field", "title": "report.next_week", "entity_ref": "MODULE-design-001", "data_type": "text", "required": true},
-  {"id": "FIELD-design-006", "type": "field", "title": "report.coordination", "entity_ref": "MODULE-design-001", "data_type": "text", "required": false},
-  {"id": "FIELD-design-007", "type": "field", "title": "report.tags", "entity_ref": "MODULE-design-001", "data_type": "string", "required": false},
-  {"id": "FIELD-design-008", "type": "field", "title": "report.status", "entity_ref": "MODULE-design-001", "data_type": "enum", "required": true}
+  {
+    "id": "FIELD-design-001",
+    "type": "field",
+    "title": "report.id",
+    "line": 26,
+    "attributes": {
+      "数据类型": "string",
+      "长度": "32",
+      "必填": true,
+      "默认值": "系统生成",
+      "枚举值": "—",
+      "格式": "UUID",
+      "业务来源": "系统生成",
+      "说明": "周报唯一编号"
+    }
+  },
+  {
+    "id": "FIELD-design-002",
+    "type": "field",
+    "title": "report.submitter",
+    "line": 26,
+    "attributes": {
+      "数据类型": "string",
+      "长度": "64",
+      "必填": true,
+      "默认值": "当前登录人",
+      "枚举值": "—",
+      "格式": "姓名",
+      "业务来源": "系统生成",
+      "说明": "周报提交人"
+    }
+  },
+  {
+    "id": "FIELD-design-003",
+    "type": "field",
+    "title": "report.week",
+    "line": 26,
+    "attributes": {
+      "数据类型": "string",
+      "长度": "16",
+      "必填": true,
+      "默认值": "当前周",
+      "枚举值": "—",
+      "格式": "YYYY-WW",
+      "业务来源": "系统生成",
+      "说明": "周报所属周"
+    }
+  },
+  {
+    "id": "FIELD-design-004",
+    "type": "field",
+    "title": "report.this_week",
+    "line": 26,
+    "attributes": {
+      "数据类型": "text",
+      "长度": "2000",
+      "必填": true,
+      "默认值": "—",
+      "枚举值": "—",
+      "格式": "长文本",
+      "业务来源": "用户填写",
+      "说明": "本周完成内容"
+    }
+  },
+  {
+    "id": "FIELD-design-005",
+    "type": "field",
+    "title": "report.next_week",
+    "line": 26,
+    "attributes": {
+      "数据类型": "text",
+      "长度": "2000",
+      "必填": true,
+      "默认值": "—",
+      "枚举值": "—",
+      "格式": "长文本",
+      "业务来源": "用户填写",
+      "说明": "下周计划"
+    }
+  },
+  {
+    "id": "FIELD-design-006",
+    "type": "field",
+    "title": "report.coordination",
+    "line": 26,
+    "attributes": {
+      "数据类型": "text",
+      "长度": "2000",
+      "必填": false,
+      "默认值": "—",
+      "枚举值": "—",
+      "格式": "长文本",
+      "业务来源": "用户填写",
+      "说明": "需协调事项"
+    }
+  },
+  {
+    "id": "FIELD-design-007",
+    "type": "field",
+    "title": "report.tags",
+    "line": 26,
+    "attributes": {
+      "数据类型": "string",
+      "长度": "100",
+      "必填": false,
+      "默认值": "—",
+      "枚举值": "—",
+      "格式": "多值文本",
+      "业务来源": "用户填写",
+      "说明": "周报标签"
+    }
+  },
+  {
+    "id": "FIELD-design-008",
+    "type": "field",
+    "title": "report.status",
+    "line": 26,
+    "attributes": {
+      "数据类型": "enum",
+      "长度": "16",
+      "必填": true,
+      "默认值": "draft",
+      "枚举值": "draft、submitted",
+      "格式": "枚举",
+      "业务来源": "系统生成",
+      "说明": "周报状态"
+    }
+  },
+  {
+    "id": "FIELD-design-009",
+    "type": "field",
+    "title": "report.creator_id",
+    "line": 26,
+    "attributes": {
+      "数据类型": "string",
+      "长度": "64",
+      "必填": true,
+      "默认值": "当前登录人 ID",
+      "枚举值": "—",
+      "格式": "UUID",
+      "业务来源": "系统生成",
+      "说明": "创建人内部标识"
+    }
+  },
+  {
+    "id": "FIELD-design-010",
+    "type": "field",
+    "title": "report.created_at",
+    "line": 26,
+    "attributes": {
+      "数据类型": "datetime",
+      "长度": "19",
+      "必填": true,
+      "默认值": "提交时生成",
+      "枚举值": "—",
+      "格式": "YYYY-MM-DD HH:mm:ss",
+      "业务来源": "系统生成",
+      "说明": "创建时间"
+    }
+  }
 ]

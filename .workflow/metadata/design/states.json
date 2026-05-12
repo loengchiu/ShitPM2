@@ -1,5 +1,10 @@
 [
-  {"id": "STATE-design-001", "type": "state", "title": "draft", "entity_ref": "MODULE-design-001"},
-  {"id": "STATE-design-002", "type": "state", "title": "submitted", "entity_ref": "MODULE-design-001"},
-  {"id": "STATE-design-003", "type": "state", "title": "withdrawn", "entity_ref": "MODULE-design-001"}
+  {
+    "title": "状态集合",
+    "line": 87
+  },
+  {
+    "title": "状态迁移",
+    "line": 92
+  }
 ]

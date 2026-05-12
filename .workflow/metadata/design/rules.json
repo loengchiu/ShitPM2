@@ -1,3 +1,26 @@
 [
-  {"id": "RULE-design-001", "type": "rule", "title": "状态流转规则", "description": "draft → submitted → withdrawn"}
+  {
+    "id": "RULE-design-002",
+    "type": "rule",
+    "title": "业务规则",
+    "line": 98
+  },
+  {
+    "id": "RULE-design-003",
+    "type": "rule",
+    "title": "每人每周仅可创建一份周报。",
+    "line": 100
+  },
+  {
+    "id": "RULE-design-004",
+    "type": "rule",
+    "title": "仅草稿状态的周报允许继续编辑。",
+    "line": 101
+  },
+  {
+    "id": "RULE-design-005",
+    "type": "rule",
+    "title": "已提交周报仅在允许条件下可撤回。",
+    "line": 102
+  }
 ]

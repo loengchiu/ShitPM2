@@ -1,7 +1,18 @@
 [
-  {"id": "PERM-design-001", "type": "permission", "title": "member:创建周报", "role": "member", "action": "create"},
-  {"id": "PERM-design-002", "type": "permission", "title": "member:编辑草稿", "role": "member", "action": "edit"},
-  {"id": "PERM-design-003", "type": "permission", "title": "member:撤回周报", "role": "member", "action": "withdraw"},
-  {"id": "PERM-design-004", "type": "permission", "title": "admin:查看所有周报", "role": "admin", "action": "view_all"},
-  {"id": "PERM-design-005", "type": "permission", "title": "admin:导出周报", "role": "admin", "action": "export"}
+  {
+    "title": "我的周报列表",
+    "line": 106
+  },
+  {
+    "title": "填写周报",
+    "line": 111
+  },
+  {
+    "title": "团队汇总",
+    "line": 116
+  },
+  {
+    "title": "历史归档",
+    "line": 121
+  }
 ]
