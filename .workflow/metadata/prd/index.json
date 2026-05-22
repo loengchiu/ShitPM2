@@ -2,11 +2,5 @@
   "schema_version": "1.0.0",
   "stage": "prd",
   "artifact_path": "output/prd/prd.md",
-  "entities": [
-    {"id": "PAGE-prd-001", "type": "page", "title": "我的周报列表"},
-    {"id": "PAGE-prd-002", "type": "page", "title": "填写周报"},
-    {"id": "PAGE-prd-003", "type": "page", "title": "团队汇总"},
-    {"id": "PAGE-prd-004", "type": "page", "title": "历史归档"}
-  ],
-  "relations": []
+  "generated_at": "2026-05-17T11:45:57.908919+00:00"
 }

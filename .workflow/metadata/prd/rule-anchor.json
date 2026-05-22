@@ -1,3 +1,7 @@
 [
-  {"page_id": "PAGE-prd-002", "rule_id": "RULE-prd-001", "rule_title": "周报提交校验", "description": "提交前校验必填字段"}
+  {
+    "prd_rule": "已提交周报仅在允许条件下可撤回。",
+    "design_rule": "RULE-design-005",
+    "prd_line": 43
+  }
 ]

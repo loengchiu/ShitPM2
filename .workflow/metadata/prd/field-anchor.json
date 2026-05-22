@@ -1,4 +1,32 @@
 [
-  {"page_id": "PAGE-prd-002", "field_id": "FIELD-prd-001", "field_title": "本周完成", "anchor_field_id": "FIELD-design-004"},
-  {"page_id": "PAGE-prd-002", "field_id": "FIELD-prd-002", "field_title": "下周计划", "anchor_field_id": "FIELD-design-005"}
+  {
+    "prd_field": "report.id",
+    "design_field": "FIELD-design-001",
+    "prd_line": 32,
+    "data_dict": true
+  },
+  {
+    "prd_field": "report.submitter",
+    "design_field": "FIELD-design-002",
+    "prd_line": 32,
+    "data_dict": true
+  },
+  {
+    "prd_field": "report.week",
+    "design_field": "FIELD-design-003",
+    "prd_line": 32,
+    "data_dict": true
+  },
+  {
+    "prd_field": "report.this_week",
+    "design_field": "FIELD-design-004",
+    "prd_line": 32,
+    "data_dict": true
+  },
+  {
+    "prd_field": "report.next_week",
+    "design_field": "FIELD-design-005",
+    "prd_line": 32,
+    "data_dict": true
+  }
 ]
