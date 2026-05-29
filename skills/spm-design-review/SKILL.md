@@ -16,11 +16,13 @@ triggers:
 
 ## 执行顺序（两段式）
 
+🔴 **一次读取**——先用一次工具调用读取 design.md 全文，后续通过 --stdin-artifact 传入脚本。
+
 ### 第一段：确定性预检查
 
 1. 运行 `review-precheck.py --stage design --stdin-artifact`（agent 已读取 design.md，通过 stdin 传入），生成 `.workflow/runtime/design/review-precheck.json`
 
-🔴 **检查点：预检查脚本**——如脚本执行失败或返回非零退出码，停下来告知用户，不跳过预检查继续。如 `can_start_review` = false，停止并输出阻塞项。
+🔴 **失败分支：预检查脚本失败**——脚本执行失败或返回非零退出码时，🔴 停下告知用户具体错误，不跳过预检查继续。不尝试手动绕过脚本直接审查。如 `can_start_review` = false，停止并输出阻塞项。
 
 2. 检查 design.md 是否存在
 3. 检查核心章节是否全部存在：
@@ -113,6 +115,10 @@ triggers:
 3. 不自行修改 design.md
 4. 问题必须具体到章节和内容
 5. 预检查脚本失败时停下告知用户，不跳过
+
+## Shell 环境规则
+
+🔴 **Codex 默认 shell 为 PowerShell**——不要用 Python -c 内联脚本，写临时 .py 文件执行。
 
 ## 不要做什么
 

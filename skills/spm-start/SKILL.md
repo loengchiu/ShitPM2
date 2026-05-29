@@ -93,6 +93,10 @@ triggers:
 
 输出当前状态和下一步建议后停止。不追加多余解释。
 
+## Shell 环境规则
+
+🔴 **Codex 默认 shell 为 PowerShell**——不要用 Unix 命令（head、cat、find），用 Get-ChildItem / Select-String。
+
 ## 不要做什么
 
 - 不要自动创建或修改 .workflow/status.json
