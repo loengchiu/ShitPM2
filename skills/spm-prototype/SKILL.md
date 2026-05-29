@@ -110,6 +110,21 @@ AI 读取 `prototype-feedback.md` 后，必须先输出固定格式归类结果�
 - 若某一类为空，保留标题并写"无"
 - 未输出归类结果前，不得开始修改任何文件
 
+## Shell 环境规则
+
+🔴 **硬性约束**——Codex 默认 shell 为 PowerShell，以下操作在 PowerShell 中会失败：
+
+1. **不要用 Python -c 内联复杂脚本**——引号嵌套会被 PS 解析破坏。改为写入临时 .py 文件再执行
+2. **不要用 heredoc（<< 'EOF'）**——PS 不支持 heredoc 语法
+3. **不要用 Unix 命令**（head、cat、find -maxdepth、grep）——PS 没有这些命令
+4. **不要用字符串替换修改 HTML**——\n vs \r\n 差异导致替换静默失败。改为用 Python 脚本按行号操作
+5. **需要内联 Python 时**，用以下安全模式：
+   ```python
+   # 写入临时文件再执行，避免 PS 引号问题
+   python -c "open('_tmp.py','w').write('print(1)'); exec(open('_tmp.py').read())"
+   ```
+   或直接用 Node.js（Codex 内置，无引号问题）。
+
 ## 不要做什么
 
 1. 不重新定义业务规则
