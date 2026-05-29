@@ -1,6 +1,6 @@
 ---
 name: spm-prototype
-description: 原型阶段——把 design 或 PRD 的页面行为表达成可看、可讨论的原型
+description: "原型阶段——把 design 或 PRD 的页面行为表达成可看、可讨论的原型。用于用户说开始原型、做原型、生成原型时，基于 design 基线生成 HTML 原型。反馈先归类再修改，表现问题只改 prototype，语义问题先回写 design。"
 triggers:
   - "开始原型"
   - "做原型"
@@ -27,6 +27,8 @@ triggers:
 4. `templates/prototype.html`（HTML 骨架）
 5. `references/prototype-writing.md`（写法参考）
 
+🔴 **检查点：资源可读性**——templates/prototype.html 和 lib/ 目录下的 CSS/JS 文件是否存在？缺失时停下告知用户，不凭记忆生成原型。
+
 ## 输出要求
 
 1. `output/prototype/index.html` 或按页面拆分的原型文件
@@ -47,9 +49,10 @@ triggers:
 ### 组件使用规则
 
 1. 通用组件默认使用 Element Plus（中文站：https://element-plus.org/zh-CN/）对应组件能力
-2. 查询区、表单区、表格区、详情区、弹窗区优先使用 Element Plus 的现成组件组合，不自造另一套通用控件体系
-3. 可直接使用的常见组件包括：`el-form`、`el-card`、`el-table`、`el-tabs`、`el-button`、`el-tag`、`el-dialog`、`el-drawer`、`el-pagination`
-4. 如无明确视觉要求，不重写 Element Plus 的基础交互语义，只做版式、间距、信息层级适配
+2. **表格禁止使用 `el-table`**：el-table 在 Codex 内置浏览器中列全部竖向堆叠，经确认为渲染机制不兼容，无法通过 CSS 修复。所有数据表格必须使用**原生 HTML `<table>` + Vue 数据绑定**（详见 `references/prototype-writing.md`）
+3. 可直接使用的常见组件包括：`el-form`、`el-card`、`el-tabs`、`el-button`、`el-tag`、`el-dialog`、`el-drawer`、`el-pagination`
+4. `el-select` 在 Codex 浏览器中同样存在渲染问题，筛选控件使用原生 `<select>` 替代
+5. 如无明确视觉要求，不重写 Element Plus 的基础交互语义，只做版式、间距、信息层级适配
 
 ### 页面组织规则
 
@@ -59,6 +62,12 @@ triggers:
 4. 无特殊要求时，页面背景、卡片样式、页签样式、按钮层级遵循基座模板，不单页自行漂移
 5. 页面名称默认放在主体区顶部的页签条中表达；页签支持关闭按钮，不再另起一块大页头重复写页面标题
 6. 模板中的查询工具条、卡片容器、留白区域只用于示意内容层级，不代表所有页面都必须有查询条件或工具栏
+
+### CDN 与资源引用
+
+1. 原型使用本地 `lib/` 目录下的 CSS/JS 文件，不依赖外部 CDN（file:// 协议下外部资源可能加载失败）
+2. 需要预先下载的文件：`element-plus.css`、`vue.global.prod.js`、`element-plus.js`、`element-plus-icons.js`、`echarts.js`
+3. HTML 中引用方式：`<link rel="stylesheet" href="lib/element-plus.css">`
 
 ### prototype-feedback 归类规则
 
@@ -80,6 +89,8 @@ AI 读取 `prototype-feedback.md` 后，必须先输出固定格式归类结果�
   - ...
 ```
 
+🔴 **检查点：归类完成**——未输出归类结果前，不得开始修改任何文件。
+
 归类规则：
 
 - 表现问题：只修改 prototype + metadata/prototype，不回写 design
@@ -87,10 +98,13 @@ AI 读取 `prototype-feedback.md` 后，必须先输出固定格式归类结果�
 - 若某一类为空，保留标题并写"无"
 - 未输出归类结果前，不得开始修改任何文件
 
-## 明确不做什么
+## 不要做什么
 
 1. 不重新定义业务规则
 2. 不替代 PRD
 3. 不引入很重的构建链
 4. 不把语义问题只留在 prototype 闭环
 5. 不跳过归类直接修改
+6. 不在 templates/prototype.html 或 lib/ 缺失时凭记忆生成原型
+7. 不使用 el-table（Codex 浏览器不兼容）
+8. 不使用外部 CDN（file:// 协议下加载失败）

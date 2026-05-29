@@ -1,10 +1,11 @@
 ---
 name: spm-design-review
-description: 设计 review——判断 design 基线的质量
+description: "设计 review——判断 design 基线的质量。用于用户说 design review、设计 review、review 设计时，先跑预检查脚本确认准入，再逐项审查核心章节、字段定义、权限覆盖和一致性。不代写 design 正文。"
 triggers:
   - "design review"
   - "设计 review"
   - "review 设计"
+  - "spm-design-review"
 ---
 
 # 设计 Review
@@ -18,21 +19,23 @@ triggers:
 ### 第一段：确定性预检查
 
 1. 运行 `review-precheck.py --stage design`，生成 `.workflow/runtime/design/review-precheck.json`
-2. 如 `can_start_review` = false，停止并输出阻塞项
-3. 检查 design.md 是否存在
-4. 检查核心章节是否全部存在：
+
+🔴 **检查点：预检查脚本**——如脚本执行失败或返回非零退出码，停下来告知用户，不跳过预检查继续。如 `can_start_review` = false，停止并输出阻塞项。
+
+2. 检查 design.md 是否存在
+3. 检查核心章节是否全部存在：
    - 角色定义
    - 模块定义
    - 页面清单
    - 字段定义
    - 规则与状态定义
    - 权限定义
-3. 检查 metadata/design 是否完整（9 个 JSON 文件）
-4. 检查稳定 ID 是否正确生成（6 种前缀）
-5. 检查 design.md 正文中是否有稳定 ID 泄漏
-6. 检查人读稿与机读镜像数量一致性
+4. 检查 metadata/design 是否完整（9 个 JSON 文件）
+5. 检查稳定 ID 是否正确生成（6 种前缀）
+6. 检查 design.md 正文中是否有稳定 ID 泄漏
+7. 检查人读稿与机读镜像数量一致性
 
-如有阻塞问题（如核心章节缺失、机读物不完整），停止并输出阻塞项。
+🔴 **检查点：预检查结果**——如有阻塞问题（核心章节缺失、机读物不完整），停止并输出阻塞项清单，不进入第二段。
 
 ### 第二段：人读正文质量审查
 
@@ -79,6 +82,8 @@ triggers:
 3. 是否需要回上游
 4. 下一步建议
 
+🔴 **检查点：verdict 输出**——输出 verdict 后，🔴 **停止并等待用户确认**。不自动推进阶段，不自动触发 fix。
+
 ## 判定规则
 
 - **通过**：零 P0、零 P1
@@ -89,11 +94,11 @@ triggers:
 
 - **P0**：阻塞性缺陷（核心章节缺失、字段定义丢失、design 新增 align 未确认范围等）
 - **P1**：影响质量但不阻塞推进（字段属性缺失、权限未覆盖到字段级等）
-- **P2**：格式/风格类问题，不影响功能（稳定 ID 泄漏、lint warning 等）。**P2 必须写入 issues 数组**，但 **不计入 verdict 判定**（见上）
+- **P2**：格式/风格类问题，不影响功能（稳定 ID 泄漏、lint warning 等）。**P2 必须写入 issues 数组**，但 **不计入 verdict 判定**
 
 ### issue_layer 格式
 
-必须为对象 `{"structure": N, "content": N, "consistency": N}`，三个字段均为必填整数。不可使用字符串等其他类型。
+必须为对象 `{"structure": N, "content": N, "consistency": N}`，三个字段均为必填整数。
 
 - `structure`：归入结构层的 issue 数
 - `content`：归入内容层的 issue 数
@@ -105,3 +110,13 @@ triggers:
 2. 不代写 design 正文
 3. 不自行修改 design.md
 4. 问题必须具体到章节和内容
+5. 预检查脚本失败时停下告知用户，不跳过
+
+## 不要做什么
+
+- 不代写 design 正文
+- 不自行修改 design.md
+- 不自动推进到下一阶段
+- 不跳过预检查脚本直接进入人读审查
+- 不在 verdict 输出后自动触发 fix 或推进
+- 不把 P2 问题计入 verdict 判定

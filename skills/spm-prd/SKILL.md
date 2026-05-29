@@ -1,6 +1,6 @@
 ---
 name: spm-prd
-description: PRD 阶段——把 design 基线展开成研发可评审的人读规格说明
+description: "PRD 阶段——把 design 基线展开成研发可评审的人读规格说明。用于用户说开始写 PRD、做 PRD、写 PRD 时，按模块和页面逐项展开详细需求、权限汇总、数据字典和状态机。PRD 不得独立改写 design 语义。"
 triggers:
   - "开始写 PRD"
   - "做 PRD"
@@ -20,7 +20,7 @@ triggers:
 1. design.md 存在
 2. metadata/design 完整
 
-如检查不通过，停止，不写任何产物。
+如检查不通过，🔴 停止并输出阻塞项，不写任何产物。
 
 ## 最小读取集合
 

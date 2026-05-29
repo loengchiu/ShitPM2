@@ -1,6 +1,6 @@
 ---
 name: spm-design
-description: 设计阶段——把对齐结果结构化成稳定基线
+description: "设计阶段——把对齐结果结构化成稳定基线。用于用户说开始设计、做设计、进入设计时，按固定顺序生成角色、模块、页面、字段、规则、权限等完整设计基线。设计是唯一事实源。"
 triggers:
   - "开始设计"
   - "做设计"
@@ -21,7 +21,7 @@ triggers:
 2. metadata/align 完整
 3. align-notes.json 中 `can_enter_design` = true
 
-如检查不通过，停止，不写任何产物。
+如检查不通过，🔴 停止并输出阻塞项，不写任何产物。
 
 ## 最小读取集合
 
