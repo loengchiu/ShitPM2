@@ -55,7 +55,7 @@ CHAPTER_HEADING_PATTERN = re.compile(r'^[一二三四五六七八九十]+[、．
 # Metadata 文件映射
 METADATA_FILE_MAP = {
     "align": ["index.json", "entities.json", "relations.json"],
-    "design": ["index.json", "entities.json", "relations.json", "modules.json", "pages.json", "fields.json", "rules.json", "states.json", "permissions.json", "page-fields.json", "non-page-fields.json"],
+    "design": ["index.json", "entities.json", "relations.json", "modules.json", "pages.json", "fields.json", "rules.json", "states.json", "permissions.json", "page-fields.json", "non-page-fields.json", "field-constraints.json"],
     "prd": ["index.json", "entities.json", "relations.json", "page-anchor.json", "rule-anchor.json", "field-anchor.json"],
     "prototype": ["index.json", "page-map.json"],
 }
@@ -684,7 +684,114 @@ def generate_design_metadata(content: str, stage: str, project_root: Path) -> di
     # 始终写入 states 和 permissions，覆盖可能存在的陈旧文件
     result["states"] = table_states
     result["permissions"] = table_perms
+    # 生成字段约束速查表（供 PRD 生成时防幻觉）
+    result["field_constraints"] = generate_field_constraints(result)
     return result
+
+
+
+def generate_field_constraints(design_data: dict) -> list:
+    """从 design metadata 中提取字段约束速查表，供 PRD 生成时防幻觉使用。
+
+    只保留：字段名、稳定ID、单选/多选、只读/可编辑、必填/选填、所属页面。
+    目标 < 3KB，agent 生成 PRD 时只需读这一个文件即可确认字段约束。
+    """
+    fields = design_data.get("fields", [])
+    page_fields = design_data.get("page_fields", [])
+    rules = design_data.get("rules", [])
+
+    # 构建 页面→字段 映射
+    field_pages = {}
+    for pf in page_fields:
+        if isinstance(pf, dict):
+            page_name = pf.get("page", "")
+            for f in pf.get("fields", []):
+                fname = f if isinstance(f, str) else f.get("name", "")
+                if fname:
+                    field_pages.setdefault(fname, []).append(page_name)
+
+    # 从 rules 中提取数量规则（单选/多选）
+    selection_rules = {}
+    for rule in rules:
+        if isinstance(rule, dict):
+            title = rule.get("title", "")
+            content_text = rule.get("content", "") or rule.get("detail", "")
+            if "单选" in title or "默认带出" in title:
+                # 提及的字段标记为单选
+                pass
+            if "备选" in title and "多选" in (content_text or ""):
+                pass
+            if "默认与备选数量" in title:
+                selection_rules[title] = content_text
+
+    # 从字段 attributes 中提取约束
+    constraints = []
+    for field in fields:
+        if not isinstance(field, dict):
+            continue
+        field_id = field.get("id", "")
+        title = field.get("title", "")
+        attrs = field.get("attributes", {})
+
+        if not title or not field_id:
+            continue
+
+        # 跳过元数据字段（字段权限例外等）
+        if "权限例外" in title:
+            continue
+
+        data_type = attrs.get("数据类型", "")
+        required = attrs.get("必填", None)
+        enum_vals = attrs.get("枚举值", "")
+        business_source = attrs.get("业务来源", "")
+        detail = attrs.get("说明", "")
+
+        # 推断编辑性
+        editable = True
+        if "自动带出" in str(business_source) or "系统生成" in str(business_source) or "系统同步" in str(business_source) or "NCC" in str(business_source):
+            editable = False
+        if "只读" in str(detail):
+            editable = False
+        if "科目编码" in title:
+            editable = False  # 科目编码只读，科目名称自动带出
+
+        # 推断选择方式
+        select_mode = "input"
+        if data_type == "enum" or "枚举" in str(enum_vals):
+            select_mode = "enum"
+        if "搜索弹窗" in str(detail) or "选择" in str(detail):
+            select_mode = "popup-select"
+        if "标签" in str(detail):
+            select_mode = "tag-select"
+
+        # 推断单选/多选（从规则或字段名推断）
+        multi_select = None
+        if "默认带出" in title:
+            multi_select = False  # 默认带出 = 单选
+        if "备选" in title:
+            multi_select = True   # 备选 = 多选
+
+        # 所属页面
+        pages = field_pages.get(title, [])
+
+        constraint = {
+            "id": field_id,
+            "name": title,
+            "type": data_type,
+            "required": required,
+            "editable": editable,
+            "select_mode": select_mode,
+        }
+        if multi_select is not None:
+            constraint["multi_select"] = multi_select
+        if pages:
+            constraint["pages"] = pages
+        if enum_vals and enum_vals != "—" and enum_vals != "沿用原系统":
+            constraint["enum"] = enum_vals
+
+        constraints.append(constraint)
+
+    return constraints
 
 
 def generate_prd_metadata(content: str, project_root: Path) -> dict:
@@ -1031,7 +1138,7 @@ def _extract_keywords(title: str) -> set:
     return keywords
 
 
-def write_metadata(stage: str, data: dict, project_root: Path, dry_run: bool = False) -> list:
+def write_metadata(stage: str, data: dict, project_root: Path, dry_run: bool = False, merge: bool = False) -> list:
     """将 metadata 写入文件"""
     metadata_dir = project_root / ".workflow" / "metadata" / stage
     if not dry_run:
@@ -1051,6 +1158,7 @@ def write_metadata(stage: str, data: dict, project_root: Path, dry_run: bool = F
         "permissions": "permissions.json",
         "page_fields": "page-fields.json",
         "non_page_fields": "non-page-fields.json",
+        "field_constraints": "field-constraints.json",
         "page_anchor": "page-anchor.json",
         "rule_anchor": "rule-anchor.json",
         "field_anchor": "field-anchor.json",
@@ -1191,6 +1299,7 @@ def main():
     parser.add_argument("--stage", required=True, choices=VALID_STAGES, help="目标阶段")
     parser.add_argument("--project-root", default=".", help="项目根目录")
     parser.add_argument("--dry-run", action="store_true", help="试运行，不写入文件")
+    parser.add_argument("--merge", action="store_true", help="合并所有 metadata 为单文件 metadata.json")
     args = parser.parse_args()
 
     project_root = Path(args.project_root).resolve()
@@ -1219,7 +1328,7 @@ def main():
         sys.exit(1)
 
     # 写入文件
-    written_files = write_metadata(stage, data, project_root, dry_run=args.dry_run)
+    written_files = write_metadata(stage, data, project_root, dry_run=args.dry_run, merge=args.merge)
     ctx_file = write_stage_context(stage, data, project_root, dry_run=args.dry_run)
 
     # align 阶段额外写入 align-notes.json

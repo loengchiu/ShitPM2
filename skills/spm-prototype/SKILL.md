@@ -23,7 +23,7 @@ triggers:
 
 1. `.workflow/status.json`
 2. `output/design/design.md`
-3. `.workflow/metadata/design/`（页面清单、字段定义）
+3. `.workflow/metadata/design/page-fields.json`（页面→字段落点）+ `field-constraints.json`（字段约束）
 4. `templates/prototype.html`（HTML 骨架）
 5. `references/prototype-writing.md`（写法参考）
 

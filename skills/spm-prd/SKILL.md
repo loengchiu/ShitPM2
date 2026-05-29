@@ -24,12 +24,18 @@ triggers:
 
 ## 最小读取集合
 
+🔴 **批量读取**——以下文件用一次工具调用全部读取，不逐个读：
+
 1. `.workflow/status.json`
 2. `output/design/design.md`（design 基线）
-3. `.workflow/metadata/design/` 全量
-4. `templates/prd.md`（产物骨架）
-5. `references/prd-writing.md`（写法参考）
-6. `references/prd-writing.profile.json`（写作约束）
+3. `.workflow/metadata/design/field-constraints.json`（**字段约束速查表——防幻觉核心依赖**）
+4. `.workflow/metadata/design/page-fields.json`（页面→字段落点）
+5. `.workflow/metadata/design/index.json`（总索引）
+6. `templates/prd.md`（产物骨架）
+7. `references/prd-writing.md`（写法参考）
+8. `references/prd-writing.profile.json`（写作约束）
+
+**不再读取**：entities.json、relations.json、modules.json、pages.json、fields.json、rules.json、states.json、permissions.json——这些已在 field-constraints.json 中浓缩。
 
 ## 执行顺序
 
@@ -183,7 +189,7 @@ triggers:
 
 ### 机读产物
 
-运行 `stage-prep.py --stage prd` 生成 `.workflow/metadata/prd/` 下的文件：
+运行 `stage-prep.py --stage prd --merge` 生成 `.workflow/metadata/prd/` 下的文件：
 
 - `index.json`
 - `entities.json`

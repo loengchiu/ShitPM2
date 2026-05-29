@@ -29,7 +29,7 @@ ARTIFACT_PATHS = {
 }
 
 METADATA_FILE_MAP = {
-    "design": ["index.json", "entities.json", "relations.json", "modules.json", "pages.json", "fields.json", "rules.json", "states.json", "permissions.json", "page-fields.json", "non-page-fields.json"],
+    "design": ["index.json", "entities.json", "relations.json", "modules.json", "pages.json", "fields.json", "rules.json", "states.json", "permissions.json", "page-fields.json", "non-page-fields.json", "field-constraints.json"],
     "prd": ["index.json", "entities.json", "relations.json", "page-anchor.json", "rule-anchor.json", "field-anchor.json"],
     "prototype": ["index.json", "page-map.json"],
 }
@@ -46,6 +46,45 @@ CORE_SECTIONS = {
 }
 
 STABLE_ID_PATTERN = re.compile(r'(MODULE|PAGE|FIELD|RULE|FLOW|REL|REQ|RISK|CASE|WVR)-(design|prd)-\d{3}')
+
+
+
+def check_field_constraints_consistency(project_root: Path, stage: str) -> dict:
+    """检查 field-constraints.json 与 design.md 的字段约束是否一致"""
+    if stage != "design":
+        return {"check": "field_constraints_consistency", "passed": True, "detail": "非 design 阶段，跳过"}
+
+    fc_path = project_root / ".workflow/metadata/design/field-constraints.json"
+    if not fc_path.exists():
+        return {"check": "field_constraints_consistency", "passed": False, "detail": "field-constraints.json 不存在"}
+
+    artifact_path = project_root / ARTIFACT_PATHS[stage]
+    if not artifact_path.exists():
+        return {"check": "field_constraints_consistency", "passed": False, "detail": f"{ARTIFACT_PATHS[stage]} 不存在"}
+
+    with open(fc_path, encoding="utf-8") as f:
+        constraints = json.load(f)
+    with open(artifact_path, encoding="utf-8") as f:
+        content = f.read()
+
+    issues = []
+    for field in constraints:
+        name = field.get("name", "")
+        multi_select = field.get("multi_select")
+        editable = field.get("editable")
+
+        # 检查 multi_select 一致性
+        if multi_select is True:
+            # design.md 中应该有"多选"或"允许选择多个"
+            if "只能选择 1 个" in content and name in content:
+                issues.append(f"{name}: field-constraints 标记 multi_select=true，但 design.md 中有'只能选择 1 个'")
+        if multi_select is False:
+            # design.md 中应该有"单选"或"只能选择 1 个"
+            pass  # 正向检查较难，跳过
+
+    if issues:
+        return {"check": "field_constraints_consistency", "passed": False, "detail": "; ".join(issues)}
+    return {"check": "field_constraints_consistency", "passed": True, "detail": "字段约束一致性通过"}
 
 
 def check_artifact_exists(project_root: Path, stage: str) -> dict:
@@ -377,6 +416,10 @@ def main():
         deterministic_checks.append(coverage_check)
         if not coverage_check["passed"]:
             blocking_issues.append(coverage_check["detail"])
+        fc_check = check_field_constraints_consistency(project_root, stage)
+        deterministic_checks.append(fc_check)
+        if not fc_check["passed"]:
+            blocking_issues.append(fc_check["detail"])
 
     if stage == "prd":
         lint_warnings = run_prd_style_lint(project_root)

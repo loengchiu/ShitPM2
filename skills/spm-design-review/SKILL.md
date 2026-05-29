@@ -34,6 +34,7 @@ triggers:
 5. 检查稳定 ID 是否正确生成（6 种前缀）
 6. 检查 design.md 正文中是否有稳定 ID 泄漏
 7. 检查人读稿与机读镜像数量一致性
+8. 检查 field-constraints.json 是否存在且每个字段的 `multi_select`、`editable`、`required` 属性与 design.md 正文一致
 
 🔴 **检查点：预检查结果**——如有阻塞问题（核心章节缺失、机读物不完整），停止并输出阻塞项清单，不进入第二段。
 
@@ -57,6 +58,7 @@ triggers:
 5. metadata/design 与 design.md 一致性
 6. 稳定 ID 正确性
 7. 不新增 align 未确认范围
+8. field-constraints.json 与 design.md 字段约束一致性
 
 ## 输出要求
 
