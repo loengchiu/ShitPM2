@@ -17,6 +17,8 @@ triggers:
 
 ## 最小读取集合
 
+🔴 **一次读取**——用一次工具调用读取以下文件：
+
 1. .workflow/status.json（如不存在，进入新项目扫描流程）
 2. output/ 目录下各阶段产物（存在则读，不存在则跳过）
 3. .workflow/reviews/ 目录下最近一次 review 结果（存在则读）

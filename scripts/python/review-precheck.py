@@ -87,8 +87,16 @@ def check_field_constraints_consistency(project_root: Path, stage: str) -> dict:
     return {"check": "field_constraints_consistency", "passed": True, "detail": "字段约束一致性通过"}
 
 
-def check_artifact_exists(project_root: Path, stage: str) -> dict:
+def check_artifact_exists(project_root: Path, stage: str, stdin_content: str = None) -> dict:
     artifact_rel = ARTIFACT_PATHS[stage]
+    if stdin_content is not None:
+        result = {
+            "check": "artifact_exists",
+            "passed": True,
+            "detail": artifact_rel,
+            "size_chars": len(stdin_content),
+        }
+        return result
     artifact_path = project_root / artifact_rel
     exists = artifact_path.exists()
     result = {
@@ -103,15 +111,18 @@ def check_artifact_exists(project_root: Path, stage: str) -> dict:
     return result
 
 
-def check_core_sections(project_root: Path, stage: str) -> list:
+def check_core_sections(project_root: Path, stage: str, stdin_content: str = None) -> list:
     if stage not in CORE_SECTIONS or not CORE_SECTIONS[stage]:
         return []
     artifact_rel = ARTIFACT_PATHS[stage]
     artifact_path = project_root / artifact_rel
-    if not artifact_path.exists():
+    if stdin_content is not None:
+        content = stdin_content
+    elif not artifact_path.exists():
         return [{"check": "core_sections", "passed": False, "detail": f"{artifact_rel} 不存在，无法检查章节"}]
-    with open(artifact_path, encoding="utf-8") as f:
-        content = f.read()
+    else:
+        with open(artifact_path, encoding="utf-8") as f:
+            content = f.read()
     results = []
     for section in CORE_SECTIONS[stage]:
         found = bool(re.search(re.escape(section), content))
@@ -380,6 +391,7 @@ def main():
     parser = argparse.ArgumentParser(description="review 确定性预检查")
     parser.add_argument("--stage", required=True, choices=VALID_STAGES, help="被 review 的阶段")
     parser.add_argument("--project-root", type=Path, default=Path.cwd(), help="项目根目录")
+    parser.add_argument("--stdin-artifact", action="store_true", help="从 stdin 读取人读稿内容")
     args = parser.parse_args()
 
     project_root = args.project_root.resolve()
@@ -389,12 +401,15 @@ def main():
     blocking_issues = []
     warnings = []
 
-    artifact_check = check_artifact_exists(project_root, stage)
+    stdin_content = None
+    if args.stdin_artifact:
+        stdin_content = sys.stdin.read()
+    artifact_check = check_artifact_exists(project_root, stage, stdin_content)
     deterministic_checks.append(artifact_check)
     if not artifact_check["passed"]:
         blocking_issues.append(artifact_check["detail"])
 
-    section_checks = check_core_sections(project_root, stage)
+    section_checks = check_core_sections(project_root, stage, stdin_content)
     deterministic_checks.extend(section_checks)
     for sc in section_checks:
         if not sc["passed"]:

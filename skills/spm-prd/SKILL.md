@@ -189,7 +189,7 @@ triggers:
 
 ### 机读产物
 
-运行 `stage-prep.py --stage prd --merge` 生成 `.workflow/metadata/prd/` 下的文件：
+运行 `stage-prep.py --stage prd --merge --stdin-artifact` 生成（agent 已读取 prd.md，通过 stdin 传入） `.workflow/metadata/prd/` 下的文件：
 
 - `index.json`
 - `entities.json`

@@ -1300,19 +1300,22 @@ def main():
     parser.add_argument("--project-root", default=".", help="项目根目录")
     parser.add_argument("--dry-run", action="store_true", help="试运行，不写入文件")
     parser.add_argument("--merge", action="store_true", help="合并所有 metadata 为单文件 metadata.json")
+    parser.add_argument("--stdin-artifact", action="store_true", help="从 stdin 读取人读稿内容（避免重复读文件）")
     args = parser.parse_args()
 
     project_root = Path(args.project_root).resolve()
     stage = args.stage
 
     # 读取人读产物
-    artifact_path = project_root / ARTIFACT_PATHS[stage]
-    if not artifact_path.exists():
-        print(f"错误: 人读产物不存在: {artifact_path}", file=sys.stderr)
-        sys.exit(1)
-
-    with open(artifact_path, encoding="utf-8") as f:
-        content = f.read()
+    if args.stdin_artifact:
+        content = sys.stdin.read()
+    else:
+        artifact_path = project_root / ARTIFACT_PATHS[stage]
+        if not artifact_path.exists():
+            print(f"错误: 人读产物不存在: {artifact_path}", file=sys.stderr)
+            sys.exit(1)
+        with open(artifact_path, encoding="utf-8") as f:
+            content = f.read()
 
     # 根据阶段生成 metadata
     if stage == "align":

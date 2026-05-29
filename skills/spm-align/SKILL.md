@@ -16,6 +16,8 @@ triggers:
 
 ## 最小读取集合
 
+🔴 **一次读取**——用一次工具调用读取以下全部文件：
+
 1. .workflow/status.json（当前状态）
 2. .workflow/runtime/align/align-notes.json（如存在）
 3. references/align-writing.md（写法参考）

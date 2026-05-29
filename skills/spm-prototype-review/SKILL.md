@@ -18,7 +18,7 @@ triggers:
 
 ### 第一段：确定性预检查
 
-1. 运行 `review-precheck.py --stage prototype`，生成 `.workflow/runtime/prototype/review-precheck.json`
+1. 运行 `review-precheck.py --stage prototype --stdin-artifact`（agent 已读取 index.html，通过 stdin 传入），生成 `.workflow/runtime/prototype/review-precheck.json`
 
 🔴 **检查点：预检查脚本**——如脚本执行失败或返回非零退出码，停下来告知用户，不跳过预检查继续。如 `can_start_review` = false，停止并输出阻塞项。
 

@@ -21,6 +21,8 @@ triggers:
 
 ## 最小读取集合
 
+🔴 **一次读取**——用一次工具调用读取以下全部文件：
+
 1. `.workflow/status.json`
 2. `output/design/design.md`
 3. `.workflow/metadata/design/page-fields.json`（页面→字段落点）+ `field-constraints.json`（字段约束）

@@ -75,8 +75,14 @@ MINIMAL_READ_SET = {
 }
 
 
-def load_status(project_root: Path) -> dict:
+def load_status(project_root: Path, stdin_status: bool = False) -> dict:
     """加载 status.json"""
+    if stdin_status:
+        try:
+            content = sys.stdin.read()
+            return json.loads(content)
+        except (json.JSONDecodeError, OSError):
+            return None
     status_path = project_root / ".workflow" / "status.json"
     if not status_path.exists():
         return None
@@ -169,9 +175,9 @@ def determine_next(status: dict, align_notes) -> str:
     return current
 
 
-def collect_context(project_root: Path) -> dict:
+def collect_context(project_root: Path, stdin_status: bool = False) -> dict:
     """收集当前阶段上下文，返回完整结果"""
-    status = load_status(project_root)
+    status = load_status(project_root, stdin_status=stdin_status)
     if status is None:
         return {
             "error": "status.json not found",
@@ -246,16 +252,18 @@ def collect_context(project_root: Path) -> dict:
 
 
 def main():
-    if len(sys.argv) < 2:
-        print("用法: python stage-context.py <project_root>", file=sys.stderr)
-        sys.exit(1)
+    import argparse
+    parser = argparse.ArgumentParser(description="准入和上下文脚本")
+    parser.add_argument("project_root", help="项目根目录")
+    parser.add_argument("--stdin-status", action="store_true", help="从 stdin 读取 status.json 内容（避免重复读文件）")
+    args = parser.parse_args()
 
-    project_root = Path(sys.argv[1]).resolve()
+    project_root = Path(args.project_root).resolve()
     if not project_root.exists():
         print(f"错误: 项目根目录不存在: {project_root}", file=sys.stderr)
         sys.exit(1)
 
-    result = collect_context(project_root)
+    result = collect_context(project_root, stdin_status=args.stdin_status)
 
     # 输出 JSON 到 stdout
     print(json.dumps(result, ensure_ascii=False, indent=2))
