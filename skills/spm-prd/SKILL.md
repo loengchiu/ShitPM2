@@ -49,8 +49,7 @@ triggers:
    - 补充辅助章节（如需要）
 4. 运行 `prd-style-lint.py` 自检
 5. 生成 prd.md 人读产物
-6. 生成 metadata/prd 机读镜像
-7. 更新 status.json
+6. 更新 status.json
 
 ## 硬规则
 
@@ -177,17 +176,6 @@ triggers:
 - 验收标准汇总（仅形成真实验收约束时出现）
 - 风险与待确认（仅存在真实风险或待确认项时出现）
 
-### 机读产物
-
-运行 `stage-prep.py --stage prd --merge --stdin-artifact` 生成（agent 已读取 prd.md，通过 stdin 传入） `.workflow/metadata/prd/` 下的文件：
-
-- `index.json`
-- `entities.json`
-- `relations.json`
-- `page-anchor.json`
-- `rule-anchor.json`
-- `field-anchor.json`
-
 ### 状态更新
 
 更新 `.workflow/status.json`：
@@ -201,10 +189,9 @@ triggers:
 
 1. prd.md 核心章节全部存在
 2. prd-style-lint.py 无 P0 问题
-3. 机读镜像已生成
-4. PRD 内容不超出 design 范围
+3. PRD 内容不超出 design 范围
 
-满足以上 4 条后停止，建议进入 review 或 prototype。
+满足以上 3 条后停止，建议 /spm-prd-review。
 
 ## 明确不做什么
 

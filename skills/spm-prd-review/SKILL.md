@@ -18,7 +18,7 @@ triggers:
 
 ### 第一段：确定性预检查
 
-1. 运行 `review-precheck.py --stage prd --stdin-artifact`（agent 已读取 prd.md，通过 stdin 传入），生成 `.workflow/runtime/prd/review-precheck.json`
+1. 运行 `review-precheck.py --stage prd --no-metadata --stdin-artifact`（agent 已读取 prd.md，通过 stdin 传入），生成 `.workflow/runtime/prd/review-precheck.json`
 
 🔴 **失败分支：预检查脚本失败**——脚本执行失败时停下告知用户，不跳过。如 `can_start_review` = false，停止并输出阻塞项。
 
@@ -28,12 +28,11 @@ triggers:
    - 权限汇总
    - 数据字典
    - 状态机
-4. 检查 metadata/prd 是否完整（6 个 JSON 文件）
 5. 运行 `prd-style-lint.py` 检查文风问题
 6. 检查数据字典是否使用约定轻量格式
 7. 检查 prd.md 中是否有稳定 ID 泄漏
 
-🔴 **检查点：预检查结果**——如有阻塞问题（核心章节缺失、机读物不完整），停止并输出阻塞项清单，不进入第二段。
+🔴 **检查点：预检查结果**——如有阻塞问题（核心章节缺失），停止并输出阻塞项清单，不进入第二段。
 
 ### 第二段：人读正文质量审查
 
