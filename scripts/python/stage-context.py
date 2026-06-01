@@ -34,7 +34,7 @@ REQUIRED_ARTIFACTS = {
 # 每个阶段必须存在的机读物目录
 REQUIRED_METADATA = {
     "align": [],
-    "design": [".workflow/metadata/align/"],
+    "design": [],  # metadata 在 design review 通过后生成
     "prd": [".workflow/metadata/design/"],
     "prototype": [".workflow/metadata/design/"],
     "fix": [],
@@ -50,7 +50,6 @@ MINIMAL_READ_SET = {
     "design": [
         ".workflow/status.json",
         "output/align/align.md",
-        ".workflow/metadata/align/",
         "references/design-writing.md",
         "templates/design.md",
     ],

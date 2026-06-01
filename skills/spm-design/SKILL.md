@@ -51,8 +51,11 @@ triggers:
    - 规则设计
    - 权限定义（细到字段级）
 4. 生成 design.md 人读产物
-5. 生成 metadata/design 机读镜像
-6. 更新 status.json
+5. 更新 status.json
+
+> **metadata 生成时机**：design.md 的机读产物（metadata/design/）不在本阶段生成，
+> 而是在 /spm-design-review 通过后由 stage-prep.py 脚本一次性提取。
+> 设计阶段只关注人读物质量，PM 修订时也只改 design.md，不再双写。
 
 ## 硬规则
 
@@ -118,7 +121,7 @@ PRD 可为交付目的镜像这些内容，但不得独立改写语义。
 ### 稳定 ID 规则
 
 1. 稳定 ID 首次在 design 阶段生成
-2. 只存在于外置机读物
+2. 只存在于外置机读物，由 review 通过后 `stage-prep.py` 脚本注入，由 review 通过后 `stage-prep.py` 脚本注入
 3. design.md 正文不得出现稳定 ID
 4. 第一版只使用以下前缀：
    - `MODULE-design-NNN`
@@ -157,21 +160,6 @@ PRD 可为交付目的镜像这些内容，但不得独立改写语义。
 - 范围与建设方式
 - 核心业务流程
 
-### 机读产物
-
-运行 `stage-prep.py --stage design` 生成 `.workflow/metadata/design/` 下的文件：
-
-- `index.json`：总索引
-- `entities.json`：实体列表（含稳定 ID）
-- `relations.json`：关系列表
-- `modules.json`：模块定义
-- `pages.json`：页面清单
-- `fields.json`：字段定义
-- `rules.json`：规则定义
-- `states.json`：状态定义（轻量抽取）
-- `permissions.json`：权限定义（轻量抽取）
-- `page-fields.json`：页面与字段落点映射
-
 ### 状态更新
 
 更新 `.workflow/status.json`：
@@ -184,11 +172,10 @@ PRD 可为交付目的镜像这些内容，但不得独立改写语义。
 ## 停止条件
 
 1. design.md 核心章节全部存在
-2. 机读镜像已生成
-3. 人读稿与机读镜像一致
-4. 无新增 align 未确认的范围
+2. 无新增 align 未确认的范围
+3. 页面清单、字段定义、页面与字段落点三处能互相对齐
 
-满足以上 4 条后停止，建议进入 PRD 或 prototype 阶段。
+满足以上 3 条后停止，建议 `/spm-design-review`。
 
 ## 明确不做什么
 

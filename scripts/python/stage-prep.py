@@ -222,7 +222,12 @@ def parse_tables_with_context(content: str, headings: list) -> list:
                 headers = [h.strip() for h in line.split('|')[1:-1]]
                 rows = []
                 j = i + 2  # 跳过表头和分隔行
-                while j < len(lines) and lines[j].strip().startswith('|'):
+                while j < len(lines):
+                    if lines[j].strip() == '':
+                        j += 1
+                        continue
+                    if not lines[j].strip().startswith('|'):
+                        break
                     row_text = lines[j].strip()
                     cells = [c.strip() for c in row_text.split('|')[1:-1]]
                     rows.append(cells)
@@ -311,7 +316,7 @@ def extract_entities_from_tables(content: str, headings: list, stage: str, count
                         })
 
         # 字段定义表：表头含"字段"和"类型"列（支持 5 列或 9 列格式）
-        if "字段" in headers and "类型" in headers and len(headers) >= 4:
+        if "字段" in headers and "类型" in headers and len(headers) >= 2:
             for row in table["rows"]:
                 if len(row) >= 2 and row[0] and row[0] not in ("---", "字段"):
                     title = row[0]
@@ -330,23 +335,47 @@ def extract_entities_from_tables(content: str, headings: list, stage: str, count
                         "attributes": _build_field_attributes(row, headers),
                     })
 
-        # 规则与状态定义章节中的状态内容
-        if "规则与状态" in section:
+        # 规则与状态定义章节中的状态内容（表格模式）
+        if any(kw in section for kw in ("规则与状态", "状态定义", "状态流转", "状态机")):
             for row in table["rows"]:
                 if any("状态" in cell for cell in row):
                     states.append({"title": row[0] if row else "", "line": table["line_offset"]})
 
-    # 如果表格解析没找到状态，从文本中提取
+    # 状态深度提取：表格未命中时，从标题和文本中提取
     if not states:
+        in_state_section = False
+        state_section_level = None
+        state_section_keywords = ("规则与状态", "状态定义", "状态流转", "状态机")
         for h in headings:
-            if h["level"] >= 3 and "状态" in h["title"]:
-                states.append({"title": h["title"], "line": h["line"]})
+            title = h["title"]
+            if h["level"] <= 2 and any(kw in title for kw in state_section_keywords):
+                in_state_section = True
+                state_section_level = h["level"]
+                continue
+            if in_state_section and h["level"] <= state_section_level:
+                in_state_section = False
+                continue
+            if in_state_section and h["level"] >= 3:
+                states.append({"title": title, "line": h["line"]})
 
-    # 权限定义：提取“权限定义”章节下的页面/角色小节
+    # 为 states 分配稳定 ID
+    state_counter = counter.get("STATE", 0)
+    for s in states:
+        if "id" not in s:
+            state_counter += 1
+            s["id"] = f"STATE-{stage}-{state_counter:03d}"
+            s["type"] = "state"
+            s.setdefault("detail", "")
+    counter["STATE"] = state_counter
+
+    # 权限深度提取：标题 + 表格
+    perm_section_keywords = ("权限定义", "角色权限", "权限矩阵")
     in_permission_section = False
     section_level = None
+    perm_counter = counter.get("PERM", 0)
     for h in headings:
-        if "权限定义" in h["title"] and h["level"] <= 2:
+        title = h["title"]
+        if h["level"] <= 2 and any(kw in title for kw in perm_section_keywords):
             in_permission_section = True
             section_level = h["level"]
             continue
@@ -354,7 +383,31 @@ def extract_entities_from_tables(content: str, headings: list, stage: str, count
             in_permission_section = False
             continue
         if in_permission_section and h["level"] >= 3:
-            permissions.append({"title": h["title"], "line": h["line"]})
+            perm_counter += 1
+            permissions.append({
+                "id": f"PERM-{stage}-{perm_counter:03d}",
+                "type": "permission",
+                "title": title,
+                "line": h["line"],
+                "detail": "",
+            })
+
+    # 如果标题提取没找到权限，扫描权限章节内的表格
+    if not permissions:
+        for table in tables:
+            section = table["section_title"]
+            if any(kw in section for kw in perm_section_keywords):
+                for row in table["rows"]:
+                    if row and row[0] and row[0] not in ("---", "角色", "字段", "页面"):
+                        perm_counter += 1
+                        permissions.append({
+                            "id": f"PERM-{stage}-{perm_counter:03d}",
+                            "type": "permission",
+                            "title": row[0],
+                            "line": table["line_offset"],
+                            "detail": "、".join(row[1:]) if len(row) > 1 else "",
+                        })
+    counter["PERM"] = perm_counter
 
     return pages, fields, states, permissions
 
@@ -392,13 +445,13 @@ def _extract_design_page_field_map(content: str, headings: list, pages: list, fi
             continue
         if in_section and h["level"] <= section_level:
             break
-        if in_section and h["level"] == section_level + 1:
+        if in_section and h["level"] > section_level and h["level"] <= section_level + 2:
             page_title = _clean_page_title(title)
             if "非页面落点字段" in page_title:
                 continue
             mappings.setdefault(page_title, {
                 "page_title": page_title,
-                "design_page": page_title_to_id.get(page_title),
+                "design_page": _fuzzy_page_match(page_title, page_title_to_id),
                 "line": h["line"],
                 "field_refs": [],
                 "field_titles": [],
@@ -416,7 +469,7 @@ def _extract_design_page_field_map(content: str, headings: list, pages: list, fi
             continue
         entry = mappings.setdefault(page_title, {
             "page_title": page_title,
-            "design_page": page_title_to_id.get(page_title),
+            "design_page": _fuzzy_page_match(page_title, page_title_to_id),
             "line": table["line_offset"],
             "field_refs": [],
             "field_titles": [],
@@ -435,7 +488,7 @@ def _extract_design_page_field_map(content: str, headings: list, pages: list, fi
                 entry["declared_empty"] = True
                 continue
             for token in _split_field_tokens(cell):
-                design_field = field_title_to_id.get(token)
+                design_field = _fuzzy_field_match(token, field_title_to_id)
                 if design_field:
                     entry["field_refs"].append(design_field)
                     entry["field_titles"].append(token)
@@ -473,7 +526,7 @@ def _extract_design_non_page_fields(content: str, headings: list, fields: list) 
             for token in _split_field_tokens(raw_field):
                 results.append({
                     "field_title": token,
-                    "design_field": field_title_to_id.get(token),
+                    "design_field": _fuzzy_field_match(token, field_title_to_id),
                     "reason": reason.strip(),
                     "line": table["line_offset"],
                 })
@@ -700,11 +753,15 @@ def generate_field_constraints(design_data: dict) -> list:
     page_fields = design_data.get("page_fields", [])
     rules = design_data.get("rules", [])
 
-    # 构建 页面→字段 映射
+    # 构建 字段→页面 映射（page-fields.json 结构：{page_title, field_titles, field_refs}）
     field_pages = {}
     for pf in page_fields:
         if isinstance(pf, dict):
-            page_name = pf.get("page", "")
+            page_name = pf.get("page_title", "") or pf.get("page", "")
+            for fname in pf.get("field_titles", []):
+                if fname:
+                    field_pages.setdefault(fname, []).append(page_name)
+            # 兼容旧结构
             for f in pf.get("fields", []):
                 fname = f if isinstance(f, str) else f.get("name", "")
                 if fname:
@@ -939,6 +996,40 @@ def _clean_page_title(title: str) -> str:
     cleaned = re.sub(r'^page[-_\s]?\d+\s*', '', cleaned, flags=re.IGNORECASE)
     return cleaned.strip()
 
+
+
+def _fuzzy_field_match(token: str, field_title_to_id: dict) -> str:
+    """模糊匹配字段名：先精确匹配，再去括号后缀、去尾部标注再匹配"""
+    # 精确匹配
+    if token in field_title_to_id:
+        return field_title_to_id[token]
+    # 去掉括号内容：如 "物资名称（必填）" -> "物资名称"
+    stripped = re.sub(r'[（(][^）)]*[）)]', '', token).strip()
+    if stripped and stripped in field_title_to_id:
+        return field_title_to_id[stripped]
+    # 去掉尾部标注词
+    for suffix in ('（必填）', '（选填）', '（多选）', '（单选）', '(必填)', '(选填)', '(多选)', '(单选)'):
+        if token.endswith(suffix):
+            clean = token[:-len(suffix)].strip()
+            if clean in field_title_to_id:
+                return field_title_to_id[clean]
+    return None
+
+
+def _fuzzy_page_match(page_title: str, page_title_to_id: dict) -> str:
+    """模糊匹配页面名：先精确匹配，再去掉"页"字尾缀再匹配"""
+    if page_title in page_title_to_id:
+        return page_title_to_id[page_title]
+    # 去掉尾部"页"字
+    if page_title.endswith('页'):
+        no_suffix = page_title[:-1].strip()
+        if no_suffix in page_title_to_id:
+            return page_title_to_id[no_suffix]
+    # 加上"页"字
+    with_suffix = page_title + '页'
+    if with_suffix in page_title_to_id:
+        return page_title_to_id[with_suffix]
+    return None
 
 def _extract_prd_rule_anchors(content: str, rule_title_to_id: dict) -> list:
     """从 PRD 正文中提取规则描述，匹配 design RULE ID

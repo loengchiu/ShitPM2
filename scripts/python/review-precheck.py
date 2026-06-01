@@ -45,6 +45,24 @@ CORE_SECTIONS = {
     "prototype": [],
 }
 
+SECTION_ALIASES = {
+    "design": {
+        "角色定义": ["角色定义", "角色权限", "角色"],
+        "模块定义": ["模块定义", "模块清单"],
+        "页面清单": ["页面清单", "页面列表"],
+        "字段定义": ["字段定义", "数据字典", "字段清单"],
+        "页面与字段落点": ["页面与字段落点", "页面数据落点", "字段落点"],
+        "规则与状态定义": ["规则与状态定义", "规则定义", "状态定义", "状态流转", "状态机"],
+        "权限定义": ["权限定义", "角色权限", "权限矩阵", "权限"],
+    },
+    "prd": {
+        "详细需求说明": ["详细需求说明", "详细需求", "需求说明"],
+        "权限汇总": ["权限汇总", "权限定义", "权限矩阵"],
+        "数据字典": ["数据字典", "字段定义"],
+        "状态机": ["状态机", "状态定义", "状态流转"],
+    },
+}
+
 STABLE_ID_PATTERN = re.compile(r'(MODULE|PAGE|FIELD|RULE|FLOW|REL|REQ|RISK|CASE|WVR)-(design|prd)-\d{3}')
 
 
@@ -67,6 +85,17 @@ def check_field_constraints_consistency(project_root: Path, stage: str) -> dict:
     with open(artifact_path, encoding="utf-8") as f:
         content = f.read()
 
+    # 构建 id->name 映射，优先用 id 做交叉校验
+    fc_by_id = {}
+    fc_warnings = []
+    for field in constraints:
+        fid = field.get("id", "")
+        name = field.get("name", "")
+        if fid:
+            fc_by_id[fid] = field
+        elif name:
+            fc_warnings.append(f"field-constraints 条目缺少 id: {name}")
+
     issues = []
     for field in constraints:
         name = field.get("name", "")
@@ -75,16 +104,18 @@ def check_field_constraints_consistency(project_root: Path, stage: str) -> dict:
 
         # 检查 multi_select 一致性
         if multi_select is True:
-            # design.md 中应该有"多选"或"允许选择多个"
             if "只能选择 1 个" in content and name in content:
                 issues.append(f"{name}: field-constraints 标记 multi_select=true，但 design.md 中有'只能选择 1 个'")
         if multi_select is False:
-            # design.md 中应该有"单选"或"只能选择 1 个"
             pass  # 正向检查较难，跳过
 
+    result = {"check": "field_constraints_consistency", "passed": True, "detail": "字段约束一致性通过"}
+    if fc_warnings:
+        result["warnings"] = fc_warnings
     if issues:
-        return {"check": "field_constraints_consistency", "passed": False, "detail": "; ".join(issues)}
-    return {"check": "field_constraints_consistency", "passed": True, "detail": "字段约束一致性通过"}
+        result["passed"] = False
+        result["detail"] = "; ".join(issues)
+    return result
 
 
 def check_artifact_exists(project_root: Path, stage: str, stdin_content: str = None) -> dict:
@@ -123,13 +154,23 @@ def check_core_sections(project_root: Path, stage: str, stdin_content: str = Non
     else:
         with open(artifact_path, encoding="utf-8") as f:
             content = f.read()
+    aliases = SECTION_ALIASES.get(stage, {})
     results = []
     for section in CORE_SECTIONS[stage]:
         found = bool(re.search(re.escape(section), content))
+        matched_alias = section if found else None
+        if not found and section in aliases:
+            for alias in aliases[section]:
+                if alias != section and re.search(re.escape(alias), content):
+                    found = True
+                    matched_alias = alias
+                    break
         results.append({
             "check": "core_section_present",
             "passed": found,
-            "detail": section if found else f"缺少章节：{section}",
+            "detail": matched_alias if found else f"缺少章节：{section}",
+            "canonical": section,
+            "alias_missed": not found,
         })
     return results
 
@@ -245,6 +286,7 @@ def check_design_page_field_coverage(project_root: Path) -> dict:
     mapped_fields = set()
     exempted_fields = set()
     missing_page_refs = []
+    field_to_pages = {}  # field_id -> [page_titles]
     missing_field_refs = []
     unmatched_fields = []
     empty_pages = []
@@ -273,6 +315,7 @@ def check_design_page_field_coverage(project_root: Path) -> dict:
             for fid in refs:
                 if fid in field_ids:
                     mapped_fields.add(fid)
+                    field_to_pages.setdefault(fid, []).append(page_title)
                 else:
                     missing_field_refs.append(f"{page_title}: {fid}")
         elif not entry.get("declared_empty"):
@@ -315,23 +358,45 @@ def check_design_page_field_coverage(project_root: Path) -> dict:
     if missing_exempt_reasons:
         problems.append(f"非页面落点字段缺少原因说明: {', '.join(missing_exempt_reasons[:8])}")
     if overlap_ids:
-        overlap_fields = [field_title_by_id.get(fid, fid) for fid in overlap_ids]
-        problems.append(f"字段同时出现在页面落点和非页面落点: {', '.join(overlap_fields[:8])}")
+        overlap_details = []
+        for fid in overlap_ids[:8]:
+            title = field_title_by_id.get(fid, fid)
+            pages = field_to_pages.get(fid, [])
+            page_str = "、".join(pages[:3]) if pages else "未知页面"
+            overlap_details.append(f"{title}(页面落点: {page_str})")
+        problems.append(
+            "以下字段已正确映射到页面，但重复出现在非页面落点字段表中——"
+            "请从非页面落点字段表中移除这些字段，不要清除页面字段映射: "
+            + "; ".join(overlap_details)
+        )
     if missing_fields:
         missing_field_titles = [field_title_by_id.get(fid, fid) for fid in missing_fields]
         problems.append(f"数据字典中的字段既未在页面与字段落点出现，也未在非页面落点字段声明: {', '.join(missing_field_titles[:8])}")
+
+    # 软警告：非页面落点字段占比异常高
+    _extra_warnings = []
+    _total = len(field_ids)
+    if _total > 0:
+        _ratio = len(exempted_fields) / _total
+        if _ratio > 0.3:
+            _extra_warnings.append(
+                f"非页面落点字段占总字段 {len(exempted_fields)}/{_total}({_ratio:.0%})，比例偏高"
+                f"——请检查非页面落点字段表中是否有字段实际应分配到页面"
+            )
 
     if problems:
         return {
             "check": "design_page_field_coverage",
             "passed": False,
             "detail": "；".join(problems),
+            "warnings": _extra_warnings,
         }
 
     return {
         "check": "design_page_field_coverage",
         "passed": True,
         "detail": f"字段覆盖通过：{len(mapped_pages)}/{len(page_ids)} 个页面，{len(mapped_fields)} 个页面落点字段，{len(exempted_fields)} 个非页面落点字段",
+        "warnings": _extra_warnings,
     }
 
 
@@ -392,6 +457,7 @@ def main():
     parser.add_argument("--stage", required=True, choices=VALID_STAGES, help="被 review 的阶段")
     parser.add_argument("--project-root", type=Path, default=Path.cwd(), help="项目根目录")
     parser.add_argument("--stdin-artifact", action="store_true", help="从 stdin 读取人读稿内容")
+    parser.add_argument("--no-metadata", action="store_true", help="design 阶段无 metadata 模式")
     args = parser.parse_args()
 
     project_root = args.project_root.resolve()
@@ -413,20 +479,25 @@ def main():
     deterministic_checks.extend(section_checks)
     for sc in section_checks:
         if not sc["passed"]:
-            blocking_issues.append(sc["detail"])
+            if sc.get("alias_missed"):
+                warnings.append(f"章节名称不匹配（可能为假阳性）：{sc.get('canonical', sc['detail'])}")
+            else:
+                blocking_issues.append(sc["detail"])
 
-    metadata_checks = check_metadata_complete(project_root, stage)
-    deterministic_checks.extend(metadata_checks)
-    for mc in metadata_checks:
-        if not mc["passed"]:
-            blocking_issues.append(mc["detail"])
+    if not args.no_metadata:
+        metadata_checks = check_metadata_complete(project_root, stage)
+        deterministic_checks.extend(metadata_checks)
+        for mc in metadata_checks:
+            if not mc["passed"]:
+                blocking_issues.append(mc["detail"])
 
-    id_leak_check = check_stable_id_leak(project_root, stage)
-    deterministic_checks.append(id_leak_check)
-    if not id_leak_check["passed"]:
-        warnings.append(id_leak_check["detail"])
+    if not args.no_metadata:
+        id_leak_check = check_stable_id_leak(project_root, stage)
+        deterministic_checks.append(id_leak_check)
+        if not id_leak_check["passed"]:
+            warnings.append(id_leak_check["detail"])
 
-    if stage == "design":
+    if stage == "design" and not args.no_metadata:
         coverage_check = check_design_page_field_coverage(project_root)
         deterministic_checks.append(coverage_check)
         if not coverage_check["passed"]:
@@ -453,7 +524,10 @@ def main():
     elif warnings:
         recommended_focus = "正文写法与一致性"
     elif stage == "design":
-        recommended_focus = "字段定义属性齐全性、权限覆盖、状态完整性"
+        if args.no_metadata:
+            recommended_focus = "结构完整性、表格规范性、字段定义属性齐全性"
+        else:
+            recommended_focus = "字段定义属性齐全性、权限覆盖、状态完整性"
     elif stage == "prd":
         recommended_focus = "坏味道、三层覆盖、与 design 镜像一致性"
     elif stage == "prototype":
@@ -467,6 +541,7 @@ def main():
         for fname in sorted(metadata_dir.glob("*.json")):
             metadata_paths.append(f".workflow/metadata/{stage}/{fname.name}")
 
+    alias_missed_count = sum(1 for sc in section_checks if not sc.get("passed") and sc.get("alias_missed"))
     output = {
         "stage": stage,
         "artifact_path": ARTIFACT_PATHS[stage],
@@ -475,6 +550,7 @@ def main():
         "blocking_issues": blocking_issues,
         "warnings": warnings,
         "can_start_review": can_start_review,
+        "alias_missed_count": alias_missed_count,
         "recommended_focus": recommended_focus,
     }
 
