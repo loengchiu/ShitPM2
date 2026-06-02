@@ -77,7 +77,7 @@ triggers:
 8. 核心章节是否完整
 9. 数据字典是否使用约定轻量格式
 10. PRD 与 design 的字段/权限/状态是否镜像一致
-11. PRD 中每个字段的单选/多选、只读/可编辑约束是否与 field-constraints.json 一致（重点检查：备选项是否被错误收窄为单选）
+11. PRD 中字段约束（单选/多选、只读/可编辑）是否与 design.md 数据字典一致（prd 生成阶段已用 verify-against-metadata.py 自检，review 时抽查确认）
 
 ## 输出要求
 
@@ -104,7 +104,7 @@ triggers:
 - **有问题需修改**：零 P0，1 个 P1
 - **阻塞，不能继续**：有 P0 或 2+ 个 P1
 
-P0 示例：核心章节缺失、设计边界违反、字段/权限/状态镜像不一致、field-constraints.json 标记 multi_select:true 的字段在 PRD 中被写成单选
+P0 示例：核心章节缺失、设计边界违反、字段/权限/状态镜像不一致、design.md 标记多选的字段在 PRD 中被写成单选
 
 ### 严重级别说明
 

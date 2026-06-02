@@ -28,14 +28,11 @@ triggers:
 
 1. `.workflow/status.json`
 2. `output/design/design.md`（design 基线）
-3. `.workflow/metadata/design/field-constraints.json`（**字段约束速查表——防幻觉核心依赖**）
-4. `.workflow/metadata/design/page-fields.json`（页面→字段落点）
-5. `.workflow/metadata/design/index.json`（总索引）
-6. `templates/prd.md`（产物骨架）
-7. `references/prd-writing.md`（写法参考）
-8. `references/prd-writing.profile.json`（写作约束）
+3. `templates/prd.md`（产物骨架）
+4. `references/prd-writing.md`（写法参考）
+5. `references/prd-writing.profile.json`（写作约束）
 
-**不再读取**：entities.json、relations.json、modules.json、pages.json、fields.json、rules.json、states.json、permissions.json——这些已在 field-constraints.json 中浓缩。
+> 字段定义、页面落点、权限矩阵、状态机从 design.md 原文读取，不依赖 metadata JSON。metadata 用于生成后校验幻觉，不作为生成输入。
 
 ## 执行顺序
 
@@ -49,7 +46,11 @@ triggers:
    - 补充辅助章节（如需要）
 4. 运行 `prd-style-lint.py` 自检
 5. 生成 prd.md 人读产物
-6. 更新 status.json
+6. 运行 `verify-against-metadata.py --stage prd --project-root . --stdin-artifact` 校验幻觉
+   - 如 hallucinated_items 非空：🔴 立即修正 prd.md 中的幻觉字段/页面
+   - 如 constraint_mismatches 非空：逐条核对 design.md 原文，修正 prd.md 中的错误约束
+   - 修正后重新运行 verify 直到 hallucinated_items 为空
+7. 更新 status.json
 
 ## 硬规则
 

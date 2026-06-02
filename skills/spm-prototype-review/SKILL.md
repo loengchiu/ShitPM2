@@ -24,9 +24,8 @@ triggers:
 
 2. 检查 index.html 是否存在且为有效 HTML
 3. 检查 metadata/prototype 是否完整（index.json、page-map.json）
-4. 检查原型是否读取了 design.md
 
-🔴 **检查点：预检查结果**——如有阻塞问题（index.html 不存在、metadata 不完整），停止并输出阻塞项清单，不进入第二段。
+🔴 **检查点：预检查结果**——如有阻塞问题（index.html 不存在），停止并输出阻塞项清单，不进入第二段。
 
 ### 第二段：人读质量审查
 

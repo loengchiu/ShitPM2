@@ -25,18 +25,20 @@ triggers:
 
 1. `.workflow/status.json`
 2. `output/design/design.md`
-3. `.workflow/metadata/design/page-fields.json`（页面→字段落点）+ `field-constraints.json`（字段约束）
-4. `templates/prototype.html`（HTML 骨架）
-5. `references/prototype-writing.md`（写法参考）
+3. `templates/prototype.html`（HTML 骨架）
+4. `references/prototype-writing.md`（写法参考）
+
+> 页面落点和字段约束从 design.md 原文读取，不依赖 metadata JSON。
 
 🔴 **检查点：资源可读性**——templates/prototype.html 和 lib/ 目录下的 CSS/JS 文件是否存在？缺失时停下告知用户，不凭记忆生成原型。
 
 ## 输出要求
 
 1. `output/prototype/index.html` 或按页面拆分的原型文件
-2. `.workflow/metadata/prototype/index.json`
-3. `.workflow/metadata/prototype/page-map.json`
-4. 可选 `output/prototype/prototype-feedback.md`
+2. 生成后运行 `verify-against-metadata.py --stage prototype --project-root .` 校验幻觉
+3. `.workflow/metadata/prototype/index.json`
+4. `.workflow/metadata/prototype/page-map.json`
+5. 可选 `output/prototype/prototype-feedback.md`
 
 ## 硬规则
 
