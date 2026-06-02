@@ -118,6 +118,92 @@ def check_field_constraints_consistency(project_root: Path, stage: str) -> dict:
     return result
 
 
+
+def check_prd_entity_coverage(project_root: Path, stdin_content: str = None) -> dict:
+    """校验 PRD 数据字典是否覆盖 design 数据字典中的全部实体"""
+    import json
+
+    design_path = project_root / "output" / "design" / "design.md"
+    if not design_path.exists():
+        return {"check": "prd_entity_coverage", "passed": False, "detail": "design.md 不存在"}
+
+    with open(design_path, encoding="utf-8") as f:
+        design_content = f.read()
+
+    # Extract entity names from design.md data dictionary section
+    design_entities = set()
+    in_dd = False
+    dd_heading_level = 0
+    for line in design_content.split(chr(10)):
+        stripped = line.strip()
+        m = re.match(r"^(#{1,6})\s+(.+)$", stripped)
+        if not m:
+            continue
+        level = len(m.group(1))
+        title = m.group(2).strip()
+        if "数据字典" in title and level <= 2:
+            in_dd = True
+            dd_heading_level = level
+            continue
+        if in_dd and level <= dd_heading_level:
+            break
+        if in_dd and level == dd_heading_level + 1:
+            design_entities.add(title)
+
+    if not design_entities:
+        return {"check": "prd_entity_coverage", "passed": True, "detail": "design 数据字典无实体，跳过"}
+
+    # Get PRD content
+    if stdin_content is not None:
+        prd_content = stdin_content
+    else:
+        prd_path = project_root / "output" / "prd" / "prd.md"
+        if not prd_path.exists():
+            return {"check": "prd_entity_coverage", "passed": False, "detail": "prd.md 不存在"}
+        with open(prd_path, encoding="utf-8") as f:
+            prd_content = f.read()
+
+    # Extract entity names from PRD data dictionary section
+    prd_entities = set()
+    in_dd = False
+    dd_heading_level = 0
+    for line in prd_content.split(chr(10)):
+        stripped = line.strip()
+        m = re.match(r"^(#{1,6})\s+(.+)$", stripped)
+        if not m:
+            continue
+        level = len(m.group(1))
+        title = m.group(2).strip()
+        if "数据字典" in title and level <= 2:
+            in_dd = True
+            dd_heading_level = level
+            continue
+        if in_dd and level <= dd_heading_level:
+            break
+        if in_dd and level == dd_heading_level + 1:
+            prd_entities.add(title)
+
+    missing = sorted(design_entities - prd_entities)
+    extra = sorted(prd_entities - design_entities)
+    covered = len(design_entities) - len(missing)
+    total = len(design_entities)
+
+    detail_parts = [f"PRD 数据字典覆盖：{covered}/{total} 实体"]
+    if missing:
+        detail_parts.append(f"缺失 {len(missing)} 个：{', '.join(missing[:10])}" + ("..." if len(missing) > 10 else ""))
+    if extra:
+        detail_parts.append(f"多余 {len(extra)} 个：{', '.join(extra[:5])}" + ("..." if len(extra) > 5 else ""))
+
+    passed = len(missing) == 0
+    return {
+        "check": "prd_entity_coverage",
+        "passed": passed,
+        "detail": "；".join(detail_parts),
+        "missing_entities": missing,
+        "extra_entities": extra,
+        "coverage_ratio": round(covered / total, 2) if total > 0 else 1.0,
+    }
+
 def check_artifact_exists(project_root: Path, stage: str, stdin_content: str = None) -> dict:
     artifact_rel = ARTIFACT_PATHS[stage]
     if stdin_content is not None:
@@ -516,6 +602,11 @@ def main():
                 "detail": f"lint 发现 {len(lint_warnings)} 个问题",
             })
             warnings.extend(lint_warnings)
+
+        entity_cov = check_prd_entity_coverage(project_root, stdin_content)
+        deterministic_checks.append(entity_cov)
+        if not entity_cov["passed"]:
+            blocking_issues.append(entity_cov["detail"])
 
     can_start_review = len(blocking_issues) == 0
 
