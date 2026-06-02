@@ -6,6 +6,14 @@ triggers:
   - "做 PRD"
   - "写 PRD"
 ---
+## 脚本路径
+
+> 🔴 **所有 Python 脚本位于 SKILL bundle 的 `scripts/python/` 目录下，不在项目目录下。**
+> SKILL bundle 根目录：`D:\work\ShitPM`
+> 脚本完整路径示例：`D:\work\ShitPM\scripts\python\review-precheck.py`
+>
+> 执行时使用 SKILL bundle 绝对路径拼接脚本名，禁止在项目目录下搜索脚本。
+
 
 # PRD
 
@@ -15,7 +23,7 @@ triggers:
 
 ## 前置检查
 
-运行 `stage-context.py` 检查准入：
+运行 `scripts/python/stage-context.py` 检查准入：
 
 1. design.md 存在
 2. metadata/design 完整
@@ -44,9 +52,9 @@ triggers:
    - 生成数据字典
    - 生成状态机
    - 补充辅助章节（如需要）
-4. 运行 `prd-style-lint.py` 自检
+4. 运行 `scripts/python/prd-style-lint.py` 自检
 5. 生成 prd.md 人读产物
-6. 运行 `verify-against-metadata.py --stage prd --project-root . --stdin-artifact` 校验幻觉
+6. 运行 `scripts/python/verify-against-metadata.py --stage prd --project-root . --stdin-artifact` 校验幻觉
    - 如 hallucinated_items 非空：🔴 立即修正 prd.md 中的幻觉字段/页面
    - 如 constraint_mismatches 非空：逐条核对 design.md 原文，修正 prd.md 中的错误约束
    - 修正后重新运行 verify 直到 hallucinated_items 为空
@@ -189,7 +197,7 @@ triggers:
 ## 停止条件
 
 1. prd.md 核心章节全部存在
-2. prd-style-lint.py 无 P0 问题
+2. scripts/python/prd-style-lint.py 无 P0 问题
 3. PRD 内容不超出 design 范围
 
 满足以上 3 条后停止，建议 /spm-prd-review。

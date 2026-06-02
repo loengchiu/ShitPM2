@@ -7,6 +7,14 @@ triggers:
   - "review 设计"
   - "spm-design-review"
 ---
+## 脚本路径
+
+> 🔴 **所有 Python 脚本位于 SKILL bundle 的 `scripts/python/` 目录下，不在项目目录下。**
+> SKILL bundle 根目录：`D:\work\ShitPM`
+> 脚本完整路径示例：`D:\work\ShitPM\scripts\python\review-precheck.py`
+>
+> 执行时使用 SKILL bundle 绝对路径拼接脚本名，禁止在项目目录下搜索脚本。
+
 
 # 设计 Review
 
@@ -20,7 +28,7 @@ triggers:
 
 ### 第一段：确定性预检查
 
-1. 运行 `review-precheck.py --stage design --no-metadata --stdin-artifact`（agent 已读取 design.md，通过 stdin 传入），生成 `.workflow/runtime/design/review-precheck.json`
+1. 运行 `scripts/python/review-precheck.py --stage design --no-metadata --stdin-artifact`（agent 已读取 design.md，通过 stdin 传入），生成 `.workflow/runtime/design/review-precheck.json`
 
 🔴 **失败分支：预检查脚本失败**——脚本执行失败或返回非零退出码时，🔴 停下告知用户具体错误，不跳过预检查继续。不尝试手动绕过脚本直接审查。如 `can_start_review` = false，停止并输出阻塞项。
 
@@ -56,7 +64,7 @@ triggers:
 
 ### 第三段：metadata 生成与校验（仅在第二段通过后执行）
 
-1. 运行 `stage-prep.py --stage design --project-root <path>` 生成 `.workflow/metadata/design/` 下全部文件
+1. 运行 `scripts/python/stage-prep.py --stage design --project-root <path>` 生成 `.workflow/metadata/design/` 下全部文件
 2. 运行一致性校验：
    - metadata 文件完整性（11 个 JSON：index, entities, relations, modules, pages, fields, rules, states, permissions, page-fields, non-page-fields, field-constraints）
    - 字段数/页面数/模块数与 design.md 表格行数对比

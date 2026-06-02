@@ -7,6 +7,14 @@ triggers:
   - "review 原型"
   - "spm-prototype-review"
 ---
+## 脚本路径
+
+> 🔴 **所有 Python 脚本位于 SKILL bundle 的 `scripts/python/` 目录下，不在项目目录下。**
+> SKILL bundle 根目录：`D:\work\ShitPM`
+> 脚本完整路径示例：`D:\work\ShitPM\scripts\python\review-precheck.py`
+>
+> 执行时使用 SKILL bundle 绝对路径拼接脚本名，禁止在项目目录下搜索脚本。
+
 
 # 原型 Review
 
@@ -18,7 +26,7 @@ triggers:
 
 ### 第一段：确定性预检查
 
-1. 运行 `review-precheck.py --stage prototype --stdin-artifact`（agent 已读取 index.html，通过 stdin 传入），生成 `.workflow/runtime/prototype/review-precheck.json`
+1. 运行 `scripts/python/review-precheck.py --stage prototype --stdin-artifact`（agent 已读取 index.html，通过 stdin 传入），生成 `.workflow/runtime/prototype/review-precheck.json`
 
 🔴 **失败分支：预检查脚本失败**——脚本执行失败时停下告知用户，不跳过。如 `can_start_review` = false，停止并输出阻塞项。
 

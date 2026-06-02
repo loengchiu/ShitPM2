@@ -6,6 +6,14 @@ triggers:
   - "做原型"
   - "生成原型"
 ---
+## 脚本路径
+
+> 🔴 **所有 Python 脚本位于 SKILL bundle 的 `scripts/python/` 目录下，不在项目目录下。**
+> SKILL bundle 根目录：`D:\work\ShitPM`
+> 脚本完整路径示例：`D:\work\ShitPM\scripts\python\review-precheck.py`
+>
+> 执行时使用 SKILL bundle 绝对路径拼接脚本名，禁止在项目目录下搜索脚本。
+
 
 # 原型
 
@@ -35,7 +43,7 @@ triggers:
 ## 输出要求
 
 1. `output/prototype/index.html` 或按页面拆分的原型文件
-2. 生成后运行 `verify-against-metadata.py --stage prototype --project-root .` 校验幻觉
+2. 生成后运行 `scripts/python/verify-against-metadata.py --stage prototype --project-root .` 校验幻觉
 3. `.workflow/metadata/prototype/index.json`
 4. `.workflow/metadata/prototype/page-map.json`
 5. 可选 `output/prototype/prototype-feedback.md`

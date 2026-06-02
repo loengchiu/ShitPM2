@@ -6,6 +6,14 @@ triggers:
   - "做设计"
   - "进入设计"
 ---
+## 脚本路径
+
+> 🔴 **所有 Python 脚本位于 SKILL bundle 的 `scripts/python/` 目录下，不在项目目录下。**
+> SKILL bundle 根目录：`D:\work\ShitPM`
+> 脚本完整路径示例：`D:\work\ShitPM\scripts\python\review-precheck.py`
+>
+> 执行时使用 SKILL bundle 绝对路径拼接脚本名，禁止在项目目录下搜索脚本。
+
 
 # 设计
 
@@ -15,7 +23,7 @@ triggers:
 
 ## 前置检查
 
-运行 `stage-context.py` 检查准入：
+运行 `scripts/python/stage-context.py` 检查准入：
 
 1. align.md 存在
 2. metadata/align 完整
@@ -121,7 +129,7 @@ PRD 可为交付目的镜像这些内容，但不得独立改写语义。
 ### 稳定 ID 规则
 
 1. 稳定 ID 首次在 design 阶段生成
-2. 只存在于外置机读物，由 review 通过后 `stage-prep.py` 脚本注入，由 review 通过后 `stage-prep.py` 脚本注入
+2. 只存在于外置机读物，由 review 通过后 `scripts/python/stage-prep.py` 脚本注入，由 review 通过后 `scripts/python/stage-prep.py` 脚本注入
 3. design.md 正文不得出现稳定 ID
 4. 第一版只使用以下前缀：
    - `MODULE-design-NNN`

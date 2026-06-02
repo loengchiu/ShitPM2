@@ -8,6 +8,14 @@ triggers:
   - "回写上游"
   - "一致性修复"
 ---
+## 脚本路径
+
+> 🔴 **所有 Python 脚本位于 SKILL bundle 的 `scripts/python/` 目录下，不在项目目录下。**
+> SKILL bundle 根目录：`D:\work\ShitPM`
+> 脚本完整路径示例：`D:\work\ShitPM\scripts\python\review-precheck.py`
+>
+> 执行时使用 SKILL bundle 绝对路径拼接脚本名，禁止在项目目录下搜索脚本。
+
 
 # 同步修复
 
@@ -70,7 +78,7 @@ triggers:
 
 1. 先更新事实源阶段的人读稿
 2. 再更新受影响的下游阶段人读稿
-3. **不手动修改 metadata**——机读物在下次 review 通过后由 `stage-prep.py` 脚本重新生成
+3. **不手动修改 metadata**——机读物在下次 review 通过后由 `scripts/python/stage-prep.py` 脚本重新生成
 
 ### 步骤 6：修复后建议
 
