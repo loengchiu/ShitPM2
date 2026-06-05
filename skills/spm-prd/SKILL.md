@@ -60,6 +60,19 @@ triggers:
    - 修正后重新运行 verify 直到 hallucinated_items 为空
 7. 更新 status.json
 
+
+## 失败模式与 Fallback
+
+| 场景 | 触发条件 | 一线修复 | 仍失败兜底 |
+|------|---------|---------|-----------|
+| 前置检查失败 | stage-context.py 返回阻塞项 | 输出阻塞项清单，停下等用户补充 | 不跳过前置检查直接写 PRD |
+| stage-context.py 执行失败 | 脚本报错或超时 | 检查脚本路径和 Python 环境 | 停下告知用户具体错误，不跳过 |
+| design.md 不存在 | output/design/design.md 不存在 | 停下，需要先完成设计阶段 | —— |
+| prd-style-lint.py 报 P0 | lint 检查发现严重格式问题 | 按 lint 输出逐条修正 | 修正后重新运行 lint 直到通过 |
+| verify 脚本发现幻觉 | hallucinated_items 非空 | 删除幻觉字段/页面，从 design.md 重新提取 | 重新运行 verify 直到为空 |
+| verify 脚本发现约束不一致 | constraint_mismatches 非空 | 逐条核对 design.md 原文，修正 prd.md | 重新运行 verify 直到为空 |
+| 模板文件不存在 | 	emplates/prd.md 不存在 | 使用内置最小模板 | 停下告知用户安装模板 |
+| 参考文件不存在 | eferences/prd-writing.md 不存在 | 跳过参考，按硬规则生成 | —— |
 ## 硬规则
 
 ### 页面正文三层覆盖
