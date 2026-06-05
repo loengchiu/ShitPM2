@@ -54,6 +54,17 @@ PRD 详细需求说明按“模块 -> 页面 -> 动作”组织。动作正文�
 
 权限汇总默认到页面级和按钮级；字段权限例外写进对应需求说明。数据字典默认保留字段、类型、必填、说明；额外属性只在确实影响实现时写入说明。
 
+## 常见问题
+
+| 问题 | 原因 | 解决方案 |
+|---|---|---|
+| stage-prep.py 报 OSError | rules.json 被锁定或损坏 | 删除 rules.json 后重跑 |
+| review-precheck.py 报 can_start_review: false | 上游产物缺失或章节不完整 | 检查 blocking_issues 列表，先补结构 |
+| PRD 页面正文退化成流水账 | 只写了点击顺序，缺展示规则/状态/异常 | 运行 prd-style-lint.py 检查 STYLE002，按建议补充三层覆盖 |
+| metadata 与正文不一致 | 修改了 design.md 但没有重新生成 metadata | 运行 stage-prep.py --stage design 重新生成 |
+| 同步修复时丢了下游 | 改了 design 但忘了同步 PRD | 按传播方向表逐层检查，或运行 verify-against-metadata.py |
+| 子 agent 调用失败 | 环境限制或资源不足 | 退化为 dry_run 模式，在 results.tsv 标注 dry_run |
+
 ## 快速开始
 
 ### 环境要求

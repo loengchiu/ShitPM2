@@ -128,9 +128,6 @@ triggers:
 7. 修复后不自动推进阶段
 8. 不手动修改 metadata（机读物由 review 通过后 `scripts/python/stage-prep.py` 脚本自动生成）
 
-## Shell 环境规则
-
-🔴 **Codex 默认 shell 为 PowerShell**——文件编辑操作不要用 Python -c 内联脚本（引号会被 PS 解析破坏），改为写入临时 .py 文件执行。字符串替换不要依赖 `\n` 匹配（Windows 文件用 `\r\n`），用 Python 按行号操作。
 
 ## 不要做什么
 

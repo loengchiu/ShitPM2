@@ -3,6 +3,47 @@
 > 本文件是 reviewer skill 的执行依据，不是 writer 的写作指导。
 > 检查项引用规约 §3.4 和 §7.2。
 
+## 失败模式速查表
+
+| 场景 | 触发条件 | 一线修复 | 仍失败兜底 |
+|---|---|---|---|
+| precheck 阻塞但产物实际存在 | 路径编码不一致（大小写/中文路径） | 检查文件名大小写，修正路径 | 手动运行 review-precheck.py 查看 blocking_issues 详情 |
+| 检查项数过多导致 reviewer 疲劳 | 一次性输出全部检查项 | 先跑 Phase A 结构完整性，通过后再跑 Phase B | 若 Phase A 已有 P0，不进入 Phase B |
+| 字段名模糊匹配误判 | design 与 PRD 字段名不完全一致 | 以 design.md 原文字段名为准，修正 PRD | 若无法判断，标记 [待确认] 回退 PM |
+| 非页面落点字段占比异常高 | 过多字段被归入例外表 | 逐一检查是否有字段实际应分配到页面 | 若确认为合理内部字段，在例外表注明原因 |
+| review 结论三档无法区分 | 既有 P0 又有 P1 | verdict = max(severity)，P0 -> 阻塞 | 若 P0 可快速修（<5min），建议修后再出 verdict |
+| stable ID 泄漏到正文 | design.md / prd.md 出现 FIELD-design-001 | 全文搜索并删除 ID 引用 | 确认 stage-prep.py 未将 ID 写入正文模板 |
+| metadata 与正文数量不一致 | 字段数/页面数/模块数对比偏差 | 运行 stage-prep.py --stage design 重新生成 | 若重新生成仍不一致，检查 design.md 表格格式 |
+| PRD 数据字典缺少 design 中的实体 | PRD 只覆盖部分实体 | 按 design 实体清单逐个补入 PRD 数据字典 | 若实体已废弃，先从 design 中移除再同步 |
+
+## 反例黑名单（不要做的事）
+
+| # | 反模式 | 为什么不要做 | 替代做法 |
+|---|---|---|---|
+| 1 | **跳过 precheck 直接人审** | 产物不存在或章节缺失时人审无意义 | 必须先跑 review-precheck.py，can_start_review=true 才开始 |
+| 2 | **把 reviewer 写成 writer** | reviewer 职责是判断质量，不是代写正文 | 只输出 verdict + issues，不输出修改后的文档 |
+| 3 | **用建议代替 verdict** | 建议关注不阻塞下游，PM 可能忽略 | 正式 verdict 只用三档：通过 / 有问题需修改 / 阻塞 |
+| 4 | **只查结构不查语义** | 章节完整不等于内容正确 | 结构检查用 precheck，语义检查用人审，两者缺一不可 |
+| 5 | **一次性输出全部检查项** | PM 看不完，重点被淹没 | 先输出 P0/P1，P2 可选输出 |
+| 6 | **review 通过后自动推进阶段** | 违反 review 不自动推进原则 | 通过后输出建议进入下一阶段，由 PM 手动触发 |
+| 7 | **忽略 alias 假阳性** | 章节名用别名时 precheck 可能误报缺失 | 检查 alias_missed_count，>0 时人工确认 |
+| 8 | **metadata 不存在就判定阻塞** | design 阶段 metadata 在 review 通过后才生成 | design review 用 --no-metadata 模式，第三段再生成 |
+
+## CHECKPOINT - review 开始前
+
+运行 review-precheck.py --stage <stage> 并确认 can_start_review: true。
+若 blocking_issues 非空，先回上游补结构，不进入人审。
+
+## CHECKPOINT - review 结束前
+
+输出 verdict 后，检查：
+1. 是否有 P0 未修 -> verdict 必须为 阻塞
+2. 是否需要回上游 -> 输出 needs_upstream_sync: true + affected_objects
+3. PM 是否能看到下一步建议 -> 输出 next_recommended
+
+---
+
+
 ## 一、design review 检查项
 
 ### Phase A：人读质量（review 时检查）
