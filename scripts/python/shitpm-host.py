@@ -12,7 +12,7 @@ USER_HOME = Path.home()
 START_MARKER = '<!-- SHITPM GLOBAL RULES START -->'
 END_MARKER = '<!-- SHITPM GLOBAL RULES END -->'
 BUNDLE_NAME = 'shitpm'
-HOSTS = ('codex', 'trae-cn', 'claude-code')
+HOSTS = ('codex', 'trae-cn', 'claude-code', 'workbuddy')
 SKILL_NAMES = (
     'spm-start',
     'spm-align',
@@ -31,6 +31,7 @@ def host_base(host: str) -> Path:
         'codex': USER_HOME / '.codex',
         'claude-code': USER_HOME / '.claude',
         'trae-cn': USER_HOME / '.trae-cn',
+        'workbuddy': USER_HOME / '.workbuddy',
     }[host]
 
 
@@ -200,22 +201,11 @@ def remove_skill_mappings(host: str) -> None:
 
 def write_global_rules(host: str) -> None:
     bundle_root = host_bundle(host)
-    block = '\r\n'.join([
+    block = '\n'.join([
         START_MARKER,
-        '# ShitPM Global Rules',
-        '',
         f'ShitPM bundle root: {bundle_root}',
-        '',
-        'If the current project root contains `.workflow/status.json`,',
-        f'read {bundle_root}\\AGENTS.md and follow all rules in that file.',
-        '',
-        'When a ShitPM skill references `contracts/`, `schemas/`,',
-        '`templates/`, `references/`, or `scripts/`, resolve those paths under',
-        'the ShitPM bundle root, not under the business project root.',
-        '',
-        'If `.workflow/status.json` does not exist but the user explicitly '
-        'runs `/spm-start` or says "启动辅助器", read the same AGENTS.md '
-        'so ShitPM can initialize the project; otherwise ignore this rule.',
+        f'If `.workflow/status.json` exists, read {bundle_root}\\AGENTS.md.',
+        f'If `.workflow/status.json` doesn\'t exist but user runs `spm-start`, read it too.',
         END_MARKER,
     ])
     if host == 'claude-code':
@@ -225,26 +215,19 @@ def write_global_rules(host: str) -> None:
         upsert_block(host_base(host) / 'AGENTS.md', block)
         return
     if host == 'trae-cn':
-        content = '\r\n'.join([
-            '---',
-            'alwaysApply: true',
-            '---',
-            '# ShitPM Global Rules',
-            '',
+        content = '---\nalwaysApply: true\n---\n' + '\n'.join([
             f'ShitPM bundle root: {bundle_root}',
-            '',
-            'If the current project root contains `.workflow/status.json`,',
-            f'read {bundle_root}\\AGENTS.md and follow all rules in that file.',
-            '',
-            'When a ShitPM skill references `contracts/`, `schemas/`,',
-            '`templates/`, `references/`, or `scripts/`, resolve those paths under',
-            'the ShitPM bundle root, not under the business project root.',
-            '',
-            'If `.workflow/status.json` does not exist but the user explicitly '
-            'runs `/spm-start` or says "启动辅助器", read the same AGENTS.md '
-            'so ShitPM can initialize the project; otherwise ignore this rule.',
+            f'If `.workflow/status.json` exists, read {bundle_root}\\AGENTS.md.',
+            f'If `.workflow/status.json` doesn\'t exist but user runs `spm-start`, read it too.',
         ])
         write_text(host_base(host) / 'rules' / 'shitpm-global.md', content)
+        return
+    if host == 'workbuddy':
+        content = block + '\n'.join([
+            '',
+            '- 禁止使用 PS1/PowerShell 脚本，可用 js/sh/py 代替',
+        ])
+        upsert_block(host_base(host) / 'MEMORY.md', content)
         return
     raise ValueError(host)
 
@@ -254,11 +237,12 @@ def verify_global_rules(host: str) -> None:
         'codex': host_base(host) / 'AGENTS.md',
         'claude-code': host_base(host) / 'CLAUDE.md',
         'trae-cn': host_base(host) / 'rules' / 'shitpm-global.md',
+        'workbuddy': host_base(host) / 'MEMORY.md',
     }[host]
     if not target.exists():
         raise RuntimeError(f'global rules missing: {target}')
     content = read_text(target)
-    if 'ShitPM Global Rules' not in content:
+    if 'ShitPM bundle root:' not in content and 'ShitPM 插件' not in content:
         raise RuntimeError(f'global rules missing ShitPM block: {target}')
     if str(host_bundle(host) / 'AGENTS.md') not in content:
         raise RuntimeError(f'global rules missing bundle ref: {target}')
@@ -275,6 +259,10 @@ def remove_global_rules(host: str) -> None:
         path = host_base(host) / 'rules' / 'shitpm-global.md'
         if path.exists():
             path.unlink()
+        return
+    if host == 'workbuddy':
+        # WorkBuddy MEMORY.md 可能包含其他内容，仅移除 ShitPM 段落
+        remove_block(host_base(host) / 'MEMORY.md')
         return
     raise ValueError(host)
 
