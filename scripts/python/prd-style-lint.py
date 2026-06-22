@@ -50,6 +50,10 @@ PLACEHOLDER_PATTERNS = [
     "待补充", "待定", "按配置", "按规范", "同常规", "TBD", "TODO",
     "需支持", "需考虑", "详见原型", "按业务规则", "具体数值见配置",
 ]
+PLACEHOLDER_RULES = {
+    "待定": re.compile(r'(?<![\u4e00-\u9fa5])待定(?!性|稿|人|项|状态|原因|结论|计划|方案)'),
+    "待补充": re.compile(r'(?<![\u4e00-\u9fa5])待补充(?!说明|材料|资料|附件|内容|信息|证据|记录|明细|清单)'),
+}
 
 # AI 痕迹模式
 AI_PATTERNS = [
@@ -260,7 +264,17 @@ def check_placeholders(lines: list) -> list:
     issues = []
     for i, line in enumerate(lines):
         for pattern in PLACEHOLDER_PATTERNS:
-            if pattern in line:
+            rule = PLACEHOLDER_RULES.get(pattern)
+            if rule:
+                if rule.search(line):
+                    issues.append(Issue(
+                        code="STYLE008",
+                        severity="error",
+                        line=i + 1,
+                        message=f"占位符：发现 '{pattern}'",
+                        suggestion="填写具体内容，不得使用占位符",
+                    ))
+            elif pattern in line:
                 issues.append(Issue(
                     code="STYLE008",
                     severity="error",

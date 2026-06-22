@@ -56,8 +56,27 @@ def _fuzzy_field_match(token, ftid):
     return None
 
 
+def normalize_page_name(name: str) -> str:
+    import re as _re
+    s = name.strip()
+    s = _re.sub(r'^\d+(?:\.\d+)*[\.、．]\s*', '', s)
+    if s.endswith('页'):
+        s = s[:-1]
+    s = s.replace('列表页', '列表').replace('详情页', '详情').replace('编辑页', '编辑')
+    return s.strip()
+
+
 def _fuzzy_page_match(pt, ptid):
     if pt in ptid: return ptid[pt]
+    import re as _re
+    stripped = _re.sub(r'^\d+(?:\.\d+)*[\.、．]\s*', '', pt).strip()
+    if stripped and stripped in ptid: return ptid[stripped]
+    if stripped and stripped.endswith("页"):
+        ns = stripped[:-1].strip()
+        if ns in ptid: return ptid[ns]
+    if stripped:
+        ws = stripped + "页"
+        if ws in ptid: return ptid[ws]
     if pt.endswith("页"):
         ns = pt[:-1].strip()
         if ns in ptid: return ptid[ns]
@@ -165,10 +184,27 @@ def extract_prd_fields_detailed(content):
 
 def extract_prd_pages(content):
     headings = parse_headings(content)
+    tables = parse_tables_with_context(content, headings)
     pages = set()
     kws = ("页面", "列表", "详情", "编辑", "首页", "登录", "设置", "配置", "管理", "查看", "新建")
     for h in headings:
-        if h["level"] >= 3 and any(kw in h["title"] for kw in kws): pages.add(h["title"])
+        if "模块" in h["title"]:
+            continue
+        if 3 <= h["level"] <= 4 and any(kw in h["title"] for kw in kws):
+            pages.add(h["title"])
+    for table in tables:
+        headers = table["headers"]
+        sec = table.get("section_title", "")
+        if not any(("页面" in h) or ("页面名称" in h) for h in headers):
+            continue
+        if "模块" not in sec and not any(("页面清单" in sec) or ("页面" in h) for h in headers):
+            continue
+        ni = next((i for i, h in enumerate(headers) if h in ("页面名称", "页面") or h == "名称"), None)
+        if ni is None:
+            continue
+        for row in table["rows"]:
+            if ni < len(row) and row[ni] and row[ni] not in ("---", "名称", "页面名称"):
+                pages.add(row[ni].strip())
     return pages
 
 
@@ -241,7 +277,8 @@ def verify_prd(project_root, artifact_content):
     design_md = load_design_md(project_root)
     design_meta = load_design_metadata(project_root)
     df_md = extract_design_fields_from_md(design_md)
-    dp_md = extract_design_pages_from_md(design_md)
+    dp_meta = [p.get("title", "") for p in design_meta.get("pages", []) if isinstance(p, dict) and p.get("title")]
+    dp_md = set(dp_meta) if dp_meta else extract_design_pages_from_md(design_md)
     dc = {c["name"]: c for c in design_meta.get("field_constraints", []) if isinstance(c, dict) and c.get("name")}
     dfn = set(df_md.keys()) | set(dc.keys())
     pf = extract_prd_fields(artifact_content)
@@ -255,20 +292,34 @@ def verify_prd(project_root, artifact_content):
     generic = {"字段","类型","必填","说明","备注","状态","操作","编号","名称","创建时间","更新时间"}
     hf = {f for f in pf - matched if f not in generic and len(f) > 1}
     mf = {f for f in dfn - pf if f not in ("字段权限例外","权限例外")}
-    pmap = {n: n for n in dp_md}
-    mp = {p for p in pp if p in dp_md or _fuzzy_page_match(p, pmap)}
-    hp = pp - mp
+    npp = {normalize_page_name(p): p for p in pp}
+    ndp = {normalize_page_name(p): p for p in dp_md}
+    norm_to_orig = {normalize_page_name(p): p for p in dp_md}
+    prd_text = artifact_content
+    prd_text_norm = prd_text.replace('　', ' ')
+    mp_norm = set()
+    for n, orig in norm_to_orig.items():
+        if n in npp:
+            mp_norm.add(n)
+            continue
+        if _fuzzy_page_match(n, {nn: nn for nn in ndp}):
+            mp_norm.add(n)
+            continue
+        if n and n in prd_text_norm:
+            mp_norm.add(n)
+    mp = {norm_to_orig[n] for n in mp_norm}
+    hp = set(npp[n] for n in set(npp) - mp_norm)
     pfi = extract_prd_fields_detailed(artifact_content)
     cm = check_constraint_consistency(pfi, df_md)
     all_h = sorted(hf) + sorted(hp)
     fr = len(matched) / len(dfn) if dfn else 1.0
-    prr = len(mp) / len(dp_md) if dp_md else 1.0
+    prr = len(mp_norm) / len(ndp) if ndp else 1.0
     pct = lambda v: str(int(v * 100)) + "%"
     return {
         "stage": "prd",
         "metrics": {
             "field_coverage": {"in_output": len(pf), "in_design": len(dfn), "ratio": round(fr, 2), "missing": sorted(mf)[:20], "hallucinated": sorted(hf)},
-            "page_coverage": {"in_output": len(pp), "in_design": len(dp_md), "ratio": round(prr, 2), "missing": sorted(dp_md - pp)[:20]},
+            "page_coverage": {"in_output": len(pp), "in_design": len(ndp), "ratio": round(prr, 2), "missing": sorted(set(norm_to_orig[n] for n in set(ndp) - mp_norm))[:20]},
             "state_coverage": {"in_output": len(ps), "in_design": len(ds), "missing_entities": sorted(ds - ps)[:10]},
             "permission_coverage": {"in_output": len(prm), "in_design": len(dp), "missing": sorted(dp - prm)[:10]},
             "constraint_mismatches": cm[:20],
@@ -280,8 +331,10 @@ def verify_prd(project_root, artifact_content):
 
 def verify_prototype(project_root, artifact_content):
     design_md = load_design_md(project_root)
+    design_meta = load_design_metadata(project_root)
     df_md = extract_design_fields_from_md(design_md)
-    dp_md = extract_design_pages_from_md(design_md)
+    dp_meta = [p.get("title", "") for p in design_meta.get("pages", []) if isinstance(p, dict) and p.get("title")]
+    dp_md = set(dp_meta) if dp_meta else extract_design_pages_from_md(design_md)
     dfn = set(df_md.keys())
     pf = extract_prototype_fields(artifact_content)
     pp = extract_prototype_pages(artifact_content)
@@ -289,18 +342,21 @@ def verify_prototype(project_root, artifact_content):
     matched = {f for f in pf if f in dfn or _fuzzy_field_match(f, {n: n for n in dfn})}
     generic = {"查询","重置","新增","编辑","删除","查看","导出","导入","提交","保存","取消","确定","关闭"}
     hf = {f for f in pf - matched if f not in generic and len(f) > 1}
+    npp = {normalize_page_name(p): p for p in pp}
+    ndp = {normalize_page_name(p): p for p in dp_md}
     pmap = {n: n for n in dp_md}
-    mp = {p for p in pp if p in dp_md or _fuzzy_page_match(p, pmap)}
-    hp = pp - mp
+    mp_norm = {n for n in npp if n in ndp or _fuzzy_page_match(n, {nn: nn for nn in ndp})}
+    mp = {npp[n] for n in mp_norm}
+    hp = set(npp[n] for n in set(npp) - mp_norm)
     all_h = sorted(hf) + sorted(hp)
     fr = len(matched) / len(dfn) if dfn else 1.0
-    prr = len(mp) / len(dp_md) if dp_md else 1.0
+    prr = len(mp_norm) / len(ndp) if ndp else 1.0
     pct = lambda v: str(int(v * 100)) + "%"
     return {
         "stage": "prototype",
         "metrics": {
             "field_coverage": {"in_output": len(pf), "in_design": len(dfn), "ratio": round(fr, 2), "hallucinated": sorted(hf)},
-            "page_coverage": {"in_output": len(pp), "in_design": len(dp_md), "ratio": round(prr, 2), "hallucinated": sorted(hp)},
+            "page_coverage": {"in_output": len(pp), "in_design": len(ndp), "ratio": round(prr, 2), "hallucinated": sorted(hp)},
         },
         "hallucinated_items": all_h,
         "summary": "字段覆盖率 " + pct(fr) + "，页面覆盖率 " + pct(prr) + "，" + str(len(all_h)) + " 个幻觉项",
