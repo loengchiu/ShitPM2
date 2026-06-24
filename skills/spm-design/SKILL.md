@@ -6,17 +6,31 @@ triggers:
   - "做设计"
   - "进入设计"
 ---
-## 脚本路径
+## 路径解析规则
 
-> 🔴 **所有 Python 脚本位于 SKILL bundle 的 `scripts/python/` 目录下，不在项目目录下。**
-> SKILL bundle 根目录：`D:\work\ShitPM`
-> 脚本完整路径示例：`D:\work\ShitPM\scripts\python\review-precheck.py`
->
-> 执行时使用 SKILL bundle 绝对路径拼接脚本名，禁止在项目目录下搜索脚本。
+🔴 **关键：ShitPM 安装在 bundle 目录，不在当前项目目录。**
 
+执行本 skill 前，先从系统 prompt 的 `<!-- SHITPM GLOBAL RULES START -->` 段中读取 `ShitPM bundle root:` 的值，下文以 `$BUNDLE` 表示。
 
-# 设计
+路径分类：
+- `scripts/python/`、`references/`、`templates/`、`contracts/`、`lib/` 开头 → `$BUNDLE` 下解析（绝对路径）
+- `.workflow/`、`output/` 开头 → 当前项目根目录下解析（CWD 相对路径，不变）
 
+示例：
+```
+# 脚本调用
+python $BUNDLE/scripts/python/stage-context.py --stage design --project-root .
+
+# 读取 bundle 资源
+Read $BUNDLE/templates/design.md
+Read $BUNDLE/references/design-writing.md
+
+# 读取项目文件（CWD 相对，不变）
+Read output/design/design.md
+Read .workflow/status.json
+```
+
+> 下文所有以 `scripts/python/`、`references/`、`templates/`、`contracts/`、`lib/` 开头的路径一律在 `$BUNDLE` 下解析。
 ## 触发条件
 
 用户要求开始设计，或 stage-context 建议进入 design 阶段。

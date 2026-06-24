@@ -6,17 +6,33 @@ triggers:
   - "做原型"
   - "生成原型"
 ---
-## 脚本路径
+## 路径解析规则
 
-> 🔴 **所有 Python 脚本位于 SKILL bundle 的 `scripts/python/` 目录下，不在项目目录下。**
-> SKILL bundle 根目录：`D:\work\ShitPM`
-> 脚本完整路径示例：`D:\work\ShitPM\scripts\python\review-precheck.py`
->
-> 执行时使用 SKILL bundle 绝对路径拼接脚本名，禁止在项目目录下搜索脚本。
+🔴 **关键：ShitPM 安装在 bundle 目录，不在当前项目目录。**
 
+执行本 skill 前，先从系统 prompt 的 `<!-- SHITPM GLOBAL RULES START -->` 段中读取 `ShitPM bundle root:` 的值，下文以 `$BUNDLE` 表示。
+
+路径分类：
+- `scripts/python/`、`references/`、`templates/`、`contracts/`、`lib/` 开头 → `$BUNDLE` 下解析（绝对路径）
+- `.workflow/`、`output/` 开头 → 当前项目根目录下解析（CWD 相对路径，不变）
+
+示例：
+```
+# 脚本调用
+python $BUNDLE/scripts/python/stage-context.py --stage design --project-root .
+
+# 读取 bundle 资源
+Read $BUNDLE/templates/design.md
+Read $BUNDLE/references/design-writing.md
+
+# 读取项目文件（CWD 相对，不变）
+Read output/design/design.md
+Read .workflow/status.json
+```
+
+> 下文所有以 `scripts/python/`、`references/`、`templates/`、`contracts/`、`lib/` 开头的路径一律在 `$BUNDLE` 下解析。
 
 # 原型
-
 ## 触发条件
 
 用户要求生成原型。
@@ -47,7 +63,7 @@ triggers:
 | 资源 | 路径 | 缺失时动作 |
 |------|------|-----------|
 | HTML 骨架 | `templates/prototype.html` | 🔴 停下告知用户，不凭记忆生成 |
-| CSS/JS 库 | `lib/` 目录下 element-plus.css 等 | 🔴 停下告知用户，列出缺失文件 |
+| CSS/JS 库 | `lib/` 目录下 daisyui-themes.css、daisyui.css、tailwind.js、vue.global.prod.js | 🔴 停下告知用户，列出缺失文件 |
 | 写法参考 | `references/prototype-writing.md` | 跳过参考，按硬规则生成 |
 
 🔴 **CHECKPOINT · 资源可读性**——templates/prototype.html 和 lib/ 目录下的 CSS/JS 文件是否存在？缺失时停下告知用户具体缺失文件路径，不凭记忆生成原型。
@@ -95,10 +111,25 @@ triggers:
 5. 页面名称默认放在主体区顶部的页签条中表达；页签支持关闭按钮，不再另起一块大页头重复写页面标题
 6. 模板中的查询工具条、卡片容器、留白区域只用于示意内容层级，不代表所有页面都必须有查询条件或工具栏
 
-**CDN 与资源引用：**
-1. 原型使用本地 `lib/` 目录下的 CSS/JS 文件，不依赖外部 CDN（file:// 协议下外部资源可能加载失败）
-2. 需要预先下载的文件：`element-plus.css`、`vue.global.prod.js`、`element-plus.js`、`element-plus-icons.js`、`echarts.js`
-3. HTML 中引用方式：`<link rel="stylesheet" href="lib/element-plus.css">`
+**资源自包含规则：**
+
+🔴 **lib/ 必须随原型一起输出**——生成完所有 HTML 后，必须把 `lib/` 复制到 `output/prototype/lib/`：
+
+```bash
+cp -r lib/ output/prototype/lib/
+```
+
+这样 `output/prototype/` 目录自包含、可独立复制到任意路径打开使用。HTML 模板中已使用相对路径 `lib/xxx`，无需调整。
+
+HTML 中的资源引用方式（模板已内置，无需修改）：
+```
+<link href="lib/daisyui-themes.css" rel="stylesheet" />
+<link href="lib/daisyui.css" rel="stylesheet" />
+<script src="lib/tailwind.js"></script>
+<script src="lib/vue.global.prod.js"></script>
+```
+
+🔴 不依赖外部 CDN（file:// 协议下外部资源可能加载失败）。
 
 ### 步骤 4：生成后自检
 
@@ -119,9 +150,12 @@ triggers:
 | 序号 | 文件路径 | 说明 |
 |------|---------|------|
 | 1 | `output/prototype/index.html` | 主原型文件（或按页面拆分） |
-| 2 | `.workflow/metadata/prototype/index.json` | 原型索引 |
-| 3 | `.workflow/metadata/prototype/page-map.json` | 页面映射 |
-| 4 | `output/prototype/prototype-feedback.md` | 可选，反馈模板 |
+| 2 | `output/prototype/lib/` | 🔴 **必须复制**——从 `lib/` 复制到 `output/prototype/lib/`，使原型目录自包含 |
+| 3 | `.workflow/metadata/prototype/index.json` | 原型索引 |
+| 4 | `.workflow/metadata/prototype/page-map.json` | 页面映射 |
+| 5 | `output/prototype/prototype-feedback.md` | 可选，反馈模板 |
+
+🔴 **lib/ 复制必须在生成 HTML 后立即执行**。用 `cp -r lib/ output/prototype/lib/`（如果已有旧 lib/ 则先删除再复制）。
 
 生成后运行 `scripts/python/verify-against-metadata.py --stage prototype --project-root .` 校验幻觉。
 
@@ -158,7 +192,7 @@ AI 读取 `prototype-feedback.md` 后，必须先输出固定格式归类结果�
 | 场景 | 触发条件 | 一线修复 | 仍失败兜底 |
 |------|---------|---------|-----------|
 | HTML 骨架缺失 | `templates/prototype.html` 不存在 | 告知用户具体缺失路径 | 停下，不凭记忆生成 |
-| lib/ 目录不完整 | CSS/JS 文件缺失 | 列出缺失文件清单 | 停下，要求用户补充资源 |
+| lib/ 目录不完整 | CSS/JS 文件缺失 | 列出缺失文件清单 | 停下，要求用户补充资源到 `lib/` |
 | design.md 不存在 | `output/design/design.md` 不存在 | 检查是否有 PRD 可替代 | 停下告知用户需要先完成设计阶段 |
 | 页面渲染空白 | 生成的 HTML 在浏览器中不显示 | 检查 Vue 初始化代码和数据绑定 | 回滚到上一个可工作的版本 |
 | Vue 控制台报错 | 运行时报错 | 根据错误信息定位变量丢失或组件注册问题 | 回滚并排查 |
@@ -193,6 +227,6 @@ AI 读取 `prototype-feedback.md` 后，必须先输出固定格式归类结果�
 | 5 | 跳过归类直接修改 | 可能把表现问题当语义问题改，或反之 | 先输出归类结果，等确认后再改 |
 | 6 | 资源缺失时凭记忆生成 | 记忆可能过时或不准确，导致引用错误 | 停下告知用户，等资源就绪 |
 | 7 | 使用 el-table | Codex 浏览器列全部竖向堆叠，无法修复 | 用原生 `<table>` + Vue 数据绑定 |
-| 8 | 使用外部 CDN | file:// 协议下加载失败 | 使用本地 lib/ 目录 |
+| 8 | 使用外部 CDN | file:// 协议下加载失败 | 使用本地 `output/prototype/lib/`，每次生成后复制 |
 | 9 | 使用 el-row/el-col | Codex 浏览器中表现不稳定 | 用 CSS Grid 或 Flexbox |
 | 10 | 不验证直接交付 | 可能存在渲染空白、控制台报错等问题 | 每次修改后执行步骤 4 自检 |

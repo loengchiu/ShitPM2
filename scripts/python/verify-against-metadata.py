@@ -3,46 +3,7 @@
 
 import argparse, json, re, sys
 from pathlib import Path
-
-
-def parse_headings(content):
-    headings = []
-    for i, line in enumerate(content.split(chr(10))):
-        m = re.match(r"^(#{1,6})\s+(.+)$", line)
-        if m:
-            headings.append({"level": len(m.group(1)), "title": m.group(2).strip(), "line": i + 1})
-    return headings
-
-
-def parse_tables_with_context(content, headings):
-    lines = content.split(chr(10))
-    tables = []
-    current_section = ""
-    heading_map = {h["line"]: h["title"] for h in headings}
-    i = 0
-    while i < len(lines):
-        line = lines[i].strip()
-        if i + 1 in heading_map:
-            current_section = heading_map[i + 1]
-        if line.startswith("|") and "|" in line[1:] and i + 1 < len(lines):
-            sep_line = lines[i + 1].strip() if i + 1 < len(lines) else ""
-            if re.match(r"^\|[\s\-:|]+\|$", sep_line):
-                headers = [h.strip() for h in line.split("|")[1:-1]]
-                rows = []
-                j = i + 2
-                while j < len(lines):
-                    if lines[j].strip() == "":
-                        j += 1
-                        continue
-                    if not lines[j].strip().startswith("|"):
-                        break
-                    rows.append([c.strip() for c in lines[j].strip().split("|")[1:-1]])
-                    j += 1
-                tables.append({"section_title": current_section, "headers": headers, "rows": rows, "line_offset": i + 1})
-                i = j
-                continue
-        i += 1
-    return tables
+from shared_md import parse_headings, parse_tables_with_context
 
 
 def _fuzzy_field_match(token, ftid):

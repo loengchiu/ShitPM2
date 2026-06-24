@@ -23,6 +23,7 @@ SKILL_NAMES = (
     'spm-design-review',
     'spm-prd-review',
     'spm-prototype-review',
+    'spm-prototype-mark',
 )
 
 

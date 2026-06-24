@@ -1,343 +1,149 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="light">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>原型 - {{项目名称}}</title>
-  <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
+  <link href="lib/daisyui-themes.css" rel="stylesheet" />
+  <link href="lib/daisyui.css" rel="stylesheet" />
+  <script src="lib/tailwind.js"></script>
+  <script src="lib/vue.global.prod.js"></script>
   <style>
     :root {
-      --shell-bg: #f5f6f8;
-      --shell-card: #ffffff;
-      --shell-line: #ebeef5;
-      --shell-text: #1f2329;
-      --shell-text-secondary: #4e5969;
-      --shell-primary: #2f7df6;
-      --shell-header-height: 64px;
-      --shell-sidebar-width: 248px;
-      --shell-radius: 12px;
-      --shell-shadow: 0 2px 10px rgba(31, 35, 41, 0.06);
+      --shell-header-h: 56px;
+      --shell-sidebar-w: 240px;
     }
-
-    * { box-sizing: border-box; }
-
-    html,
-    body,
-    #app {
-      margin: 0;
-      min-height: 100vh;
-      background: var(--shell-bg);
-      color: var(--shell-text);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    html[data-theme="light"] {
+      --color-base-100: #ffffff;
+      --color-base-200: #f8f9fa;
+      --color-base-300: #e9ecef;
+      --color-base-content: #0f172a;
+      --color-primary: #0f172a;
+      --color-primary-content: #ffffff;
+      --color-neutral: #f1f5f9;
+      --color-neutral-content: #0f172a;
+      --rounded-box: 0.5rem;
+      --rounded-btn: 0.375rem;
+      --rounded-selector: 0.25rem;
+      --border-color: #e2e8f0;
     }
-
-    .shell-root {
-      min-height: 100vh;
-      background: var(--shell-bg);
-    }
-
-    .shell-header {
-      height: var(--shell-header-height);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0 28px;
-      background: #fff;
-      border-bottom: 1px solid #f0f0f0;
-    }
-
-    .shell-brand {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      min-width: 240px;
-    }
-
-    .shell-brand-mark {
-      width: 30px;
-      height: 30px;
-      border-radius: 8px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      background: linear-gradient(135deg, #1677ff 0%, #69b1ff 100%);
-      color: #fff;
-      font-weight: 700;
-      font-size: 13px;
-    }
-
-    .shell-brand-text {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
-
-    .shell-brand-title {
-      font-size: 15px;
-      font-weight: 700;
-      line-height: 1.2;
-    }
-
-    .shell-brand-subtitle {
-      font-size: 11px;
-      color: var(--shell-text-secondary);
-      line-height: 1.2;
-    }
-
-    .shell-header-center {
-      flex: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 0 24px;
-      color: var(--shell-text-secondary);
-      font-size: 14px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .shell-header-actions {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .shell-body {
-      min-height: calc(100vh - var(--shell-header-height));
-    }
-
-    .shell-sidebar {
-      width: var(--shell-sidebar-width);
-      background: #fff;
-      border-right: 1px solid #f0f0f0;
-      padding: 18px 14px;
-      overflow: auto;
-    }
-
-    .shell-nav-group + .shell-nav-group {
-      margin-top: 18px;
-    }
-
-    .shell-nav-group-title {
-      padding: 0 14px 8px;
-      font-size: 12px;
-      color: #86909c;
+    .shell-table th {
+      background: var(--color-base-200);
+      font-weight: 500;
+      font-size: 0.8125rem;
+      color: #64748b;
       text-transform: uppercase;
       letter-spacing: 0.04em;
     }
-
-    .shell-main {
-      padding: 0;
-      background: var(--shell-bg);
-    }
-
-    .shell-tabbar {
-      min-height: 74px;
-      display: flex;
-      align-items: center;
-      gap: 18px;
-      padding: 0 26px;
-      background: #fff;
-      border-bottom: 1px solid #f0f0f0;
-    }
-
-    .shell-tabbar-toggle {
-      width: 26px;
-      height: 26px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      color: #4e5969;
-      border-radius: 6px;
-      flex: 0 0 auto;
-    }
-
-    .shell-tabbar-tabs {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      flex: 1;
-      min-width: 0;
-      overflow: hidden;
-    }
-
-    .shell-tabbar-tab {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      min-width: 148px;
-      max-width: 260px;
-      height: 42px;
-      padding: 0 16px;
-      border: 1px solid #e7ebf2;
-      border-radius: 8px;
-      background: #f7f8fa;
-      color: #4e5969;
-    }
-
-    .shell-tabbar-tab.is-active {
-      background: #fff;
-      color: var(--shell-text);
-      border-color: #d7e4ff;
-      box-shadow: 0 2px 8px rgba(47, 125, 246, 0.08);
-    }
-
-    .shell-tabbar-label {
-      flex: 1;
-      min-width: 0;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      font-size: 14px;
+    .shell-table td { font-size: 0.875rem; }
+    .shell-nav-active {
+      background: var(--color-base-200);
       font-weight: 500;
+      border-radius: var(--rounded-btn);
     }
-
-    .shell-tabbar-close {
-      color: #a1a7b3;
-      font-size: 12px;
-      line-height: 1;
+    .shell-tab {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      height: 34px;
+      padding: 0 12px;
+      border: 1px solid var(--border-color);
+      border-radius: var(--rounded-btn);
+      background: var(--color-base-100);
+      font-size: 0.8125rem;
+      color: #64748b;
+      cursor: pointer;
+      transition: all 0.15s;
     }
-
-    .shell-main-body {
-      padding: 18px 22px 24px;
+    .shell-tab-active {
+      color: var(--color-base-content);
+      border-color: #cbd5e1;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
     }
-
-    .shell-workbench {
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-
-    .shell-block-card {
-      border-radius: var(--shell-radius);
-      box-shadow: var(--shell-shadow);
-      border: 0;
-    }
-
-    .shell-content-demo {
-      min-height: 96px;
-      border-radius: 12px;
-      border: 1px dashed #d7dce5;
-      background: #ffffff;
-      box-shadow: var(--shell-shadow);
-    }
-
-    .shell-placeholder {
-      min-height: 520px;
-      padding: 56px 24px;
-      text-align: center;
-      color: #a1a7b3;
-      border: 1px dashed #d7dce5;
-      border-radius: 12px;
-      background: #fafcff;
-    }
-
     @media (max-width: 960px) {
-      .shell-tabbar {
-        align-items: flex-start;
-        flex-direction: column;
-        padding-top: 14px;
-        padding-bottom: 14px;
-      }
-
-      .shell-tabbar-tabs {
-        width: 100%;
-      }
+      .shell-tabbar-inner { flex-wrap: wrap; }
     }
   </style>
 </head>
 <body>
-  <div id="app">
-    <el-container class="shell-root">
-      <el-header class="shell-header">
-        <div class="shell-brand">
-          <span class="shell-brand-mark">SPM</span>
-          <div class="shell-brand-text">
-            <div class="shell-brand-title">{{项目名称}}</div>
-            <div class="shell-brand-subtitle">统一业务工作台</div>
+  <div id="app" class="flex h-screen overflow-hidden" style="background:var(--color-base-200)">
+    <!-- 顶栏 -->
+    <div class="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 border-b" style="height:var(--shell-header-h);background:var(--color-base-100);border-color:var(--border-color)">
+      <div class="flex items-center gap-3 min-w-[200px]">
+        <div class="w-7 h-7 rounded-md flex items-center justify-center text-xs font-bold" style="background:var(--color-primary);color:var(--color-primary-content)">S</div>
+        <div class="flex flex-col gap-0.5">
+          <span class="text-sm font-semibold leading-tight">{{项目名称}}</span>
+          <span class="text-xs text-slate-500 leading-tight">统一业务工作台</span>
+        </div>
+      </div>
+      <div class="flex-1 text-center text-sm text-slate-500 truncate px-6">当前模块 / 当前业务域</div>
+      <div class="flex items-center gap-2 min-w-[200px] justify-end">
+        <button class="btn btn-ghost btn-sm">帮助</button>
+        <div class="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-xs font-medium text-slate-600">U</div>
+      </div>
+    </div>
+
+    <!-- 左侧导航 -->
+    <aside class="fixed left-0 bottom-0 overflow-y-auto py-4 px-3" style="top:var(--shell-header-h);width:var(--shell-sidebar-w);background:var(--color-base-100);border-right:1px solid var(--border-color)">
+      <div class="mb-4">
+        <div class="px-3 pb-1.5 text-[11px] font-medium text-slate-400 uppercase tracking-wider">导航分组一</div>
+        <ul class="menu menu-sm w-full p-0">
+          <li><a class="shell-nav-active">首页</a></li>
+          <li><a>一级模块一</a></li>
+          <li><a>一级模块二</a></li>
+        </ul>
+      </div>
+      <div class="mb-4">
+        <div class="px-3 pb-1.5 text-[11px] font-medium text-slate-400 uppercase tracking-wider">导航分组二</div>
+        <ul class="menu menu-sm w-full p-0">
+          <li><a>一级模块三</a></li>
+          <li><a>系统设置</a></li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- 主体区 -->
+    <main class="flex-1 flex flex-col overflow-hidden" style="margin-left:var(--shell-sidebar-w);margin-top:var(--shell-header-h)">
+      <!-- 页签栏 -->
+      <div class="shell-tabbar-inner flex items-center gap-3 px-6 h-[52px] shrink-0 border-b" style="background:var(--color-base-100);border-color:var(--border-color)">
+        <div class="flex items-center gap-2 flex-1 min-w-0 overflow-hidden">
+          <div class="shell-tab shell-tab-active">
+            <span class="truncate">当前页面名称</span>
+            <span class="text-slate-400 hover:text-slate-700 cursor-pointer">&times;</span>
+          </div>
+          <div class="shell-tab">
+            <span class="truncate">其他已打开页面</span>
+            <span class="text-slate-400 hover:text-slate-700 cursor-pointer">&times;</span>
           </div>
         </div>
-        <div class="shell-header-center">
-          <!-- 顶栏只承载全局上下文，不重复写页面正文 -->
-          当前模块 / 当前业务域
-        </div>
-        <div class="shell-header-actions">
-          <el-button text>帮助</el-button>
-          <el-avatar size="small">U</el-avatar>
-        </div>
-      </el-header>
+      </div>
 
-      <el-container class="shell-body">
-        <aside class="shell-sidebar">
-          <!-- 左侧导航固定为后台壳层；业务差异主要体现在导航名称与高亮关系 -->
-          <div class="shell-nav-group">
-            <div class="shell-nav-group-title">导航分组一</div>
-            <el-menu default-active="page-1">
-              <el-menu-item index="page-1">首页</el-menu-item>
-              <el-menu-item index="page-2">一级模块一</el-menu-item>
-              <el-menu-item index="page-3">一级模块二</el-menu-item>
-            </el-menu>
+      <!-- 工作区 -->
+      <div class="flex-1 overflow-y-auto p-6">
+        <div class="flex flex-col gap-4">
+          <div class="card border shadow-sm" style="background:var(--color-base-100);border-color:var(--border-color)">
+            <div class="card-body p-4">
+              <h2 class="card-title text-sm font-medium">查询条件</h2>
+              <div class="h-16 rounded border border-dashed border-slate-200 flex items-center justify-center text-sm text-slate-400">查询区占位</div>
+            </div>
           </div>
-
-          <div class="shell-nav-group">
-            <div class="shell-nav-group-title">导航分组二</div>
-            <el-menu default-active="page-4">
-              <el-menu-item index="page-4">一级模块三</el-menu-item>
-              <el-menu-item index="page-5">系统设置</el-menu-item>
-            </el-menu>
-          </div>
-        </aside>
-
-        <el-main class="shell-main">
-          <div class="shell-tabbar">
-            <span class="shell-tabbar-toggle" aria-label="页签列表">
-              <el-icon><Operation /></el-icon>
-            </span>
-            <div class="shell-tabbar-tabs">
-              <div class="shell-tabbar-tab is-active">
-                <span class="shell-tabbar-label">当前页面名称</span>
-                <span class="shell-tabbar-close">
-                  <el-icon><Close /></el-icon>
-                </span>
-              </div>
-              <div class="shell-tabbar-tab">
-                <span class="shell-tabbar-label">其他已打开页面</span>
-                <span class="shell-tabbar-close">
-                  <el-icon><Close /></el-icon>
-                </span>
+          <div class="card border shadow-sm min-h-[400px]" style="background:var(--color-base-100);border-color:var(--border-color)">
+            <div class="card-body p-4 flex items-center justify-center">
+              <div class="text-center text-slate-400">
+                <p class="text-sm">承载当前页面真正的业务内容</p>
+                <p class="text-xs mt-1">可按需放查询区、操作区、列表区、表单区、详情区</p>
               </div>
             </div>
           </div>
-
-          <div class="shell-main-body">
-            <div class="shell-workbench">
-              <div class="shell-content-demo"></div>
-
-              <div class="shell-placeholder">
-                这里承载当前页面真正的业务内容。可按需放查询区、操作区、列表区、表单区、详情区，也可以直接保留主内容留白。
-              </div>
-            </div>
-          </div>
-        </el-main>
-      </el-container>
-    </el-container>
+        </div>
+      </div>
+    </main>
   </div>
 
-  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
-  <script src="https://unpkg.com/element-plus/dist/index.full.min.js"></script>
-  <script src="https://unpkg.com/@element-plus/icons-vue/dist/index.iife.min.js"></script>
   <script>
-    const { Operation, Close } = ElementPlusIconsVue;
     const app = Vue.createApp({
-      data() {
-        return {};
-      }
+      data() { return {}; }
     });
-
-    app.use(ElementPlus);
-    app.component('Operation', Operation);
-    app.component('Close', Close);
     app.mount('#app');
   </script>
 </body>

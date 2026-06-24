@@ -14,6 +14,7 @@ import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from shared_md import parse_headings
 
 VALID_STAGES = ["align", "design", "prd", "prototype"]
 
@@ -74,22 +75,6 @@ def slug_from_heading(heading: str) -> str:
     md5_prefix = hashlib.md5(clean.encode()).hexdigest()[:8]
     title_prefix = re.sub(r'[^a-zA-Z0-9一-鿿]', '', clean)[:12]
     return f"{md5_prefix}-{title_prefix}"
-
-
-def parse_headings(content: str) -> list:
-    """解析 Markdown 标题结构"""
-    headings = []
-    for i, line in enumerate(content.split('\n')):
-        match = re.match(r'^(#{1,6})\s+(.+)$', line)
-        if match:
-            level = len(match.group(1))
-            title = match.group(2).strip()
-            headings.append({
-                "level": level,
-                "title": title,
-                "line": i + 1,
-            })
-    return headings
 
 
 def read_existing_entities(stage: str, project_root: Path) -> tuple:

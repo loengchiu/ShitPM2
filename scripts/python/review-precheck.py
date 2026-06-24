@@ -63,7 +63,7 @@ SECTION_ALIASES = {
     },
 }
 
-STABLE_ID_PATTERN = re.compile(r'(MODULE|PAGE|FIELD|RULE|FLOW|REL|REQ|RISK|CASE|WVR)-(design|prd)-\d{3}')
+STABLE_ID_PATTERN = re.compile(r'(MODULE|PAGE|FIELD|RULE|FLOW|REL|PERM|STATE|ROLE)-(design|prd)-\d{3}')
 
 
 
@@ -102,7 +102,8 @@ def check_field_constraints_consistency(project_root: Path, stage: str) -> dict:
         multi_select = field.get("multi_select")
         editable = field.get("editable")
 
-        # 检查 multi_select 一致性
+        # 检查 multi_select 一致性（启发式检测：在 design.md 全文中搜索字段名和限制短语）
+        # 限制：子串匹配可能在字段名恰好作为其他词的子串时产生假阳性
         if multi_select is True:
             if "只能选择 1 个" in content and name in content:
                 issues.append(f"{name}: field-constraints 标记 multi_select=true，但 design.md 中有'只能选择 1 个'")

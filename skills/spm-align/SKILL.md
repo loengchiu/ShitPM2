@@ -8,6 +8,33 @@ triggers:
   - "spm-align"
 ---
 
+## 路径解析规则
+
+🔴 **关键：ShitPM 安装在 bundle 目录，不在当前项目目录。**
+
+执行本 skill 前，先从系统 prompt 的 `<!-- SHITPM GLOBAL RULES START -->` 段中读取 `ShitPM bundle root:` 的值，下文以 `$BUNDLE` 表示。
+
+路径分类：
+- `scripts/python/`、`references/`、`templates/`、`contracts/`、`lib/` 开头 → `$BUNDLE` 下解析（绝对路径）
+- `.workflow/`、`output/` 开头 → 当前项目根目录下解析（CWD 相对路径，不变）
+
+示例：
+```
+# 脚本调用
+python $BUNDLE/scripts/python/stage-context.py --stage design --project-root .
+
+# 读取 bundle 资源
+Read $BUNDLE/templates/design.md
+Read $BUNDLE/references/design-writing.md
+
+# 读取项目文件（CWD 相对，不变）
+Read output/design/design.md
+Read .workflow/status.json
+```
+
+> 下文所有以 `scripts/python/`、`references/`、`templates/`、`contracts/`、`lib/` 开头的路径一律在 `$BUNDLE` 下解析。
+
+
 # 对齐
 
 ## 触发条件
