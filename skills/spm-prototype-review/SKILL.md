@@ -16,17 +16,27 @@ description: "原型 review——判断原型质量。用于用户说 prototype 
 1. `scripts/python/review-precheck.py --stage prototype --stdin-artifact`（agent 已读 index.html，stdin 传入）→ `.workflow/runtime/prototype/review-precheck.json`
 2.  脚本失败或 `can_start_review=false` → 停止，输出阻塞项
 3. 检查 index.html 存在且有效
-4. 检查 metadata/prototype 完整（index.json、page-map.json）
+4. 检查 metadata/prototype 完整（index.json）
 
  有阻塞 → 停止，不进入第二段。
 
 ### 第二段：质量审查
 
-1. 原型展示 design 中定义的页面结构
+1. **页面覆盖 checklist**：
+
+   读取 `.workflow/metadata/design/pages.json`
+
+   逐项输出对比结果（结构化）：
+   - design 每个页面 × 原型 HTML → [存在/缺失/幻觉]
+   - 原型出现的页面不在 design → 标记为幻觉
+
+   判定：
+   - 幻觉页面 = P0
+   - 缺失页面 = P1（缺失率 > 50% 升级 P0）
+
 2. 状态表达覆盖核心状态
 3. 交互主路径覆盖
 4. 权限表现覆盖
-5. metadata/prototype 与原型一致
 
 ## 判定规则
 
@@ -44,7 +54,7 @@ issue_layer：`{"structure":N,"content":N,"consistency":N}`。
 
 ## 输出
 
-- 机读：`.workflow/reviews/prototype-review-N.json`
+- 机读：`.workflow/reviews/prototype-review-N.json`（stage/verdict/issues/issue_layer/affected_objects/needs_upstream_sync/next_recommended/reviewed_at）
 - 人读：`.workflow/reviews/prototype-review-N.md`（结论/主要问题/是否回上游/下一步）
 
  输出 verdict 后停止等用户确认。
@@ -65,3 +75,5 @@ issue_layer：`{"structure":N,"content":N,"consistency":N}`。
 4. 预检查失败不跳过
 5. P2 写入 issues 但不计入 verdict
 6. review 通过后不自动推进
+7. 页面覆盖审查必须输出逐项 checklist
+8. 不允许笼统结论

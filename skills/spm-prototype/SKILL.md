@@ -27,7 +27,7 @@ description: "原型阶段——把 design 或 PRD 的页面行为表达成可�
 5. `templates/prototype.html`（HTML 骨架）
 6. `references/prototype-writing.md`（写法参考）
 
->  fields.json/permissions.json/states.json 是 verify 脚本用的机读校验数据，**AI 不读**。AI 只从 design.md 原文逐页照抄。
+>  fields.json/permissions.json/states.json 是 stage-prep 生成的机读镜像，供 review 与一致性检查使用，**AI 不读**。AI 只从 design.md 原文逐页照抄。
 
 ## 分页流水线生成策略
 
@@ -41,9 +41,9 @@ description: "原型阶段——把 design 或 PRD 的页面行为表达成可�
    d. 生成该页 HTML 片段，生成立即自检：该页字段与 design.md 原文是否一致
 3. 全部页面生成完后组装页框、导航
 4.  全量自检：所有页面字段数量总和与 design.md 原文定义是否对齐
-5. 运行 `verify-against-metadata.py`（事后安全网——脚本用 fields.json/permissions.json/states.json 做结构化对比，AI 不读这些 JSON）
+5. 运行 `verify-against-metadata.py`（结构完整性安全网——只校验 schema 和 ID 唯一性，不做语义对比。幻觉检测由 AI 在步骤 d 自检完成）
 
-> **分页流水线核心：每页上下文 ~15KB，AI 只读 design.md 原文照抄。JSON 留给 verify 脚本做自动校验——AI 生成和脚本校验分两条路，互不打架。**
+> **分页流水线核心：每页上下文 ~15KB，AI 只读 design.md 原文照抄。幻觉自检在生成阶段由 AI 对照 design.md 完成，verify 脚本只做结构兜底。**
 
 
 ## 执行顺序
@@ -71,7 +71,7 @@ description: "原型阶段——把 design 或 PRD 的页面行为表达成可�
    - 生成当前页 HTML 片段
    - 生成立即自检：字段与 design.md 原文一致
 3. 全部页面生成完后组装页框、导航
-4. 运行 `verify-against-metadata.py`（安全网）
+4. 运行 `verify-against-metadata.py`（结构完整性安全网，只校验 schema + ID 唯一性）
 
 **CHECKPOINT · 逐页生成**——每页生成后自检字段对齐，全量组装后验证总字段数 = design.md 定义。
 
@@ -149,12 +149,11 @@ HTML 中的资源引用方式（模板已内置，无需修改）：
 | 1 | `output/prototype/index.html` | 主原型文件（或按页面拆分） |
 | 2 | `output/prototype/lib/` | **必须复制**——从 `lib/` 复制到 `output/prototype/lib/`，使原型目录自包含 |
 | 3 | `.workflow/metadata/prototype/index.json` | 原型索引 |
-| 4 | `.workflow/metadata/prototype/page-map.json` | 页面映射 |
-| 5 | `output/prototype/prototype-feedback.md` | 可选，反馈模板 |
+| 4 | `output/prototype/prototype-feedback.md` | 可选，反馈模板 |
 
 **lib/ 复制必须在生成 HTML 后立即执行**。用 `cp -r lib/ output/prototype/lib/`（如果已有旧 lib/ 则先删除再复制）。
 
-生成后运行 `scripts/python/verify-against-metadata.py --stage prototype --project-root .` 校验幻觉。
+生成后运行 `scripts/python/verify-against-metadata.py --stage prototype --project-root .` 校验结构完整性（schema + ID 唯一性，不校验幻觉）。
 
 ## 处理反馈
 
@@ -194,7 +193,7 @@ AI 读取 `prototype-feedback.md` 后，必须先输出固定格式归类结果�
 | 页面渲染空白 | 生成的 HTML 在浏览器中不显示 | 检查 Vue 初始化代码和数据绑定 | 回滚到上一个可工作的版本 |
 | Vue 控制台报错 | 运行时报错 | 根据错误信息定位变量丢失或组件注册问题 | 回滚并排查 |
 | 字符串替换静默失败 | \n vs \r\n 差异导致替换不生效 | 改用 Python 脚本按行号操作 | 告知用户手动替换 |
-| verify 脚本报幻觉 | `verify-against-metadata.py` 检测到 design 中不存在的字段 | 删除幻觉字段，从 design.md 重新提取 | 标注幻觉项让用户确认 |
+| LLM 自检发现幻觉字段 | 生成时 AI 对照 design.md 发现字段不存在 | 删除幻觉字段，从 design.md 原文重新提取 | 标注幻觉项让用户确认 |
 | 反馈归类不清 | 用户反馈同时涉及表现和语义 | 拆分为两个独立修复任务 | 追问用户确认优先级 |
 
 ## 不要做什么

@@ -57,7 +57,7 @@
     "review_summary": {
       "type": "object",
       "properties": {
-        "verdict": { "type": "string", "enum": ["通过", "有问题需修改", "阻塞，不能继续"] },
+        "verdict": { "$ref": "common.schema.json#/$defs/verdict_enum" },
         "reviewed_at": { "type": "string", "format": "date-time" }
       }
     }

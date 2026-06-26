@@ -10,7 +10,7 @@
 | 场景 | 触发条件 | 一线修复 | 仍失败兜底 |
 |---|---|---|---|
 | 无法判断归属层 | 用户指令模糊，可能是需求问题也可能是设计问题 | 按最小判断清单 6 步逐项排查 | 停在澄清，输出当前判断和缺失信息，不直接改下游 |
-| 传播遗漏 | 改了 design 但忘了同步 PRD | 传播方向表逐层检查 | 运行 verify-against-metadata.py 检查 PRD 与 design 一致性 |
+| 传播遗漏 | 改了 design 但忘了同步 PRD | 传播方向表逐层检查 | 运行 prd-consistency-check.py 检查 PRD 与 design 一致性 |
 | 逆向定源 | PRD 直接改了 design 的语义 | 识别到语义变更后，先停，回写 design | 若已误改 PRD，revert PRD 改动，先修 design |
 | fix 改了不该改的内容 | 表现层问题被误判为语义问题 | 重新归类：表现问题只改 prototype，语义问题才回 design | 若已误改，按传播方向表反向恢复 |
 | metadata 被手动修改 | fix 时直接改了 metadata JSON | 恢复 metadata 原文 | 运行 stage-prep.py --stage <stage> 重新生成 |

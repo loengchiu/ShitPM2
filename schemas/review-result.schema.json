@@ -6,13 +6,11 @@
   "required": ["stage", "verdict", "issues", "issue_layer", "affected_objects", "needs_upstream_sync", "next_recommended", "reviewed_at"],
   "properties": {
     "stage": {
-      "type": "string",
-      "enum": ["design", "prd", "prototype"],
+      "$ref": "common.schema.json#/$defs/review_stage_enum",
       "description": "被 review 的阶段"
     },
     "verdict": {
-      "type": "string",
-      "enum": ["通过", "有问题需修改", "阻塞，不能继续"],
+      "$ref": "common.schema.json#/$defs/verdict_enum",
       "description": "review 结论，只允许三档"
     },
     "issues": {
@@ -58,6 +56,10 @@
     "reviewed_at": {
       "type": "string",
       "description": "ISO 8601 时间戳"
+    },
+    "metadata_generated": {
+      "type": "boolean",
+      "description": "review 第三段是否已生成 metadata（design review 第三段专用）"
     }
   },
   "additionalProperties": false

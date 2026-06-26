@@ -5,7 +5,6 @@
 daisyUI 5 是 CSS-only 库（无 JS），所有交互通过纯 CSS + tabindex 或 Vue 状态管理实现。
 """
 import urllib.request
-import os
 import sys
 from pathlib import Path
 

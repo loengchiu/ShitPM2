@@ -1,0 +1,7 @@
+refactor: 反幻觉机制重构与四轮代码审查修复
+
+- 删除 anchor 系统，改用脚本确定性提取 + LLM 语义增强
+- ID 前缀契约统一为 8 种（删除 ROLE）
+- 新增 prd-consistency-check.py、test-anti-hallucination.py、common.schema.json、prototype-mark-spec.md
+- 同步 schema 与代码一致性（删除 role 枚举）
+- 四轮全量代码审查修复约 50 个问题

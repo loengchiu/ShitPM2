@@ -10,7 +10,7 @@
 | 页面正文退化成标签式 | 出现 **关键动作：** 等模式 | 删除标签，改用自然段落描述 | 运行 prd-style-lint.py 检查 STYLE001 |
 | 动作流水账 | 连续 3+ 个短步骤，无展示规则/状态/异常 | 合并步骤为自然段落，补充三层覆盖 | 运行 prd-style-lint.py 检查 STYLE002 |
 | 数据字典少实体 | PRD 只覆盖部分 design 实体 | 按 design 实体清单逐个补入 | 运行 review-precheck.py 的 prd_entity_coverage 检查 |
-| 幻觉字段 | PRD 出现 design 中不存在的字段 | 删除幻觉字段，或回退到 design 补定义 | 运行 verify-against-metadata.py 检查 hallucinated_items |
+| 幻觉字段 | PRD 出现 design 中不存在的字段 | 删除幻觉字段，或回退到 design 补定义 | 运行 prd-consistency-check.py 检查 hallucinated |
 | 权限口径与 design 不一致 | PRD 权限汇总与 design 权限定义矛盾 | 以 design 为准，修正 PRD | 若 design 本身有误，回退到 fix 流程 |
 | 状态机与 design 不一致 | PRD 状态迁移与 design 定义矛盾 | 以 design 为准，修正 PRD | 若 design 本身有误，回退到 fix 流程 |
 | 占位符残留 | 出现 “待补充”“按配置”等 | 替换为具体数值或规则 | 运行 prd-style-lint.py 检查 STYLE008 |
@@ -98,7 +98,7 @@
 **好：**
 
 | 字段 | 类型 | 必填 | 说明 |
-|------|------|------|------|--------|--------|------|----------|------|
+|------|------|------|------|
 | 入库单号 | string | 是 | 全局唯一；系统生成，格式为 RK-YYYYMMDD-NNNN |
 
 **坏（含机读字段）：**

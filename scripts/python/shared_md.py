@@ -9,7 +9,7 @@ import re
 
 # ── 常量 ──────────────────────────────────────────────────────
 
-STABLE_ID_PATTERN = re.compile(r'(MODULE|PAGE|FIELD|RULE|FLOW|REL|PERM|STATE|ROLE)-(design|prd)-\d{3}')
+STABLE_ID_PATTERN = re.compile(r'(MODULE|PAGE|FIELD|RULE|FLOW|REL|PERM|STATE)-(design|prd)-\d{3}')
 
 ARTIFACT_PATHS = {
     "align": "output/align/align.md",
@@ -23,15 +23,14 @@ METADATA_FILE_MAP = {
     "design": ["index.json", "relations.json", "modules.json", "pages.json",
                "fields.json", "rules.json", "states.json", "permissions.json",
                "page-fields.json", "non-page-fields.json"],
-    "prd": ["index.json", "relations.json",
-            "page-anchor.json", "rule-anchor.json", "field-anchor.json"],
-    "prototype": ["index.json", "page-map.json"],
+    "prd": ["index.json", "relations.json"],
+    "prototype": ["index.json"],
 }
 
 ID_PREFIXES = {
     "module": "MODULE", "page": "PAGE", "field": "FIELD",
     "rule": "RULE", "flow": "FLOW", "permission": "PERM",
-    "state": "STATE", "role": "ROLE",
+    "state": "STATE", "relation": "REL",
 }
 
 
@@ -44,6 +43,15 @@ def load_json(path, default=None):
             return json.load(f)
     except (json.JSONDecodeError, OSError):
         return default
+
+
+def find_stable_id_leaks(text: str) -> list:
+    """扫描文本中的稳定 ID 泄漏，返回 [(line_no, matched_str), ...]"""
+    leaks = []
+    for i, line in enumerate(text.split('\n')):
+        for m in STABLE_ID_PATTERN.findall(line):
+            leaks.append((i + 1, m))
+    return leaks
 
 
 # ── Markdown 解析 ─────────────────────────────────────────────
@@ -160,23 +168,6 @@ def clean_page_title(title: str) -> str:
     return cleaned.strip()
 
 
-def normalize_page_name(name: str) -> str:
-    """标准化页面名称：去编号前缀、去页尾缀、统一列表/详情/编辑"""
-    s = name.strip()
-    s = re.sub(r'^\d+(?:\.\d+)*[\.、．]\s*', '', s)
-    if s.endswith('页'):
-        s = s[:-1]
-    s = s.replace('列表页', '列表').replace('详情页', '详情').replace('编辑页', '编辑')
-    return s.strip()
-
-
 # ── ID 分配 ─────────────────────────────────────────────────
-
-def allocate_id(title: str, entity_type: str, title_to_id: dict, counter: dict, stage: str) -> str:
-    """分配实体 ID：优先标题匹配，否则 counter+1 新 ID"""
-    if title in title_to_id:
-        return title_to_id[title]
-    prefix = ID_PREFIXES.get(entity_type, entity_type.upper())
-    count = counter.get(prefix, 0) + 1
-    counter[prefix] = count
-    return f"{prefix}-{stage}-{count:03d}"
+# 注：ID 分配逻辑由 stage-prep.py 各提取函数内联实现（标题匹配优先，否则 counter+1），
+# 无需独立函数。

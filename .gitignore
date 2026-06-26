@@ -31,6 +31,7 @@ __pycache__/
 # === 内部规划文档 ===
 01-新辅助器实现总规约.md
 02-测试与验收.md
+refactor-guide-anti-hallucination.md
 
 # === 临时文件 ===
 _tmp_*.md
@@ -40,3 +41,8 @@ _verify_changes.py
 .workbuddy/
 .codex/
 .trae-cn/
+.trae/
+
+# === 内部评估报告 ===
+shitpm-plugin-evaluation-v3.md
+skills-evaluation-report-v2.md

@@ -26,14 +26,13 @@ description: "设计阶段——把对齐结果结构化成稳定基线。用于
 1. `.workflow/status.json`
 2. `output/align/align.md`（对齐产物）
 3. `.workflow/metadata/align/index.json`
-4. `.workflow/metadata/align/entities.json`
-5. `.workflow/metadata/align/relations.json`
-6. `.workflow/runtime/align/align-notes.json`
-7. `templates/design.md`（产物骨架）
-8. `references/design-writing.md`（写法参考）
-9. `references/design-methodology.md`（设计方法论）
-10. `references/design-state-format.md`（状态定义格式）
-11. `references/design-flow-format.md`（业务流程格式）
+4. `.workflow/metadata/align/relations.json`
+5. `.workflow/runtime/align/align-notes.json`
+6. `templates/design.md`（产物骨架）
+7. `references/design-writing.md`（写法参考）
+8. `references/design-methodology.md`（设计方法论）
+9. `references/design-state-format.md`（状态定义格式）
+10. `references/design-flow-format.md`（业务流程格式）
 
 ## 执行顺序
 
@@ -184,7 +183,7 @@ PRD 可为交付目的镜像这些内容，但不得独立改写语义。
 - `current_stage`：更新为 `"design"`
 - `artifacts.design`：指向 `output/design/design.md`
 - `metadata_paths.design`：指向 `.workflow/metadata/design/`
-- `next_recommended`：`"prd"` 或 `"prototype"`
+- `next_recommended`：`"prd"`（design 通过后进入 prd）
 
 ## 停止条件
 

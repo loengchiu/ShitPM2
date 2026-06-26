@@ -22,7 +22,7 @@ import re
 import sys
 from dataclasses import dataclass, asdict
 from pathlib import Path
-from shared_md import STABLE_ID_PATTERN
+from shared_md import find_stable_id_leaks, load_json
 
 
 @dataclass
@@ -34,21 +34,26 @@ class Issue:
     suggestion: str
 
 
-# 标签式正文模式
-LABEL_PATTERNS = [
-    (r'\*\*页面目标[：:]\*\*', "页面目标标签"),
-    (r'\*\*关键动作[：:]\*\*', "关键动作标签"),
-    (r'\*\*状态变化[：:]\*\*', "状态变化标签"),
-    (r'\*\*异常提示[：:]\*\*', "异常提示标签"),
-    (r'\*\*关联功能点[：:]\*\*', "关联功能点标签"),
+# 占位符/空话词与标签式正文：以 references/prd-writing.profile.json 的 forbidden_expressions 为单一事实源
+# 加载失败时降级为内置兜底列表，保证脚本可独立运行
+_PROFILE_PATH = Path(__file__).resolve().parent.parent.parent / "references" / "prd-writing.profile.json"
+_PROFILE = load_json(_PROFILE_PATH) or {}
+_PROFILE_FORBIDDEN = _PROFILE.get("constraints", {}).get("forbidden_expressions", [])
+
+# 标签式正文模式：从 profile 的 ** 开头表达式动态生成（单一事实源）
+# 降级兜底：profile 加载失败时使用内置 5 项
+_FALLBACK_LABEL_EXPRS = [
+    "**页面目标：**", "**关键动作：**", "**状态变化：**", "**异常提示：**", "**关联功能点：**",
 ]
+_LABEL_EXPRS = [w for w in _PROFILE_FORBIDDEN if w.startswith("**")] or _FALLBACK_LABEL_EXPRS
+LABEL_PATTERNS = []
+for _expr in _LABEL_EXPRS:
+    _name = _expr.strip("*").rstrip("：:").strip()
+    _pat = r'\*\*' + re.escape(_name) + r'[：:]\*\*'
+    LABEL_PATTERNS.append((_pat, f"{_name}标签"))
 
-# 稳定 ID 泄漏模式
-
-# 占位符模式
-PLACEHOLDER_PATTERNS = [
-    "待补充", "待定", "按配置", "按规范", "同常规", "TBD", "TODO",
-    "需支持", "需考虑", "详见原型", "按业务规则", "具体数值见配置",
+PLACEHOLDER_PATTERNS = [w for w in _PROFILE_FORBIDDEN if not w.startswith("**")] or [
+    "待定", "待补充", "TBD", "TODO",
 ]
 PLACEHOLDER_RULES = {
     "待定": re.compile(r'(?<![\u4e00-\u9fa5])待定(?!性|稿|人|项|状态|原因|结论|计划|方案)'),
@@ -230,16 +235,14 @@ def check_cross_section_refs(lines: list) -> list:
 def check_stable_id_leak(lines: list) -> list:
     """STYLE006: 检查机读字段泄漏"""
     issues = []
-    for i, line in enumerate(lines):
-        matches = STABLE_ID_PATTERN.findall(line)
-        for match in matches:
-            issues.append(Issue(
-                code="STYLE006",
-                severity="error",
-                line=i + 1,
-                message="机读字段泄漏：稳定 ID 出现在正文",
-                suggestion="稳定 ID 只存在于外置机读物，不得出现在人读正文",
-            ))
+    for line_no, _match in find_stable_id_leaks('\n'.join(lines)):
+        issues.append(Issue(
+            code="STYLE006",
+            severity="error",
+            line=line_no,
+            message="机读字段泄漏：稳定 ID 出现在正文",
+            suggestion="稳定 ID 只存在于外置机读物，不得出现在人读正文",
+        ))
     return issues
 
 

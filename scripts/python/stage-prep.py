@@ -5,10 +5,17 @@
 不判断是否允许进入该阶段，不修改人读稿正文。
 
 用法：python stage-prep.py --stage <stage> [--project-root <path>] [--dry-run]
+
+结构说明（按职责分组，便于维护时定位）：
+- 通用 ID 工具：read_existing_entities / _scan_ids_recursive
+- design 提取：generate_design_metadata 及辅助（infer_entities_from_headings /
+  extract_entities_from_tables / _extract_design_page_field_map 等）
+- prd/prototype：只生成 index + relations，不提取 anchor（语义检测交给 review skill LLM）
+- 写入与状态：write_metadata / write_align_notes / write_stage_context / update_status
+- 调度：main
 """
 
 import argparse
-import hashlib
 import json
 import re
 import sys
@@ -18,11 +25,9 @@ from shared_md import (
     parse_headings, parse_tables_with_context,
     fuzzy_field_match, fuzzy_page_match,
     is_under_heading, clean_page_title,
-    allocate_id, ID_PREFIXES,
+    ID_PREFIXES,
     ARTIFACT_PATHS, METADATA_FILE_MAP,
-    load_json,
 )
-
 VALID_STAGES = ["align", "design", "prd", "prototype"]
 
 
@@ -49,13 +54,14 @@ STAGE_ALLOWED_ENTITIES = {
 # 匹配 "## 一、角色定义"、"## 三、模块定义" 等纯章节标记
 CHAPTER_HEADING_PATTERN = re.compile(r'^[一二三四五六七八九十]+[、．.]')
 
-
-def slug_from_heading(heading: str) -> str:
-    """从标题生成稳定 slug（MD5 前 8 位 + 标题前 12 字符）"""
-    clean = re.sub(r'[#\*\[\]()（）]', '', heading).strip()
-    md5_prefix = hashlib.md5(clean.encode()).hexdigest()[:8]
-    title_prefix = re.sub(r'[^a-zA-Z0-9一-鿿]', '', clean)[:12]
-    return f"{md5_prefix}-{title_prefix}"
+# 标题词黑名单：这些是章节容器标题本身，不是实体条目
+# "业务规则" 含 "规则" 关键词但它是 ### 容器标题，不应识别为 rule 实体
+HEADING_BLACKLIST = {
+    "业务规则", "状态集合", "状态迁移", "状态机", "状态定义", "状态流转",
+    "权限定义", "角色权限", "权限矩阵", "页面清单", "字段定义",
+    "页面与字段落点", "页面数据落点", "非页面落点字段",
+    "核心业务流程", "业务流程",
+}
 
 
 def read_existing_entities(stage: str, project_root: Path) -> tuple:
@@ -64,6 +70,9 @@ def read_existing_entities(stage: str, project_root: Path) -> tuple:
     返回 (title_to_id, max_ids)
     - title_to_id: {entity_title: entity_id} 用于按标题匹配已有 ID
     - max_ids: {prefix: max_number} 用于为新实体分配 ID
+
+    前缀校验：只复用 ID 前缀与 entity_type 匹配的条目，防止历史脏 ID（如 page
+    误用 PERM- 前缀、rule 误用 STATE- 前缀）被 title 匹配后永久延续。
     """
     title_to_id = {}
     max_ids = {}
@@ -71,15 +80,31 @@ def read_existing_entities(stage: str, project_root: Path) -> tuple:
     if not metadata_dir.exists():
         return title_to_id, max_ids
 
-    id_pattern = re.compile(r'^(MODULE|PAGE|FIELD|RULE|FLOW|PERM|STATE|ROLE)-' + re.escape(stage) + r'-(\d{3})$')
+    # type → 合法前缀集合（一个 type 只接受对应前缀）
+    type_prefixes = {etype: {prefix} for etype, prefix in ID_PREFIXES.items()}
+    # 反向：前缀 → type，用于校验已有 ID 的前缀是否与文件声明的 type 一致
+    prefix_to_type = {prefix: etype for etype, prefix in ID_PREFIXES.items()}
+
+    id_pattern = re.compile(r'^(MODULE|PAGE|FIELD|RULE|FLOW|REL|PERM|STATE)-' + re.escape(stage) + r'-(\d{3})$')
     for json_file in metadata_dir.glob("*.json"):
         try:
             with open(json_file, encoding="utf-8") as f:
                 data = json.load(f)
             if isinstance(data, list):
                 for item in data:
-                    if isinstance(item, dict) and "id" in item and "title" in item:
-                        title_to_id[item["title"]] = item["id"]
+                    if not (isinstance(item, dict) and "id" in item and "title" in item):
+                        continue
+                    eid = item["id"]
+                    etype = item.get("type")
+                    match = id_pattern.match(eid)
+                    if not match:
+                        continue
+                    item_prefix = match.group(1)
+                    # 前缀校验：ID 前缀必须与声明的 type 对应，不符则跳过（不自愈脏 ID）
+                    expected_prefix = ID_PREFIXES.get(etype) if etype else None
+                    if expected_prefix and item_prefix != expected_prefix:
+                        continue
+                    title_to_id[item["title"]] = eid
             _scan_ids_recursive(data, id_pattern, max_ids)
         except (json.JSONDecodeError, OSError):
             continue
@@ -127,6 +152,9 @@ def infer_entities_from_headings(headings: list, stage: str, project_root: Path 
 
         # 跳过纯章节编号标题（如 "一、角色定义"、"（一）入库管理"）
         if CHAPTER_HEADING_PATTERN.match(title):
+            continue
+        # 跳过章节容器标题本身（"业务规则"/"状态集合" 等含关键词但是容器标题）
+        if title in HEADING_BLACKLIST:
             continue
         if "非页面落点字段" in title:
             continue
@@ -251,22 +279,10 @@ def extract_entities_from_tables(content: str, headings: list, stage: str, count
                 if any("状态" in cell for cell in row):
                     states.append({"title": row[0] if row else "", "line": table["line_offset"]})
 
-    # 状态深度提取：表格未命中时，从标题和文本中提取
+    # 状态深度提取：表格未命中时，从"状态集合"子章节的列表项解析
+    # design 格式：### 状态集合 \n - `draft`：草稿 \n - `submitted`：已提交
     if not states:
-        in_state_section = False
-        state_section_level = None
-        state_section_keywords = ("规则与状态", "状态定义", "状态流转", "状态机")
-        for h in headings:
-            title = h["title"]
-            if h["level"] <= 2 and any(kw in title for kw in state_section_keywords):
-                in_state_section = True
-                state_section_level = h["level"]
-                continue
-            if in_state_section and h["level"] <= state_section_level:
-                in_state_section = False
-                continue
-            if in_state_section and h["level"] >= 3:
-                states.append({"title": title, "line": h["line"]})
+        states = _extract_states_from_content(content)
 
     # 为 states 分配稳定 ID
     state_counter = counter.get("STATE", 0)
@@ -275,48 +291,17 @@ def extract_entities_from_tables(content: str, headings: list, stage: str, count
             state_counter += 1
             s["id"] = f"STATE-{stage}-{state_counter:03d}"
             s["type"] = "state"
-            s.setdefault("detail", "")
     counter["STATE"] = state_counter
 
-    # 权限深度提取：标题 + 表格
-    perm_section_keywords = ("权限定义", "角色权限", "权限矩阵")
-    in_permission_section = False
-    section_level = None
+    # 权限深度提取：解析权限章节下 "### 页面名" 子标题内的 "- role：action" 列表项
+    # 输出 (page_title, role, action_text) 三元组，不再把页面名当权限实体
+    permissions = _extract_permissions_from_content(content)
     perm_counter = counter.get("PERM", 0)
-    for h in headings:
-        title = h["title"]
-        if h["level"] <= 2 and any(kw in title for kw in perm_section_keywords):
-            in_permission_section = True
-            section_level = h["level"]
-            continue
-        if in_permission_section and h["level"] <= section_level:
-            in_permission_section = False
-            continue
-        if in_permission_section and h["level"] >= 3:
+    for p in permissions:
+        if "id" not in p:
             perm_counter += 1
-            permissions.append({
-                "id": f"PERM-{stage}-{perm_counter:03d}",
-                "type": "permission",
-                "title": title,
-                "line": h["line"],
-                "detail": "",
-            })
-
-    # 如果标题提取没找到权限，扫描权限章节内的表格
-    if not permissions:
-        for table in tables:
-            section = table["section_title"]
-            if any(kw in section for kw in perm_section_keywords):
-                for row in table["rows"]:
-                    if row and row[0] and row[0] not in ("---", "角色", "字段", "页面"):
-                        perm_counter += 1
-                        permissions.append({
-                            "id": f"PERM-{stage}-{perm_counter:03d}",
-                            "type": "permission",
-                            "title": row[0],
-                            "line": table["line_offset"],
-                            "detail": "、".join(row[1:]) if len(row) > 1 else "",
-                        })
+            p["id"] = f"PERM-{stage}-{perm_counter:03d}"
+            p["type"] = "permission"
     counter["PERM"] = perm_counter
 
     return pages, fields, states, permissions
@@ -335,6 +320,98 @@ def _split_field_tokens(raw_text: str) -> list:
             continue
         tokens.append(token)
     return tokens
+
+
+# 状态列表项模式：- `draft`：草稿 / - draft：草稿 / - draft: 草稿
+_STATE_LIST_PATTERN = re.compile(r'^[-*]\s*`?([^`：:\s]+)`?\s*[：:]\s*(.+)$')
+# 权限列表项模式：- `member`：可查看... / - member：可查看...
+_PERM_LIST_PATTERN = re.compile(r'^[-*]\s*`?([^`：:\s]+)`?\s*[：:]\s*(.+)$')
+# 状态章节关键词
+_STATE_SECTION_KEYWORDS = ("状态集合", "状态定义", "状态流转", "状态机", "规则与状态")
+# 权限章节关键词
+_PERM_SECTION_KEYWORDS = ("权限定义", "角色权限", "权限矩阵")
+
+
+def _extract_states_from_content(content: str) -> list:
+    """从"状态集合"子章节的列表项提取状态实体
+
+    design 格式：
+      ### 状态集合
+      - `draft`：草稿
+      - `submitted`：已提交
+
+    不再提取 h3 标题（"状态集合"/"状态迁移" 是容器标题不是状态）。
+    """
+    states = []
+    lines = content.split('\n')
+    in_state_section = False
+
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        # 检测进入状态子章节
+        if re.match(r'^#{3,}\s+', stripped):
+            if any(kw in stripped for kw in _STATE_SECTION_KEYWORDS):
+                in_state_section = True
+            else:
+                in_state_section = False
+            continue
+        if not in_state_section:
+            continue
+        match = _STATE_LIST_PATTERN.match(stripped)
+        if match:
+            state_name = match.group(1).strip()
+            state_desc = match.group(2).strip()
+            states.append({"title": state_name, "detail": state_desc, "line": i + 1})
+
+    return states
+
+
+def _extract_permissions_from_content(content: str) -> list:
+    """从权限章节提取 (page_title, role, action_text) 三元组
+
+    design 格式：
+      ## 八、权限定义
+      ### 我的周报列表
+      - `member`：可查看自己的周报列表，可进入填写页
+      - `admin`：可查看所有成员周报列表
+
+    每个 ### 子标题是页面分组，其下的 - role：action 才是权限实体。
+    不再把页面名当权限实体。
+    """
+    permissions = []
+    lines = content.split('\n')
+    in_perm_section = False
+    current_page = ""
+
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        # 检测进入权限章节（h2 级别含权限关键词）
+        if re.match(r'^#{1,2}\s+', stripped):
+            if any(kw in stripped for kw in _PERM_SECTION_KEYWORDS):
+                in_perm_section = True
+            else:
+                in_perm_section = False
+            current_page = ""
+            continue
+        # 权限章节内的 h3 子标题 = 页面分组名
+        if in_perm_section and re.match(r'^#{3,}\s+', stripped):
+            current_page = re.sub(r'^#{3,}\s+', '', stripped).strip()
+            continue
+        if not in_perm_section:
+            continue
+        match = _PERM_LIST_PATTERN.match(stripped)
+        if match and current_page:
+            role = match.group(1).strip()
+            action = match.group(2).strip()
+            permissions.append({
+                "title": f"{current_page}-{role}",
+                "page": current_page,
+                "role": role,
+                "action": action,
+                "line": i + 1,
+            })
+
+    return permissions
 
 
 def _extract_design_page_field_map(content: str, headings: list, pages: list, fields: list) -> list:
@@ -552,9 +629,11 @@ def _extract_numbered_rules_from_design(content: str, stage: str, counter: dict,
 def generate_design_metadata(content: str, stage: str, project_root: Path) -> dict:
     """生成 design 阶段 metadata（含稳定 ID）
 
-    两种提取方式合并，共享 title_to_id 和 counter：
-    - 标题推断：模块、规则（从 ###/#### 标题中识别）
+    三种提取方式合并，共享 title_to_id 和 counter：
+    - 标题推断：模块、页面、字段、规则、流程（从 ###/#### 标题中识别）
     - 表格解析：页面、字段（从 Markdown 表格中提取）
+    - 内容解析：状态、权限（从"状态集合"/"权限定义"章节列表项提取）
+    - 编号规则提取：从"规则"章节的编号列表中提取独立规则实体
     """
     headings = parse_headings(content)
 
@@ -606,6 +685,7 @@ def generate_design_metadata(content: str, stage: str, project_root: Path) -> di
         "rules": rules,
         "page_fields": page_fields,
         "non_page_fields": non_page_fields,
+        "entities": entities,  # 完整实体列表（含 flows），供 _count_entities 统一计数
     }
     # 始终写入 states 和 permissions，覆盖可能存在的陈旧文件
     result["states"] = table_states
@@ -614,60 +694,26 @@ def generate_design_metadata(content: str, stage: str, project_root: Path) -> di
 
 
 def generate_prd_metadata(content: str, project_root: Path) -> dict:
-    """生成 PRD 阶段 metadata（不含新稳定 ID，只引用 design）
+    """生成 PRD 阶段 metadata（只 index + relations）
 
-    从 PRD 正文中提取字段名/规则描述/页面名，匹配 design 的稳定 ID。
+    PRD 不再提取字段/页面/规则/状态/权限 anchor——语义检测交给 review skill 的 LLM 逐项 checklist。
     """
-    headings = parse_headings(content)
-
     index = {
         "schema_version": "1.0.0",
         "stage": "prd",
         "artifact_path": "output/prd/prd.md",
         "generated_at": datetime.now(timezone.utc).isoformat(),
     }
-
-    # 读取 design metadata 作为匹配基准
-    design_fields = _load_design_metadata(project_root, "fields.json")
-    design_pages = _load_design_metadata(project_root, "pages.json")
-    design_rules = _load_design_metadata(project_root, "rules.json")
-
-    # 建立 title → id 映射
-    field_title_to_id = {f["title"]: f["id"] for f in design_fields}
-    page_title_to_id = {p["title"]: p["id"] for p in design_pages}
-    rule_title_to_id = {r["title"]: r["id"] for r in design_rules}
-
-    # 1. 从"数据字典"表格提取字段 anchor
-    field_anchor = _extract_prd_field_anchors(content, headings, field_title_to_id)
-
-    # 2. 从"详细需求说明"章节标题提取页面 anchor
-    page_anchor = _extract_prd_page_anchors(content, headings, page_title_to_id)
-
-    # 3. 从 PRD 正文提取规则 anchor（匹配 design 规则标题）
-    rule_anchor = _extract_prd_rule_anchors(content, rule_title_to_id)
-
-    # 4. 继承 design 的 entities（合并 4 个 type-specific 文件）和 relations
-    design_entities = (
-        _load_design_metadata(project_root, "modules.json")
-        + _load_design_metadata(project_root, "pages.json")
-        + _load_design_metadata(project_root, "fields.json")
-        + _load_design_metadata(project_root, "rules.json")
-    )
-    design_relations = _load_design_metadata(project_root, "relations.json")
-
+    design_relations = _load_design_metadata_relations(project_root)
     return {
         "index": index,
-        "entities": design_entities,
         "relations": design_relations,
-        "page_anchor": page_anchor,
-        "rule_anchor": rule_anchor,
-        "field_anchor": field_anchor,
     }
 
 
-def _load_design_metadata(project_root: Path, filename: str) -> list:
-    """加载 design 阶段的 metadata 文件"""
-    meta_file = project_root / ".workflow" / "metadata" / "design" / filename
+def _load_design_metadata_relations(project_root: Path) -> list:
+    """加载 design 阶段的 relations.json"""
+    meta_file = project_root / ".workflow" / "metadata" / "design" / "relations.json"
     if meta_file.exists():
         try:
             with open(meta_file, encoding="utf-8") as f:
@@ -678,138 +724,10 @@ def _load_design_metadata(project_root: Path, filename: str) -> list:
     return []
 
 
-def _extract_prd_field_anchors(content: str, headings: list, field_title_to_id: dict) -> list:
-    """从 PRD 数据字典表格中提取字段名，匹配 design FIELD ID
-
-    数据字典表格可能在子标题（如 ### 周报实体）下，
-    此时 section_title 是子标题名而非"数据字典"。
-    需要回溯最近的 h2 标题确认是否在数据字典章节内。
-    """
-    anchors = []
-    tables = parse_tables_with_context(content, headings)
-
-    for table in tables:
-        section = table["section_title"]
-        # 检查当前 section 或最近的 h2 父标题是否包含"数据字典"
-        in_data_dict = "数据字典" in section
-        if not in_data_dict:
-            in_data_dict = is_under_heading(table["line_offset"], headings, "数据字典")
-        if not in_data_dict:
-            continue
-        # 确认是 9 列数据字典格式
-        headers = table["headers"]
-        if "字段" not in headers or "类型" not in headers:
-            continue
-        ti = headers.index("类型") if "类型" in headers else None
-        ri = headers.index("必填") if "必填" in headers else None
-        ei = next((idx for idx, h in enumerate(headers) if "枚举" in h or "说明" in h), None)
-        for row in table["rows"]:
-            if len(row) >= 1 and row[0] and row[0] not in ("---", "字段"):
-                field_name = row[0]
-                design_id = field_title_to_id.get(field_name)
-                anchor = {
-                    "prd_field": field_name,
-                    "design_field": design_id,
-                    "prd_line": table["line_offset"],
-                    "data_dict": True,
-                }
-                if ti is not None and ti < len(row): anchor["prd_type"] = row[ti].strip()
-                if ri is not None and ri < len(row): anchor["prd_required"] = row[ri].strip()
-                if ei is not None and ei < len(row): anchor["prd_enum"] = row[ei].strip()
-                anchors.append(anchor)
-    return anchors
-
-
-def _extract_prd_page_anchors(content: str, headings: list, page_title_to_id: dict) -> list:
-    """从 PRD 详细需求说明章节的子标题中提取页面名，匹配 design PAGE ID"""
-    anchors = []
-    in_detail = False
-
-    for h in headings:
-        title = h["title"]
-        # 进入详细需求说明章节
-        if "详细需求" in title and h["level"] >= 2:
-            in_detail = True
-            continue
-        # 离开详细需求说明章节
-        if in_detail and h["level"] <= 2 and "详细需求" not in title:
-            in_detail = False
-            continue
-
-        if not in_detail:
-            continue
-
-        # 在详细需求章节内的子标题（### 级别），匹配合并中文序号
-        if h["level"] >= 3:
-            clean_title = clean_page_title(title)
-            design_id = page_title_to_id.get(clean_title)
-            if design_id:
-                anchors.append({
-                    "prd_page": clean_title,
-                    "design_page": design_id,
-                    "prd_line": h["line"],
-                })
-
-    return anchors
-
-
-def _extract_prd_rule_anchors(content: str, rule_title_to_id: dict) -> list:
-    """从 PRD 正文中提取规则描述，匹配 design RULE ID
-
-    匹配策略：
-    1. 对 PRD 全文逐行扫描
-    2. 对每行文本，检查是否包含 design 规则标题中的关键词
-    3. 如果匹配成功，建立 PRD 规则行 → design RULE ID 的 anchor
-    """
-    anchors = []
-    if not rule_title_to_id:
-        return anchors
-
-    lines = content.split('\n')
-    for i, line in enumerate(lines):
-        stripped = line.strip()
-        if not stripped or stripped.startswith('#'):
-            continue
-        for design_title, design_id in rule_title_to_id.items():
-            if len(design_title) <= 3:
-                continue
-            if _fuzzy_match(stripped, design_title):
-                anchors.append({
-                    "prd_rule": design_title,
-                    "design_rule": design_id,
-                    "prd_line": i + 1,
-                })
-
-    seen_ids = set()
-    deduped = []
-    for a in anchors:
-        if a["design_rule"] not in seen_ids:
-            seen_ids.add(a["design_rule"])
-            deduped.append(a)
-
-    return deduped
-
-
-def _fuzzy_match(prd_text: str, design_title: str) -> bool:
-    """模糊匹配：PRD 规则文本是否与 design 规则标题实质相同
-
-    策略：提取 design_title 中的关键短语（长度 >= 4 的非停顿词片段），
-    检查是否出现在 prd_text 中。
-    """
-    if not prd_text or not design_title:
-        return False
-    # 提取 design_title 中的长片段（4+ 字符的子串）
-    for start in range(len(design_title) - 3):
-        fragment = design_title[start:start + 4]
-        if fragment in prd_text:
-            return True
-    return False
-
-
 def generate_prototype_metadata(content: str, project_root: Path) -> dict:
-    """生成 prototype 阶段 metadata
+    """生成 prototype 阶段 metadata（只 index）
 
-    从 index.html 提取页面标题，匹配 design 的 PAGE ID，写入 page-map。
+    prototype 不再提取页面/字段 anchor——语义检测交给 review skill 的 LLM 逐项 checklist。
     """
     index = {
         "schema_version": "1.0.0",
@@ -819,104 +737,10 @@ def generate_prototype_metadata(content: str, project_root: Path) -> dict:
         "entity_count": 0,
         "relation_count": 0,
     }
-
-    # 读取 design pages 作为匹配基准
-    design_pages = _load_design_metadata(project_root, "pages.json")
-    page_title_to_id = {p["title"]: p["id"] for p in design_pages}
-
-    # 从 HTML 中提取页面标题
-    page_map = _extract_html_page_titles(content, page_title_to_id)
-
-    return {
-        "index": index,
-        "page_map": page_map,
-    }
+    return {"index": index}
 
 
-def _extract_html_page_titles(html_content: str, page_title_to_id: dict) -> list:
-    """从 HTML 中提取页面标题，匹配 design PAGE ID
-
-    提取策略：导航链接 → page-title 元素 → h2 标签。
-    过滤规则：source_page_ref 为 null 的不写入；同一 design PAGE ID 只保留第一个匹配。
-    """
-    raw_matches = []
-    seen_titles = set()
-
-    def collect(pattern, html):
-        for match in pattern.finditer(html):
-            title = match.group(1).strip()
-            if title and title not in seen_titles:
-                seen_titles.add(title)
-                ref = _match_page_title(title, page_title_to_id)
-                raw_matches.append((title, ref))
-
-    # 方法1：导航链接文本（通常最接近 design 页面名）
-    nav_pattern = re.compile(r'<a[^>]*data-page=["\'][^"\']*["\'][^>]*>([^<]+)</a>', re.IGNORECASE)
-    collect(nav_pattern, html_content)
-
-    # 方法2：匹配 class="page-title" 的元素文本内容
-    title_pattern = re.compile(r'class=["\'][^"\']*page-title[^"\']*["\'][^>]*>([^<]+)<', re.IGNORECASE)
-    collect(title_pattern, html_content)
-
-    # 方法3：匹配 <h2> 标签文本
-    h2_pattern = re.compile(r'<h2[^>]*>([^<]+)</h2>', re.IGNORECASE)
-    collect(h2_pattern, html_content)
-
-    # 去重：过滤 null，同一 source_page_ref 只保留第一个
-    page_map = []
-    seen_refs = set()
-    for title, ref in raw_matches:
-        if ref is None:
-            continue  # 无法追溯到 design 的条目不写入
-        if ref in seen_refs:
-            continue  # 同一 design PAGE ID 已匹配过
-        seen_refs.add(ref)
-        page_map.append({
-            "page_id": f"page-{len(page_map) + 1}",
-            "title": title,
-            "source_page_ref": ref,
-        })
-
-    return page_map
-
-
-def _match_page_title(html_title: str, page_title_to_id: dict) -> str:
-    """将 HTML 页面标题匹配到 design PAGE ID
-
-    先精确匹配，再子串包含匹配，最后关键字重叠匹配。
-    """
-    if html_title in page_title_to_id:
-        return page_title_to_id[html_title]
-
-    # 子串包含匹配：design 页面名包含 html_title 或 html_title 包含 design 页面名
-    for design_title, design_id in page_title_to_id.items():
-        if design_title in html_title or html_title in design_title:
-            return design_id
-
-    # 关键字重叠匹配：提取双方的关键字，有 2+ 字重叠则匹配
-    html_keywords = _extract_keywords(html_title)
-    for design_title, design_id in page_title_to_id.items():
-        design_keywords = _extract_keywords(design_title)
-        overlap = html_keywords & design_keywords
-        if len(overlap) >= 2:
-            return design_id
-
-    return None
-
-
-def _extract_keywords(title: str) -> set:
-    """从标题中提取二字关键词"""
-    keywords = set()
-    # 提取二字词
-    for i in range(len(title) - 1):
-        kw = title[i:i+2]
-        # 排除标点和数字
-        if re.match(r'[一-鿿]{2}', kw):
-            keywords.add(kw)
-    return keywords
-
-
-def write_metadata(stage: str, data: dict, project_root: Path, dry_run: bool = False, merge: bool = False) -> list:
+def write_metadata(stage: str, data: dict, project_root: Path, dry_run: bool = False) -> list:
     """将 metadata 写入文件"""
     metadata_dir = project_root / ".workflow" / "metadata" / stage
     if not dry_run:
@@ -935,10 +759,6 @@ def write_metadata(stage: str, data: dict, project_root: Path, dry_run: bool = F
         "permissions": "permissions.json",
         "page_fields": "page-fields.json",
         "non_page_fields": "non-page-fields.json",
-        "page_anchor": "page-anchor.json",
-        "rule_anchor": "rule-anchor.json",
-        "field_anchor": "field-anchor.json",
-        "page_map": "page-map.json",
     }
 
     written = []
@@ -977,19 +797,28 @@ def write_align_notes(project_root: Path, dry_run: bool = False) -> str:
     return str(target)
 
 
+def _count_entities(data: dict) -> int:
+    """统计实际写入的实体数
+
+    与 index.json 的 entity_count 口径一致：design 阶段含 modules/pages/fields/rules/flows
+    （不含 states/permissions，这两类是结构实体而非业务实体）；其他阶段无实体。
+    """
+    entities = data.get("entities", [])
+    return len(entities) if isinstance(entities, list) else 0
+
+
 def write_stage_context(stage: str, data: dict, project_root: Path, dry_run: bool = False) -> str:
     """写入 stage-context.json"""
     ctx_dir = project_root / ".workflow" / "runtime" / stage
     if not dry_run:
         ctx_dir.mkdir(parents=True, exist_ok=True)
 
-    entities = data.get("entities", [])
     relations = data.get("relations", [])
 
     ctx = {
         "stage": stage,
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        "entity_count": len(entities) if isinstance(entities, list) else 0,
+        "entity_count": _count_entities(data),
         "relation_count": len(relations) if isinstance(relations, list) else 0,
         "metadata_files": METADATA_FILE_MAP.get(stage, []),
     }
@@ -1020,8 +849,16 @@ def update_status(stage: str, project_root: Path, dry_run: bool = False):
     with open(status_path, encoding="utf-8") as f:
         status = json.load(f)
 
-    STAGE_ORDER = {"align": 0, "design": 1, "prd": 2, "prototype": 3}
+    # 含 review 子阶段的阶段顺序（与 status.schema.json current_stage 枚举一致）
+    STAGE_ORDER = {
+        "align": 0, "design": 1, "design-review": 1,
+        "prd": 2, "prd-review": 2,
+        "prototype": 3, "prototype-review": 3,
+        "fix": 0, "done": 4,
+    }
     old_stage = status.get("current_stage", "align")
+    # stage-prep 只处理主阶段（align/design/prd/prototype），不处理 review 子阶段
+    # 但 old_stage 可能是 review 子阶段，需正确比较避免回退
     if STAGE_ORDER.get(stage, 0) >= STAGE_ORDER.get(old_stage, 0):
         status["current_stage"] = stage
     artifact_path = ARTIFACT_PATHS.get(stage)
@@ -1075,7 +912,6 @@ def main():
     parser.add_argument("--stage", required=True, choices=VALID_STAGES, help="目标阶段")
     parser.add_argument("--project-root", default=".", help="项目根目录")
     parser.add_argument("--dry-run", action="store_true", help="试运行，不写入文件")
-    parser.add_argument("--merge", action="store_true", help="合并所有 metadata 为单文件 metadata.json")
     parser.add_argument("--stdin-artifact", action="store_true", help="从 stdin 读取人读稿内容（避免重复读文件）")
     args = parser.parse_args()
 
@@ -1107,7 +943,7 @@ def main():
         sys.exit(1)
 
     # 写入文件
-    written_files = write_metadata(stage, data, project_root, dry_run=args.dry_run, merge=args.merge)
+    written_files = write_metadata(stage, data, project_root, dry_run=args.dry_run)
     ctx_file = write_stage_context(stage, data, project_root, dry_run=args.dry_run)
 
     # align 阶段额外写入 align-notes.json
@@ -1123,7 +959,7 @@ def main():
         "dry_run": args.dry_run,
         "metadata_files_written": written_files,
         "stage_context_file": ctx_file,
-        "entity_count": len(entities) if isinstance(entities, list) else 0,
+        "entity_count": _count_entities(data),
         "relation_count": len(relations) if isinstance(relations, list) else 0,
     }
     if align_notes_file:

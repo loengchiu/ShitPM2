@@ -25,21 +25,11 @@
     },
     "entity_count": {
       "type": "integer",
-      "description": "实体总数"
+      "description": "实体总数（含 modules/pages/fields/rules/flows，不含 states/permissions）"
     },
     "relation_count": {
       "type": "integer",
       "description": "关系总数"
-    },
-    "entities": {
-      "type": "array",
-      "items": { "$ref": "#/$defs/entity" },
-      "description": "实体列表（NOTE: stage-prep.py 不生成此字段，实体按类型拆分到 modules/pages/fields/rules.json；此字段为 schema 向前兼容保留）"
-    },
-    "relations": {
-      "type": "array",
-      "items": { "$ref": "#/$defs/relation" },
-      "description": "关系列表（NOTE: stage-prep.py 将关系写入独立的 relations.json，不在 index.json 中内联）"
     }
   },
   "additionalProperties": true,
@@ -50,12 +40,12 @@
       "properties": {
         "id": {
           "type": "string",
-          "pattern": "^(MODULE|PAGE|FIELD|RULE|FLOW|REL|STATE|PERM)-design-[0-9]{3}$",
+          "pattern": "^(MODULE|PAGE|FIELD|RULE|FLOW|STATE|PERM)-design-[0-9]{3}$",
           "description": "稳定 ID，仅存在于机读物"
         },
         "type": {
           "type": "string",
-          "enum": ["module", "page", "field", "rule", "flow", "role", "state", "permission"],
+          "enum": ["module", "page", "field", "rule", "flow", "state", "permission"],
           "description": "实体类型"
         },
         "title": { "type": "string", "description": "实体标题" },
@@ -72,10 +62,7 @@
           "type": "string",
           "pattern": "^REL-design-[0-9]{3}$"
         },
-        "type": {
-          "type": "string",
-          "enum": ["derived_from", "refines", "depends_on", "contains", "uses", "verifies"]
-        },
+        "type": { "$ref": "common.schema.json#/$defs/relation_type_enum" },
         "from": { "type": "string", "description": "来源实体 ID" },
         "to": { "type": "string", "description": "目标实体 ID" }
       },

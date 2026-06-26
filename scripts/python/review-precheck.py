@@ -17,9 +17,8 @@ import json
 import os
 import re
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
-from shared_md import STABLE_ID_PATTERN, ARTIFACT_PATHS, METADATA_FILE_MAP, load_json
+from shared_md import ARTIFACT_PATHS, METADATA_FILE_MAP
 
 VALID_STAGES = ["design", "prd", "prototype"]
 
@@ -56,8 +55,6 @@ SECTION_ALIASES = {
 
 def check_prd_entity_coverage(project_root: Path, stdin_content: str = None) -> dict:
     """校验 PRD 数据字典是否覆盖 design 数据字典中的全部实体"""
-    import json
-
     design_path = project_root / "output" / "design" / "design.md"
     if not design_path.exists():
         return {"check": "prd_entity_coverage", "passed": False, "detail": "design.md 不存在"}
@@ -234,39 +231,6 @@ def check_metadata_complete(project_root: Path, stage: str) -> list:
     return results
 
 
-def check_stable_id_leak(project_root: Path, stage: str) -> dict:
-    if stage == "prototype":
-        artifact_rel = ARTIFACT_PATHS[stage]
-        artifact_path = project_root / artifact_rel
-        if not artifact_path.exists():
-            return {"check": "stable_id_leak", "passed": True, "detail": "原型文件不存在，跳过检查"}
-        with open(artifact_path, encoding="utf-8") as f:
-            content = f.read()
-        matches = STABLE_ID_PATTERN.findall(content)
-        if matches:
-            return {
-                "check": "stable_id_leak",
-                "passed": False,
-                "detail": f"原型 HTML 中发现 {len(matches)} 处稳定 ID 泄漏",
-            }
-        return {"check": "stable_id_leak", "passed": True, "detail": "无稳定 ID 泄漏"}
-
-    artifact_rel = ARTIFACT_PATHS[stage]
-    artifact_path = project_root / artifact_rel
-    if not artifact_path.exists():
-        return {"check": "stable_id_leak", "passed": True, "detail": "人读稿不存在，跳过检查"}
-    with open(artifact_path, encoding="utf-8") as f:
-        content = f.read()
-    matches = STABLE_ID_PATTERN.findall(content)
-    if matches:
-        return {
-            "check": "stable_id_leak",
-            "passed": False,
-            "detail": f"人读稿中发现 {len(matches)} 处稳定 ID 泄漏",
-        }
-    return {"check": "stable_id_leak", "passed": True, "detail": "无稳定 ID 泄漏"}
-
-
 def check_design_page_field_coverage(project_root: Path) -> dict:
     """校验 design 的字段全集与页面字段落点/例外表是否全量对齐"""
     meta_dir = project_root / ".workflow" / "metadata" / "design"
@@ -429,9 +393,13 @@ def run_prd_style_lint(project_root: Path) -> list:
     try:
         with open(prd_path, encoding="utf-8") as f:
             content = f.read()
-        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-        from prd_style_lint import run_lint
-        issues = run_lint(content)
+        # 文件名含连字符，无法用普通 import，用 importlib 加载
+        import importlib.util
+        scripts_dir = os.path.dirname(os.path.abspath(__file__))
+        spec = importlib.util.spec_from_file_location("prd_style_lint", os.path.join(scripts_dir, "prd-style-lint.py"))
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        issues = mod.run_lint(content)
         warnings = []
         for issue in issues:
             if issue.severity in ("error", "warning"):
@@ -479,12 +447,6 @@ def main():
         for mc in metadata_checks:
             if not mc["passed"]:
                 blocking_issues.append(mc["detail"])
-
-    if not args.no_metadata:
-        id_leak_check = check_stable_id_leak(project_root, stage)
-        deterministic_checks.append(id_leak_check)
-        if not id_leak_check["passed"]:
-            warnings.append(id_leak_check["detail"])
 
     if stage == "design" and not args.no_metadata:
         coverage_check = check_design_page_field_coverage(project_root)

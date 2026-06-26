@@ -85,10 +85,9 @@ description: "对齐阶段——确认目标、范围、边界、建设方式。
 |------|------|------|
 | 1 | `output/align/align.md` | 按 `templates/align.md` 骨架 |
 | 2 | `.workflow/metadata/align/index.json` | 结构化提取 |
-| 3 | `.workflow/metadata/align/entities.json` | 实体 |
-| 4 | `.workflow/metadata/align/relations.json` | 关系 |
-| 5 | `.workflow/runtime/align/align-notes.json` | 判断结果 |
-| 6 | `.workflow/status.json` | 更新 current_stage |
+| 3 | `.workflow/metadata/align/relations.json` | 关系 |
+| 4 | `.workflow/runtime/align/align-notes.json` | 判断结果 |
+| 5 | `.workflow/status.json` | 更新 current_stage |
 
 ## 失败模式
 
@@ -114,7 +113,7 @@ description: "对齐阶段——确认目标、范围、边界、建设方式。
 
 ### align-notes.json
 ```json
-{"blocking_gaps":[],"needs_ask_back":true,"ask_back_reason":"","can_enter_design":false,"judgement_note":"","ask_back_round":0,"last_updated_at":""}
+{"blocking_gaps":[],"needs_ask_back":true,"ask_back_reason":"","can_enter_design":false,"judgement_note":"","last_updated_at":""}
 ```
 
 ## 停止条件

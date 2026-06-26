@@ -43,7 +43,7 @@ Read .workflow/status.json
 4. `$BUNDLE/references/prd-writing.md`
 5. `$BUNDLE/references/prd-writing.profile.json`
 
-字段定义、页面落点、权限矩阵、状态机从 design.md 原文读取，不依赖 metadata JSON。metadata 仅用于生成后校验幻觉。
+字段定义、页面落点、权限矩阵、状态机从 design.md 原文读取。design metadata（pages/fields/rules/states/permissions.json）在幻觉自检时作为逐项 checklist 数据源。
 
 ## 执行顺序
 
@@ -52,12 +52,24 @@ Read .workflow/status.json
 3. 生成 PRD：按模块规划详细需求 → 模块内按页面、动作展开 → 权限汇总 → 数据字典 → 状态机 → 辅助章节（如需要）
 4. 运行 `$BUNDLE/scripts/python/prd-style-lint.py` 自检
 5. 写入 `output/prd/prd.md`
-6. 运行 `$BUNDLE/scripts/python/stage-prep.py --stage prd --project-root .` 生成 PRD metadata
-7. 运行 `$BUNDLE/scripts/python/verify-against-metadata.py --stage prd --project-root .` 校验幻觉
-   - `hallucinated_items` 非空 → 立即修正 prd.md 中的幻觉字段/页面
-   - `constraint_mismatches` 非空 → 逐条核对 design.md 原文，修正 prd.md 中的错误约束
-   - 修正后重新运行 verify 直到 `hallucinated_items` 为空
-8. 更新 `.workflow/status.json`
+6. 运行 `$BUNDLE/scripts/python/stage-prep.py --stage prd --project-root .` 生成 PRD metadata（index + relations）
+7. 运行确定性结构对比：
+   ```bash
+   cat output/prd/prd.md | python $BUNDLE/scripts/python/prd-consistency-check.py --project-root .
+   ```
+
+   读取输出的 JSON 报告：
+   - `hallucinated` 非空 → 删除幻觉内容，从 design.md 重新提取
+   - `missing` 非空 → 补充 PRD 对应章节
+
+   然后 LLM 补充语义检查（脚本无法覆盖的部分）：
+   - 规则覆盖：design rules.json 每条规则 × PRD 正文 → [存在/缺失]
+   - 字段属性一致性：matched 字段的类型和必填是否与 design 一致
+
+   修正后重新运行脚本直到无幻觉
+
+8. 运行 `$BUNDLE/scripts/python/verify-against-metadata.py --stage prd --project-root .` 校验结构完整性
+9. 更新 `.workflow/status.json`
 
 ## 写作规则
 
@@ -78,7 +90,7 @@ Read .workflow/status.json
 5. 页面开头可用一段交代页面区域组成和职责，后文仍按用户动作展开
 6. 不允许出现 design 页面清单中不存在的模块、页面、区域或功能点
 7. 不允许整页使用连续自然段覆盖多个动作；不同动作必须拆开写，形成清晰的阅读节奏
-8. 列表、表单、详情中的字段描述只写当前动作真正需要读者理解的字段集合、展示方式和关键规则；不把数据字典 9 列或完整字段定义原样搬进页面正文
+8. 列表、表单、详情中的字段描述只写当前动作真正需要读者理解的字段集合、展示方式和关键规则；不把数据字典完整字段或 design 9 列字段定义原样搬进页面正文
 9. 动作下如需交代页面区块或信息分组，且区块较多或存在子分组时，用 `·` 列一级并列区块；区块内用 `-` 列子分组；区块很少且内容很短时直接用自然句写，不强行拆列表
 
 ### 写作风格
@@ -179,6 +191,8 @@ Read .workflow/status.json
 4. 不把自己变成字段、权限、状态的第二事实源
 5. 不执行 review（建议 `/spm-prd-review`）
 6. 不自动推进到下一阶段
+7. 不依赖 verify-against-metadata.py 做幻觉检测（它只做结构校验）
+8. 幻觉自检：脚本报告的 missing/hallucinated 项逐条列出；LLM 补充检查（规则覆盖、字段属性一致性）必须逐项列出
 
 ## 失败模式
 
@@ -188,7 +202,6 @@ Read .workflow/status.json
 | stage-context.py 执行失败 | 脚本报错或超时 | 检查脚本路径和 Python 环境 | 停下告知用户具体错误 |
 | design.md 不存在 | output/design/design.md 不存在 | 停下，需要先完成设计阶段 | —— |
 | prd-style-lint.py 报 P0 | lint 检查发现严重格式问题 | 按 lint 输出逐条修正 | 修正后重新运行 lint 直到通过 |
-| verify 脚本发现幻觉 | hallucinated_items 非空 | 删除幻觉字段/页面，从 design.md 重新提取 | 重新运行 verify 直到为空 |
-| verify 脚本发现约束不一致 | constraint_mismatches 非空 | 逐条核对 design.md 原文，修正 prd.md | 重新运行 verify 直到为空 |
+| 幻觉自检发现幻觉项 | checklist 中标记幻觉 | 删除幻觉字段/页面，从 design.md 重新提取 | 重新自检直到 checklist 无幻觉 |
 | 模板文件不存在 | templates/prd.md 不存在 | 使用内置最小模板 | 停下告知用户安装模板 |
 | 参考文件不存在 | references/prd-writing.md 不存在 | 跳过参考，按硬规则生成 | —— |

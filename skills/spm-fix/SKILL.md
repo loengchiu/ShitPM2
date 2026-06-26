@@ -83,10 +83,10 @@ description: "同步修复——把变更影响沿链路传播到当前真相。
 修复涉及 design/PRD/prototype 层时，运行一致性校验：
 
 ```bash
-python scripts/python/anchor-verify.py --project-root .
+python scripts/python/verify-against-metadata.py --stage design --project-root .
 ```
 
-校验未通过（anchor 断裂或版本不一致）→ 回到步骤 4 修复。
+校验未通过（schema 校验失败或 ID 唯一性问题）→ 回到步骤 4 修复。
 
 ### 步骤 6：修复后输出
 

@@ -26,7 +26,24 @@ description: "PRD review——判断 PRD 正文质量。用于用户说 prd revi
 
 1. **坏味道**：标签式正文/动作流水账/纯表格/过多加粗/模糊表述
 2. **三层覆盖**：界面元素与展示规则/交互逻辑与状态流转/异常处理与边界
-3. **一致性**：字段列表/权限口径/状态机与 design.md 一致；页面编号无重复；无动作复用；无跨节代写
+3. **一致性（脚本兜底 + LLM 语义增强）**：
+
+   运行确定性结构对比：
+   ```bash
+   cat output/prd/prd.md | python $BUNDLE/scripts/python/prd-consistency-check.py --project-root .
+   ```
+
+   直接引用脚本 JSON 报告中的 missing/hallucinated 项。
+
+   然后 LLM 补充检查（脚本无法覆盖的部分）：
+   - 规则 checklist：design rules.json 每条规则 × PRD 正文 → [存在/缺失]
+   - 字段属性一致性：matched 字段的类型/必填是否与 design 一致
+
+   判定：
+   - 脚本报告的 hallucinated 项 = P0
+   - 脚本报告的 missing 项 = P1（缺失率 > 50% 升级 P0）
+   - LLM 发现的规则缺失 = P1
+
 4. **结构**：状态机按核心业务对象组织，含状态集合/迁移/触发动作和限制条件；权限汇总含页面级/按钮级权限
 
 ## 判定规则
@@ -37,15 +54,15 @@ description: "PRD review——判断 PRD 正文质量。用于用户说 prd revi
 
 | 级别 | 示例 |
 |------|------|
-| P0 | 核心章节缺失、设计边界违反、字段/权限/状态镜像不一致 |
-| P1 | 页面缺展示规则、状态变化缺失 |
+| P0 | 核心章节缺失、设计边界违反、幻觉项（PRD 引入 design 不存在的实体）、缺失率>50% |
+| P1 | 缺失项（design 有 PRD 没写，但缺失率≤50%）、页面缺展示规则、状态变化缺失 |
 | P2 | lint warning、稳定 ID 泄漏（写入 issues 不计 verdict）|
 
 issue_layer：`{"structure":N,"content":N,"consistency":N}`。
 
 ## 输出
 
-- 机读：`.workflow/reviews/prd-review-N.json`
+- 机读：`.workflow/reviews/prd-review-N.json`（stage/verdict/issues/issue_layer/affected_objects/needs_upstream_sync/next_recommended/reviewed_at）
 - 人读：`.workflow/reviews/prd-review-N.md`（结论/主要问题/是否回上游/下一步）
 
  输出 verdict 后停止等用户确认，不自动推进。
@@ -67,3 +84,6 @@ issue_layer：`{"structure":N,"content":N,"consistency":N}`。
 4. 预检查失败不跳过
 5. P2 写入 issues 但不计入 verdict
 6. review 通过后不自动推进
+7. 脚本报告的 missing/hallucinated 项逐条列出；为零时直接引用脚本结论
+8. LLM 补充检查（规则覆盖、字段属性一致性）必须逐项列出，不允许笼统结论
+9. 幻觉项（PRD 有 design 没有）必须标 P0，不放过
