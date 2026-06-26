@@ -697,18 +697,26 @@ def _extract_prd_field_anchors(content: str, headings: list, field_title_to_id: 
         if not in_data_dict:
             continue
         # 确认是 9 列数据字典格式
-        if "字段" not in table["headers"] or "类型" not in table["headers"]:
+        headers = table["headers"]
+        if "字段" not in headers or "类型" not in headers:
             continue
+        ti = headers.index("类型") if "类型" in headers else None
+        ri = headers.index("必填") if "必填" in headers else None
+        ei = next((idx for idx, h in enumerate(headers) if "枚举" in h or "说明" in h), None)
         for row in table["rows"]:
             if len(row) >= 1 and row[0] and row[0] not in ("---", "字段"):
                 field_name = row[0]
                 design_id = field_title_to_id.get(field_name)
-                anchors.append({
+                anchor = {
                     "prd_field": field_name,
                     "design_field": design_id,
                     "prd_line": table["line_offset"],
                     "data_dict": True,
-                })
+                }
+                if ti is not None and ti < len(row): anchor["prd_type"] = row[ti].strip()
+                if ri is not None and ri < len(row): anchor["prd_required"] = row[ri].strip()
+                if ei is not None and ei < len(row): anchor["prd_enum"] = row[ei].strip()
+                anchors.append(anchor)
     return anchors
 
 

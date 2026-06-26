@@ -52,11 +52,12 @@ Read .workflow/status.json
 3. 生成 PRD：按模块规划详细需求 → 模块内按页面、动作展开 → 权限汇总 → 数据字典 → 状态机 → 辅助章节（如需要）
 4. 运行 `$BUNDLE/scripts/python/prd-style-lint.py` 自检
 5. 写入 `output/prd/prd.md`
-6. 运行 `$BUNDLE/scripts/python/verify-against-metadata.py --stage prd --project-root . --stdin-artifact` 校验幻觉
+6. 运行 `$BUNDLE/scripts/python/stage-prep.py --stage prd --project-root .` 生成 PRD metadata
+7. 运行 `$BUNDLE/scripts/python/verify-against-metadata.py --stage prd --project-root .` 校验幻觉
    - `hallucinated_items` 非空 → 立即修正 prd.md 中的幻觉字段/页面
    - `constraint_mismatches` 非空 → 逐条核对 design.md 原文，修正 prd.md 中的错误约束
    - 修正后重新运行 verify 直到 `hallucinated_items` 为空
-7. 更新 `.workflow/status.json`
+8. 更新 `.workflow/status.json`
 
 ## 写作规则
 

@@ -1,309 +1,278 @@
 #!/usr/bin/env python3
-"""verify-against-metadata.py"""
+"""verify-against-metadata.py -- 幻觉检测与一致性校验（纯 JSON 对比）
 
-import argparse, json, re, sys
+从 stage-prep.py 生成的 metadata JSON 中比对 design 与 artifact，
+报告幻觉项、缺失项、约束不一致。不再解析 Markdown。
+合并了原 anchor-verify.py 的 metadata 结构完整性校验。
+
+用法:
+  python verify-against-metadata.py --stage prd --project-root .
+  python verify-against-metadata.py --stage prototype --project-root .
+"""
+
+import argparse
+import json
+import re
+import sys
 from pathlib import Path
-from shared_md import parse_headings, parse_tables_with_context, fuzzy_field_match, fuzzy_page_match, ID_PREFIXES, normalize_page_name
+
+
+# ── JSON 加载 ────────────────────────────────────────────────
+
+def load_json(path):
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return None
 
 
 def load_design_metadata(project_root):
     meta_dir = project_root / ".workflow" / "metadata" / "design"
-    result = {"fields": [], "pages": [], "states": [], "permissions": []}
-    for fname in ["fields.json", "pages.json", "states.json", "permissions.json"]:
+    result = {}
+    for fname in ["fields.json", "pages.json", "states.json", "permissions.json",
+                   "modules.json", "rules.json"]:
         fpath = meta_dir / fname
-        if fpath.exists():
-            try:
-                with open(fpath, encoding="utf-8") as f: data = json.load(f)
-                key = fname.replace(".json", "").replace("-", "_")
-                if isinstance(data, list): result[key] = data
-            except (json.JSONDecodeError, OSError): pass
+        data = load_json(fpath)
+        if data and isinstance(data, list):
+            result[fname.replace(".json", "")] = data
     return result
 
 
-def load_design_md(project_root):
-    p = project_root / "output" / "design" / "design.md"
-    if p.exists():
-        with open(p, encoding="utf-8") as f: return f.read()
-    return ""
+def load_prd_metadata(project_root):
+    meta_dir = project_root / ".workflow" / "metadata" / "prd"
+    result = {}
+    for fname in ["field_anchor.json", "page_anchor.json", "rule_anchor.json",
+                   "index.json", "relations.json"]:
+        fpath = meta_dir / fname
+        data = load_json(fpath)
+        if data is not None:
+            result[fname.replace(".json", "")] = data
+    return result
 
 
-def extract_design_fields_from_md(content):
-    headings = parse_headings(content)
-    tables = parse_tables_with_context(content, headings)
-    fields = {}
-    for table in tables:
-        headers = table["headers"]
-        if "字段" in headers and "类型" in headers and len(headers) >= 2:
-            fi, ti = headers.index("字段"), headers.index("类型")
-            ri = headers.index("必填") if "必填" in headers else None
-            ei = next((idx for idx, h in enumerate(headers) if "枚举" in h or "规则" in h), None)
-            for row in table["rows"]:
-                if fi < len(row) and row[fi]:
-                    name = row[fi].strip()
-                    if name in ("字段", "---", ""): continue
-                    info = {}
-                    if ti < len(row): info["type"] = row[ti].strip()
-                    if ri is not None and ri < len(row): info["required"] = row[ri].strip()
-                    if ei is not None and ei < len(row): info["enum"] = row[ei].strip()
-                    fields[name] = info
-    return fields
+def load_prototype_metadata(project_root):
+    meta_dir = project_root / ".workflow" / "metadata" / "prototype"
+    result = {}
+    for fname in ["index.json", "page-map.json"]:
+        fpath = meta_dir / fname
+        data = load_json(fpath)
+        if data is not None:
+            result[fname.replace(".json", "")] = data
+    return result
 
 
-def extract_design_pages_from_md(content):
-    headings = parse_headings(content)
-    tables = parse_tables_with_context(content, headings)
-    pages = set()
-    for table in tables:
-        headers = table["headers"]
-        if any("页面" in h or "名称" in h for h in headers):
-            ni = next((i for i, h in enumerate(headers) if h in ("名称", "页面") or "页面名称" in h), None)
-            if ni is None:
-                ni = next((i for i, h in enumerate(headers) if "页面" in h or "名称" in h), None)
-            if ni is not None:
-                for row in table["rows"]:
-                    if ni < len(row) and row[ni] and row[ni] not in ("---", "名称"):
-                        pages.add(row[ni].strip())
-    return pages
+# ── PRD 校验 ─────────────────────────────────────────────────
 
+def verify_prd(project_root):
+    design = load_design_metadata(project_root)
+    prd_meta = load_prd_metadata(project_root)
 
-def extract_prd_fields(content):
-    headings = parse_headings(content)
-    tables = parse_tables_with_context(content, headings)
-    fields = set()
-    for table in tables:
-        headers = table["headers"]
-        if "字段" in headers and "类型" in headers and len(headers) >= 2:
-            fi = headers.index("字段")
-            for row in table["rows"]:
-                if fi < len(row) and row[fi]:
-                    name = row[fi].strip()
-                    if name not in ("字段", "---", ""): fields.add(name)
-    return fields
+    if not prd_meta.get("field_anchor") and not prd_meta.get("page_anchor"):
+        return {"stage": "prd", "error": "PRD metadata not found. Run stage-prep.py --stage prd first."}
 
+    design_fields = {f["title"]: f for f in design.get("fields", [])
+                     if isinstance(f, dict) and f.get("title")}
+    design_pages = {p["title"]: p for p in design.get("pages", [])
+                    if isinstance(p, dict) and p.get("title")}
 
-def extract_prd_fields_detailed(content):
-    headings = parse_headings(content)
-    tables = parse_tables_with_context(content, headings)
-    fields = {}
-    for table in tables:
-        headers = table["headers"]
-        if "字段" in headers and "类型" in headers and len(headers) >= 2:
-            fi, ti = headers.index("字段"), headers.index("类型")
-            ri = headers.index("必填") if "必填" in headers else None
-            ei = next((idx for idx, h in enumerate(headers) if "枚举" in h or "规则" in h or "说明" in h), None)
-            for row in table["rows"]:
-                if fi < len(row) and row[fi]:
-                    name = row[fi].strip()
-                    if name in ("字段", "---", ""): continue
-                    info = {}
-                    if ti < len(row): info["type"] = row[ti].strip()
-                    if ri is not None and ri < len(row): info["required"] = row[ri].strip()
-                    if ei is not None and ei < len(row): info["enum"] = row[ei].strip()
-                    fields[name] = info
-    return fields
+    field_anchors = prd_meta.get("field_anchor", [])
+    page_anchors = prd_meta.get("page_anchor", [])
 
+    # 幻觉字段：anchor 中 design_field 为空
+    hallucinated_fields = [a["prd_field"] for a in field_anchors if not a.get("design_field")]
 
-def extract_prd_pages(content):
-    headings = parse_headings(content)
-    tables = parse_tables_with_context(content, headings)
-    pages = set()
-    kws = ("页面", "列表", "详情", "编辑", "首页", "登录", "设置", "配置", "管理", "查看", "新建")
-    for h in headings:
-        if "模块" in h["title"]:
+    # 缺失字段：design 字段不在任何 anchor 中
+    matched_design_fields = {a["design_field"] for a in field_anchors if a.get("design_field")}
+    missing_fields = sorted(f for f in design_fields if f not in matched_design_fields)
+
+    # 幻觉页面：anchor 中 design_page 为空
+    hallucinated_pages = [a["prd_page"] for a in page_anchors if not a.get("design_page")]
+
+    # 缺失页面：design 页面不在任何 anchor 中
+    matched_design_pages = {a["design_page"] for a in page_anchors if a.get("design_page")}
+    missing_pages = sorted(p for p in design_pages if p not in matched_design_pages)
+
+    # 约束一致性：字段类型/必填/枚举不匹配
+    mismatches = []
+    for a in field_anchors:
+        dname = a.get("design_field")
+        if not dname or dname not in design_fields:
             continue
-        if 3 <= h["level"] <= 4 and any(kw in h["title"] for kw in kws):
-            pages.add(h["title"])
-    for table in tables:
-        headers = table["headers"]
-        sec = table.get("section_title", "")
-        if not any(("页面" in h) or ("页面名称" in h) for h in headers):
-            continue
-        if "模块" not in sec and not any(("页面清单" in sec) or ("页面" in h) for h in headers):
-            continue
-        ni = next((i for i, h in enumerate(headers) if h in ("页面名称", "页面") or h == "名称"), None)
-        if ni is None:
-            continue
-        for row in table["rows"]:
-            if ni < len(row) and row[ni] and row[ni] not in ("---", "名称", "页面名称"):
-                pages.add(row[ni].strip())
-    return pages
+        dinfo = design_fields[dname]
+        if a.get("prd_type") and dinfo.get("type") and a["prd_type"] != dinfo["type"]:
+            mismatches.append({"field": a["prd_field"], "attr": "type",
+                               "prd": a["prd_type"], "design": dinfo["type"]})
+        if a.get("prd_required") and dinfo.get("required") and a["prd_required"] != dinfo["required"]:
+            mismatches.append({"field": a["prd_field"], "attr": "required",
+                               "prd": a["prd_required"], "design": dinfo["required"]})
+        de = dinfo.get("enum", "")
+        pe = a.get("prd_enum", "")
+        if de and de not in ("—", "", "沿用原系统") and pe in ("—", ""):
+            mismatches.append({"field": a["prd_field"], "attr": "enum",
+                               "prd": pe or "(空)", "design": de})
+
+    all_h = sorted(set(hallucinated_fields + hallucinated_pages))
+    fr = len(matched_design_fields) / len(design_fields) if design_fields else 1.0
+    pr = len(matched_design_pages) / len(design_pages) if design_pages else 1.0
+
+    return {
+        "stage": "prd",
+        "hallucinated_items": all_h,
+        "metrics": {
+            "field_coverage": {
+                "in_output": len(field_anchors), "in_design": len(design_fields),
+                "ratio": round(fr, 2),
+                "hallucinated": sorted(hallucinated_fields),
+                "missing": missing_fields[:20],
+            },
+            "page_coverage": {
+                "in_output": len(page_anchors), "in_design": len(design_pages),
+                "ratio": round(pr, 2),
+                "hallucinated": sorted(hallucinated_pages),
+                "missing": missing_pages[:20],
+            },
+            "constraint_mismatches": mismatches[:20],
+        },
+        "summary": f"字段覆盖率 {int(fr*100)}%，页面覆盖率 {int(pr*100)}%，{len(all_h)} 个幻觉项，{len(mismatches)} 个约束不一致",
+    }
 
 
-def extract_prd_states(content):
-    headings = parse_headings(content)
-    entities, in_sec, sec_lv = set(), False, None
-    for h in headings:
-        if "状态" in h["title"] and h["level"] <= 2: in_sec, sec_lv = True, h["level"]; continue
-        if in_sec and h["level"] <= sec_lv: in_sec = False; continue
-        if in_sec and h["level"] >= 3: entities.add(h["title"])
-    return entities
-
-
-def extract_prd_permissions(content):
-    headings = parse_headings(content)
-    tables = parse_tables_with_context(content, headings)
-    perms = set()
-    for table in tables:
-        if "权限" not in table["section_title"]: continue
-        for row in table["rows"]:
-            if row: perms.add("、".join(c.strip() for c in row if c.strip()))
-    return perms
-
+# ── Prototype 校验 ───────────────────────────────────────────
 
 def extract_prototype_fields(html_content):
     fields = set()
-    for m in re.finditer(r"<label[^>]*>([^<]+)</label>", html_content):
+    for m in re.finditer(r'<label[^>]*>([^<]+)</label>', html_content):
         t = m.group(1).strip()
-        if t and len(t) <= 20: fields.add(t)
-    pat_ph = r'placeholder="([^"]+)"'
-    pat_lb = r'label="([^"]+)"'
-    for m in re.finditer(pat_ph, html_content):
-        t = m.group(1).strip()
-        if t and len(t) <= 20: fields.add(t)
-    for m in re.finditer(pat_lb, html_content):
-        t = m.group(1).strip()
-        if t and len(t) <= 20: fields.add(t)
+        if t and len(t) <= 20:
+            fields.add(t)
+    for pat in [r'placeholder="([^"]+)"', r'label="([^"]+)"']:
+        for m in re.finditer(pat, html_content):
+            t = m.group(1).strip()
+            if t and len(t) <= 20:
+                fields.add(t)
     return fields
 
 
 def extract_prototype_pages(html_content):
     pages = set()
-    pat_tab = r'<a\s+role="tab"\s+class="tab[^"]*"[^>]*>([^<]+)</a>'
-    for m in re.finditer(pat_tab, html_content):
+    for m in re.finditer(r'<a\s+role="tab"\s+class="tab[^"]*"[^>]*>([^<]+)</a>', html_content):
         pages.add(m.group(1).strip())
-    for m in re.finditer(r"<h[23][^>]*>([^<]+)</h[23]>", html_content):
+    for m in re.finditer(r'<h[23][^>]*>([^<]+)</h[23]>', html_content):
         t = m.group(1).strip()
-        if t and len(t) <= 30: pages.add(t)
+        if t and len(t) <= 30:
+            pages.add(t)
     return pages
 
 
-def check_constraint_consistency(prd_fields, design_fields):
-    mismatches = []
-    for fname, pinfo in prd_fields.items():
-        dname = fname if fname in design_fields else None
-        if not dname:
-            stripped = re.sub(r"[（(][^）)][）)]", "", fname).strip()
-            if stripped in design_fields: dname = stripped
-        if not dname: continue
-        dinfo = design_fields[dname]
-        if pinfo.get("required","") and dinfo.get("required","") and pinfo["required"] != dinfo["required"]:
-            mismatches.append({"field": fname, "attribute": "required", "prd_value": pinfo["required"], "design_value": dinfo["required"]})
-        de, pe = dinfo.get("enum",""), pinfo.get("enum","")
-        if de and de not in ("—", "", "沿用原系统") and pe in ("—", ""):
-            mismatches.append({"field": fname, "attribute": "enum", "prd_value": pe or "(空)", "design_value": de})
-    return mismatches
+def verify_prototype(project_root):
+    design = load_design_metadata(project_root)
+    design_fields = {f["title"] for f in design.get("fields", [])
+                     if isinstance(f, dict) and f.get("title")}
+    design_pages = {p["title"] for p in design.get("pages", [])
+                    if isinstance(p, dict) and p.get("title")}
 
+    html_path = project_root / "output" / "prototype" / "index.html"
+    if not html_path.exists():
+        return {"stage": "prototype", "error": "index.html not found"}
+    html = html_path.read_text(encoding="utf-8")
 
-def verify_prd(project_root, artifact_content):
-    design_md = load_design_md(project_root)
-    design_meta = load_design_metadata(project_root)
-    df_md = extract_design_fields_from_md(design_md)
-    dp_meta = [p.get("title", "") for p in design_meta.get("pages", []) if isinstance(p, dict) and p.get("title")]
-    dp_md = set(dp_meta) if dp_meta else extract_design_pages_from_md(design_md)
-    # 从 fields.json 构建字段名集合（替代已删除的 field_constraints）
-    dfn = set(df_md.keys())
-    for f in design_meta.get("fields", []):
-        if isinstance(f, dict) and f.get("title"):
-            dfn.add(f["title"])
-    pp = extract_prd_pages(artifact_content)
-    ps = extract_prd_states(artifact_content)
-    prm = extract_prd_permissions(artifact_content)
-    ds = {s.get("title","") for s in design_meta.get("states",[]) if isinstance(s, dict)}
-    dp = {p.get("title","") for p in design_meta.get("permissions",[]) if isinstance(p, dict)}
-    # fuzzy match: exact hit returns immediately; fallback strips suffixes
-    matched = {f for f in pf if f in dfn or fuzzy_field_match(f, {n: n for n in dfn})}
-    generic = {"字段","类型","必填","说明","备注","状态","操作","编号","名称","创建时间","更新时间"}
-    hf = {f for f in pf - matched if f not in generic and len(f) > 1}
-    mf = {f for f in dfn - pf if f not in ("字段权限例外","权限例外")}
-    npp = {normalize_page_name(p): p for p in pp}
-    ndp = {normalize_page_name(p): p for p in dp_md}
-    norm_to_orig = {normalize_page_name(p): p for p in dp_md}
-    prd_text = artifact_content
-    prd_text_norm = prd_text.replace('　', ' ')
-    mp_norm = set()
-    for n, orig in norm_to_orig.items():
-        if n in npp:
-            mp_norm.add(n)
-            continue
-        if fuzzy_page_match(n, {nn: nn for nn in ndp}):
-            mp_norm.add(n)
-            continue
-        if n and n in prd_text_norm:
-            mp_norm.add(n)
-    mp = {norm_to_orig[n] for n in mp_norm}
-    hp = set(npp[n] for n in set(npp) - mp_norm)
-    pfi = extract_prd_fields_detailed(artifact_content)
-    cm = check_constraint_consistency(pfi, df_md)
-    all_h = sorted(hf) + sorted(hp)
-    fr = len(matched) / len(dfn) if dfn else 1.0
-    prr = len(mp_norm) / len(ndp) if ndp else 1.0
-    pct = lambda v: str(int(v * 100)) + "%"
-    return {
-        "stage": "prd",
-        "metrics": {
-            "field_coverage": {"in_output": len(pf), "in_design": len(dfn), "ratio": round(fr, 2), "missing": sorted(mf)[:20], "hallucinated": sorted(hf)},
-            "page_coverage": {"in_output": len(pp), "in_design": len(ndp), "ratio": round(prr, 2), "missing": sorted(set(norm_to_orig[n] for n in set(ndp) - mp_norm))[:20]},
-            "state_coverage": {"in_output": len(ps), "in_design": len(ds), "missing_entities": sorted(ds - ps)[:10]},
-            "permission_coverage": {"in_output": len(prm), "in_design": len(dp), "missing": sorted(dp - prm)[:10]},
-            "constraint_mismatches": cm[:20],
-        },
-        "hallucinated_items": all_h,
-        "summary": "字段覆盖率 " + pct(fr) + "，页面覆盖率 " + pct(prr) + "，" + str(len(all_h)) + " 个幻觉项，" + str(len(cm)) + " 个约束不一致",
-    }
+    pf = extract_prototype_fields(html)
+    pp = extract_prototype_pages(html)
 
+    generic = {"查询", "重置", "新增", "编辑", "删除", "查看", "导出", "导入",
+               "提交", "保存", "取消", "确定", "关闭"}
+    matched_f = {f for f in pf if f in design_fields}
+    hf = sorted(f for f in pf - matched_f if f not in generic and len(f) > 1)
 
-def verify_prototype(project_root, artifact_content):
-    design_md = load_design_md(project_root)
-    design_meta = load_design_metadata(project_root)
-    df_md = extract_design_fields_from_md(design_md)
-    dp_meta = [p.get("title", "") for p in design_meta.get("pages", []) if isinstance(p, dict) and p.get("title")]
-    dp_md = set(dp_meta) if dp_meta else extract_design_pages_from_md(design_md)
-    dfn = set(df_md.keys())
-    pf = extract_prototype_fields(artifact_content)
-    pp = extract_prototype_pages(artifact_content)
-    # fuzzy match: exact hit returns immediately; fallback strips suffixes
-    matched = {f for f in pf if f in dfn or fuzzy_field_match(f, {n: n for n in dfn})}
-    generic = {"查询","重置","新增","编辑","删除","查看","导出","导入","提交","保存","取消","确定","关闭"}
-    hf = {f for f in pf - matched if f not in generic and len(f) > 1}
-    npp = {normalize_page_name(p): p for p in pp}
-    ndp = {normalize_page_name(p): p for p in dp_md}
-    pmap = {n: n for n in dp_md}
-    mp_norm = {n for n in npp if n in ndp or fuzzy_page_match(n, {nn: nn for nn in ndp})}
-    mp = {npp[n] for n in mp_norm}
-    hp = set(npp[n] for n in set(npp) - mp_norm)
-    all_h = sorted(hf) + sorted(hp)
-    fr = len(matched) / len(dfn) if dfn else 1.0
-    prr = len(mp_norm) / len(ndp) if ndp else 1.0
-    pct = lambda v: str(int(v * 100)) + "%"
+    matched_p = {p for p in pp if p in design_pages}
+    hp = sorted(pp - matched_p)
+
+    all_h = hf + hp
+    fr = len(matched_f) / len(design_fields) if design_fields else 1.0
+    pr = len(matched_p) / len(design_pages) if design_pages else 1.0
+
     return {
         "stage": "prototype",
-        "metrics": {
-            "field_coverage": {"in_output": len(pf), "in_design": len(dfn), "ratio": round(fr, 2), "hallucinated": sorted(hf)},
-            "page_coverage": {"in_output": len(pp), "in_design": len(ndp), "ratio": round(prr, 2), "hallucinated": sorted(hp)},
-        },
         "hallucinated_items": all_h,
-        "summary": "字段覆盖率 " + pct(fr) + "，页面覆盖率 " + pct(prr) + "，" + str(len(all_h)) + " 个幻觉项",
+        "metrics": {
+            "field_coverage": {"in_output": len(pf), "in_design": len(design_fields),
+                               "ratio": round(fr, 2), "hallucinated": hf},
+            "page_coverage": {"in_output": len(pp), "in_design": len(design_pages),
+                              "ratio": round(pr, 2), "hallucinated": hp},
+        },
+        "summary": f"字段覆盖率 {int(fr*100)}%，页面覆盖率 {int(pr*100)}%，{len(all_h)} 个幻觉项",
     }
 
 
+# ── Metadata 结构完整性校验（原 anchor-verify.py） ─────────
+
+def verify_metadata_integrity(project_root, stage):
+    """校验 metadata JSON 结构完整性，返回 errors 列表"""
+    errors = []
+    meta_dir = project_root / ".workflow" / "metadata" / stage
+    if not meta_dir.exists():
+        errors.append(f".workflow/metadata/{stage}/ 不存在")
+        return errors
+
+    index = load_json(meta_dir / "index.json")
+    if not index or not isinstance(index, dict):
+        errors.append("index.json 缺失或非 JSON 对象")
+    else:
+        for key in ["schema_version", "artifact_path", "stage"]:
+            if key not in index:
+                errors.append(f"index.json 缺少 {key}")
+        if index.get("stage") != stage:
+            errors.append(f"index.json stage={index.get('stage')}，期望 {stage}")
+
+    # 实体 ID 唯一性
+    entity_files = {"design": ["modules.json", "pages.json", "fields.json", "rules.json"],
+                    "prd": [], "prototype": []}
+    seen_ids = set()
+    for fname in entity_files.get(stage, []):
+        data = load_json(meta_dir / fname)
+        if not data or not isinstance(data, list):
+            continue
+        for item in data:
+            if not isinstance(item, dict):
+                continue
+            eid = item.get("id", "")
+            if not eid:
+                errors.append(f"{fname}: 实体缺少 id")
+            elif eid in seen_ids:
+                errors.append(f"{fname}: 重复 ID {eid}")
+            else:
+                seen_ids.add(eid)
+
+    return errors
+
+
+# ── 主入口 ───────────────────────────────────────────────────
+
 def main():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="幻觉检测与一致性校验")
     parser.add_argument("--stage", required=True, choices=["prd", "prototype"])
     parser.add_argument("--project-root", type=Path, default=Path.cwd())
-    parser.add_argument("--stdin-artifact", action="store_true")
     args = parser.parse_args()
+
     project_root = args.project_root.resolve()
-    if args.stdin_artifact:
-        artifact_content = sys.stdin.read()
+
+    # 1. Metadata 结构完整性
+    integrity_errors = verify_metadata_integrity(project_root, args.stage)
+
+    # 2. 幻觉检测
+    if args.stage == "prd":
+        result = verify_prd(project_root)
     else:
-        ap = project_root / ("output/prd/prd.md" if args.stage == "prd" else "output/prototype/index.html")
-        if not ap.exists():
-            print(json.dumps({"error": "not found"}, ensure_ascii=False))
-            sys.exit(1)
-        with open(ap, encoding="utf-8") as f: artifact_content = f.read()
-    result = verify_prd(project_root, artifact_content) if args.stage == "prd" else verify_prototype(project_root, artifact_content)
+        result = verify_prototype(project_root)
+
+    result["integrity_errors"] = integrity_errors
+    if integrity_errors:
+        result["summary"] += f"；{len(integrity_errors)} 个结构完整性问题"
+
     print(json.dumps(result, ensure_ascii=False, indent=2))
-    if result.get("hallucinated_items"): sys.exit(1)
+    if result.get("hallucinated_items") or integrity_errors:
+        sys.exit(1)
 
 
 if __name__ == "__main__":
