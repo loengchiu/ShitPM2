@@ -170,7 +170,7 @@ Read .workflow/status.json
 
 满足以上 3 条后停止，建议 `/spm-prd-review`。
 
-## 明确不做什么
+## 不要做什么
 
 1. 不重新定义范围
 2. 不脑补 design 没确认的页面和字段

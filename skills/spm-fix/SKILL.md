@@ -102,7 +102,7 @@ python scripts/python/anchor-verify.py --project-root .
 
 不自动执行 review，不自动推进阶段。review 通过后 metadata 由 `scripts/python/stage-prep.py` 脚本自动重新生成。
 
-## 失败模式与 Fallback
+## 失败模式
 
 | 场景 | 触发条件 | 一线修复 | 仍失败兜底 |
 |------|---------|---------|-----------|

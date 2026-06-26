@@ -10,11 +10,6 @@ description: "原型标注——为已生成的原型添加悬浮导航栏、关
 - `scripts/python/`、`references/`、`templates/`、`contracts/`、`lib/` 开头 → `$BUNDLE/` 下
 - `.workflow/`、`output/` 开头 → 当前项目根目录下
 
-## Shell 环境规则
-
- 默认 shell 为 Bash（Git Bash）。`cp -r` 为 Bash 语法。
----
-你是一位拥有严谨逻辑的资深产品经理与前端工程专家。你的目标是将 prd.md 的需求点以模块化聚合的形式挂载到 UI 页面，让研发人员通过浮窗获取完整开发指令。
 
 # 任务判定
 

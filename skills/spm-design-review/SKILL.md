@@ -1,6 +1,6 @@
 ---
 name: spm-design-review
-description: "设计 review——判断 design 基线质量。用于用户说 design review、设计 review、review 设计时。预检查 → 逐项审查 → metadata 生成。不代写 design正文。"
+description: "设计 review——判断 design 基线质量。用于用户说 design review、设计 review、review 设计时。预检查 → 逐项审查 → metadata 生成。不代写 design 正文。"
 ---
 ## 路径解析
 
