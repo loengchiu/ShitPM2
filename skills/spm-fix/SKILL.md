@@ -1,44 +1,13 @@
 ---
 name: spm-fix
-description: "同步修复——把变更影响沿链路传播到当前真相。用于 review 结论建议回上游修复、用户手动修改指令、或跨阶段一致性需要同步时。按 fix-propagation-rules.md 的传播矩阵逐层覆盖，不整篇重写，不自动推进阶段。"
-triggers:
-  - "同步修复"
-  - "fix"
-  - "修复传播"
-  - "回写上游"
-  - "一致性修复"
-  - "spm-fix"
+description: "同步修复——把变更影响沿链路传播到当前真相。用于用户说同步修复、fix、修复传播、回写上游、一致性修复时，或 review 结论建议回上游修复、跨阶段一致性需要同步时。按 fix-propagation-rules.md 的传播矩阵逐层覆盖，不整篇重写，不自动推进阶段。"
 ---
-## 路径解析规则
+## 路径解析
 
-**关键：ShitPM 安装在 bundle 目录，不在当前项目目录。**
+从系统 prompt 的 `<!-- SHITPM GLOBAL RULES START -->` 段读取 `ShitPM bundle root:` 的值，记为 `$BUNDLE`。
 
-执行本 skill 前，先从系统 prompt 的 `<!-- SHITPM GLOBAL RULES START -->` 段中读取 `ShitPM bundle root:` 的值，下文以 `$BUNDLE` 表示。
-
-路径分类：
-- `scripts/python/`、`references/`、`templates/`、`contracts/`、`lib/` 开头 → `$BUNDLE` 下解析（绝对路径）
-- `.workflow/`、`output/` 开头 → 当前项目根目录下解析（CWD 相对路径，不变）
-
-示例：
-```
-# 脚本调用
-python $BUNDLE/scripts/python/stage-context.py --stage design --project-root .
-
-# 读取 bundle 资源
-Read $BUNDLE/templates/design.md
-Read $BUNDLE/references/design-writing.md
-
-# 读取项目文件（CWD 相对，不变）
-Read output/design/design.md
-Read .workflow/status.json
-```
-
-> 下文所有以 `scripts/python/`、`references/`、`templates/`、`contracts/`、`lib/` 开头的路径一律在 `$BUNDLE` 下解析。
-
-# 同步修复
-## 触发条件
-
-用户要求进行同步修复，或 review 结论建议回上游修复。
+- `scripts/python/`、`references/`、`templates/`、`contracts/`、`lib/` 开头 → `$BUNDLE/` 下
+- `.workflow/`、`output/` 开头 → 当前项目根目录下
 
 ## 最小读取集合
 
@@ -154,7 +123,6 @@ python scripts/python/anchor-verify.py --project-root .
 6. 设计是唯一事实源——字段、权限、状态的完整定义只在 design 中
 7. 修复后不自动推进阶段
 8. 不手动修改 metadata（机读物由 review 通过后 `scripts/python/stage-prep.py` 脚本自动生成）
-
 
 ## 批量修改执行规范
 

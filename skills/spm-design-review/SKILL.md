@@ -1,21 +1,13 @@
 ---
 name: spm-design-review
-description: "设计 review——判断 design 基线质量。预检查 → 逐项审查 → metadata 生成。不代写 design 正文。"
-triggers:
-  - "design review"
-  - "设计 review"
-  - "review 设计"
-  - "spm-design-review"
+description: "设计 review——判断 design 基线质量。用于用户说 design review、设计 review、review 设计时。预检查 → 逐项审查 → metadata 生成。不代写 design正文。"
 ---
 ## 路径解析
 
-从 `<!-- SHITPM GLOBAL RULES START -->` 取 `$BUNDLE`。`scripts/` `templates/` `references/` `contracts/` `lib/` → `$BUNDLE` 绝对路径；`.workflow/` `output/` → 项目根相对路径。
+从系统 prompt 的 `<!-- SHITPM GLOBAL RULES START -->` 段读取 `ShitPM bundle root:` 的值，记为 `$BUNDLE`。
 
-# 设计 Review
-
-## 触发条件
-
-用户要求设计 review。
+- `scripts/python/`、`references/`、`templates/`、`contracts/`、`lib/` 开头 → `$BUNDLE/` 下
+- `.workflow/`、`output/` 开头 → 当前项目根目录下
 
 ## 执行顺序（三段式）
 

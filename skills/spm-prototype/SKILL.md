@@ -1,20 +1,14 @@
 ---
 name: spm-prototype
-description: "原型阶段——把 design 或 PRD 的页面行为表达成可看、可讨论的原型。用于用户说开始原型、做原型、生成原型时，基于 design 基线生成 HTML 原型。反馈先归类再修改，表现问题只改 prototype，语义问题先回写 design。"
-triggers:
-  - "开始原型"
-  - "做原型"
-  - "生成原型"
-  - "spm-prototype"
+description: "原型阶段——把 design 或 PRD 的页面行为表达成可看、可讨论的原型。用于用户说开始原型、做原型、生成原型时，或 stage-context 建议进入 prototype 阶段时。基于 design 基线生成 HTML 原型。反馈先归类再修改，表现问题只改 prototype，语义问题先回写 design。"
 ---
 ## 路径解析
 
-从 `<!-- SHITPM GLOBAL RULES START -->` 取 `$BUNDLE`。`scripts/` `templates/` `references/` `contracts/` `lib/` → `$BUNDLE` 绝对路径；`.workflow/` `output/` → 项目根相对路径。
+从系统 prompt 的 `<!-- SHITPM GLOBAL RULES START -->` 段读取 `ShitPM bundle root:` 的值，记为 `$BUNDLE`。
 
-# 原型
-## 触发条件
+- `scripts/python/`、`references/`、`templates/`、`contracts/`、`lib/` 开头 → `$BUNDLE/` 下
+- `.workflow/`、`output/` 开头 → 当前项目根目录下
 
-用户要求生成原型。
 
 ## 输入依赖
 

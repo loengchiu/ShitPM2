@@ -1,23 +1,14 @@
 ---
 name: spm-start
-description: "启动阶段——识别当前项目阶段，给唯一下一步建议。不修改文件，不做需求判断。"
-triggers:
-  - "启动"
-  - "开始"
-  - "当前状态"
-  - "看看进度"
-  - "spm-start"
+description: "启动阶段——识别当前项目阶段，给唯一下一步建议。用于用户说启动、开始、当前状态、看看进度时。不修改文件，不做需求判断。"
 ---
 
 ## 路径解析
 
-从 `<!-- SHITPM GLOBAL RULES START -->` 取 `$BUNDLE`。`scripts/` `templates/` `references/` `contracts/` `lib/` → `$BUNDLE` 绝对路径；`.workflow/` `output/` → 项目根相对路径。
+从系统 prompt 的 `<!-- SHITPM GLOBAL RULES START -->` 段读取 `ShitPM bundle root:` 的值，记为 `$BUNDLE`。
 
-# 启动
-
-## 触发条件
-
-用户要求启动、查看状态、问现在到哪了。
+- `scripts/python/`、`references/`、`templates/`、`contracts/`、`lib/` 开头 → `$BUNDLE/` 下
+- `.workflow/`、`output/` 开头 → 当前项目根目录下
 
 ## 最小读取
 

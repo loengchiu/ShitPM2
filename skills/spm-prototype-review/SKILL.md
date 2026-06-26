@@ -1,21 +1,13 @@
 ---
 name: spm-prototype-review
-description: "原型 review——判断原型质量。预检查 → 页面结构/状态/交互/权限审查。不代写原型代码。"
-triggers:
-  - "prototype review"
-  - "原型 review"
-  - "review 原型"
-  - "spm-prototype-review"
+description: "原型 review——判断原型质量。用于用户说 prototype review、原型 review、review 原型时。预检查 → 页面结构/状态/交互/权限审查。不代写原型代码。"
 ---
 ## 路径解析
 
-从 `<!-- SHITPM GLOBAL RULES START -->` 取 `$BUNDLE`。`scripts/` `templates/` `references/` `contracts/` `lib/` → `$BUNDLE` 绝对路径；`.workflow/` `output/` → 项目根相对路径。
+从系统 prompt 的 `<!-- SHITPM GLOBAL RULES START -->` 段读取 `ShitPM bundle root:` 的值，记为 `$BUNDLE`。
 
-# 原型 Review
-
-## 触发条件
-
-用户要求原型 review。
+- `scripts/python/`、`references/`、`templates/`、`contracts/`、`lib/` 开头 → `$BUNDLE/` 下
+- `.workflow/`、`output/` 开头 → 当前项目根目录下
 
 ## 执行顺序（两段式）
 

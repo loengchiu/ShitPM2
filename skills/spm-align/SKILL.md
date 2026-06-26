@@ -1,21 +1,13 @@
 ---
 name: spm-align
-description: "对齐阶段——确认目标、范围、边界、建设方式。一次只追一个问题，6 轮未冻结必须暂停。"
-triggers:
-  - "开始对齐"
-  - "做对齐"
-  - "需求对齐"
-  - "spm-align"
+description: "对齐阶段——确认目标、范围、边界、建设方式。用于用户说开始对齐、做对齐、需求对齐时，或 stage-context 建议进入 align 阶段时。一次只追一个问题，6 轮未冻结必须暂停。"
 ---
 ## 路径解析
 
-从 `<!-- SHITPM GLOBAL RULES START -->` 取 `$BUNDLE`。`scripts/` `templates/` `references/` `contracts/` `lib/` → `$BUNDLE` 绝对路径；`.workflow/` `output/` → 项目根相对路径。
+从系统 prompt 的 `<!-- SHITPM GLOBAL RULES START -->` 段读取 `ShitPM bundle root:` 的值，记为 `$BUNDLE`。
 
-# 对齐
-
-## 触发条件
-
-用户要求开始对齐，或 stage-context 建议进入 align 阶段。
+- `scripts/python/`、`references/`、`templates/`、`contracts/`、`lib/` 开头 → `$BUNDLE/` 下
+- `.workflow/`、`output/` 开头 → 当前项目根目录下
 
 ## 最小读取集合
 
