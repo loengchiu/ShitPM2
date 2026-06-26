@@ -1,10 +1,52 @@
-"""shared_md.py — Markdown 解析共用的最小函数集
+"""shared_md.py — Markdown 解析、模糊匹配、常量 共用模块
 
-设计原则：只放被多个脚本重复实现的函数，不放只被单个脚本使用的逻辑。
+设计原则：只放被多个脚本重复实现的函数和常量。
 """
 
+import json
 import re
 
+
+# ── 常量 ──────────────────────────────────────────────────────
+
+STABLE_ID_PATTERN = re.compile(r'(MODULE|PAGE|FIELD|RULE|FLOW|REL|PERM|STATE|ROLE)-(design|prd)-\d{3}')
+
+ARTIFACT_PATHS = {
+    "align": "output/align/align.md",
+    "design": "output/design/design.md",
+    "prd": "output/prd/prd.md",
+    "prototype": "output/prototype/index.html",
+}
+
+METADATA_FILE_MAP = {
+    "align": ["index.json", "relations.json"],
+    "design": ["index.json", "relations.json", "modules.json", "pages.json",
+               "fields.json", "rules.json", "states.json", "permissions.json",
+               "page-fields.json", "non-page-fields.json"],
+    "prd": ["index.json", "relations.json",
+            "page-anchor.json", "rule-anchor.json", "field-anchor.json"],
+    "prototype": ["index.json", "page-map.json"],
+}
+
+ID_PREFIXES = {
+    "module": "MODULE", "page": "PAGE", "field": "FIELD",
+    "rule": "RULE", "flow": "FLOW", "permission": "PERM",
+    "state": "STATE", "role": "ROLE",
+}
+
+
+# ── JSON 工具 ─────────────────────────────────────────────────
+
+def load_json(path, default=None):
+    """加载 JSON 文件，失败返回 default"""
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return default
+
+
+# ── Markdown 解析 ─────────────────────────────────────────────
 
 def parse_headings(content: str) -> list:
     """解析 Markdown 标题结构 → [{level, title, line}, ...]"""
@@ -21,15 +63,11 @@ def parse_headings(content: str) -> list:
 
 
 def parse_tables_with_context(content: str, headings: list) -> list:
-    """解析 Markdown 表格并关联到所在章节
-
-    返回 [{section_title, section_line, headers, rows, line_offset}, ...]
-    """
+    """解析 Markdown 表格并关联到所在章节 → [{section_title, section_line, headers, rows, line_offset}]"""
     lines = content.split('\n')
     tables = []
     current_section = ""
     current_section_line = 1
-
     heading_map = {h["line"]: h["title"] for h in headings}
 
     i = 0
@@ -63,3 +101,82 @@ def parse_tables_with_context(content: str, headings: list) -> list:
                 continue
         i += 1
     return tables
+
+
+# ── 模糊匹配 ─────────────────────────────────────────────────
+
+def fuzzy_field_match(token: str, field_title_to_id: dict) -> str | None:
+    """模糊匹配字段名 → 稳定 ID"""
+    if not token:
+        return None
+    if token in field_title_to_id:
+        return field_title_to_id[token]
+    # 去括号
+    stripped = re.sub(r'[（(][^）)]*[）)]', '', token).strip()
+    if stripped and stripped in field_title_to_id:
+        return field_title_to_id[stripped]
+    # 去尾部标注
+    for suffix in ('（必填）', '（选填）', '（多选）', '（单选）', '(必填)', '(选填)', '(多选)', '(单选)'):
+        if token.endswith(suffix):
+            clean = token[:-len(suffix)].strip()
+            if clean in field_title_to_id:
+                return field_title_to_id[clean]
+    return None
+
+
+def fuzzy_page_match(page_title: str, page_title_to_id: dict) -> str | None:
+    """模糊匹配页面名 → 稳定 ID"""
+    if not page_title:
+        return None
+    if page_title in page_title_to_id:
+        return page_title_to_id[page_title]
+    # 去尾缀"页"
+    if page_title.endswith('页'):
+        no_suffix = page_title[:-1].strip()
+        if no_suffix in page_title_to_id:
+            return page_title_to_id[no_suffix]
+    # 加尾缀"页"
+    with_suffix = page_title + '页'
+    if with_suffix in page_title_to_id:
+        return page_title_to_id[with_suffix]
+    return None
+
+
+# ── 章节与页面辅助 ───────────────────────────────────────────
+
+def is_under_heading(table_line: int, headings: list, keyword: str) -> bool:
+    """检查 table_line 之前最近的 h2 标题是否含 keyword"""
+    for h in sorted(headings, key=lambda x: x["line"], reverse=True):
+        if h["line"] < table_line and h["level"] <= 2:
+            return keyword in h["title"]
+    return False
+
+
+def clean_page_title(title: str) -> str:
+    """去中文序号前缀：'（一）我的周报列表页' → '我的周报列表页'"""
+    cleaned = re.sub(r'^[（(][一二三四五六七八九十\d]+[）)]\s*', '', title)
+    cleaned = re.sub(r'^\d+[．.]\s*', '', cleaned)
+    cleaned = re.sub(r'^page[-_\s]?\d+\s*', '', cleaned, flags=re.IGNORECASE)
+    return cleaned.strip()
+
+
+def normalize_page_name(name: str) -> str:
+    """标准化页面名称：去编号前缀、去页尾缀、统一列表/详情/编辑"""
+    s = name.strip()
+    s = re.sub(r'^\d+(?:\.\d+)*[\.、．]\s*', '', s)
+    if s.endswith('页'):
+        s = s[:-1]
+    s = s.replace('列表页', '列表').replace('详情页', '详情').replace('编辑页', '编辑')
+    return s.strip()
+
+
+# ── ID 分配 ─────────────────────────────────────────────────
+
+def allocate_id(title: str, entity_type: str, title_to_id: dict, counter: dict, stage: str) -> str:
+    """分配实体 ID：优先标题匹配，否则 counter+1 新 ID"""
+    if title in title_to_id:
+        return title_to_id[title]
+    prefix = ID_PREFIXES.get(entity_type, entity_type.upper())
+    count = counter.get(prefix, 0) + 1
+    counter[prefix] = count
+    return f"{prefix}-{stage}-{count:03d}"

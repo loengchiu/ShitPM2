@@ -20,22 +20,9 @@ import json
 import re
 import sys
 from pathlib import Path
+from shared_md import STABLE_ID_PATTERN, ARTIFACT_PATHS, METADATA_FILE_MAP
 
 VALID_STAGES = ["design", "prd", "prototype"]
-
-ARTIFACT_PATHS = {
-    "design": "output/design/design.md",
-    "prd": "output/prd/prd.md",
-    "prototype": "output/prototype/index.html",
-}
-
-METADATA_FILE_MAP = {
-    "design": ["index.json", "entities.json", "relations.json", "modules.json", "pages.json", "fields.json", "rules.json", "states.json", "permissions.json", "page-fields.json", "non-page-fields.json"],
-    "prd": ["index.json", "entities.json", "relations.json", "page-anchor.json", "rule-anchor.json", "field-anchor.json"],
-    "prototype": ["index.json", "page-map.json"],
-}
-
-STABLE_ID_PATTERN = re.compile(r'^(MODULE|PAGE|FIELD|RULE|FLOW|REL|PERM|STATE|ROLE)-(design|prd)-\d{3}$')
 
 
 class VerifyResult:
@@ -114,12 +101,16 @@ def step3_artifact(loaded: dict, stage: str, result: VerifyResult):
 
 
 def step4_entities(loaded: dict, stage: str, result: VerifyResult):
-    entities = loaded.get("entities.json")
-    if entities is None:
-        result.warn("entities", "entities.json 未加载，跳过实体校验")
-        return
-    if not isinstance(entities, list):
-        result.error("entities", "entities.json 不是数组")
+    """校验实体 ID 唯一性，从 4 个 type-specific 文件合并读取（不再依赖 entities.json）"""
+    entity_files = ["modules.json", "pages.json", "fields.json", "rules.json"]
+    # 合并 4 个文件的所有实体
+    entities = []
+    for fname in entity_files:
+        data = loaded.get(fname, [])
+        if isinstance(data, list):
+            entities.extend(data)
+    if not entities:
+        result.warn("entities", "无 type-specific 实体文件可加载，跳过实体校验")
         return
 
     seen_ids = {}
@@ -152,12 +143,11 @@ def step5_relations(loaded: dict, stage: str, result: VerifyResult):
         result.error("relations", "relations.json 不是数组")
         return
 
-    entities = loaded.get("entities.json", [])
     entity_ids = set()
-    if isinstance(entities, list):
-        for e in entities:
-            if isinstance(e, dict) and "id" in e:
-                entity_ids.add(e["id"])
+    for key in ["modules.json", "pages.json", "fields.json", "rules.json"]:
+        for item in loaded.get(key, []):
+            if isinstance(item, dict) and "id" in item:
+                entity_ids.add(item["id"])
 
     for i, rel in enumerate(relations):
         if not isinstance(rel, dict):

@@ -80,7 +80,7 @@
 17. metadata/design 与 design.md 字段/页面/模块数量一致
 18. page-fields 覆盖率：所有页面清单中的页面是否出现在 page-fields.json
 19. non-page-fields 覆盖率：非页面落点字段是否合理（不超过总字段 40%）
-20. field-constraints 一致性（prd 生成阶段已用 verify-against-metadata.py 自检，review 时抽查）
+20. 字段约束一致性（prd 生成阶段已用 verify-against-metadata.py 基于 fields.json 自检，review 时抽查）
 21. 稳定 ID 是否正确生成（6 种前缀）
 22. design.md 正文中无稳定 ID 泄漏
 
@@ -167,10 +167,10 @@
 
 ### 门禁规则
 
-56. 一致性校验为必做门禁，不是建议
-57. 功能/页面/字段/字段落地/模糊表述有任何缺口，不得通过 review
-58. 仅表达不足：留在当前稿件修正
-59. 问题来自上游（design 缺失或错误）：停止，回退到 design 修复
+57. 一致性校验为必做门禁，不是建议
+58. 功能/页面/字段/字段落地/模糊表述有任何缺口，不得通过 review
+59. 仅表达不足：留在当前稿件修正
+60. 问题来自上游（design 缺失或错误）：停止，回退到 design 修复
 
 ### 角色视角自审
 

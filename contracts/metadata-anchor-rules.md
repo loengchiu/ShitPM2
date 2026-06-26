@@ -8,13 +8,13 @@
 | 场景 | 触发条件 | 一线修复 | 仍失败兜底 |
 |---|---|---|---|
 | stable ID 编号跳跃 | stage-prep.py 运行中断后重跑 | read_existing_entities() 从 max+1 继续，跳号正常 | 若跳号影响追溯，手动检查 fields.json |
-| ID 前缀用错 | 把 REQ- 或 RISK- 写入 metadata | 只允许 6 种前缀：MODULE/PAGE/FIELD/RULE/FLOW/REL | 全文搜索非法前缀并替换 |
+| ID 前缀用错 | 把 REQ- 或 RISK- 写入 metadata | 只允许 8 种前缀：MODULE/PAGE/FIELD/RULE/FLOW/REL/STATE/PERM | 全文搜索非法前缀并替换 |
 | ID 泄漏到人读正文 | design.md 或 prd.md 出现 FIELD-design-001 | 运行 review-precheck.py 检查 stable_id_leak | 手动搜索并删除正文中的 ID |
-| 关系引用的实体不存在 | relations.json 中 from/to 引用了未定义的 ID | 检查 entities.json 中是否有对应 ID | 若实体已删除，同步删除关系记录 |
+| 关系引用的实体不存在 | relations.json 中 from/to 引用了未定义的 ID | 检查 modules.json/pages.json/fields.json/rules.json 中是否有对应 ID | 若实体已删除，同步删除关系记录 |
 | metadata 文件为空数组 | stage-prep.py 未提取到内容 | 检查 design.md 对应章节是否有结构化表格 | 若表格格式被破坏，修复 design.md 后重新生成 |
 | 多次 re-extract 后 ID 不稳定 | design.md 表格顺序变化 | read_existing_entities() 按 title 匹配已有 ID | 若 title 也变了，视为新实体 |
 | page-fields 覆盖率不足 | 页面清单中有页面未出现在 page-fields.json | 检查 design.md 的页面与字段落点章节是否遗漏 | 若页面无业务字段，声明 declared_empty |
-| field-constraints 与 design.md 不一致 | multi_select 标记错误 | 运行 review-precheck.py 的 field_constraints_consistency | 手动比对 JSON 与 design.md |
+| 字段约束与 design.md 不一致 | 必填/枚举值标记错误 | 运行 verify-against-metadata.py 检查 constraint_consistency（基于 fields.json） | 手动比对 fields.json 与 design.md |
 
 ## 反例黑名单（不要做的事）
 
@@ -32,7 +32,7 @@
 
 ## 一、稳定 ID 前缀规范
 
-第一版只使用以下 6 种前缀：
+第一版只使用以下 8 种前缀：
 
 | 前缀 | 对象 | 示例 |
 |------|------|------|
@@ -42,6 +42,8 @@
 | `RULE-` | 规则 | `RULE-design-001` |
 | `FLOW-` | 流程 | `FLOW-design-001` |
 | `REL-` | 关系 | `REL-design-001` |
+| `STATE-` | 状态 | `STATE-design-001` |
+| `PERM-` | 权限 | `PERM-design-001` |
 
 不引入：`REQ-*`、`RISK-*`、`CASE-*`、`WVR-*`
 
@@ -69,10 +71,9 @@
 
 ## 四、metadata 文件清单
 
-### design 阶段（12 个文件）
+### design 阶段（10 个文件）
 
 - `index.json`：总索引
-- `entities.json`：实体列表
 - `relations.json`：关系列表
 - `modules.json`：模块定义
 - `pages.json`：页面清单
@@ -82,12 +83,10 @@
 - `permissions.json`：权限定义
 - `page-fields.json`：页面与字段落点映射
 - `non-page-fields.json`：非页面落点字段例外表
-- `field-constraints.json`：字段约束推断
 
-### PRD 阶段（6 个文件）
+### PRD 阶段（5 个文件）
 
 - `index.json`：总索引
-- `entities.json`：实体列表
 - `relations.json`：关系列表
 - `page-anchor.json`：页面锚点
 - `rule-anchor.json`：规则锚点

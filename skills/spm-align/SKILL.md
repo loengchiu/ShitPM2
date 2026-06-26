@@ -1,39 +1,15 @@
 ---
 name: spm-align
-description: "对齐阶段——确认目标、范围、边界、建设方式。用于用户说开始对齐、做对齐、需求对齐时，通过结构化追问收集关键信息并生成对齐产物。一次只追一个问题，6 轮未冻结必须暂停。"
+description: "对齐阶段——确认目标、范围、边界、建设方式。一次只追一个问题，6 轮未冻结必须暂停。"
 triggers:
   - "开始对齐"
   - "做对齐"
   - "需求对齐"
   - "spm-align"
 ---
+## 路径解析
 
-## 路径解析规则
-
-🔴 **关键：ShitPM 安装在 bundle 目录，不在当前项目目录。**
-
-执行本 skill 前，先从系统 prompt 的 `<!-- SHITPM GLOBAL RULES START -->` 段中读取 `ShitPM bundle root:` 的值，下文以 `$BUNDLE` 表示。
-
-路径分类：
-- `scripts/python/`、`references/`、`templates/`、`contracts/`、`lib/` 开头 → `$BUNDLE` 下解析（绝对路径）
-- `.workflow/`、`output/` 开头 → 当前项目根目录下解析（CWD 相对路径，不变）
-
-示例：
-```
-# 脚本调用
-python $BUNDLE/scripts/python/stage-context.py --stage design --project-root .
-
-# 读取 bundle 资源
-Read $BUNDLE/templates/design.md
-Read $BUNDLE/references/design-writing.md
-
-# 读取项目文件（CWD 相对，不变）
-Read output/design/design.md
-Read .workflow/status.json
-```
-
-> 下文所有以 `scripts/python/`、`references/`、`templates/`、`contracts/`、`lib/` 开头的路径一律在 `$BUNDLE` 下解析。
-
+从 `<!-- SHITPM GLOBAL RULES START -->` 取 `$BUNDLE`。`scripts/` `templates/` `references/` `contracts/` `lib/` → `$BUNDLE` 绝对路径；`.workflow/` `output/` → 项目根相对路径。
 
 # 对齐
 
@@ -43,179 +19,125 @@ Read .workflow/status.json
 
 ## 最小读取集合
 
-🔴 **一次读取**——用一次工具调用读取以下全部文件：
-
-1. `.workflow/status.json`（当前状态）
+**一次读取**：
+1. `.workflow/status.json`
 2. `.workflow/runtime/align/align-notes.json`（如存在）
-3. `references/align-writing.md`（写法参考）
-4. `templates/align.md`（产物骨架）
+3. `references/align-writing.md`
+4. `templates/align.md`
+
+ 模板/参考不存在时停下告知缺失路径，不凭记忆生成。
 
 ## 执行顺序
 
-### 步骤 1：读取上下文
-
-读取最小读取集合所有文件。
-
-🔴 **CHECKPOINT · 模板可读性**——`templates/align.md` 和 `references/align-writing.md` 是否存在且可读？缺失时停下告知用户具体缺失文件路径，不凭记忆生成产物。
-
-### 步骤 2：识别需求
-
-识别用户原始需求和背景材料。输出格式：
+### 步骤 1：读取上下文 → 步骤 2：识别需求
 
 ```
 需求识别结果：
 - 原始需求：[用户原话摘要]
-- 背景材料：[列出材料文件路径或"无"]
-- 初步理解：[一句话概括用户要做什么]
+- 背景材料：[文件路径或"无"]
+- 初步理解：[一句话概括]
 ```
 
-🔴 **CHECKPOINT · 材料充分性**——是否有任何背景材料？完全无材料时，先追问背景再开始对齐，不直接进入信息收集。
+ 无任何背景材料时先追问背景，不直接开始收集。
 
-### 步骤 3：结构化信息收集
+### 步骤 3：结构化信息收集（逐项）
 
-按以下顺序逐项收集，每项必须有明确的收集目标：
+| 序号 | 收集项 | 输出 |
+|------|--------|------|
+| 1 | 目标 | 一句话目标 |
+| 2 | 范围 | 三列：期内/期外/明确不做 |
+| 3 | 边界 | 系统关系、数据边界、用户边界 |
+| 4 | 建设方式 | iteration/new_build/hybrid + 理由 |
+| 5 | 业务阶段 | 当前阶段与约束 |
 
-| 序号 | 收集项 | 收集目标 | 输出格式 |
-|------|--------|---------|---------|
-| 1 | 目标 | 用户要解决什么问题、达到什么效果 | 一句话目标描述 |
-| 2 | 范围 | 一期做什么、二期做什么、明确不做什么 | 三列表格：期内/期外/明确不做 |
-| 3 | 边界 | 与现有系统的关系、数据边界、用户边界 | 一段话描述 |
-| 4 | 建设方式 | iteration / new_build / hybrid | 单选 + 理由 |
-| 5 | 业务阶段 | 当前业务处于什么阶段、有什么约束 | 一段话描述 |
-
-🔴 **CHECKPOINT · 信息完整性**——5 项收集是否全部完成？缺失任何一项时，不得进入步骤 4，先补全。
+ 5 项全完成才进入步骤 4。
 
 ### 步骤 4：ask-back 追问
 
-如有阻塞性缺口，按 ask-back 纪律追问：
-
-1. 只为真实阻塞追问——能从材料中推断的不问
-2. 一次只追一个问题——不一次问多个
-3. 先查资料，查不出再问 PM
-4. 最后一行收口为唯一问题
-
-追问格式固定为：
+只为真实阻塞追问。一次只问一个问题，先查资料再问 PM。格式固定：
 
 ```
 [轮次 N] 需要确认：
 问题：[唯一问题]
-背景：[为什么需要确认这个]
-影响：[不确认会怎样]
+背景：[为什么需要确认]
+影响：[不确认的后果]
 ```
 
-🔴 **CHECKPOINT · 轮次控制**——
-- 4 轮以上：必须生成轮次摘要，输出当前已确认项和未确认项
-- 6 轮以上：🔴 **必须冻结当前状态**，输出已有成果，建议用户补充材料后再继续。不无限追问。
-
-🔴 **失败分支：冻结后仍无法进入设计**——如冻结时 `context_gaps` 中仍有阻塞性缺口，输出当前 best-effort 对齐稿（标注未确认项），建议用户补充材料后重新运行 spm-align 继续。不强行进入设计。
+ 4 轮以上必须生成轮次摘要。**6 轮以上强制冻结**，输出 best-effort 对齐稿，不无限追问。
 
 ### 步骤 5：建设类型判断
 
-进入设计前必须完成建设类型判断：
+| 类型 | 判断 | 输出 |
+|------|------|------|
+| iteration | 现有系统扩展 | 写明挂载点+约束 |
+| new_build | 全新建设 | 写明边界+主流程 |
+| hybrid | 部分复用 | 写明复用/新建/对接 |
 
-| 类型 | 判断标准 | 追问重点 | 输出要求 |
-|------|---------|---------|---------|
-| iteration | 在现有系统上扩展，有明确挂载点和约束 | 挂载点在哪、约束是什么 | 明确写出挂载点和约束 |
-| new_build | 全新建设 | 模块边界、主流程 | 明确写出边界和主流程 |
-| hybrid | 部分复用、部分新建 | 哪些复用、哪些新建、怎么对接 | 明确写出复用/新建/对接方式 |
-
-🔴 **CHECKPOINT · 类型确认**——建设类型判断是否有充分依据？仅凭猜测不得进入设计。判断依据必须写入 `align-notes.json` 的 `judgement_note` 字段。
+ 凭猜测不得进入设计，判断写入 `judgement_note`。
 
 ### 步骤 6：上下文自检
 
-退出前必须验证以下字段可支撑"是否可推进"的判断：
+| 必填字段 | 缺失动作 |
+|---------|---------|
+| request_summary（>10 字符） | 追问需求描述 |
+| solution_shape（含建设方式） | 补充判断 |
+| business_stage | 追问业务阶段 |
+| material_paths（≥1 项或"无材料"） | 确认 |
+| context_gaps（阻塞性缺口为空） | 列出缺口 |
 
-| 必填字段 | 校验规则 | 缺失时动作 |
-|---------|---------|-----------|
-| request_summary | 非空，长度 > 10 字符 | 追问用户补充需求描述 |
-| solution_shape | 非空，包含建设方式 | 补充建设类型判断 |
-| business_stage | 非空 | 追问用户当前业务阶段 |
-| material_paths | 列表，至少 1 项或标记"无材料" | 确认是否真的无材料 |
-| context_gaps | 列表，阻塞性缺口为空才可推进 | 列出缺口，建议补充后再继续 |
+ 有缺失不得建议进入 design。
 
-🔴 **CHECKPOINT · 自检通过**——如有缺失字段，不得建议进入设计，输出缺失项并停下。
+### 步骤 7：生成产物
 
-### 步骤 7：生成产物并更新状态
+| 序号 | 文件 | 来源 |
+|------|------|------|
+| 1 | `output/align/align.md` | 按 `templates/align.md` 骨架 |
+| 2 | `.workflow/metadata/align/index.json` | 结构化提取 |
+| 3 | `.workflow/metadata/align/entities.json` | 实体 |
+| 4 | `.workflow/metadata/align/relations.json` | 关系 |
+| 5 | `.workflow/runtime/align/align-notes.json` | 判断结果 |
+| 6 | `.workflow/status.json` | 更新 current_stage |
 
-按以下顺序生成 4 个文件：
+## 失败模式
 
-| 序号 | 文件路径 | 内容来源 | 生成方式 |
-|------|---------|---------|---------|
-| 1 | `output/align/align.md` | 步骤 1-6 收集的全部信息 | 按 `templates/align.md` 骨架组织 |
-| 2 | `.workflow/metadata/align/index.json` | align.md 结构化提取 | 自动生成 |
-| 3 | `.workflow/metadata/align/entities.json` | align.md 中的实体 | 自动生成 |
-| 4 | `.workflow/metadata/align/relations.json` | align.md 中的关系 | 自动生成 |
-| 5 | `.workflow/runtime/align/align-notes.json` | 步骤 4-6 的判断结果 | 按 schema 写入 |
-| 6 | `.workflow/status.json` | 当前阶段状态 | 更新 current_stage 等字段 |
-
-## 失败模式与 Fallback
-
-| 场景 | 触发条件 | 一线修复 | 仍失败兜底 |
-|------|---------|---------|-----------|
-| 模板文件不存在 | `templates/align.md` 不存在 | 使用内置最小模板（目标/范围/边界/建设方式四段式） | 停下告知用户，要求安装模板 |
-| 参考文件不存在 | `references/align-writing.md` 不存在 | 跳过参考，直接按硬规则生成 | —— |
-| align-notes.json 格式错误 | JSON 解析失败 | 备份为 `.bak` 后重建空文件 | 停下告知用户手动修复 |
-| 用户输入自相矛盾 | 例如"全新建设"但又说"在现有系统上扩展" | 列出矛盾点，追问用户确认哪个为准 | 用户无法确认时，按最保守策略记录两种可能 |
-| 轮次超限（>6 轮） | ask_back_round > 6 | 强制冻结，输出 best-effort 对齐稿 | 建议用户补充材料后重新运行 |
-| metadata 写入失败 | `.workflow/metadata/align/` 写入报错 | 创建目录后重试 | 告知用户 metadata 未生成，不影响人读产物 |
+| 场景 | 一线 | 兜底 |
+|------|------|------|
+| 模板缺失 | 内置最小模板 | 停下，要求安装 |
+| 参考缺失 | 跳过参考 | — |
+| notes.json 损坏 | 备份后重建 | 停下让用户手动修复 |
+| 用户输入自相矛盾 | 列出矛盾，追问 | 最保守策略记录两种可能 |
+| 轮次超限（>6） | 强制冻结 | 建议补充材料后重新运行 |
+| metadata 写入失败 | 创建目录后重试 | 告知不影响人读 |
 
 ## 硬规则
 
 1. 一次只追一个问题
 2. 6 轮未冻结必须暂停
-3. 对齐阶段只写：目标、范围、边界、建设方式、建设类型初判、待确认问题
+3. 只写：目标/范围/边界/建设方式/建设类型初判/待确认
 4. 不展开页面和字段细节
-5. 不写 PRD 正文
-6. 不做原型表达
-7. 不生成稳定 ID
-8. 不自动推进到设计阶段
+5. 不写 PRD 正文、不做原型、不生成稳定 ID
+6. 不自动推进到 design
 
 ## 产物 Schema
 
 ### align-notes.json
-
 ```json
-{
-  "blocking_gaps": ["缺失信息1", "缺失信息2"],
-  "needs_ask_back": true,
-  "ask_back_reason": "需要确认一期范围边界",
-  "can_enter_design": false,
-  "judgement_note": "建设类型初判为 iteration，待确认挂载点",
-  "ask_back_round": 3,
-  "last_updated_at": "2026-05-29T10:00:00+08:00"
-}
-```
-
-### status.json 相关字段
-
-```json
-{
-  "current_stage": "align",
-  "artifacts": { "align": "output/align/align.md" },
-  "metadata_paths": { "align": ".workflow/metadata/align/" },
-  "next_recommended": "design",
-  "align_notes": ".workflow/runtime/align/align-notes.json"
-}
+{"blocking_gaps":[],"needs_ask_back":true,"ask_back_reason":"","can_enter_design":false,"judgement_note":"","ask_back_round":0,"last_updated_at":""}
 ```
 
 ## 停止条件
 
-满足以下全部 4 条后输出产物并停止：
-
-1. 已完成目标、范围、边界、建设方式确认
-2. 建设类型初判完成
-3. 上下文自检通过
-4. 无真实阻塞缺口
+同时满足：① 目标/范围/边界/建设方式已确认 ② 建设类型初判完成 ③ 自检通过 ④ 无阻塞缺口。
 
 ## 不要做什么
 
-| # | 反模式 | 为什么不要做 | 替代做法 |
-|---|--------|------------|---------|
-| 1 | 一次追问多个问题 | 用户容易遗漏或混淆，降低回答质量 | 每次只问一个问题，等回答后再问下一个 |
-| 2 | 材料不足时凭猜测补全信息 | 猜测可能偏离用户真实意图，后续返工成本高 | 追问用户补充材料，或标注"待确认" |
-| 3 | 跳过建设类型判断直接进入设计 | 设计阶段依赖建设类型决定结构，跳过会导致设计返工 | 步骤 5 必须完成，有依据才推进 |
-| 4 | 展开页面和字段细节 | 对齐阶段目标是确认方向，不是设计细节 | 只写目标/范围/边界/方式，细节留给 design |
-| 5 | 重新定义已确认的范围 | 用户已确认的内容不应被 AI 重新解释 | 记录用户原话，不改写语义 |
-| 6 | 无限追问（>6 轮） | 用户耐心耗尽，且越问越难推进 | 6 轮强制冻结，输出 best-effort |
-| 7 | 自动推进到设计阶段 | 用户可能需要确认对齐结果 | 输出产物后停下，等用户触发 /spm-design |
-| 8 | 写 PRD 正文或原型表达 | 超出对齐阶段职责，且可能被后续阶段误读为事实 | 严格限制在目标/范围/边界/方式四要素 |
+| # | 反模式 | 替代 |
+|---|--------|------|
+| 1 | 一次问多个问题 | 每次一个 |
+| 2 | 凭猜测补全信息 | 追问或标"待确认" |
+| 3 | 跳过建设类型判断 | 步骤 5 必须完成 |
+| 4 | 展开页面/字段细节 | 只写四要素 |
+| 5 | 重新定义已确认范围 | 记录原话不改写 |
+| 6 | 无限追问（>6） | 强制冻结 |
+| 7 | 自动推进 design | 停下等触发 |
+| 8 | 写 PRD 或原型 | 严格限四要素 |

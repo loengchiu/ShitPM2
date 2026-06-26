@@ -3,7 +3,7 @@
   "title": "DesignMetadata",
   "description": "design 阶段机读镜像的公共结构定义",
   "type": "object",
-  "required": ["schema_version", "stage", "artifact_path", "entities", "relations"],
+  "required": ["schema_version", "stage", "artifact_path", "generated_at", "entity_count", "relation_count"],
   "properties": {
     "schema_version": {
       "type": "string",
@@ -19,15 +19,27 @@
       "type": "string",
       "description": "人读产物路径"
     },
+    "generated_at": {
+      "type": "string",
+      "description": "ISO 8601 生成时间戳"
+    },
+    "entity_count": {
+      "type": "integer",
+      "description": "实体总数"
+    },
+    "relation_count": {
+      "type": "integer",
+      "description": "关系总数"
+    },
     "entities": {
       "type": "array",
       "items": { "$ref": "#/$defs/entity" },
-      "description": "实体列表"
+      "description": "实体列表（NOTE: stage-prep.py 不生成此字段，实体按类型拆分到 modules/pages/fields/rules.json；此字段为 schema 向前兼容保留）"
     },
     "relations": {
       "type": "array",
       "items": { "$ref": "#/$defs/relation" },
-      "description": "关系列表"
+      "description": "关系列表（NOTE: stage-prep.py 将关系写入独立的 relations.json，不在 index.json 中内联）"
     }
   },
   "additionalProperties": true,
@@ -38,7 +50,7 @@
       "properties": {
         "id": {
           "type": "string",
-          "pattern": "^(MODULE|PAGE|FIELD|RULE|FLOW|REL)-design-[0-9]{3}$",
+          "pattern": "^(MODULE|PAGE|FIELD|RULE|FLOW|REL|STATE|PERM)-design-[0-9]{3}$",
           "description": "稳定 ID，仅存在于机读物"
         },
         "type": {

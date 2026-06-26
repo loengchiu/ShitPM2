@@ -1,199 +1,92 @@
 ---
 name: spm-design-review
-description: "设计 review——判断 design 基线的质量。用于用户说 design review、设计 review、review 设计时，先跑预检查脚本确认准入，再逐项审查核心章节、字段定义、权限覆盖和一致性，最后生成 metadata。不代写 design 正文。"
+description: "设计 review——判断 design 基线质量。预检查 → 逐项审查 → metadata 生成。不代写 design 正文。"
 triggers:
   - "design review"
   - "设计 review"
   - "review 设计"
   - "spm-design-review"
 ---
-## 路径解析规则
+## 路径解析
 
-🔴 **关键：ShitPM 安装在 bundle 目录，不在当前项目目录。**
-
-执行本 skill 前，先从系统 prompt 的 `<!-- SHITPM GLOBAL RULES START -->` 段中读取 `ShitPM bundle root:` 的值，下文以 `$BUNDLE` 表示。
-
-路径分类：
-- `scripts/python/`、`references/`、`templates/`、`contracts/`、`lib/` 开头 → `$BUNDLE` 下解析（绝对路径）
-- `.workflow/`、`output/` 开头 → 当前项目根目录下解析（CWD 相对路径，不变）
-
-示例：
-```
-# 脚本调用
-python $BUNDLE/scripts/python/stage-context.py --stage design --project-root .
-
-# 读取 bundle 资源
-Read $BUNDLE/templates/design.md
-Read $BUNDLE/references/design-writing.md
-
-# 读取项目文件（CWD 相对，不变）
-Read output/design/design.md
-Read .workflow/status.json
-```
-
-> 下文所有以 `scripts/python/`、`references/`、`templates/`、`contracts/`、`lib/` 开头的路径一律在 `$BUNDLE` 下解析。
+从 `<!-- SHITPM GLOBAL RULES START -->` 取 `$BUNDLE`。`scripts/` `templates/` `references/` `contracts/` `lib/` → `$BUNDLE` 绝对路径；`.workflow/` `output/` → 项目根相对路径。
 
 # 设计 Review
+
 ## 触发条件
 
-用户要求进行设计 review。
+用户要求设计 review。
 
 ## 执行顺序（三段式）
 
-🔴 **一次读取**——先用一次工具调用读取 design.md 全文，后续通过 --stdin-artifact 传入脚本。
+**先读 design.md 全文**，后续通过 `--stdin-artifact` 传入脚本。
 
-### 第一段：确定性预检查
+### 第一段：预检查
 
-1. 运行 `scripts/python/review-precheck.py --stage design --no-metadata --stdin-artifact`（agent 已读取 design.md，通过 stdin 传入），生成 `.workflow/runtime/design/review-precheck.json`
+1. 运行 `scripts/python/review-precheck.py --stage design --no-metadata --stdin-artifact` → `.workflow/runtime/design/review-precheck.json`
+2.  脚本失败或 `can_start_review=false` → 停止输出阻塞项。假阳性（alias_missed>0 且 blocking_issues 空）→ 列出 warnings 等用户确认后可继续
+3. 检查核心章节：角色定义/模块定义/页面清单/字段定义/页面与字段落点/规则与状态/权限定义
+4. 检查表格仍为结构化格式（字段定义、页面落点、状态流转、权限矩阵）
 
-🔴 **失败分支：预检查脚本失败**——脚本执行失败或返回非零退出码时，🔴 停下告知用户具体错误，不跳过预检查继续。不尝试手动绕过脚本直接审查。如 `can_start_review` = false，停止并输出阻塞项。
+ 有阻塞问题（核心章节缺失）→ 停止，不进入第二段。
 
-🔴 **假阳性降级**——当 can_start_review = false 但输出 JSON 中 alias_missed_count > 0 且 blocking_issues 为空时：
-1. agent 逐项列出 warnings 中的"章节名称不匹配"条目，标注实际文档中的章节标题
-2. 输出到人读摘要，等待用户确认
-3. 用户确认后可继续第二段审查
-
-2. 检查 design.md 是否存在
-3. 检查核心章节是否全部存在：
-   - 角色定义
-   - 模块定义
-   - 页面清单
-   - 字段定义
-   - 规则与状态定义
-   - 权限定义
-4. 检查关键表格仍为结构化格式（字段定义、页面落点、状态流转、权限矩阵使用 Markdown 表格，列名符合模板约定）
-
-🔴 **检查点：预检查结果**——如有阻塞问题（核心章节缺失），停止并输出阻塞项清单，不进入第二段。
-
-> **注意**：此阶段不检查 metadata 存在性和一致性——metadata 将在第三段 review 通过后生成。
-
-### 第二段：人读正文质量审查
+### 第二段：人读质量审查
 
 1. 字段定义属性是否齐全（9 属性）
-2. 权限定义是否覆盖到字段级
-3. 权限是否按"页面 > 角色 > 字段权限例外"组织
-4. 状态定义是否覆盖完整
-5. 模块/页面/字段是否能在 align.md 中找到来源（不新增 align 未确认的范围）
-6. 结构规范性：确认关键表格（字段定义、页面落点、状态流转、权限矩阵）仍是结构化表格，列名符合模板约定
+2. 权限定义覆盖到字段级，按"页面 > 角色 > 字段权限例外"组织
+3. 状态定义覆盖完整
+4. 模块/页面/字段能在 align.md 中找到来源（不新增未确认范围）
+5. 关键表格结构性检查
 
-🔴 **检查点：第二段 verdict**——如第二段存在 P0 或 2+ 个 P1，输出 verdict 后停止，不进入第三段。metadata 不会在有阻塞问题时生成。
+ 存在 P0 或 2+ 个 P1 → 输出 verdict 停止，不进入第三段。
 
-### 第三段：metadata 生成与校验（仅在第二段通过后执行）
+### 第三段：metadata 生成（仅第二段通过后）
 
-1. 运行 `scripts/python/stage-prep.py --stage design --project-root <path>` 生成 `.workflow/metadata/design/` 下全部文件
-2. 运行一致性校验：
-   - metadata 文件完整性（11 个 JSON：index, entities, relations, modules, pages, fields, rules, states, permissions, page-fields, non-page-fields, field-constraints）
-   - 字段数/页面数/模块数与 design.md 表格行数对比
-   - page-fields 覆盖率：所有页面清单中的页面是否出现在 page-fields.json
-   - non-page-fields 覆盖率：非页面落点字段是否合理（不超过总字段 40%）
-   - field-constraints.json 与 design.md 字段约束一致性
-   - design.md 正文中无稳定 ID 泄漏
-3. 如校验失败 → 输出具体不一致项，verdict 降级为"有问题需修改"（P1）
-4. 如校验通过 → metadata 作为 review 通过的产物输出，更新 status.json 中 `metadata_paths.design`
-
-## 检查项清单
-
-### Phase A：人读质量（第一段 + 第二段）
-
-1. 核心章节完整性
-2. 字段定义属性齐全性
-3. 权限定义覆盖到字段级
-4. 状态定义覆盖完整性
-5. 不新增 align 未确认范围
-6. 关键表格结构规范性
-7. 页面清单、字段定义、页面与字段落点三处互相对齐
-
-### Phase B：metadata 一致性（第三段，由 stage-prep.py 生成后自动校验）
-
-8. metadata/design 与 design.md 字段/页面/模块数量一致
-9. page-fields 覆盖率
-10. non-page-fields 覆盖率
-11. field-constraints 一致性
-12. 稳定 ID 正确性（6 种前缀）
-13. design.md 正文中无稳定 ID 泄漏
-
-## 输出要求
-
-### 机读结果
-
-写入 `.workflow/reviews/design-review-N.json`（N 为同阶段递增序号），包含：
-
-- `stage`: `"design"`
-- `verdict`: `"通过"` / `"有问题需修改"` / `"阻塞，不能继续"`
-- `issues`: 问题列表
-- `issue_layer`: 问题归属层分布
-- `affected_objects`: 受影响对象
-- `needs_upstream_sync`: 是否需要回上游
-- `next_recommended`: 下一步建议
-- `reviewed_at`: ISO 8601 时间戳
-- `metadata_generated`: boolean，第三段是否成功生成 metadata
-
-### 人读摘要
-
-写入 `.workflow/reviews/design-review-N.md`（N 为同阶段递增序号），包含：
-
-1. 结论
-2. 主要问题
-3. 是否需要回上游
-4. 下一步建议
-5. metadata 生成状态（第三段通过/失败/未执行）
-
-🔴 **检查点：verdict 输出**——输出 verdict 后，🔴 **停止并等待用户确认**。不自动推进阶段，不自动触发 fix。
+1. `scripts/python/stage-prep.py --stage design --project-root <path>` 生成 metadata
+2. 一致性校验：8 个 JSON 完整性、字段/页面/模块数与 design.md 一致、page-fields 覆盖率、non-page-fields 覆盖率（≤40%）、design.md 无稳定 ID 泄漏
+3. 校验失败 → 输出不一致项，verdict 降级为"有问题需修改"
+4. 校验通过 → 更新 `status.json` 中 `metadata_paths.design`
 
 ## 判定规则
 
-- **通过**：零 P0、零 P1（含第三段 metadata 校验）
+- **通过**：零 P0、零 P1（含 metadata 校验）
 - **有问题需修改**：零 P0，1 个 P1
-- **阻塞，不能继续**：有 P0 或 2+ 个 P1
+- **阻塞**：有 P0 或 2+ 个 P1
 
-verdict 判定 = max(第二段 verdict, 第三段 verdict)。
+verdict = max(第二段 verdict, 第三段 verdict)。
 
-### 严重级别说明
+| 级别 | 含义 | 示例 |
+|------|------|------|
+| P0 | 阻塞 | 核心章节缺失、新增未确认范围 |
+| P1 | 影响质量 | 字段属性缺失、权限未覆盖字段级 |
+| P2 | 格式 | lint warning（写入 issues 不计 verdict） |
 
-- **P0**：阻塞性缺陷（核心章节缺失、字段定义丢失、design 新增 align 未确认范围等）
-- **P1**：影响质量但不阻塞推进（字段属性缺失、权限未覆盖到字段级、metadata 校验不一致等）
-- **P2**：格式/风格类问题，不影响功能（lint warning 等）。**P2 必须写入 issues 数组**，但 **不计入 verdict 判定**
+issue_layer：`{"structure":N,"content":N,"consistency":N}`，三个整数必填。
 
-### issue_layer 格式
+## 输出
 
-必须为对象 `{"structure": N, "content": N, "consistency": N}`，三个字段均为必填整数。
+- 机读：`.workflow/reviews/design-review-N.json`（stage/verdict/issues/issue_layer/affected_objects/needs_upstream_sync/next_recommended/reviewed_at/metadata_generated）
+- 人读：`.workflow/reviews/design-review-N.md`（结论/主要问题/是否回上游/下一步/metadata 状态）
 
-- `structure`：归入结构层的 issue 数
-- `content`：归入内容层的 issue 数
-- `consistency`：归入一致性层的 issue 数
+ 输出 verdict 后停止等用户确认，不自动推进。
+
+## 失败模式
+
+| 场景 | 一线 | 兜底 |
+|------|------|------|
+| 预检查脚本失败 | 检查路径和环境 | 停下，不跳过 |
+| can_start_review=false | 输出阻塞项 | 不绕过 |
+| 假阳性 | 列出 warnings 等确认 | 确认后继续 |
+| 人读发现 P0 | 输出阻塞 verdict | 不进入 metadata |
+| metadata 生成失败 | 检查 design.md 格式 | 降级 verdict |
+| metadata 校验不一致 | 输出不一致项 | 降级 verdict |
 
 ## 硬规则
 
-1. review 通过后不自动推进阶段，由 PM 手动进入下一阶段
-2. 不代写 design 正文
-3. 不自行修改 design.md
-4. 问题必须具体到章节和内容
-5. 预检查脚本失败时停下告知用户，不跳过
-6. metadata 只在第二段人读质量审查通过后才生成——不在有阻塞问题时生成
-
-## Shell 环境规则
-
-🔴 **Codex 默认 shell 为 PowerShell**——不要用 Python -c 内联脚本，写临时 .py 文件执行。
-
-## 失败模式与 Fallback
-
-| 场景 | 触发条件 | 一线修复 | 仍失败兜底 |
-|------|---------|---------|-----------|
-| 预检查脚本失败 | review-precheck.py 返回非零退出码 | 检查脚本路径和 Python 环境 | 停下告知用户具体错误，不跳过预检查 |
-| can_start_review = false | 预检查发现阻塞问题 | 输出阻塞项清单，停下等用户修复 | 不绕过预检查直接审查 |
-| 假阳性（alias_missed） | 章节名称不匹配但实际存在 | 列出 warnings 条目，等用户确认 | 用户确认后可继续 |
-| 人读审查发现 P0 | 核心章节缺失或严重不一致 | 输出阻塞 verdict，不进入 metadata 生成 | 等用户修复后重新 review |
-| metadata 生成失败 | stage-prep.py 报错 | 检查 design.md 格式 | 告知用户 metadata 未生成，verdict 降级 |
-| metadata 校验不一致 | 字段数/页面数与 design.md 不匹配 | 输出具体不一致项 | verdict 降级为"有问题需修改" |
-
-## 不要做什么
-
-| # | 反模式 | 为什么不要做 | 替代做法 |
-|---|--------|------------|---------|
-| 1 | 代写被审查的正文 | reviewer 和 writer 应独立 | 只输出问题清单，不代写 |
-| 2 | 自行修改被审查文件 | 审查不应改变被审查内容 | 输出问题清单，等用户或 fix skill 处理 |
-| 3 | 自动推进到下一阶段 | 用户可能需要验证 review 结果 | 输出 verdict 后停下等用户确认 |
-| 4 | 跳过预检查脚本 | 预检查能发现结构问题，跳过会浪费审查时间 | 预检查失败就停下，不绕过 |
-| 5 | verdict 后自动触发 fix/推进 | fix 和推进应由用户决定 | 输出 verdict 后停下等用户指令 |
-| 6 | 把 P2 问题计入 verdict | P2 不影响 verdict 判定，计入会过度阻塞 | P2 写入 issues 数组但不计入 verdict |
-| 7 | 放过 P0 问题 | P0 是阻塞性缺陷，放过会导致下游返工 | 发现 P0 必须输出阻塞 verdict |
+1. 不代写 design 正文
+2. 不自行修改 design.md
+3. 问题具体到章节和内容
+4. 预检查失败不跳过
+5. metadata 只在第二段通过后生成
+6. P2 写入 issues 但不计入 verdict
+7. review 通过后不自动推进

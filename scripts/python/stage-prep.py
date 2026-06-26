@@ -14,21 +14,17 @@ import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from shared_md import parse_headings
+from shared_md import (
+    parse_headings, parse_tables_with_context,
+    fuzzy_field_match, fuzzy_page_match,
+    is_under_heading, clean_page_title,
+    allocate_id, ID_PREFIXES,
+    ARTIFACT_PATHS, METADATA_FILE_MAP,
+    load_json,
+)
 
 VALID_STAGES = ["align", "design", "prd", "prototype"]
 
-# 稳定 ID 前缀映射（规约 §3.6 只允许 6 种前缀）
-ID_PREFIXES = {
-    "module": "MODULE",
-    "page": "PAGE",
-    "field": "FIELD",
-    "rule": "RULE",
-    "flow": "FLOW",
-    "permission": "PERM",
-    "state": "STATE",
-    "role": "ROLE",
-}
 
 # 中文关键词到实体类型的映射
 # 只映射能生成稳定 ID 的实体类型
@@ -52,21 +48,6 @@ STAGE_ALLOWED_ENTITIES = {
 # 章节级标题模式（不应被识别为实体条目）
 # 匹配 "## 一、角色定义"、"## 三、模块定义" 等纯章节标记
 CHAPTER_HEADING_PATTERN = re.compile(r'^[一二三四五六七八九十]+[、．.]')
-
-# Metadata 文件映射
-METADATA_FILE_MAP = {
-    "align": ["index.json", "entities.json", "relations.json"],
-    "design": ["index.json", "entities.json", "relations.json", "modules.json", "pages.json", "fields.json", "rules.json", "states.json", "permissions.json", "page-fields.json", "non-page-fields.json", "field-constraints.json"],
-    "prd": ["index.json", "entities.json", "relations.json", "page-anchor.json", "rule-anchor.json", "field-anchor.json"],
-    "prototype": ["index.json", "page-map.json"],
-}
-
-ARTIFACT_PATHS = {
-    "align": "output/align/align.md",
-    "design": "output/design/design.md",
-    "prd": "output/prd/prd.md",
-    "prototype": "output/prototype/index.html",
-}
 
 
 def slug_from_heading(heading: str) -> str:
@@ -175,62 +156,6 @@ def infer_entities_from_headings(headings: list, stage: str, project_root: Path 
     return entities
 
 
-def parse_tables_with_context(content: str, headings: list) -> list:
-    """解析 Markdown 表格并关联到所在章节
-
-    返回 [{section_title, section_line, headers, rows, line_offset}, ...]
-    """
-    lines = content.split('\n')
-    tables = []
-    current_section = ""
-    current_section_line = 1
-
-    # 建立行号到章节的映射
-    heading_map = {}  # line_number -> heading_title
-    for h in headings:
-        heading_map[h["line"]] = h["title"]
-
-    i = 0
-    while i < len(lines):
-        line = lines[i].strip()
-
-        # 更新当前章节
-        if i + 1 in heading_map:
-            current_section = heading_map[i + 1]
-            current_section_line = i + 1
-
-        # 检测表格开始（包含 | 的行，下一行是分隔行 |---|）
-        if line.startswith('|') and '|' in line[1:] and i + 1 < len(lines):
-            sep_line = lines[i + 1].strip() if i + 1 < len(lines) else ""
-            if re.match(r'^\|[\s\-:|]+\|$', sep_line):
-                # 这是一个表格
-                headers = [h.strip() for h in line.split('|')[1:-1]]
-                rows = []
-                j = i + 2  # 跳过表头和分隔行
-                while j < len(lines):
-                    if lines[j].strip() == '':
-                        j += 1
-                        continue
-                    if not lines[j].strip().startswith('|'):
-                        break
-                    row_text = lines[j].strip()
-                    cells = [c.strip() for c in row_text.split('|')[1:-1]]
-                    rows.append(cells)
-                    j += 1
-                tables.append({
-                    "section_title": current_section,
-                    "section_line": current_section_line,
-                    "headers": headers,
-                    "rows": rows,
-                    "line_offset": i + 1,
-                })
-                i = j
-                continue
-        i += 1
-
-    return tables
-
-
 def _build_field_attributes(row: list, headers: list) -> dict:
     """根据列数适配 5 列或 9 列字段格式
 
@@ -278,7 +203,7 @@ def extract_entities_from_tables(content: str, headings: list, stage: str, count
         headers = table["headers"]
 
         # 页面清单表：检查是否在"页面清单"父标题下，且表头含"页面"或"名称"
-        if _is_under_heading(table["line_offset"], headings, "页面清单") and (any("页面" in h for h in headers) or any("名称" in h for h in headers)):
+        if is_under_heading(table["line_offset"], headings, "页面清单") and (any("页面" in h for h in headers) or any("名称" in h for h in headers)):
             name_idx = next((i for i, h in enumerate(headers) if h == "名称" or "页面名称" in h or "页面" == h), None)
             if name_idx is None:
                 name_idx = next((i for i, h in enumerate(headers) if "页面" in h or "名称" in h), None)
@@ -431,12 +356,12 @@ def _extract_design_page_field_map(content: str, headings: list, pages: list, fi
         if in_section and h["level"] <= section_level:
             break
         if in_section and h["level"] > section_level and h["level"] <= section_level + 2:
-            page_title = _clean_page_title(title)
+            page_title = clean_page_title(title)
             if "非页面落点字段" in page_title:
                 continue
             mappings.setdefault(page_title, {
                 "page_title": page_title,
-                "design_page": _fuzzy_page_match(page_title, page_title_to_id),
+                "design_page": fuzzy_page_match(page_title, page_title_to_id),
                 "line": h["line"],
                 "field_refs": [],
                 "field_titles": [],
@@ -445,16 +370,16 @@ def _extract_design_page_field_map(content: str, headings: list, pages: list, fi
             })
 
     for table in tables:
-        if not (_is_under_heading(table["line_offset"], headings, "页面与字段落点") or _is_under_heading(table["line_offset"], headings, "页面数据落点")):
+        if not (is_under_heading(table["line_offset"], headings, "页面与字段落点") or is_under_heading(table["line_offset"], headings, "页面数据落点")):
             continue
-        page_title = _clean_page_title(table["section_title"])
+        page_title = clean_page_title(table["section_title"])
         if "非页面落点字段" in page_title:
             continue
         if not page_title:
             continue
         entry = mappings.setdefault(page_title, {
             "page_title": page_title,
-            "design_page": _fuzzy_page_match(page_title, page_title_to_id),
+            "design_page": fuzzy_page_match(page_title, page_title_to_id),
             "line": table["line_offset"],
             "field_refs": [],
             "field_titles": [],
@@ -473,7 +398,7 @@ def _extract_design_page_field_map(content: str, headings: list, pages: list, fi
                 entry["declared_empty"] = True
                 continue
             for token in _split_field_tokens(cell):
-                design_field = _fuzzy_field_match(token, field_title_to_id)
+                design_field = fuzzy_field_match(token, field_title_to_id)
                 if design_field:
                     entry["field_refs"].append(design_field)
                     entry["field_titles"].append(token)
@@ -511,7 +436,7 @@ def _extract_design_non_page_fields(content: str, headings: list, fields: list) 
             for token in _split_field_tokens(raw_field):
                 results.append({
                     "field_title": token,
-                    "design_field": _fuzzy_field_match(token, field_title_to_id),
+                    "design_field": fuzzy_field_match(token, field_title_to_id),
                     "reason": reason.strip(),
                     "line": table["line_offset"],
                 })
@@ -544,42 +469,6 @@ def _build_page_field_relations(page_fields: list, stage: str, counter: dict) ->
                 "to": field_id,
             })
     counter["REL"] = rel_counter
-    return relations
-
-
-def infer_relations_from_content(content: str, entities: list, stage: str) -> list:
-    """从内容推断实体间关系"""
-    relations = []
-    rel_counter = 1
-
-    source_keywords = ["来源", "依据", "基于", "引用", "对齐"]
-    contain_keywords = ["包含", "含", "下属"]
-
-    sections = re.split(r'\n#{1,6}\s+', content)
-
-    entity_ids = {e["id"]: e for e in entities}
-    if not entity_ids:
-        return relations
-
-    id_pattern = "|".join(re.escape(eid) for eid in entity_ids.keys())
-
-    for section in sections:
-        found_ids = re.findall(id_pattern, section)
-        if len(found_ids) >= 2:
-            has_source = any(kw in section for kw in source_keywords)
-            has_contain = any(kw in section for kw in contain_keywords)
-
-            rel_type = "derived_from" if has_source else ("contains" if has_contain else "refines")
-
-            for i in range(len(found_ids) - 1):
-                relations.append({
-                    "id": f"REL-{stage}-{rel_counter:03d}",
-                    "type": rel_type,
-                    "from": found_ids[i],
-                    "to": found_ids[i + 1],
-                })
-                rel_counter += 1
-
     return relations
 
 
@@ -690,7 +579,7 @@ def generate_design_metadata(content: str, stage: str, project_root: Path) -> di
     # 合并所有实体（标题推断的 modules/rules + 表格解析的 pages/fields + 编号规则）
     entities = heading_entities + table_pages + table_fields + numbered_rules
 
-    relations = infer_relations_from_content(content, entities, stage)
+    relations = []
     relations.extend(_build_page_field_relations(page_fields, stage, counter))
 
     index = {
@@ -710,7 +599,6 @@ def generate_design_metadata(content: str, stage: str, project_root: Path) -> di
 
     result = {
         "index": index,
-        "entities": entities,
         "relations": relations,
         "modules": modules,
         "pages": pages,
@@ -722,118 +610,7 @@ def generate_design_metadata(content: str, stage: str, project_root: Path) -> di
     # 始终写入 states 和 permissions，覆盖可能存在的陈旧文件
     result["states"] = table_states
     result["permissions"] = table_perms
-    # 生成字段约束速查表（供 PRD 生成时防幻觉）
-    result["field_constraints"] = generate_field_constraints(result)
     return result
-
-
-
-def generate_field_constraints(design_data: dict) -> list:
-    """从 design metadata 中提取字段约束速查表，供 PRD 生成时防幻觉使用。
-
-    只保留：字段名、稳定ID、单选/多选、只读/可编辑、必填/选填、所属页面。
-    目标 < 3KB，agent 生成 PRD 时只需读这一个文件即可确认字段约束。
-    """
-    fields = design_data.get("fields", [])
-    page_fields = design_data.get("page_fields", [])
-    rules = design_data.get("rules", [])
-
-    # 构建 字段→页面 映射（page-fields.json 结构：{page_title, field_titles, field_refs}）
-    field_pages = {}
-    for pf in page_fields:
-        if isinstance(pf, dict):
-            page_name = pf.get("page_title", "") or pf.get("page", "")
-            for fname in pf.get("field_titles", []):
-                if fname:
-                    field_pages.setdefault(fname, []).append(page_name)
-            # 兼容旧结构
-            for f in pf.get("fields", []):
-                fname = f if isinstance(f, str) else f.get("name", "")
-                if fname:
-                    field_pages.setdefault(fname, []).append(page_name)
-
-    # 从 rules 中提取数量规则（单选/多选）
-    selection_rules = {}
-    for rule in rules:
-        if isinstance(rule, dict):
-            title = rule.get("title", "")
-            content_text = rule.get("content", "") or rule.get("detail", "")
-            if "单选" in title or "默认带出" in title:
-                # 提及的字段标记为单选
-                pass
-            if "备选" in title and "多选" in (content_text or ""):
-                pass
-            if "默认与备选数量" in title:
-                selection_rules[title] = content_text
-
-    # 从字段 attributes 中提取约束
-    constraints = []
-    for field in fields:
-        if not isinstance(field, dict):
-            continue
-        field_id = field.get("id", "")
-        title = field.get("title", "")
-        attrs = field.get("attributes", {})
-
-        if not title or not field_id:
-            continue
-
-        # 跳过元数据字段（字段权限例外等）
-        if "权限例外" in title:
-            continue
-
-        data_type = attrs.get("数据类型", "")
-        required = attrs.get("必填", None)
-        enum_vals = attrs.get("枚举值", "")
-        business_source = attrs.get("业务来源", "")
-        detail = attrs.get("说明", "")
-
-        # 推断编辑性
-        editable = True
-        if "自动带出" in str(business_source) or "系统生成" in str(business_source) or "系统同步" in str(business_source) or "NCC" in str(business_source):
-            editable = False
-        if "只读" in str(detail):
-            editable = False
-        if "科目编码" in title:
-            editable = False  # 科目编码只读，科目名称自动带出
-
-        # 推断选择方式
-        select_mode = "input"
-        if data_type == "enum" or "枚举" in str(enum_vals):
-            select_mode = "enum"
-        if "搜索弹窗" in str(detail) or "选择" in str(detail):
-            select_mode = "popup-select"
-        if "标签" in str(detail):
-            select_mode = "tag-select"
-
-        # 推断单选/多选（从规则或字段名推断）
-        multi_select = None
-        if "默认带出" in title:
-            multi_select = False  # 默认带出 = 单选
-        if "备选" in title:
-            multi_select = True   # 备选 = 多选
-
-        # 所属页面
-        pages = field_pages.get(title, [])
-
-        constraint = {
-            "id": field_id,
-            "name": title,
-            "type": data_type,
-            "required": required,
-            "editable": editable,
-            "select_mode": select_mode,
-        }
-        if multi_select is not None:
-            constraint["multi_select"] = multi_select
-        if pages:
-            constraint["pages"] = pages
-        if enum_vals and enum_vals != "—" and enum_vals != "沿用原系统":
-            constraint["enum"] = enum_vals
-
-        constraints.append(constraint)
-
-    return constraints
 
 
 def generate_prd_metadata(content: str, project_root: Path) -> dict:
@@ -869,8 +646,13 @@ def generate_prd_metadata(content: str, project_root: Path) -> dict:
     # 3. 从 PRD 正文提取规则 anchor（匹配 design 规则标题）
     rule_anchor = _extract_prd_rule_anchors(content, rule_title_to_id)
 
-    # 4. 继承 design 的 entities 和 relations（PRD 是 design 的镜像）
-    design_entities = _load_design_metadata(project_root, "entities.json")
+    # 4. 继承 design 的 entities（合并 4 个 type-specific 文件）和 relations
+    design_entities = (
+        _load_design_metadata(project_root, "modules.json")
+        + _load_design_metadata(project_root, "pages.json")
+        + _load_design_metadata(project_root, "fields.json")
+        + _load_design_metadata(project_root, "rules.json")
+    )
     design_relations = _load_design_metadata(project_root, "relations.json")
 
     return {
@@ -911,7 +693,7 @@ def _extract_prd_field_anchors(content: str, headings: list, field_title_to_id: 
         # 检查当前 section 或最近的 h2 父标题是否包含"数据字典"
         in_data_dict = "数据字典" in section
         if not in_data_dict:
-            in_data_dict = _is_under_heading(table["line_offset"], headings, "数据字典")
+            in_data_dict = is_under_heading(table["line_offset"], headings, "数据字典")
         if not in_data_dict:
             continue
         # 确认是 9 列数据字典格式
@@ -928,14 +710,6 @@ def _extract_prd_field_anchors(content: str, headings: list, field_title_to_id: 
                     "data_dict": True,
                 })
     return anchors
-
-
-def _is_under_heading(table_line: int, headings: list, keyword: str) -> bool:
-    """检查表格行号之前最近的 h2 标题是否包含指定关键词"""
-    for h in sorted(headings, key=lambda x: x["line"], reverse=True):
-        if h["line"] < table_line and h["level"] <= 2:
-            return keyword in h["title"]
-    return False
 
 
 def _extract_prd_page_anchors(content: str, headings: list, page_title_to_id: dict) -> list:
@@ -959,7 +733,7 @@ def _extract_prd_page_anchors(content: str, headings: list, page_title_to_id: di
 
         # 在详细需求章节内的子标题（### 级别），匹配合并中文序号
         if h["level"] >= 3:
-            clean_title = _clean_page_title(title)
+            clean_title = clean_page_title(title)
             design_id = page_title_to_id.get(clean_title)
             if design_id:
                 anchors.append({
@@ -970,51 +744,6 @@ def _extract_prd_page_anchors(content: str, headings: list, page_title_to_id: di
 
     return anchors
 
-
-def _clean_page_title(title: str) -> str:
-    """去除标题中的中文序号前缀
-    如 '（一）我的周报列表页' → '我的周报列表页'
-    如 '1．我的周报列表页' → '我的周报列表页'
-    """
-    cleaned = re.sub(r'^[（(][一二三四五六七八九十\d]+[）)]\s*', '', title)
-    cleaned = re.sub(r'^\d+[．.]\s*', '', cleaned)
-    cleaned = re.sub(r'^page[-_\s]?\d+\s*', '', cleaned, flags=re.IGNORECASE)
-    return cleaned.strip()
-
-
-
-def _fuzzy_field_match(token: str, field_title_to_id: dict) -> str:
-    """模糊匹配字段名：先精确匹配，再去括号后缀、去尾部标注再匹配"""
-    # 精确匹配
-    if token in field_title_to_id:
-        return field_title_to_id[token]
-    # 去掉括号内容：如 "物资名称（必填）" -> "物资名称"
-    stripped = re.sub(r'[（(][^）)]*[）)]', '', token).strip()
-    if stripped and stripped in field_title_to_id:
-        return field_title_to_id[stripped]
-    # 去掉尾部标注词
-    for suffix in ('（必填）', '（选填）', '（多选）', '（单选）', '(必填)', '(选填)', '(多选)', '(单选)'):
-        if token.endswith(suffix):
-            clean = token[:-len(suffix)].strip()
-            if clean in field_title_to_id:
-                return field_title_to_id[clean]
-    return None
-
-
-def _fuzzy_page_match(page_title: str, page_title_to_id: dict) -> str:
-    """模糊匹配页面名：先精确匹配，再去掉"页"字尾缀再匹配"""
-    if page_title in page_title_to_id:
-        return page_title_to_id[page_title]
-    # 去掉尾部"页"字
-    if page_title.endswith('页'):
-        no_suffix = page_title[:-1].strip()
-        if no_suffix in page_title_to_id:
-            return page_title_to_id[no_suffix]
-    # 加上"页"字
-    with_suffix = page_title + '页'
-    if with_suffix in page_title_to_id:
-        return page_title_to_id[with_suffix]
-    return None
 
 def _extract_prd_rule_anchors(content: str, rule_title_to_id: dict) -> list:
     """从 PRD 正文中提取规则描述，匹配 design RULE ID
@@ -1051,41 +780,6 @@ def _extract_prd_rule_anchors(content: str, rule_title_to_id: dict) -> list:
             deduped.append(a)
 
     return deduped
-
-
-def _extract_numbered_rules(content: str) -> list:
-    """从 PRD 正文中提取编号规则文本
-
-    搜索"规则"相关章节下的编号列表项（如 1. xxx / 1、xxx）。
-    """
-    rules = []
-    lines = content.split('\n')
-    in_rules_section = False
-
-    for i, line in enumerate(lines):
-        stripped = line.strip()
-        # 检测进入/退出"规则"章节（h2/h3 标题）
-        if re.match(r'^#{1,3}\s+', stripped):
-            if "规则" in stripped and "权限" not in stripped and "数据" not in stripped:
-                in_rules_section = True
-                continue
-            elif in_rules_section:
-                in_rules_section = False
-                continue
-
-        if not in_rules_section:
-            continue
-
-        # 匹配编号规则：如 "1. xxx"、"1、xxx"、"1）xxx"
-        match = re.match(r'^(\d+)[.、）)]\s*(.+)$', stripped)
-        if match:
-            rules.append({
-                "num": int(match.group(1)),
-                "text": match.group(2),
-                "line": i + 1,
-            })
-
-    return rules
 
 
 def _fuzzy_match(prd_text: str, design_title: str) -> bool:
@@ -1224,7 +918,6 @@ def write_metadata(stage: str, data: dict, project_root: Path, dry_run: bool = F
 
     key_file_map = {
         "index": "index.json",
-        "entities": "entities.json",
         "relations": "relations.json",
         "modules": "modules.json",
         "pages": "pages.json",
@@ -1234,7 +927,6 @@ def write_metadata(stage: str, data: dict, project_root: Path, dry_run: bool = F
         "permissions": "permissions.json",
         "page_fields": "page-fields.json",
         "non_page_fields": "non-page-fields.json",
-        "field_constraints": "field-constraints.json",
         "page_anchor": "page-anchor.json",
         "rule_anchor": "rule-anchor.json",
         "field_anchor": "field-anchor.json",

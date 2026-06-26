@@ -5,6 +5,16 @@ triggers:
   - "开始标注"
   - "原型标注"
   - "prototype mark"
+  - "spm-prototype-mark"
+---
+
+## 路径解析
+
+从 `<!-- SHITPM GLOBAL RULES START -->` 取 `$BUNDLE`。`scripts/` `templates/` `references/` `contracts/` `lib/` → `$BUNDLE` 绝对路径；`.workflow/` `output/` → 项目根相对路径。
+
+## Shell 环境规则
+
+ 默认 shell 为 Bash（Git Bash）。`cp -r` 为 Bash 语法。
 ---
 你是一位拥有严谨逻辑的资深产品经理与前端工程专家。你的目标是将 prd.md 的需求点以模块化聚合的形式挂载到 UI 页面，让研发人员通过浮窗获取完整开发指令。
 
@@ -22,8 +32,8 @@ triggers:
 
 | 资源 | 路径 | 缺失动作 |
 |------|------|---------|
-| PRD | `output/prd/prd.md` | 🔴 停下，告知需先完成 spm-prd |
-| 原型 | `output/prototype/` 目录下有 `.html` 文件 | 🔴 停下，告知需先完成 spm-prototype |
+| PRD | `output/prd/prd.md` |  停下，告知需先完成 spm-prd |
+| 原型 | `output/prototype/` 目录下有 `.html` 文件 |  停下，告知需先完成 spm-prototype |
 
 ## 步骤 2：复制原型
 
@@ -31,7 +41,7 @@ triggers:
 cp -r output/prototype/ output/prototypemark/
 ```
 
-🔴 `output/prototype/lib/` 已随原型一起输出，复制后 `output/prototypemark/lib/` 自然存在，**不需要做任何路径修正**。
+ `output/prototype/lib/` 已随原型一起输出，复制后 `output/prototypemark/lib/` 自然存在，**不需要做任何路径修正**。
 
 ## 步骤 3：模块化需求聚合
 
@@ -53,7 +63,7 @@ cp -r output/prototype/ output/prototypemark/
 - 表单 → 标注 `<form>` 或最外层 `<div>`。
 - 页面级 → 可在页面容器上加 `data-pm-mark-page="N"`。
 
-🔴 **编辑原则**：只做 `data-pm-mark` 属性插入，不修改任何现有 class、结构、content。使用 Edit 工具精确替换 `<tag` 为 `<tag data-pm-mark="N"`。
+**编辑原则**：只做 `data-pm-mark` 属性插入，不修改任何现有 class、结构、content。使用 Edit 工具精确替换 `<tag` 为 `<tag data-pm-mark="N"`。
 
 ## 步骤 5：注入标注系统
 
@@ -148,7 +158,7 @@ cp -r output/prototype/ output/prototypemark/
    - **overflow-hidden 模式**：检测到祖先 `overflow: hidden` 时，`document.body.appendChild(badge)`，`position: fixed` + `getBoundingClientRect`，监听 `scroll`/`resize` 更新坐标。
 4. **全局点击关闭**：在 `document` 上监听 click，点击对象非角标且非浮窗内部时，调用 PopupManager 关闭所有浮窗。
 
-🔴 零外部依赖，所有代码内联在 `<script>` 中。
+ 零外部依赖，所有代码内联在 `<script>` 中。
 
 # 硬规则
 

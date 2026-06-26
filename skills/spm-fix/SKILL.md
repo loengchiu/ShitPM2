@@ -7,10 +7,11 @@ triggers:
   - "修复传播"
   - "回写上游"
   - "一致性修复"
+  - "spm-fix"
 ---
 ## 路径解析规则
 
-🔴 **关键：ShitPM 安装在 bundle 目录，不在当前项目目录。**
+**关键：ShitPM 安装在 bundle 目录，不在当前项目目录。**
 
 执行本 skill 前，先从系统 prompt 的 `<!-- SHITPM GLOBAL RULES START -->` 段中读取 `ShitPM bundle root:` 的值，下文以 `$BUNDLE` 表示。
 
@@ -41,7 +42,7 @@ Read .workflow/status.json
 
 ## 最小读取集合
 
-🔴 **一次读取**——用一次工具调用读取以下全部文件：
+**一次读取**——用一次工具调用读取以下全部文件：
 
 1. `.workflow/status.json`（当前阶段和产物路径）
 2. 用户修改指令（原始文本）
@@ -59,7 +60,7 @@ Read .workflow/status.json
 | 改什么 | 具体字段/页面/规则/目标 | "审计类型字段" |
 | 改成什么 | 变更后的状态 | "枚举值增加'专项审计'" |
 
-🔴 **CHECKPOINT · 指令完整性**——修改指令是否同时包含「改什么」和「改成什么」？缺少任一项时，停下追问用户，不猜测、不推断、不补全。
+**CHECKPOINT · 指令完整性**——修改指令是否同时包含「改什么」和「改成什么」？缺少任一项时，停下追问用户，不猜测、不推断、不补全。
 
 ### 步骤 2：定位修改对象的归属层
 
@@ -70,9 +71,9 @@ Read .workflow/status.json
 | 目标/范围/建设方式 | 涉及一期做什么、不做什么 | 对齐层 | `output/align/align.md` |
 | 模块/页面/字段/规则 | 涉及数据结构或业务规则定义 | 设计层 | `output/design/design.md` |
 | 流程/状态/权限 | 涉及状态机、权限矩阵、审批流 | 设计层 | `output/design/design.md` |
-| 表现层布局/样式/视觉 | 仅涉及 UI 呈现，不涉及语义 | 原型层 | `output/prototype/index.html` |
+| 表现层布局/样式/视觉 | 仅涉及 UI 呈现，不涉及语义 | 原型层 | `output/prototype/index.html` 及其 `pages/` 目录 |
 
-🔴 **CHECKPOINT · 归属层确认**——若修改指令同时涉及多层（如"新增字段并在页面展示"），必须拆分为多步逐层修复，不混在一层改。
+**CHECKPOINT · 归属层确认**——若修改指令同时涉及多层（如"新增字段并在页面展示"），必须拆分为多步逐层修复，不混在一层改。
 
 ### 步骤 3：读取传播矩阵，确定影响范围
 
@@ -80,9 +81,9 @@ Read .workflow/status.json
 
 | 修改层 | 必须更新 | 需检查是否更新 |
 |--------|---------|---------------|
-| 对齐层 | `output/align/align.md` → `output/design/design.md` | `output/prd/prd.md`、`output/prototype/index.html` |
-| 设计层 | `output/design/design.md` | `output/prd/prd.md`、`output/prototype/index.html` |
-| 原型层 | `output/prototype/index.html` | 无下游 |
+| 对齐层 | `output/align/align.md` → `output/design/design.md` | `output/prd/prd.md`、`output/prototype/index.html` 及 `pages/` |
+| 设计层 | `output/design/design.md` | `output/prd/prd.md`、`output/prototype/index.html` 及 `pages/` |
+| 原型层 | `output/prototype/index.html` 及 `pages/` | 无下游 |
 
 输出格式（必须逐行列出）：
 
@@ -93,7 +94,7 @@ Read .workflow/status.json
 3. [文件路径] — 无需更新（原因：不涉及该字段）
 ```
 
-🔴 **CHECKPOINT · 影响范围确认**——列出全部受影响文件后，停下等用户确认再执行修复。不跳过此确认直接改文件。
+**CHECKPOINT · 影响范围确认**——列出全部受影响文件后，停下等用户确认再执行修复。不跳过此确认直接改文件。
 
 ### 步骤 4：按顺序执行修复
 
@@ -106,9 +107,19 @@ Read .workflow/status.json
 3. 执行局部修改：替换字段名、新增行、删除行、更新枚举值
 4. 验证修改后章节内引用一致性（如字段名在同一文件其他章节的引用是否同步更新）
 
-🔴 **CHECKPOINT · 单层修复完成**——每完成一层修复后，输出修改摘要（改了哪些段落、改了什么），再继续下一层。
+**CHECKPOINT · 单层修复完成**——每完成一层修复后，输出修改摘要（改了哪些段落、改了什么），再继续下一层。
 
-### 步骤 5：修复后输出
+### 步骤 5：一致性校验
+
+修复涉及 design/PRD/prototype 层时，运行一致性校验：
+
+```bash
+python scripts/python/anchor-verify.py --project-root .
+```
+
+校验未通过（anchor 断裂或版本不一致）→ 回到步骤 4 修复。
+
+### 步骤 6：修复后输出
 
 输出修复摘要，格式固定：
 
@@ -144,6 +155,10 @@ Read .workflow/status.json
 7. 修复后不自动推进阶段
 8. 不手动修改 metadata（机读物由 review 通过后 `scripts/python/stage-prep.py` 脚本自动生成）
 
+
+## 批量修改执行规范
+
+涉及 2 处及以上修改时，用 js 工具一次性完成：列变更清单 → 单个脚本读取/替换/写入 → 抽查校验。
 
 ## 不要做什么
 

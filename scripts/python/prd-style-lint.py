@@ -22,6 +22,7 @@ import re
 import sys
 from dataclasses import dataclass, asdict
 from pathlib import Path
+from shared_md import STABLE_ID_PATTERN
 
 
 @dataclass
@@ -43,7 +44,6 @@ LABEL_PATTERNS = [
 ]
 
 # 稳定 ID 泄漏模式
-STABLE_ID_PATTERN = re.compile(r'(MODULE|PAGE|FIELD|RULE|FLOW|REL|PERM|STATE|ROLE)-(design|prd)-\d{3}')
 
 # 占位符模式
 PLACEHOLDER_PATTERNS = [

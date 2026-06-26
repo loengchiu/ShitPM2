@@ -34,3 +34,9 @@ __pycache__/
 
 # === 临时文件 ===
 _tmp_*.md
+_verify_changes.py
+
+# === AI 助手本地工作区 ===
+.workbuddy/
+.codex/
+.trae-cn/

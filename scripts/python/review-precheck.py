@@ -14,25 +14,15 @@
 
 import argparse
 import json
+import os
 import re
-import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from shared_md import STABLE_ID_PATTERN, ARTIFACT_PATHS, METADATA_FILE_MAP, load_json
 
 VALID_STAGES = ["design", "prd", "prototype"]
 
-ARTIFACT_PATHS = {
-    "design": "output/design/design.md",
-    "prd": "output/prd/prd.md",
-    "prototype": "output/prototype/index.html",
-}
-
-METADATA_FILE_MAP = {
-    "design": ["index.json", "entities.json", "relations.json", "modules.json", "pages.json", "fields.json", "rules.json", "states.json", "permissions.json", "page-fields.json", "non-page-fields.json", "field-constraints.json"],
-    "prd": ["index.json", "entities.json", "relations.json", "page-anchor.json", "rule-anchor.json", "field-anchor.json"],
-    "prototype": ["index.json", "page-map.json"],
-}
 
 METADATA_EMPTY_OK = {
     "design": {"relations.json"},
@@ -62,62 +52,6 @@ SECTION_ALIASES = {
         "状态机": ["状态机", "状态定义", "状态流转"],
     },
 }
-
-STABLE_ID_PATTERN = re.compile(r'(MODULE|PAGE|FIELD|RULE|FLOW|REL|PERM|STATE|ROLE)-(design|prd)-\d{3}')
-
-
-
-def check_field_constraints_consistency(project_root: Path, stage: str) -> dict:
-    """检查 field-constraints.json 与 design.md 的字段约束是否一致"""
-    if stage != "design":
-        return {"check": "field_constraints_consistency", "passed": True, "detail": "非 design 阶段，跳过"}
-
-    fc_path = project_root / ".workflow/metadata/design/field-constraints.json"
-    if not fc_path.exists():
-        return {"check": "field_constraints_consistency", "passed": False, "detail": "field-constraints.json 不存在"}
-
-    artifact_path = project_root / ARTIFACT_PATHS[stage]
-    if not artifact_path.exists():
-        return {"check": "field_constraints_consistency", "passed": False, "detail": f"{ARTIFACT_PATHS[stage]} 不存在"}
-
-    with open(fc_path, encoding="utf-8") as f:
-        constraints = json.load(f)
-    with open(artifact_path, encoding="utf-8") as f:
-        content = f.read()
-
-    # 构建 id->name 映射，优先用 id 做交叉校验
-    fc_by_id = {}
-    fc_warnings = []
-    for field in constraints:
-        fid = field.get("id", "")
-        name = field.get("name", "")
-        if fid:
-            fc_by_id[fid] = field
-        elif name:
-            fc_warnings.append(f"field-constraints 条目缺少 id: {name}")
-
-    issues = []
-    for field in constraints:
-        name = field.get("name", "")
-        multi_select = field.get("multi_select")
-        editable = field.get("editable")
-
-        # 检查 multi_select 一致性（启发式检测：在 design.md 全文中搜索字段名和限制短语）
-        # 限制：子串匹配可能在字段名恰好作为其他词的子串时产生假阳性
-        if multi_select is True:
-            if "只能选择 1 个" in content and name in content:
-                issues.append(f"{name}: field-constraints 标记 multi_select=true，但 design.md 中有'只能选择 1 个'")
-        if multi_select is False:
-            pass  # 正向检查较难，跳过
-
-    result = {"check": "field_constraints_consistency", "passed": True, "detail": "字段约束一致性通过"}
-    if fc_warnings:
-        result["warnings"] = fc_warnings
-    if issues:
-        result["passed"] = False
-        result["detail"] = "; ".join(issues)
-    return result
-
 
 
 def check_prd_entity_coverage(project_root: Path, stdin_content: str = None) -> dict:
@@ -488,55 +422,23 @@ def check_design_page_field_coverage(project_root: Path) -> dict:
 
 
 def run_prd_style_lint(project_root: Path) -> list:
+    """Run PRD style lint via direct import instead of subprocess."""
     prd_path = project_root / ARTIFACT_PATHS["prd"]
     if not prd_path.exists():
         return []
-    lint_script = project_root / "scripts" / "python" / "prd-style-lint.py"
-    if not lint_script.exists():
-        return []
-    lint_output = project_root / ".workflow" / "runtime" / "prd" / "lint.json"
-    lint_output.parent.mkdir(parents=True, exist_ok=True)
-
-    # 启动 lint 子进程
     try:
-        result = subprocess.run(
-            [sys.executable, str(lint_script), str(prd_path), "--format", "json", "--output", str(lint_output)],
-            capture_output=True, text=True, encoding="utf-8", errors="replace",
-        )
-    except (OSError, ValueError) as e:
-        return [f"lint 进程启动失败: {e}"]
-
-    # 优先从 --output 文件读取 lint 结果，确保消费方式一致
-    lint_data = None
-    if lint_output.exists():
-        try:
-            with open(lint_output, encoding="utf-8") as f:
-                lint_data = json.load(f)
-        except (json.JSONDecodeError, OSError, ValueError) as e:
-            return [f"lint 输出文件解析失败: {e}"]
-
-    # 回退：从 stdout 读取（兼容不传 --output 的场景）
-    if lint_data is None:
-        if result.stdout.strip():
-            try:
-                lint_data = json.loads(result.stdout)
-            except (json.JSONDecodeError, ValueError) as e:
-                return [f"lint stdout 解析失败 (exit={result.returncode}): {e}"]
-
-    # 无数据可解析时，根据 returncode 判断
-    if lint_data is None:
-        if result.returncode != 0:
-            stderr_tail = result.stderr.strip()[-200:] if result.stderr.strip() else "(无 stderr)"
-            return [f"lint 执行失败 (exit={result.returncode}): {stderr_tail}"]
-        return []
-
-    issues = lint_data if isinstance(lint_data, list) else lint_data.get("issues", [])
-    warnings = []
-    for issue in issues:
-        sev = issue.get("severity", "info")
-        if sev in ("error", "warning"):
-            warnings.append(f"{issue.get('code', 'UNKNOWN')}: {issue.get('message', '')}")
-    return warnings
+        with open(prd_path, encoding="utf-8") as f:
+            content = f.read()
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from prd_style_lint import run_lint
+        issues = run_lint(content)
+        warnings = []
+        for issue in issues:
+            if issue.severity in ("error", "warning"):
+                warnings.append(f"{issue.code}: {issue.message}")
+        return warnings
+    except Exception as e:
+        return [f"lint error: {e}"]
 
 
 def main():
@@ -589,10 +491,6 @@ def main():
         deterministic_checks.append(coverage_check)
         if not coverage_check["passed"]:
             blocking_issues.append(coverage_check["detail"])
-        fc_check = check_field_constraints_consistency(project_root, stage)
-        deterministic_checks.append(fc_check)
-        if not fc_check["passed"]:
-            blocking_issues.append(fc_check["detail"])
 
     if stage == "prd":
         lint_warnings = run_prd_style_lint(project_root)

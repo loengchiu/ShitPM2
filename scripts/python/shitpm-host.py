@@ -201,11 +201,11 @@ def remove_skill_mappings(host: str) -> None:
 # ── 全局规则 ─────────────────────────────────────────────────
 
 def write_global_rules(host: str) -> None:
-    bundle_root = host_bundle(host)
+    bundle_root = host_bundle(host).as_posix()
     block = '\n'.join([
         START_MARKER,
         f'ShitPM bundle root: {bundle_root}',
-        f'If `.workflow/status.json` exists, read {bundle_root}\\AGENTS.md.',
+        f'If `.workflow/status.json` exists, read {bundle_root}/AGENTS.md.',
         f'If `.workflow/status.json` doesn\'t exist but user runs `spm-start`, read it too.',
         END_MARKER,
     ])
@@ -218,7 +218,7 @@ def write_global_rules(host: str) -> None:
     if host == 'trae-cn':
         content = '---\nalwaysApply: true\n---\n' + '\n'.join([
             f'ShitPM bundle root: {bundle_root}',
-            f'If `.workflow/status.json` exists, read {bundle_root}\\AGENTS.md.',
+            f'If `.workflow/status.json` exists, read {bundle_root}/AGENTS.md.',
             f'If `.workflow/status.json` doesn\'t exist but user runs `spm-start`, read it too.',
         ])
         write_text(host_base(host) / 'rules' / 'shitpm-global.md', content)

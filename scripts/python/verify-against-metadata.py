@@ -3,53 +3,13 @@
 
 import argparse, json, re, sys
 from pathlib import Path
-from shared_md import parse_headings, parse_tables_with_context
-
-
-def _fuzzy_field_match(token, ftid):
-    if token in ftid: return ftid[token]
-    stripped = re.sub(r"[（(][^）)][）)]", "", token).strip()
-    if stripped and stripped in ftid: return ftid[stripped]
-    for sfx in ("（必填）", "（选填）", "（多选）", "（单选）", "(必填)", "(选填)", "(多选)", "(单选)"):
-        if token.endswith(sfx):
-            clean = token[:-len(sfx)].strip()
-            if clean in ftid: return ftid[clean]
-    return None
-
-
-def normalize_page_name(name: str) -> str:
-    import re as _re
-    s = name.strip()
-    s = _re.sub(r'^\d+(?:\.\d+)*[\.、．]\s*', '', s)
-    if s.endswith('页'):
-        s = s[:-1]
-    s = s.replace('列表页', '列表').replace('详情页', '详情').replace('编辑页', '编辑')
-    return s.strip()
-
-
-def _fuzzy_page_match(pt, ptid):
-    if pt in ptid: return ptid[pt]
-    import re as _re
-    stripped = _re.sub(r'^\d+(?:\.\d+)*[\.、．]\s*', '', pt).strip()
-    if stripped and stripped in ptid: return ptid[stripped]
-    if stripped and stripped.endswith("页"):
-        ns = stripped[:-1].strip()
-        if ns in ptid: return ptid[ns]
-    if stripped:
-        ws = stripped + "页"
-        if ws in ptid: return ptid[ws]
-    if pt.endswith("页"):
-        ns = pt[:-1].strip()
-        if ns in ptid: return ptid[ns]
-    ws = pt + "页"
-    if ws in ptid: return ptid[ws]
-    return None
+from shared_md import parse_headings, parse_tables_with_context, fuzzy_field_match, fuzzy_page_match, ID_PREFIXES, normalize_page_name
 
 
 def load_design_metadata(project_root):
     meta_dir = project_root / ".workflow" / "metadata" / "design"
-    result = {"fields": [], "pages": [], "states": [], "permissions": [], "field_constraints": []}
-    for fname in ["fields.json", "pages.json", "states.json", "permissions.json", "field-constraints.json"]:
+    result = {"fields": [], "pages": [], "states": [], "permissions": []}
+    for fname in ["fields.json", "pages.json", "states.json", "permissions.json"]:
         fpath = meta_dir / fname
         if fpath.exists():
             try:
@@ -208,7 +168,7 @@ def extract_prototype_fields(html_content):
 
 def extract_prototype_pages(html_content):
     pages = set()
-    pat_tab = r'<el-tab-pane[^>]*label="([^"]+)"'
+    pat_tab = r'<a\s+role="tab"\s+class="tab[^"]*"[^>]*>([^<]+)</a>'
     for m in re.finditer(pat_tab, html_content):
         pages.add(m.group(1).strip())
     for m in re.finditer(r"<h[23][^>]*>([^<]+)</h[23]>", html_content):
@@ -240,16 +200,18 @@ def verify_prd(project_root, artifact_content):
     df_md = extract_design_fields_from_md(design_md)
     dp_meta = [p.get("title", "") for p in design_meta.get("pages", []) if isinstance(p, dict) and p.get("title")]
     dp_md = set(dp_meta) if dp_meta else extract_design_pages_from_md(design_md)
-    dc = {c["name"]: c for c in design_meta.get("field_constraints", []) if isinstance(c, dict) and c.get("name")}
-    dfn = set(df_md.keys()) | set(dc.keys())
-    pf = extract_prd_fields(artifact_content)
+    # 从 fields.json 构建字段名集合（替代已删除的 field_constraints）
+    dfn = set(df_md.keys())
+    for f in design_meta.get("fields", []):
+        if isinstance(f, dict) and f.get("title"):
+            dfn.add(f["title"])
     pp = extract_prd_pages(artifact_content)
     ps = extract_prd_states(artifact_content)
     prm = extract_prd_permissions(artifact_content)
     ds = {s.get("title","") for s in design_meta.get("states",[]) if isinstance(s, dict)}
     dp = {p.get("title","") for p in design_meta.get("permissions",[]) if isinstance(p, dict)}
     # fuzzy match: exact hit returns immediately; fallback strips suffixes
-    matched = {f for f in pf if f in dfn or _fuzzy_field_match(f, {n: n for n in dfn})}
+    matched = {f for f in pf if f in dfn or fuzzy_field_match(f, {n: n for n in dfn})}
     generic = {"字段","类型","必填","说明","备注","状态","操作","编号","名称","创建时间","更新时间"}
     hf = {f for f in pf - matched if f not in generic and len(f) > 1}
     mf = {f for f in dfn - pf if f not in ("字段权限例外","权限例外")}
@@ -263,7 +225,7 @@ def verify_prd(project_root, artifact_content):
         if n in npp:
             mp_norm.add(n)
             continue
-        if _fuzzy_page_match(n, {nn: nn for nn in ndp}):
+        if fuzzy_page_match(n, {nn: nn for nn in ndp}):
             mp_norm.add(n)
             continue
         if n and n in prd_text_norm:
@@ -300,13 +262,13 @@ def verify_prototype(project_root, artifact_content):
     pf = extract_prototype_fields(artifact_content)
     pp = extract_prototype_pages(artifact_content)
     # fuzzy match: exact hit returns immediately; fallback strips suffixes
-    matched = {f for f in pf if f in dfn or _fuzzy_field_match(f, {n: n for n in dfn})}
+    matched = {f for f in pf if f in dfn or fuzzy_field_match(f, {n: n for n in dfn})}
     generic = {"查询","重置","新增","编辑","删除","查看","导出","导入","提交","保存","取消","确定","关闭"}
     hf = {f for f in pf - matched if f not in generic and len(f) > 1}
     npp = {normalize_page_name(p): p for p in pp}
     ndp = {normalize_page_name(p): p for p in dp_md}
     pmap = {n: n for n in dp_md}
-    mp_norm = {n for n in npp if n in ndp or _fuzzy_page_match(n, {nn: nn for nn in ndp})}
+    mp_norm = {n for n in npp if n in ndp or fuzzy_page_match(n, {nn: nn for nn in ndp})}
     mp = {npp[n] for n in mp_norm}
     hp = set(npp[n] for n in set(npp) - mp_norm)
     all_h = sorted(hf) + sorted(hp)

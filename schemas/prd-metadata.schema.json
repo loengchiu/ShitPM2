@@ -23,8 +23,8 @@
       "type": "object",
       "required": ["id", "type", "title"],
       "properties": {
-        "id": { "type": "string", "pattern": "^(MODULE|PAGE|FIELD|RULE|FLOW)-prd-[0-9]{3}$" },
-        "type": { "type": "string", "enum": ["module", "page", "field", "rule", "flow"] },
+        "id": { "type": "string", "pattern": "^(MODULE|PAGE|FIELD|RULE|FLOW|REL|STATE|PERM)-design-[0-9]{3}$" },
+        "type": { "type": "string", "enum": ["module", "page", "field", "rule", "flow", "state", "permission"] },
         "title": { "type": "string" },
         "source_ref": { "type": ["string", "null"] },
         "attributes": { "type": "object" }

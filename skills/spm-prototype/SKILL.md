@@ -5,32 +5,11 @@ triggers:
   - "开始原型"
   - "做原型"
   - "生成原型"
+  - "spm-prototype"
 ---
-## 路径解析规则
+## 路径解析
 
-🔴 **关键：ShitPM 安装在 bundle 目录，不在当前项目目录。**
-
-执行本 skill 前，先从系统 prompt 的 `<!-- SHITPM GLOBAL RULES START -->` 段中读取 `ShitPM bundle root:` 的值，下文以 `$BUNDLE` 表示。
-
-路径分类：
-- `scripts/python/`、`references/`、`templates/`、`contracts/`、`lib/` 开头 → `$BUNDLE` 下解析（绝对路径）
-- `.workflow/`、`output/` 开头 → 当前项目根目录下解析（CWD 相对路径，不变）
-
-示例：
-```
-# 脚本调用
-python $BUNDLE/scripts/python/stage-context.py --stage design --project-root .
-
-# 读取 bundle 资源
-Read $BUNDLE/templates/design.md
-Read $BUNDLE/references/design-writing.md
-
-# 读取项目文件（CWD 相对，不变）
-Read output/design/design.md
-Read .workflow/status.json
-```
-
-> 下文所有以 `scripts/python/`、`references/`、`templates/`、`contracts/`、`lib/` 开头的路径一律在 `$BUNDLE` 下解析。
+从 `<!-- SHITPM GLOBAL RULES START -->` 取 `$BUNDLE`。`scripts/` `templates/` `references/` `contracts/` `lib/` → `$BUNDLE` 绝对路径；`.workflow/` `output/` → 项目根相对路径。
 
 # 原型
 ## 触发条件
@@ -45,14 +24,33 @@ Read .workflow/status.json
 
 ## 最小读取集合
 
-🔴 **一次读取**——用一次工具调用读取以下全部文件：
+**一次读取**——用一次工具调用读取以下全部文件：
 
 1. `.workflow/status.json`
-2. `output/design/design.md`
-3. `templates/prototype.html`（HTML 骨架）
-4. `references/prototype-writing.md`（写法参考）
+2. `.workflow/metadata/design/page-fields.json`（页面→字段索引，仅用于定位，不作内容源）
+3. `output/design/design.md`（逐页切片时读对应段落，不一次读全文）
+4. `output/prd/prd.md`（如已存在，作为字段对齐第二事实源）
+5. `templates/prototype.html`（HTML 骨架）
+6. `references/prototype-writing.md`（写法参考）
 
-> 页面落点和字段约束从 design.md 原文读取，不依赖 metadata JSON。
+>  fields.json/permissions.json/states.json 是 verify 脚本用的机读校验数据，**AI 不读**。AI 只从 design.md 原文逐页照抄。
+
+## 分页流水线生成策略
+
+**禁止一口气生成全量原型**——design.md 可能 120KB+、50+ 页，上下文窗口后半段必然遗忘。与 spm-prd 共用同一份 `page-fields.json` 索引，逐页生成：
+
+1. 先读 `page-fields.json` 获取全部页面→字段名列表（仅索引，无字段值）
+2. 按 design.md 页面清单顺序，逐页处理：
+   a. 从 design.md 原文中读取**当前页**的完整段落——字段列表、类型、枚举值、必填标记、权限规则、状态规则（按 page-fields.json 索引定位，每次只读 2-3KB）
+   b. **照抄**：字段类型/枚举值/必填标记/权限/状态一律从 design.md 原文照抄，不改写不推断
+   c.  PRD 已存在时，对照 PRD 同页的字段数量和名称为"第二事实源"——PRD 和原型必须字段对齐
+   d. 生成该页 HTML 片段，生成立即自检：该页字段与 design.md 原文是否一致
+3. 全部页面生成完后组装页框、导航
+4.  全量自检：所有页面字段数量总和与 design.md 原文定义是否对齐
+5. 运行 `verify-against-metadata.py`（事后安全网——脚本用 fields.json/permissions.json/states.json 做结构化对比，AI 不读这些 JSON）
+
+> **分页流水线核心：每页上下文 ~15KB，AI 只读 design.md 原文照抄。JSON 留给 verify 脚本做自动校验——AI 生成和脚本校验分两条路，互不打架。**
+
 
 ## 执行顺序
 
@@ -62,21 +60,26 @@ Read .workflow/status.json
 
 | 资源 | 路径 | 缺失时动作 |
 |------|------|-----------|
-| HTML 骨架 | `templates/prototype.html` | 🔴 停下告知用户，不凭记忆生成 |
-| CSS/JS 库 | `lib/` 目录下 daisyui-themes.css、daisyui.css、tailwind.js、vue.global.prod.js | 🔴 停下告知用户，列出缺失文件 |
+| HTML 骨架 | `templates/prototype.html` |  停下告知用户，不凭记忆生成 |
+| CSS/JS 库 | `lib/` 目录下 daisyui-themes.css、daisyui.css、tailwind.js、vue.global.prod.js |  停下告知用户，列出缺失文件 |
 | 写法参考 | `references/prototype-writing.md` | 跳过参考，按硬规则生成 |
 
-🔴 **CHECKPOINT · 资源可读性**——templates/prototype.html 和 lib/ 目录下的 CSS/JS 文件是否存在？缺失时停下告知用户具体缺失文件路径，不凭记忆生成原型。
+**CHECKPOINT · 资源可读性**——templates/prototype.html 和 lib/ 目录下的 CSS/JS 文件是否存在？缺失时停下告知用户具体缺失文件路径，不凭记忆生成原型。
 
-### 步骤 2：读取 design 基线
+### 步骤 2：分批生成（替换旧"读全文"模式）
 
-读取 `output/design/design.md`，提取：
+**不再一次性读取 design.md 全文**。改用分页流水线：
 
-1. 页面清单（全部页面名称和编号）
-2. 字段定义（每个字段的类型、枚举值、约束）
-3. 页面与字段落点（每个页面的区域/动作对应哪些字段）
-4. 状态定义（状态集合和迁移）
-5. 权限定义（角色和字段级权限）
+1. 读 `page-fields.json` → 获取全部页面及对应字段名（仅索引）
+2. 逐页处理（按 design.md 页面清单顺序）：
+   - 从 design.md 原文定位当前页段落，只读 2-3KB
+   -  所有字段类型/枚举值/必填/权限/状态一律从 design.md 原文照抄
+   - 生成当前页 HTML 片段
+   - 生成立即自检：字段与 design.md 原文一致
+3. 全部页面生成完后组装页框、导航
+4. 运行 `verify-against-metadata.py`（安全网）
+
+**CHECKPOINT · 逐页生成**——每页生成后自检字段对齐，全量组装后验证总字段数 = design.md 定义。
 
 ### 步骤 3：生成原型
 
@@ -90,14 +93,14 @@ Read .workflow/status.json
 5. 若用户已提供明确 UI 壳层稿，原型页框应优先贴近该稿复刻，不再继续抽象成另一套后台母版
 
 **组件使用规则：**
-1. 通用组件默认使用 Element Plus（中文站：https://element-plus.org/zh-CN/）对应组件能力
-2. **表格禁止使用 `el-table`**：el-table 在 Codex 内置浏览器中列全部竖向堆叠，经确认为渲染机制不兼容，无法通过 CSS 修复。所有数据表格必须使用**原生 HTML `<table>` + Vue 数据绑定**（详见 `references/prototype-writing.md`）
-3. 可直接使用的常见组件包括：`el-form`、`el-card`、`el-tabs`、`el-button`、`el-tag`、`el-dialog`、`el-drawer`、`el-pagination`
-4. `el-select` 在 Codex 浏览器中同样存在渲染问题，筛选控件使用原生 `<select>` 替代
-5. 如无明确视觉要求，不重写 Element Plus 的基础交互语义，只做版式、间距、信息层级适配
+1. 通用组件用 **daisyUI 5**（CSS-only，无 JS 依赖）——组件类名参考 `references/prototype-writing.md` 第三章
+2. **禁止任何 `el-` 前缀组件**——daisyUI 已全面替代 Element Plus
+3. 表格用原生 `<table>` + Tailwind 样式（`table table-zebra`）
+4. `select` 用原生 `<select class="select select-bordered">`
+5. 如无明确视觉要求，不重写 daisyUI 基础交互语义，只做版式、间距、信息层级适配
 
 **Dashboard / 监控面板布局规则：**
-1. 使用 CSS Grid 或 Flexbox 布局卡片，不使用 el-row/el-col
+1. 使用 CSS Grid 或 Flexbox 布局卡片
 2. 卡片内如有数据表格，超过 10 行必须分页（使用原生 `<table>` + 分页组件）
 3. 同一页面内多个卡片应合理分配宽度，避免某个卡片过窄导致内容换行或截断
 4. 卡片标题简洁，数据范围随筛选条件动态变化（如"南宁区域·3 个服务区"）
@@ -113,7 +116,7 @@ Read .workflow/status.json
 
 **资源自包含规则：**
 
-🔴 **lib/ 必须随原型一起输出**——生成完所有 HTML 后，必须把 `lib/` 复制到 `output/prototype/lib/`：
+**lib/ 必须随原型一起输出**——生成完所有 HTML 后，必须把 `lib/` 复制到 `output/prototype/lib/`：
 
 ```bash
 cp -r lib/ output/prototype/lib/
@@ -129,7 +132,7 @@ HTML 中的资源引用方式（模板已内置，无需修改）：
 <script src="lib/vue.global.prod.js"></script>
 ```
 
-🔴 不依赖外部 CDN（file:// 协议下外部资源可能加载失败）。
+ 不依赖外部 CDN（file:// 协议下外部资源可能加载失败）。
 
 ### 步骤 4：生成后自检
 
@@ -141,7 +144,7 @@ HTML 中的资源引用方式（模板已内置，无需修改）：
 | 2 | Vue 控制台无报错 | 检查控制台输出 | 排查变量丢失问题 |
 | 3 | 字符串替换格式正确 | 确认文件换行符格式（\n vs \r\n） | 用 Python 脚本按行号操作 |
 
-🔴 **CHECKPOINT · 自检通过**——自检全部通过后，才进入步骤 5 输出产物。
+**CHECKPOINT · 自检通过**——自检全部通过后，才进入步骤 5 输出产物。
 
 ### 步骤 5：输出产物
 
@@ -150,12 +153,12 @@ HTML 中的资源引用方式（模板已内置，无需修改）：
 | 序号 | 文件路径 | 说明 |
 |------|---------|------|
 | 1 | `output/prototype/index.html` | 主原型文件（或按页面拆分） |
-| 2 | `output/prototype/lib/` | 🔴 **必须复制**——从 `lib/` 复制到 `output/prototype/lib/`，使原型目录自包含 |
+| 2 | `output/prototype/lib/` | **必须复制**——从 `lib/` 复制到 `output/prototype/lib/`，使原型目录自包含 |
 | 3 | `.workflow/metadata/prototype/index.json` | 原型索引 |
 | 4 | `.workflow/metadata/prototype/page-map.json` | 页面映射 |
 | 5 | `output/prototype/prototype-feedback.md` | 可选，反馈模板 |
 
-🔴 **lib/ 复制必须在生成 HTML 后立即执行**。用 `cp -r lib/ output/prototype/lib/`（如果已有旧 lib/ 则先删除再复制）。
+**lib/ 复制必须在生成 HTML 后立即执行**。用 `cp -r lib/ output/prototype/lib/`（如果已有旧 lib/ 则先删除再复制）。
 
 生成后运行 `scripts/python/verify-against-metadata.py --stage prototype --project-root .` 校验幻觉。
 
@@ -179,7 +182,7 @@ AI 读取 `prototype-feedback.md` 后，必须先输出固定格式归类结果�
   - ...
 ```
 
-🔴 **CHECKPOINT · 归类完成**——未输出归类结果前，不得开始修改任何文件。
+**CHECKPOINT · 归类完成**——未输出归类结果前，不得开始修改任何文件。
 
 归类规则：
 
@@ -198,23 +201,7 @@ AI 读取 `prototype-feedback.md` 后，必须先输出固定格式归类结果�
 | Vue 控制台报错 | 运行时报错 | 根据错误信息定位变量丢失或组件注册问题 | 回滚并排查 |
 | 字符串替换静默失败 | \n vs \r\n 差异导致替换不生效 | 改用 Python 脚本按行号操作 | 告知用户手动替换 |
 | verify 脚本报幻觉 | `verify-against-metadata.py` 检测到 design 中不存在的字段 | 删除幻觉字段，从 design.md 重新提取 | 标注幻觉项让用户确认 |
-| el-table 渲染异常 | 使用了 el-table 导致列堆叠 | 替换为原生 `<table>` + Vue 数据绑定 | —— |
 | 反馈归类不清 | 用户反馈同时涉及表现和语义 | 拆分为两个独立修复任务 | 追问用户确认优先级 |
-
-## Shell 环境规则
-
-🔴 **硬性约束**——Codex 默认 shell 为 PowerShell，以下操作在 PowerShell 中会失败：
-
-1. **不要用 Python -c 内联复杂脚本**——引号嵌套会被 PS 解析破坏。改为写入临时 .py 文件再执行
-2. **不要用 heredoc（<< 'EOF'）**——PS 不支持 heredoc 语法
-3. **不要用 Unix 命令**（head、cat、find -maxdepth、grep）——PS 没有这些命令
-4. **不要用字符串替换修改 HTML**——\n vs \r\n 差异导致替换静默失败。改为用 Python 脚本按行号操作
-5. **需要内联 Python 时**，用以下安全模式：
-   ```python
-   # 写入临时文件再执行，避免 PS 引号问题
-   python -c "open('_tmp.py','w').write('print(1)'); exec(open('_tmp.py').read())"
-   ```
-   或直接用 Node.js（Codex 内置，无引号问题）。
 
 ## 不要做什么
 
@@ -226,7 +213,6 @@ AI 读取 `prototype-feedback.md` 后，必须先输出固定格式归类结果�
 | 4 | 语义问题只改 prototype | 语义问题源头在 design，只改原型会掩盖不一致 | 先回写 design，再同步 prototype |
 | 5 | 跳过归类直接修改 | 可能把表现问题当语义问题改，或反之 | 先输出归类结果，等确认后再改 |
 | 6 | 资源缺失时凭记忆生成 | 记忆可能过时或不准确，导致引用错误 | 停下告知用户，等资源就绪 |
-| 7 | 使用 el-table | Codex 浏览器列全部竖向堆叠，无法修复 | 用原生 `<table>` + Vue 数据绑定 |
+| 7 | 使用任何 `el-` 前缀组件 | daisyUI 已全面替代 Element Plus | 参考 `references/prototype-writing.md` 第三章 daisyUI 类名 |
 | 8 | 使用外部 CDN | file:// 协议下加载失败 | 使用本地 `output/prototype/lib/`，每次生成后复制 |
-| 9 | 使用 el-row/el-col | Codex 浏览器中表现不稳定 | 用 CSS Grid 或 Flexbox |
-| 10 | 不验证直接交付 | 可能存在渲染空白、控制台报错等问题 | 每次修改后执行步骤 4 自检 |
+| 9 | 不验证直接交付 | 可能存在渲染空白、控制台报错等问题 | 每次修改后执行步骤 4 自检 |
