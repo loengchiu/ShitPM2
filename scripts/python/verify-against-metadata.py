@@ -75,6 +75,8 @@ def verify_prd(project_root):
                      if isinstance(f, dict) and f.get("title")}
     design_pages = {p["title"]: p for p in design.get("pages", [])
                     if isinstance(p, dict) and p.get("title")}
+    design_fields_by_id = {f.get("id", ""): f for f in design.get("fields", []) if isinstance(f, dict) and f.get("id")}
+    design_pages_by_id = {p.get("id", ""): p for p in design.get("pages", []) if isinstance(p, dict) and p.get("id")}
 
     field_anchors = prd_meta.get("field_anchor", [])
     page_anchors = prd_meta.get("page_anchor", [])
@@ -83,23 +85,31 @@ def verify_prd(project_root):
     hallucinated_fields = [a["prd_field"] for a in field_anchors if not a.get("design_field")]
 
     # 缺失字段：design 字段不在任何 anchor 中
-    matched_design_fields = {a["design_field"] for a in field_anchors if a.get("design_field")}
-    missing_fields = sorted(f for f in design_fields if f not in matched_design_fields)
+    matched_design_field_titles = set()
+    for a in field_anchors:
+        did = a.get("design_field")
+        if did and did in design_fields_by_id:
+            matched_design_field_titles.add(design_fields_by_id[did]["title"])
+    missing_fields = sorted(f for f in design_fields if f not in matched_design_field_titles)
 
     # 幻觉页面：anchor 中 design_page 为空
     hallucinated_pages = [a["prd_page"] for a in page_anchors if not a.get("design_page")]
 
     # 缺失页面：design 页面不在任何 anchor 中
-    matched_design_pages = {a["design_page"] for a in page_anchors if a.get("design_page")}
-    missing_pages = sorted(p for p in design_pages if p not in matched_design_pages)
+    matched_design_page_titles = set()
+    for a in page_anchors:
+        pid = a.get("design_page")
+        if pid and pid in design_pages_by_id:
+            matched_design_page_titles.add(design_pages_by_id[pid]["title"])
+    missing_pages = sorted(p for p in design_pages if p not in matched_design_page_titles)
 
     # 约束一致性：字段类型/必填/枚举不匹配
     mismatches = []
     for a in field_anchors:
         dname = a.get("design_field")
-        if not dname or dname not in design_fields:
+        if not dname or dname not in design_fields_by_id:
             continue
-        dinfo = design_fields[dname]
+        dinfo = design_fields_by_id[dname]
         if a.get("prd_type") and dinfo.get("type") and a["prd_type"] != dinfo["type"]:
             mismatches.append({"field": a["prd_field"], "attr": "type",
                                "prd": a["prd_type"], "design": dinfo["type"]})
@@ -113,8 +123,8 @@ def verify_prd(project_root):
                                "prd": pe or "(空)", "design": de})
 
     all_h = sorted(set(hallucinated_fields + hallucinated_pages))
-    fr = len(matched_design_fields) / len(design_fields) if design_fields else 1.0
-    pr = len(matched_design_pages) / len(design_pages) if design_pages else 1.0
+    fr = len(matched_design_field_titles) / len(design_fields) if design_fields else 1.0
+    pr = len(matched_design_page_titles) / len(design_pages) if design_pages else 1.0
 
     return {
         "stage": "prd",
