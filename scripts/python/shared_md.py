@@ -85,7 +85,7 @@ def parse_tables_with_context(content: str, headings: list) -> list:
             current_section = heading_map[i + 1]
             current_section_line = i + 1
         if line.startswith("|") and "|" in line[1:] and i + 1 < len(lines):
-            sep_line = lines[i + 1].strip() if i + 1 < len(lines) else ""
+            sep_line = lines[i + 1].strip()
             if re.match(r'^\|[\s\-:|]+\|$', sep_line):
                 headers = [h.strip() for h in line.split("|")[1:-1]]
                 rows = []
@@ -161,8 +161,12 @@ def is_under_heading(table_line: int, headings: list, keyword: str) -> bool:
 
 
 def clean_page_title(title: str) -> str:
-    """去中文序号前缀：'（一）我的周报列表页' → '我的周报列表页'"""
-    cleaned = re.sub(r'^[（(][一二三四五六七八九十\d]+[）)]\s*', '', title)
+    """去编号前缀：'5.1.1.1 我的周报列表页' / '（一）我的周报列表页' → '我的周报列表页'"""
+    # 数字编号前缀（如 5.1.1.1）
+    cleaned = re.sub(r'^\d+(?:\.\d+)*\s+', '', title)
+    # 中文序号前缀（如 （一））
+    cleaned = re.sub(r'^[（(][一二三四五六七八九十\d]+[）)]\s*', '', cleaned)
+    # 单数字前缀（如 1. / 1．）
     cleaned = re.sub(r'^\d+[．.]\s*', '', cleaned)
     cleaned = re.sub(r'^page[-_\s]?\d+\s*', '', cleaned, flags=re.IGNORECASE)
     return cleaned.strip()

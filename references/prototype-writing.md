@@ -14,8 +14,8 @@
 | 未归类就开始修改 | 读完 feedback 后直接改 | 必须先输出归类结果，再开始修改 | 若无法归类，停在澄清，不直接改 |
 | 原型依赖 lib/ 缺失 | `lib/` 目录下 vue/tailwind/daisyui 缺失 | 提示用户运行 `python scripts/python/download-prototype-libs.py` | 停下，不凭记忆生成 |
 | 状态表达不完整 | 只有默认状态，缺异常/空/加载状态 | 按 design 状态定义逐个补入原型 | 若状态过多，先补核心状态，其余标注 [TODO] |
-| 页面渲染空白 | createShellApp 选项合并错误 / lib 缺失 | 1) 检查四件套 lib 引用 2) 按 references 第七章模板重写 shell | 回滚到上一可工作版本 |
-| 页面无样式 | HTML 缺 Tailwind/daisyUI 引用 | 给全部 HTML 补齐本地 lib/ 四件套引用 | —— |
+| 页面渲染空白 | createShellApp 选项合并错误 / lib 缺失 | 1) 检查四件套[^四件套] lib 引用 2) 按 references 第七章模板重写 shell | 回滚到上一可工作版本 |
+| 页面无样式 | HTML 缺 Tailwind/daisyUI 引用 | 给全部 HTML 补齐本地 lib/ 四件套[^四件套]引用 | —— |
 
 ## 反例黑名单（不要做的事）
 
@@ -25,7 +25,7 @@
 | 2 | **原型独立定义业务规则** | 与 design 不一致，造成混乱 | 原型只做展示，业务规则以 design 为准 |
 | 3 | **跳过归类直接修改** | 表现问题和语义问题的传播路径完全不同 | 必须先归类再修改 |
 | 4 | **表现问题回写 design** | 表现层反馈不应改变 design 业务定义 | 表现问题只改 prototype |
-| 5 | **使用外部 CDN** | file:// 协议下加载失败 | 使用本地 lib/ 目录四件套 |
+| 5 | **使用外部 CDN** | file:// 协议下加载失败 | 使用本地 lib/ 目录四件套[^四件套] |
 | 6 | **使用 Element Plus 组件（`el-xxx`）** | 已废弃，改用 daisyUI | 用 daisyUI 组件类（`btn`/`table`/`card` 等） |
 | 7 | **自造 createShellApp 框架** | 选项合并易出 bug（曾导致全部页面空白） | 复用 references 第七章模板 |
 | 8 | **把页面 extraData 展开到 shell 的 data()** | Vue 选项被当响应式数据，挂载报错 | 页面用独立组件 + `<component :is>` |
@@ -134,6 +134,7 @@ daisyUI 5 是 CSS-only 库，无 JS 依赖。交互态（modal/dropdown 开关�
 
 1. 必须读取 design.md
 2. 如 prd.md 已存在，还需读取：详细需求说明、状态机、权限汇总、数据字典
+3. 如存在反馈，读取 `output/prototype/prototype-feedback.md`
 
 ## 六、反馈处理
 
@@ -141,11 +142,13 @@ prototype-feedback.md 的反馈必须先归类：
 - 表现问题：只改 prototype
 - 语义问题：先回写 design，再同步
 
+生成的 `output/prototype/` 必须自包含：`lib/` 使用相对路径引用，所有资源可直接打开离线浏览。后续 spm-prototype-mark 阶段会整体复制该目录到 `output/prototypemark/`，相对路径保证复制后仍可用。
+
 ## 七、多页面 shell 写法模板（重要）
 
-> 🔴 历史教训：曾经 AI 自造 `createShellApp`，把页面传入的 `extraData` 直接展开到 `data()` 返回对象里，导致 Vue 选项（data/methods/computed）被当作响应式数据属性，页面挂载时报 `Cannot read properties of undefined`，全部空白。
+> 🔴 历史教训：曾经自造 `createShellApp`，把页面传入的 `extraData` 直接展开到 `data()` 返回对象里，导致 Vue 选项（data/methods/computed）被当作响应式数据属性，页面挂载时报 `Cannot read properties of undefined`，全部空白。
 >
-> 本节给出正确模板，AI 必须复用，不得自造 shell 框架。
+> 本节给出正确模板，必须复用，不得自造 shell 框架。
 
 ### 核心原则
 
@@ -335,3 +338,34 @@ const App = {
 // 任何叫 createShellApp 的函数都必须按本节模板的"独立组件 + <component :is>"方式实现
 ```
 
+---
+
+## 八、视觉细节规则（零成本打磨）
+
+> 目标：用一行 CSS 或一个 Tailwind 类，把原型从"能用"提到"像样"。零构建成本，纯 CSS，不引入动画。
+> 模板 `<style>` 已内置第 1/3/4 条；第 2 条通过 daisyUI 组件类间接落地（模板已定义 `--rounded-*` 变量）；第 5 条通过 Tailwind 类落地
+
+### 1. 文本换行
+- 标题用 `text-wrap: balance`（Tailwind: `text-balance`）
+- 段落用 `text-wrap: pretty`（Tailwind: `text-pretty`）
+- 避免标题孤字、段落末行单字
+
+### 2. 同心圆角
+- 嵌套元素内圆角 = 外圆角 − padding
+- 例：外卡片 `rounded-lg`（0.5rem），内元素 `rounded-md`（0.375rem）
+- 模板变量已内置层级：`--rounded-box` > `--rounded-btn` > `--rounded-selector`，生成时按此递减，不要反向
+
+### 3. 数字对齐
+- 表格、统计卡片、监控数值用 `font-variant-numeric: tabular-nums`（Tailwind: `tabular-nums`）
+- 等宽数字，列对齐整齐，避免数字跳动
+
+### 4. 字体平滑
+- 已在模板 `<style>` 内置（`-webkit-font-smoothing: antialiased`）
+- macOS 观感提升，生成时无需手动加
+
+### 5. 阴影代边框
+- 卡片优先用 `shadow-sm` 而非 `border`，层级感更柔
+- 嵌套卡片用 `shadow-md` 区分层级
+- 避免多层 `border` 堆叠造成"线条感"；确需边框时只用一层 `border border-slate-200`
+
+[^四件套]: 指 `lib/` 目录下的 `vue.global.prod.js`、`tailwind.js`、`daisyui.css`、`daisyui-themes.css` 四个本地依赖文件，所有 HTML 通过相对路径引用。

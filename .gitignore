@@ -36,6 +36,8 @@ refactor-guide-anti-hallucination.md
 # === 临时文件 ===
 _tmp_*.md
 _verify_changes.py
+# 防幻觉测试中间产物（test-anti-hallucination.py 生成）
+test-fixture/output/prd/prd-hallucination.md
 
 # === AI 助手本地工作区 ===
 .workbuddy/

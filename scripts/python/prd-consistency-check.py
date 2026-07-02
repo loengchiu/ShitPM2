@@ -74,7 +74,7 @@ def _tables_in_range(tables: list, start: int, end: int) -> list:
 
 # ── PRD 实体提取 ──────────────────────────────────────────────
 
-def extract_prd_fields(content: str, headings: list, tables: list) -> list:
+def extract_prd_fields(headings: list, tables: list) -> list:
     """从数据字典表格提取字段名（第一列）"""
     start, end, _ = _find_section_range(headings, "数据字典")
     if start is None:
@@ -90,49 +90,45 @@ def extract_prd_fields(content: str, headings: list, tables: list) -> list:
     return fields
 
 
-def extract_prd_pages(headings: list) -> list:
+def extract_prd_pages(content: str, headings: list) -> list:
     """从详细需求说明提取页面名
 
-    识别规则：
-    - ### 标题不含模块标记（（一）等）→ 页面
-    - #### 标题不含非页面标记 → 页面
-
-    过滤：跳过中文序号标题（一、二、等）和章节容器标题。
+    识别规则（新编号体系）：
+    - 页面用粗体块 `**N.N.N.N 页面名**` 表示，不再是 Markdown 标题
+    - 大模块是 `### N.N 模块名`，子模块是 `#### N.N.N 子模块名`
+    - 跳过大模块（###）和子模块（####）标题，只提取粗体块页面名
     """
     start, end, _ = _find_section_range(headings, "详细需求说明")
     if start is None:
         return []
 
-    # 章节容器标题黑名单
+    # 章节容器标题黑名单（大模块标题里出现这些词时不是页面）
     blacklist = {
         "业务流程", "核心业务流程", "状态变化", "状态流转",
         "权限汇总", "权限定义", "数据字典", "字段定义",
         "状态机", "状态定义", "验收标准", "风险与待确认",
     }
 
+    # 粗体块页面名模式：**N.N.N 页面名** 或 **N.N.N.N 页面名**
+    # N.N.N 是单子模块大模块的页面，N.N.N.N 是多子模块大模块的页面
+    page_bold_pattern = re.compile(r'^\*\*(\d+(?:\.\d+)+)\s+(.+?)\*\*\s*$')
+
     pages = []
-    for h in headings:
-        if h["line"] <= start:
+    lines = content.split('\n')
+    for i, line in enumerate(lines):
+        line_no = i + 1
+        if line_no <= start:
             continue
-        if end and h["line"] >= end:
+        if end and line_no >= end:
             break
-        if h["level"] == 3:
-            title = h["title"].strip()
-            # 跳过中文序号标题（一、二、等）
-            if re.match(r'^[一二三四五六七八九十]+[、．.]', title):
+
+        m = page_bold_pattern.match(line.strip())
+        if m:
+            page_name = m.group(2).strip()
+            if page_name in blacklist:
                 continue
-            # 跳过模块标记（（一）等）
-            if re.match(r'^[（(][一二三四五六七八九十\d]+[）)]', title):
-                continue
-            # 跳过章节容器标题
-            if title in blacklist:
-                continue
-            pages.append(clean_page_title(title))
-        elif h["level"] == 4:
-            title = h["title"].strip()
-            if "非页面落点" in title:
-                continue
-            pages.append(clean_page_title(title))
+            pages.append(clean_page_title(page_name))
+
     return pages
 
 
@@ -193,7 +189,7 @@ def extract_prd_states(content: str, headings: list, tables: list) -> list:
     return unique
 
 
-def extract_prd_permission_pages(content: str, headings: list, tables: list) -> list:
+def extract_prd_permission_pages(headings: list, tables: list) -> list:
     """从权限汇总提取页面名
 
     支持两种表格格式：
@@ -339,15 +335,15 @@ def main():
     design_permissions = load_json(meta_dir / "permissions.json") or []
 
     # 构建 title → id 映射
-    field_title_to_id = {f["title"]: f["id"] for f in design_fields if isinstance(f, dict) and "title" in f}
-    page_title_to_id = {p["title"]: p["id"] for p in design_pages if isinstance(p, dict) and "title" in p}
+    field_title_to_id = {f["title"]: f.get("id", f["title"]) for f in design_fields if isinstance(f, dict) and "title" in f}
+    page_title_to_id = {p["title"]: p.get("id", p["title"]) for p in design_pages if isinstance(p, dict) and "title" in p}
     state_title_to_id = {s["title"]: s.get("id", s["title"]) for s in design_states if isinstance(s, dict) and "title" in s}
 
     # 从 PRD 提取实体
-    prd_fields = extract_prd_fields(content, headings, tables)
-    prd_pages = extract_prd_pages(headings)
+    prd_fields = extract_prd_fields(headings, tables)
+    prd_pages = extract_prd_pages(content, headings)
     prd_states = extract_prd_states(content, headings, tables)
-    prd_perm_pages = extract_prd_permission_pages(content, headings, tables)
+    prd_perm_pages = extract_prd_permission_pages(headings, tables)
 
     # 集合对比
     field_result = compare_entities(

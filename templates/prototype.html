@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>原型 - {{项目名称}}</title>
+  <title>原型 - __PROJECT_NAME__</title>
   <link href="lib/daisyui-themes.css" rel="stylesheet" />
   <link href="lib/daisyui.css" rel="stylesheet" />
   <script src="lib/tailwind.js"></script>
@@ -27,7 +27,14 @@
       --rounded-selector: 0.25rem;
       --border-color: #e2e8f0;
     }
-    /* 使用 daisyUI table 原生类（table table-zebra table-pin-rows）代替自定义 shell-table */
+    /* 视觉细节：零成本打磨（纯 CSS） */
+    body {
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    h1, h2, h3, .card-title { text-wrap: balance; }
+    p { text-wrap: pretty; }
+    table { font-variant-numeric: tabular-nums; }
   </style>
 </head>
 <body>
@@ -37,7 +44,7 @@
       <div class="flex items-center gap-3 min-w-[200px]">
         <div class="w-7 h-7 rounded-md flex items-center justify-center text-xs font-bold" style="background:var(--color-primary);color:var(--color-primary-content)">S</div>
         <div class="flex flex-col gap-0.5">
-          <span class="text-sm font-semibold leading-tight">{{项目名称}}</span>
+          <span class="text-sm font-semibold leading-tight">__PROJECT_NAME__</span>
           <span class="text-xs text-slate-500 leading-tight">统一业务工作台</span>
         </div>
       </div>
@@ -53,16 +60,16 @@
       <div class="mb-4">
         <div class="px-3 pb-1.5 text-[11px] font-medium text-slate-400 uppercase tracking-wider">导航分组一</div>
         <ul class="menu menu-sm w-full p-0">
-          <li><a class="menu-active">首页</a></li>
-          <li><a>一级模块一</a></li>
-          <li><a>一级模块二</a></li>
+          <li><a :class="{'menu-active': currentPage === 'workspace'}" @click="go('workspace')">工作台</a></li>
+          <li><a :class="{'menu-active': currentPage === 'module1'}" @click="go('module1')">一级模块一</a></li>
+          <li><a :class="{'menu-active': currentPage === 'module2'}" @click="go('module2')">一级模块二</a></li>
         </ul>
       </div>
       <div class="mb-4">
         <div class="px-3 pb-1.5 text-[11px] font-medium text-slate-400 uppercase tracking-wider">导航分组二</div>
         <ul class="menu menu-sm w-full p-0">
-          <li><a>一级模块三</a></li>
-          <li><a>系统设置</a></li>
+          <li><a :class="{'menu-active': currentPage === 'module3'}" @click="go('module3')">一级模块三</a></li>
+          <li><a :class="{'menu-active': currentPage === 'settings'}" @click="go('settings')">系统设置</a></li>
         </ul>
       </div>
     </aside>
@@ -71,26 +78,36 @@
     <main class="flex-1 flex flex-col overflow-hidden" style="margin-left:var(--shell-sidebar-w);margin-top:var(--shell-header-h)">
       <!-- 页签栏（daisyUI tabs-bordered 原生组件） -->
       <div role="tablist" class="tabs tabs-bordered px-6 h-[52px]" style="background:var(--color-base-100)">
-        <a role="tab" class="tab tab-active gap-1">
-          <span class="truncate max-w-[160px]">当前页面名称</span>
-          <span class="text-slate-400 hover:text-slate-700 cursor-pointer leading-none">&times;</span>
-        </a>
-        <a role="tab" class="tab gap-1">
-          <span class="truncate max-w-[160px]">其他已打开页面</span>
-          <span class="text-slate-400 hover:text-slate-700 cursor-pointer leading-none">&times;</span>
+        <a v-for="key in openedTabs" :key="key"
+           role="tab"
+           class="tab gap-1"
+           :class="{'tab-active': key === currentPage}"
+           @click="go(key)">
+          <span class="truncate max-w-[160px]">{{ pages[key].label }}</span>
+          <span class="text-slate-400 hover:text-slate-700 cursor-pointer leading-none"
+                @click.stop="closeTab(key)">&times;</span>
         </a>
       </div>
 
-      <!-- 工作区 -->
+      <!-- 工作区：动态渲染当前页组件 -->
       <div class="flex-1 overflow-y-auto p-6">
+        <component :is="currentPageComponent"></component>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // 示例页面组件：工作台（展示基本结构，作为占位参考）
+    const PageWorkspace = {
+      template: `
         <div class="flex flex-col gap-4">
-          <div class="card border shadow-sm" style="background:var(--color-base-100);border-color:var(--border-color)">
+          <div class="card shadow-sm" style="background:var(--color-base-100)">
             <div class="card-body p-4">
               <h2 class="card-title text-sm font-medium">查询条件</h2>
               <div class="h-16 rounded border border-dashed border-slate-200 flex items-center justify-center text-sm text-slate-400">查询区占位</div>
             </div>
           </div>
-          <div class="card border shadow-sm min-h-[400px]" style="background:var(--color-base-100);border-color:var(--border-color)">
+          <div class="card shadow-sm min-h-[400px]" style="background:var(--color-base-100)">
             <div class="card-body p-4 flex items-center justify-center">
               <div class="text-center text-slate-400">
                 <p class="text-sm">承载当前页面真正的业务内容</p>
@@ -99,15 +116,64 @@
             </div>
           </div>
         </div>
-      </div>
-    </main>
-  </div>
+      `
+    };
 
-  <script>
-    const app = Vue.createApp({
-      data() { return {}; }
-    });
-    app.mount('#app');
+    // 占位页面组件（其它模块共用）
+    const PagePlaceholder = {
+      template: `
+        <div class="card shadow-sm min-h-[400px]" style="background:var(--color-base-100)">
+          <div class="card-body p-4 flex items-center justify-center">
+            <div class="text-center text-slate-400">
+              <p class="text-sm">页面占位</p>
+              <p class="text-xs mt-1">替换为当前模块业务内容</p>
+            </div>
+          </div>
+        </div>
+      `
+    };
+
+    // shell：只管路由 + 渲染容器，不持有页面业务数据
+    const App = {
+      data() {
+        return {
+          currentPage: 'workspace',
+          openedTabs: ['workspace'],
+          pages: {
+            workspace: { label: '工作台', component: PageWorkspace },
+            module1: { label: '一级模块一', component: PagePlaceholder },
+            module2: { label: '一级模块二', component: PagePlaceholder },
+            module3: { label: '一级模块三', component: PagePlaceholder },
+            settings: { label: '系统设置', component: PagePlaceholder }
+          }
+        };
+      },
+      computed: {
+        currentPageComponent() {
+          return this.pages[this.currentPage].component;
+        }
+      },
+      methods: {
+        go(pageKey) {
+          this.currentPage = pageKey;
+          if (!this.openedTabs.includes(pageKey)) {
+            this.openedTabs.push(pageKey);
+          }
+        },
+        closeTab(pageKey) {
+          const idx = this.openedTabs.indexOf(pageKey);
+          if (idx === -1) return;
+          this.openedTabs.splice(idx, 1);
+          if (this.currentPage === pageKey) {
+            if (this.openedTabs.length > 0) {
+              this.currentPage = this.openedTabs[Math.max(0, idx - 1)];
+            }
+          }
+        }
+      }
+    };
+
+    Vue.createApp(App).mount('#app');
   </script>
 </body>
 </html>

@@ -80,11 +80,6 @@ def read_existing_entities(stage: str, project_root: Path) -> tuple:
     if not metadata_dir.exists():
         return title_to_id, max_ids
 
-    # type → 合法前缀集合（一个 type 只接受对应前缀）
-    type_prefixes = {etype: {prefix} for etype, prefix in ID_PREFIXES.items()}
-    # 反向：前缀 → type，用于校验已有 ID 的前缀是否与文件声明的 type 一致
-    prefix_to_type = {prefix: etype for etype, prefix in ID_PREFIXES.items()}
-
     id_pattern = re.compile(r'^(MODULE|PAGE|FIELD|RULE|FLOW|REL|PERM|STATE)-' + re.escape(stage) + r'-(\d{3})$')
     for json_file in metadata_dir.glob("*.json"):
         try:
@@ -322,10 +317,9 @@ def _split_field_tokens(raw_text: str) -> list:
     return tokens
 
 
-# 状态列表项模式：- `draft`：草稿 / - draft：草稿 / - draft: 草稿
-_STATE_LIST_PATTERN = re.compile(r'^[-*]\s*`?([^`：:\s]+)`?\s*[：:]\s*(.+)$')
-# 权限列表项模式：- `member`：可查看... / - member：可查看...
-_PERM_LIST_PATTERN = re.compile(r'^[-*]\s*`?([^`：:\s]+)`?\s*[：:]\s*(.+)$')
+# 键值列表项模式：- `key`：value / - key：value / - key: value
+# 同时用于状态集合（key=状态名，value=含义）和权限列表（key=角色，value=动作）
+_KEY_VALUE_LIST_PATTERN = re.compile(r'^[-*]\s*`?([^`：:\s]+)`?\s*[：:]\s*(.+)$')
 # 状态章节关键词
 _STATE_SECTION_KEYWORDS = ("状态集合", "状态定义", "状态流转", "状态机", "规则与状态")
 # 权限章节关键词
@@ -357,7 +351,7 @@ def _extract_states_from_content(content: str) -> list:
             continue
         if not in_state_section:
             continue
-        match = _STATE_LIST_PATTERN.match(stripped)
+        match = _KEY_VALUE_LIST_PATTERN.match(stripped)
         if match:
             state_name = match.group(1).strip()
             state_desc = match.group(2).strip()
@@ -399,7 +393,7 @@ def _extract_permissions_from_content(content: str) -> list:
             continue
         if not in_perm_section:
             continue
-        match = _PERM_LIST_PATTERN.match(stripped)
+        match = _KEY_VALUE_LIST_PATTERN.match(stripped)
         if match and current_page:
             role = match.group(1).strip()
             action = match.group(2).strip()
@@ -561,19 +555,10 @@ def generate_align_metadata(content: str, project_root: Path) -> dict:
         "context_gaps": [],
     }
 
-    entities = {
-        "system_or_page_clues": [],
-        "material_paths": [],
-        "confirmed_roles": [],
-        "confirmed_scenes": [],
-        "confirmed_objects": [],
-    }
-
     relations = []
 
     return {
         "index": index,
-        "entities": entities,
         "relations": relations,
     }
 
@@ -871,6 +856,18 @@ def update_status(stage: str, project_root: Path, dry_run: bool = False):
 
     if base_next == "done":
         status["next_recommended"] = "done"
+    elif stage == "align":
+        # align 阶段无 review 子阶段，基于 align-notes.json 的 can_enter_design 判断
+        align_notes_path = project_root / ".workflow" / "runtime" / "align" / "align-notes.json"
+        can_enter_design = False
+        if align_notes_path.exists():
+            try:
+                with open(align_notes_path, encoding="utf-8") as f:
+                    align_notes = json.load(f)
+                can_enter_design = bool(align_notes.get("can_enter_design", False))
+            except (json.JSONDecodeError, OSError):
+                pass
+        status["next_recommended"] = "design" if can_enter_design else "align"
     else:
         latest_review = status.get("latest_reviews", {}).get(stage, {})
         if latest_review.get("verdict") == "通过":
@@ -879,29 +876,31 @@ def update_status(stage: str, project_root: Path, dry_run: bool = False):
             status["next_recommended"] = f"{stage}-review"
 
     # 读取当前阶段的 review 文件，取最新的 verdict 和 reviewed_at
-    reviews_dir = project_root / ".workflow" / "reviews"
-    if reviews_dir.exists():
-        review_prefix = f"{stage}-review"
-        matching_reviews = []
-        for review_file in reviews_dir.glob(f"{review_prefix}*.json"):
-            try:
-                with open(review_file, encoding="utf-8") as f:
-                    review_data = json.load(f)
-                matching_reviews.append({
-                    "file": review_file.name,
-                    "verdict": review_data.get("verdict"),
-                    "reviewed_at": review_data.get("reviewed_at"),
-                })
-            except (json.JSONDecodeError, OSError):
-                continue
-        if matching_reviews:
-            # 按 reviewed_at 排序，取最新
-            matching_reviews.sort(key=lambda r: r.get("reviewed_at") or "", reverse=True)
-            latest = matching_reviews[0]
-            status.setdefault("latest_reviews", {})[stage] = {
-                "verdict": latest["verdict"],
-                "reviewed_at": latest["reviewed_at"],
-            }
+    # align 阶段无 review 子阶段，跳过
+    if stage in ("design", "prd", "prototype"):
+        reviews_dir = project_root / ".workflow" / "reviews"
+        if reviews_dir.exists():
+            review_prefix = f"{stage}-review"
+            matching_reviews = []
+            for review_file in reviews_dir.glob(f"{review_prefix}*.json"):
+                try:
+                    with open(review_file, encoding="utf-8") as f:
+                        review_data = json.load(f)
+                    matching_reviews.append({
+                        "file": review_file.name,
+                        "verdict": review_data.get("verdict"),
+                        "reviewed_at": review_data.get("reviewed_at"),
+                    })
+                except (json.JSONDecodeError, OSError):
+                    continue
+            if matching_reviews:
+                # 按 reviewed_at 排序，取最新
+                matching_reviews.sort(key=lambda r: r.get("reviewed_at") or "", reverse=True)
+                latest = matching_reviews[0]
+                status.setdefault("latest_reviews", {})[stage] = {
+                    "verdict": latest["verdict"],
+                    "reviewed_at": latest["reviewed_at"],
+                }
 
     with open(status_path, "w", encoding="utf-8") as f:
         json.dump(status, f, ensure_ascii=False, indent=2)

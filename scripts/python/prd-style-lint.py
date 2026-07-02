@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """prd-style-lint.py — PRD 文风 lint 脚本
 
-职责：检查 PRD 正文中可机械识别的 8 类问题。
+职责：检查 PRD 正文中可机械识别的 9 类问题。
 不做业务语义判断，不做全文重写。
 
 用法：python prd-style-lint.py <prd_file_path> [--format text|json] [--output <path>]
@@ -15,6 +15,7 @@
   STYLE006 - 机读字段泄漏
   STYLE007 - AI 痕迹
   STYLE008 - 占位符
+  STYLE009 - 名词说明章节缺失
 """
 
 import json
@@ -52,7 +53,18 @@ for _expr in _LABEL_EXPRS:
     _pat = r'\*\*' + re.escape(_name) + r'[：:]\*\*'
     LABEL_PATTERNS.append((_pat, f"{_name}标签"))
 
-PLACEHOLDER_PATTERNS = [w for w in _PROFILE_FORBIDDEN if not w.startswith("**")] or [
+# 原因腔词：从 forbidden_expressions 中识别，单独检查以避免误报正常描述
+# "方便用户""避免用户" 后接动词才是原因腔；"需支持""需考虑" 后接标点或行尾才是占位符
+_CAUSE_VERB_CHARS = "操|作|查|看|浏|览|输|入|编|辑|删|除|添|加|修|改|选|择|点|击|提|交|保|存|取|消|关|闭|打|开|使|用"
+CAUSE_PHRASE_PATTERNS = {
+    "方便用户": re.compile(r'方便用户(?:' + _CAUSE_VERB_CHARS + r')'),
+    "避免用户": re.compile(r'避免用户(?:' + _CAUSE_VERB_CHARS + r')'),
+    "需支持": re.compile(r'需支持(?:[。，；、,\s]|$)'),
+    "需考虑": re.compile(r'需考虑(?:[。，；、,\s]|$)'),
+}
+_CAUSE_PHRASE_WORDS = set(CAUSE_PHRASE_PATTERNS.keys())
+
+PLACEHOLDER_PATTERNS = [w for w in _PROFILE_FORBIDDEN if not w.startswith("**") and w not in _CAUSE_PHRASE_WORDS] or [
     "待定", "待补充", "TBD", "TODO",
 ]
 PLACEHOLDER_RULES = {
@@ -87,7 +99,9 @@ def check_label_style(lines: list) -> list:
 def check_action_list(lines: list) -> list:
     """STYLE002: 检查动作流水账特征
 
-    特征：连续 3+ 个编号步骤，每步以动词开头且行很短
+    特征：连续 3+ 个数字编号短步骤（`1.` `2.` `3.`），行很短（< 50 字符）。
+    新编号体系下页面动作用 `·` 并列项，不触发本规则；
+    本规则主要针对业务流程/处理链路里用 `1. 2. 3.` 写成的步骤流水账。
     """
     issues = []
     consecutive_steps = 0
@@ -95,7 +109,7 @@ def check_action_list(lines: list) -> list:
 
     for i, line in enumerate(lines):
         stripped = line.strip()
-        if re.match(r'^(\d+\.|（\d+）)\s*\S', stripped) and len(stripped) < 50:
+        if re.match(r'^\d+\.\s*\S', stripped) and len(stripped) < 50:
             if consecutive_steps == 0:
                 step_start_line = i + 1
             consecutive_steps += 1
@@ -177,7 +191,11 @@ def check_table_dominance(lines: list) -> list:
 
 
 def check_duplicate_page_ids(lines: list) -> list:
-    """STYLE004: 检查重复页面编号"""
+    """STYLE004: 检查重复页面编号
+
+    新编号体系下，页面用粗体块 `**N.N.N.N 页面名**` 表示。
+    检查粗体块中的编号是否重复。
+    """
     issues = []
     page_ids = {}
 
@@ -196,7 +214,8 @@ def check_duplicate_page_ids(lines: list) -> list:
         if not in_detail:
             continue
 
-        match = re.match(r'^#{2,4}\s+(\d+(?:\.\d+)*)\s*[\.、．]', stripped)
+        # 匹配粗体块页面：**N.N.N 页面名** 或 **N.N.N.N 页面名**
+        match = re.match(r'^\*\*(\d+(?:\.\d+)+)\s+.+?\*\*\s*$', stripped)
         if match:
             pid = match.group(1)
             if pid in page_ids:
@@ -262,8 +281,29 @@ def check_ai_traces(lines: list) -> list:
     return issues
 
 
+def check_cause_phrase(lines: list) -> list:
+    """检查原因腔表述（属于 STYLE008 的子检查）
+
+    "方便用户""避免用户""需支持""需考虑"等词在 forbidden_expressions 中，
+    但用 `in line` 匹配会误报正常描述（如"需支持多种场景"）。
+    本检查用更精确的匹配：原因腔词后接特定上下文才报。
+    """
+    issues = []
+    for i, line in enumerate(lines):
+        for word, pattern in CAUSE_PHRASE_PATTERNS.items():
+            if pattern.search(line):
+                issues.append(Issue(
+                    code="STYLE008",
+                    severity="warning",
+                    line=i + 1,
+                    message=f"原因腔表述：发现 '{word}'",
+                    suggestion="改用具体规则描述，不用原因腔",
+                ))
+    return issues
+
+
 def check_placeholders(lines: list) -> list:
-    """STYLE008: 检查占位符"""
+    """STYLE008: 检查占位符与原因腔表述"""
     issues = []
     for i, line in enumerate(lines):
         for pattern in PLACEHOLDER_PATTERNS:
@@ -285,6 +325,33 @@ def check_placeholders(lines: list) -> list:
                     message=f"占位符：发现 '{pattern}'",
                     suggestion="填写具体内容，不得使用占位符",
                 ))
+    # 原因腔词单独检查，避免误报正常描述
+    issues.extend(check_cause_phrase(lines))
+    return issues
+
+
+def check_glossary_section(lines: list) -> list:
+    """STYLE009: 检查名词说明章节存在性
+
+    PRD 必须包含"名词说明"章节（别名"术语说明"），
+    让研发在进入详细需求前建立统一术语认知。
+    """
+    issues = []
+    has_glossary = False
+    for line in lines:
+        stripped = line.strip()
+        if re.match(r'^#{1,2}\s.*名词说明', stripped) or re.match(r'^#{1,2}\s.*术语说明', stripped):
+            has_glossary = True
+            break
+
+    if not has_glossary:
+        issues.append(Issue(
+            code="STYLE009",
+            severity="error",
+            line=1,
+            message="缺少名词说明章节",
+            suggestion="在文档概述之后、范围之前新增名词说明章节，按类别分组列出业务术语",
+        ))
     return issues
 
 
@@ -297,6 +364,7 @@ ALL_CHECKS = [
     check_stable_id_leak,
     check_ai_traces,
     check_placeholders,
+    check_glossary_section,
 ]
 
 
