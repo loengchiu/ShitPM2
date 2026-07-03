@@ -15,10 +15,9 @@ description: "PRD review——判断 PRD 正文质量。用于用户说 prd revi
 
 1. `scripts/python/review-precheck.py --stage prd --no-metadata --stdin-artifact`（agent 已读 prd.md，stdin 传入）→ `.workflow/runtime/prd/review-precheck.json`
 2.  脚本失败或 `can_start_review=false` → 停止，输出阻塞项
-3. 检查核心章节：详细需求说明/权限汇总/数据字典/状态机
+3. 检查核心章节：详细需求说明（含每个小模块末尾的字段/状态机归位 + 大模块开头的权限规则归位）
 4. 运行 `scripts/python/prd-style-lint.py` 检查文风
-5. 检查数据字典使用约定轻量格式
-6. 检查 prd.md 无稳定 ID 泄漏
+5. 检查 prd.md 无稳定 ID 泄漏
 
  有阻塞问题 → 停止，不进入第二段。
 
@@ -44,7 +43,7 @@ description: "PRD review——判断 PRD 正文质量。用于用户说 prd revi
    - 脚本报告的 missing 项 = P1（缺失率 > 50% 升级 P0）
    - LLM 发现的规则缺失 = P1
 
-4. **结构**：状态机按核心业务对象组织，含状态集合/迁移/触发动作和限制条件；权限汇总含页面级/按钮级权限
+4. **结构**：每个小模块末尾含字段定义、状态机归位内容；大模块开头含权限规则归位；状态机按核心业务对象组织，含状态集合/迁移/触发动作和限制条件；权限规则含页面级/按钮级权限
 
 ## 判定规则
 

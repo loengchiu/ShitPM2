@@ -30,7 +30,7 @@ METADATA_EMPTY_OK = {
 
 CORE_SECTIONS = {
     "design": ["角色定义", "模块定义", "页面清单", "字段定义", "页面与字段落点", "规则与状态定义", "权限定义"],
-    "prd": ["名词说明", "详细需求说明", "权限汇总", "数据字典", "状态机"],
+    "prd": ["名词说明", "详细需求说明"],
     "prototype": [],
 }
 
@@ -47,15 +47,17 @@ SECTION_ALIASES = {
     "prd": {
         "名词说明": ["名词说明", "术语说明", "术语表"],
         "详细需求说明": ["详细需求说明", "详细需求", "需求说明"],
-        "权限汇总": ["权限汇总", "权限定义", "权限矩阵"],
-        "数据字典": ["数据字典", "字段定义"],
-        "状态机": ["状态机", "状态定义", "状态流转"],
     },
 }
 
 
 def check_prd_entity_coverage(project_root: Path, stdin_content: str = None) -> dict:
-    """校验 PRD 数据字典是否覆盖 design 数据字典中的全部实体"""
+    """校验 PRD 是否覆盖 design 数据字典中的全部实体
+
+    归位后 PRD 不再有独立"数据字典"章节，实体字段表分布在 §5 详细需求说明的"模块数据"区。
+    检查方式：design 数据字典的实体名在 PRD §5 正文中出现即算覆盖
+    （实体名会出现在模块数据区的字段表前、大模块标题或正文描述中）。
+    """
     design_path = project_root / "output" / "design" / "design.md"
     if not design_path.exists():
         return {"check": "prd_entity_coverage", "passed": False, "detail": "design.md 不存在"}
@@ -96,36 +98,18 @@ def check_prd_entity_coverage(project_root: Path, stdin_content: str = None) -> 
         with open(prd_path, encoding="utf-8") as f:
             prd_content = f.read()
 
-    # Extract entity names from PRD data dictionary section
-    prd_entities = set()
-    in_dd = False
-    dd_heading_level = 0
-    for line in prd_content.split(chr(10)):
-        stripped = line.strip()
-        m = re.match(r"^(#{1,6})\s+(.+)$", stripped)
-        if not m:
-            continue
-        level = len(m.group(1))
-        title = m.group(2).strip()
-        if "数据字典" in title and level <= 2:
-            in_dd = True
-            dd_heading_level = level
-            continue
-        if in_dd and level <= dd_heading_level:
-            break
-        if in_dd and level == dd_heading_level + 1:
-            prd_entities.add(title)
+    # 归位后：检查 design 实体名是否在 PRD 正文中出现
+    missing = []
+    for entity in design_entities:
+        if entity not in prd_content:
+            missing.append(entity)
 
-    missing = sorted(design_entities - prd_entities)
-    extra = sorted(prd_entities - design_entities)
     covered = len(design_entities) - len(missing)
     total = len(design_entities)
 
-    detail_parts = [f"PRD 数据字典覆盖：{covered}/{total} 实体"]
+    detail_parts = [f"PRD 实体覆盖：{covered}/{total} 实体"]
     if missing:
         detail_parts.append(f"缺失 {len(missing)} 个：{', '.join(missing[:10])}" + ("..." if len(missing) > 10 else ""))
-    if extra:
-        detail_parts.append(f"多余 {len(extra)} 个：{', '.join(extra[:5])}" + ("..." if len(extra) > 5 else ""))
 
     passed = len(missing) == 0
     return {

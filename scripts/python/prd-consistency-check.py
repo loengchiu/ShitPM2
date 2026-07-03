@@ -28,10 +28,8 @@ from shared_md import (
 )
 
 # PRD 章节别名
+# 字段/状态/权限不再有独立章节，归位到 §5 详细需求说明的"模块数据"区
 SECTION_ALIASES = {
-    "数据字典": ["数据字典", "字段定义", "字段清单"],
-    "权限汇总": ["权限汇总", "权限定义", "权限矩阵"],
-    "状态机": ["状态机", "状态定义", "状态流转"],
     "详细需求说明": ["详细需求说明", "详细需求", "需求说明"],
 }
 
@@ -75,14 +73,23 @@ def _tables_in_range(tables: list, start: int, end: int) -> list:
 # ── PRD 实体提取 ──────────────────────────────────────────────
 
 def extract_prd_fields(headings: list, tables: list) -> list:
-    """从数据字典表格提取字段名（第一列）"""
-    start, end, _ = _find_section_range(headings, "数据字典")
+    """从 §5 详细需求说明的"模块数据"区提取字段名（第一列）
+
+    归位后字段表分布在各模块末尾的"模块数据"区，不再有独立"数据字典"章节。
+    识别规则：在详细需求说明章节范围内，表头含"字段"和"类型"的表视为字段定义表。
+    """
+    start, end, _ = _find_section_range(headings, "详细需求说明")
     if start is None:
         return []
 
     fields = []
     for table in _tables_in_range(tables, start, end):
-        if not table["rows"]:
+        headers = table.get("headers", [])
+        if not headers:
+            continue
+        # 字段定义表的特征：表头含"字段"和"类型"
+        header_text = "|".join(headers)
+        if "字段" not in header_text or "类型" not in header_text:
             continue
         for row in table["rows"]:
             if row and row[0] and row[0] not in ("---", "字段"):
@@ -133,19 +140,19 @@ def extract_prd_pages(content: str, headings: list) -> list:
 
 
 def extract_prd_states(content: str, headings: list, tables: list) -> list:
-    """从状态机提取状态名
+    """从 §5 详细需求说明的"模块数据"区提取状态名
 
-    覆盖两种格式：
-    1. 箭头文本: state1 → state2 → state3
-    2. 表格: | 状态 | 含义 | ... |
+    归位后状态机表分布在各模块末尾的"模块数据"区，不再有独立"状态机"章节。
+    识别规则：在详细需求说明章节范围内，表头同时含"状态"和"触发动作"的表视为状态机表。
+    同时兼容箭头文本格式（state1 → state2）。
     """
-    start, end, _ = _find_section_range(headings, "状态机")
+    start, end, _ = _find_section_range(headings, "详细需求说明")
     if start is None:
         return []
 
     states = []
 
-    # 格式 1: 箭头文本（→ 或 ->）
+    # 格式 1: 箭头文本（→ 或 ->）——在详细需求说明范围内扫描
     lines = content.split("\n")
     for i, line in enumerate(lines):
         line_no = i + 1
@@ -165,9 +172,14 @@ def extract_prd_states(content: str, headings: list, tables: list) -> list:
                 if p and p not in ("—", "-", "N/A"):
                     states.append(p)
 
-    # 格式 2: 表格（"当前状态"/"状态"+"目标状态"/"下一状态"列）
+    # 格式 2: 状态机表格——表头同时含"状态"和"触发动作"
     for table in _tables_in_range(tables, start, end):
-        headers = table["headers"]
+        headers = table.get("headers", [])
+        if not headers:
+            continue
+        header_text = "|".join(headers)
+        if "状态" not in header_text or "触发动作" not in header_text:
+            continue
         # 找所有含"状态"的列（当前状态、目标状态、下一状态等）
         state_cols = [i for i, h in enumerate(headers) if "状态" in h]
         if not state_cols:
@@ -190,35 +202,34 @@ def extract_prd_states(content: str, headings: list, tables: list) -> list:
 
 
 def extract_prd_permission_pages(headings: list, tables: list) -> list:
-    """从权限汇总提取页面名
+    """从 §5 详细需求说明提取大模块名作为权限页面覆盖检查的来源
 
-    支持两种表格格式：
-    - 格式 A（页面为行）：第一列=页面名，表头=角色名
-    - 格式 B（角色为行）：第一列=角色名，表头=页面名
+    权限规则归位到每个大模块末尾的"模块数据"区，不再有独立"权限汇总"章节。
+    识别规则：在详细需求说明章节范围内，提取所有 `### N.N xxx` 大模块标题。
+    design permissions.json 的 page 字段是模块名（如"审计计划""项目启动"），
+    与 PRD 的大模块标题对应。
     """
-    start, end, _ = _find_section_range(headings, "权限汇总")
+    start, end, _ = _find_section_range(headings, "详细需求说明")
     if start is None:
         return []
 
     pages = []
-    for table in _tables_in_range(tables, start, end):
-        if len(table["headers"]) < 2:
+    for h in headings:
+        if h["line"] < start:
             continue
-        first_header = table["headers"][0].strip()
-        # 格式 B：第一列表头是"角色"→ 页面名在表头（第二列起）
-        if "角色" in first_header:
-            for h in table["headers"][1:]:
-                page = clean_page_title(h.strip())
-                if page:
-                    pages.append(page)
-        else:
-            # 格式 A：第一列=页面名
-            for row in table["rows"]:
-                if not row or not row[0] or row[0] in ("---", "页面"):
-                    continue
-                page = clean_page_title(row[0].strip())
-                if page:
-                    pages.append(page)
+        if end and h["line"] >= end:
+            continue
+        # 大模块标题：### N.N xxx（level 3）
+        if h["level"] != 3:
+            continue
+        title = h["title"]
+        # 去掉编号前缀
+        cleaned = re.sub(r'^\d+\.\d+\s*', '', title).strip()
+        # 去掉尾部的"模块"二字
+        if cleaned.endswith("模块"):
+            cleaned = cleaned[:-2].strip()
+        if cleaned:
+            pages.append(cleaned)
     return pages
 
 
