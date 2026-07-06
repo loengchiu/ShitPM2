@@ -199,7 +199,7 @@ def check_duplicate_page_ids(lines: list) -> list:
     issues = []
     page_ids = {}
 
-    # 只在详细需求说明章节内检查，避免数据字典等章节误报
+    # 只在详细需求说明章节内检查，避免字段定义表等误报
     in_detail = False
     for i, line in enumerate(lines):
         stripped = line.strip()

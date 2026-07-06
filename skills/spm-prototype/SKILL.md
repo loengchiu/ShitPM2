@@ -13,7 +13,7 @@ description: "原型阶段——把 design 或 PRD 的页面行为表达成可�
 ## 输入依赖
 
 1. 必须读取：`output/design/design.md`
-2. 如已存在，还需读取：`output/prd/prd.md` 中的详细需求说明、状态机、权限汇总、数据字典
+2. 如已存在，还需读取：`output/prd/prd.md` 中的详细需求说明（含字段定义表、状态机表、权限规则）
 3. 如存在反馈，读取：`output/prototype/prototype-feedback.md`
 
 ## 最小读取集合
@@ -60,18 +60,17 @@ description: "原型阶段——把 design 或 PRD 的页面行为表达成可�
 
 **CHECKPOINT · 资源可读性**——templates/prototype.html 和 lib/ 目录下的 CSS/JS 文件是否存在？缺失时停下告知用户具体缺失文件路径，不凭记忆生成原型。
 
-### 步骤 2：分批生成（替换旧"读全文"模式）
+### 步骤 2：分页流水线策略
 
-**不再一次性读取 design.md 全文**。改用分页流水线：
+**禁止一次性读取 design.md 全文**。按以下策略逐页生成：
 
 1. 读 `page-fields.json` → 获取全部页面及对应字段名（仅索引）
 2. 逐页处理（按 design.md 页面清单顺序）：
    - 从 design.md 原文定位当前页段落，只读 2-3KB
-   -  所有字段类型/枚举值/必填/权限/状态一律从 design.md 原文照抄
+   - 所有字段类型/枚举值/必填/权限/状态一律从 design.md 原文照抄
    - 生成当前页 HTML 片段
    - 生成立即自检：字段与 design.md 原文一致
 3. 全部页面生成完后组装页框、导航
-4. 运行 `verify-against-metadata.py`（结构完整性安全网，只校验 schema + ID 唯一性）
 
 **CHECKPOINT · 逐页生成**——每页生成后自检字段对齐，全量组装后验证总字段数 = design.md 定义。
 
@@ -108,26 +107,6 @@ description: "原型阶段——把 design 或 PRD 的页面行为表达成可�
 5. 页面名称默认放在主体区顶部的页签条中表达；页签支持关闭按钮，不再另起一块大页头重复写页面标题
 6. 模板中的查询工具条、卡片容器、留白区域只用于示意内容层级，不代表所有页面都必须有查询条件或工具栏
 
-**资源自包含规则：**
-
-**lib/ 必须随原型一起输出**——生成完所有 HTML 后，必须把 `lib/` 复制到 `output/prototype/lib/`：
-
-```bash
-cp -r lib/ output/prototype/lib/
-```
-
-这样 `output/prototype/` 目录自包含、可独立复制到任意路径打开使用。HTML 模板中已使用相对路径 `lib/xxx`，无需调整。
-
-HTML 中的资源引用方式（模板已内置，无需修改）：
-```
-<link href="lib/daisyui-themes.css" rel="stylesheet" />
-<link href="lib/daisyui.css" rel="stylesheet" />
-<script src="lib/tailwind.js"></script>
-<script src="lib/vue.global.prod.js"></script>
-```
-
- 不依赖外部 CDN（file:// 协议下外部资源可能加载失败）。
-
 ### 步骤 4：生成后自检
 
 每次生成或修改原型 HTML 后，必须执行以下自检：
@@ -136,7 +115,6 @@ HTML 中的资源引用方式（模板已内置，无需修改）：
 |------|--------|---------|------------|
 | 1 | 页面能正常渲染 | 在浏览器中打开验证 | 立即回滚到修改前版本 |
 | 2 | Vue 控制台无报错 | 检查控制台输出 | 排查变量丢失问题 |
-| 3 | 字符串替换格式正确 | 确认文件换行符格式（\n vs \r\n） | 用 Python 脚本按行号操作 |
 
 **CHECKPOINT · 自检通过**——自检全部通过后，才进入步骤 5 输出产物。
 

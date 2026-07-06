@@ -60,13 +60,165 @@ cp -r output/prototype/ output/prototypemark/
 
 ## 步骤 5：注入标注系统
 
-对 `output/prototypemark/` 下**每个** `.html` 文件的 `</body>` 前注入 `<style>` + `<script>` 块，包含：
+对 `output/prototypemark/` 下**每个** `.html` 文件的 `</body>` 前注入 `<style>` + `<script>` 块。
 
-1. **CSS**：角标样式 + 浮窗样式（见视觉规范）
-2. **标注数据**：`<script>var __PM_ANNOTATIONS = {...};</script>`
-3. **标注运行时 JS**：角标渲染、浮窗管理、拖拽、Markdown 解析
+### 5.1 角标样式
 
-注入方式：用 Edit 工具在 `</body>` 前插入。
+```css
+.pm-badge {
+  display: inline-block;
+  background: rgb(250, 173, 20); color: #fff;
+  font-size: 10px; font-weight: 700; line-height: 14px;
+  padding: 0 4px; border-radius: 2px; cursor: pointer;
+  position: fixed; z-index: 9998;
+  pointer-events: auto;
+}
+```
+
+### 5.2 定位策略（硬规则）
+
+**一律使用 `position: fixed` + `document.body` 挂载。**
+
+- 角标 DOM 全部 `document.body.appendChild(badge)`，不插入目标元素内部。
+- 通过目标元素的 `getBoundingClientRect()` 计算全局坐标：
+  - `top = rect.top - 8`
+  - `left = rect.right - 14`（角标右边缘对齐目标元素右边缘，留 4px 间距）
+- **scroll/resize 事件**：只更新已有角标的坐标（轻量），不全量重建。
+- **禁止使用 `position: absolute`**。禁止将角标插入目标元素内部。
+
+### 5.3 浮窗样式
+
+```css
+.pm-popup {
+  background: #f0efef; border-radius: 4px; width: 450px; max-width: 90vw;
+  max-height: 80vh; overflow-y: auto;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.15); z-index: 99999;
+  position: fixed; display: none;
+}
+```
+- X 关闭按钮：`position: sticky; top: 0; float: right;`，始终可见。
+- **标题栏格式**：`[N] 模块名称`（如 `[1] 筛选条件区`），编号在前、标题在后，badge 样式与角标一致。
+
+### 5.4 多容器场景与 DOM 变更处理
+
+当原型包含抽屉（Drawer）、弹窗（Modal/Dialog）等叠加层时，需要处理容器可见性和 DOM 变更。
+
+**容器归属检测**——渲染角标时检测目标元素所在容器：
+
+```js
+function getContainerClass(targetEl) {
+  if (targetEl.closest('.drawer-panel, .ant-drawer, .el-drawer, [class*="drawer"]')) return 'pm-badge-in-drawer';
+  if (targetEl.closest('.modal, .ant-modal, .el-dialog, [class*="modal"], [class*="dialog"]')) return 'pm-badge-in-modal';
+  return 'pm-badge-in-page';
+}
+```
+
+给角标 DOM 添加对应 class：`pm-badge-in-page` / `pm-badge-in-drawer` / `pm-badge-in-modal`。
+
+**容器可见性控制 CSS**：
+
+```css
+body.pm-drawer-open .pm-badge.pm-badge-in-page { display: none; }
+body.pm-modal-open .pm-badge.pm-badge-in-page { display: none; }
+body:not(.pm-drawer-open) .pm-badge.pm-badge-in-drawer { display: none; }
+body:not(.pm-modal-open) .pm-badge.pm-badge-in-modal { display: none; }
+```
+
+**统一 DOM 变更处理**——用一个 MutationObserver 同时处理容器状态同步和角标重渲染：
+
+```js
+let rafId = null;
+let domObserver = null;
+
+function isElVisible(el) {
+  return el && el.offsetParent !== null && getComputedStyle(el).display !== 'none';
+}
+
+function setupObserver() {
+  domObserver = new MutationObserver(() => {
+    // 先更新容器状态——检测可见性，不只是 DOM 存在
+    const drawerEl = document.querySelector('.drawer-panel, .ant-drawer, .el-drawer, [class*="drawer"]');
+    const modalEl = document.querySelector('.modal, .ant-modal, .el-dialog, [class*="modal"], [class*="dialog"]');
+    document.body.classList.toggle('pm-drawer-open', isElVisible(drawerEl));
+    document.body.classList.toggle('pm-modal-open', isElVisible(modalEl));
+    
+    // 再延迟重渲染角标（等待框架完成 DOM 更新）
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = requestAnimationFrame(() => {
+      window.__pmRenderMarks();
+      rafId = null;
+    });
+  });
+  domObserver.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style'] });
+}
+setupObserver();
+```
+
+**时序保证**：先 toggle body class，再在 requestAnimationFrame 里调 `__pmRenderMarks()`，确保渲染角标时容器状态已更新。
+
+### 5.5 数据格式（硬规则）
+
+```js
+var __PM_ANNOTATIONS = {
+  1: { title: '筛选条件区', content: '所有筛选条件...' },
+  2: { title: '操作栏', content: '编辑/删除/查看...' }
+};
+```
+
+- **content 字段必须使用单引号 `'` 包裹**。
+- 内部中文引号 `"` `"` 保留原样（单引号字符串中不会终止）。
+- 内部英文单引号用 `\'` 转义。
+- **禁止使用双引号 `"` 包裹 content**，避免中文引号混用导致 SyntaxError。
+
+### 5.6 框架集成
+
+暴露全局函数供框架调用：
+
+```js
+window.__pmRenderMarks = function() {
+  // 暂停 observer 避免无限循环
+  if (domObserver) domObserver.disconnect();
+  
+  document.querySelectorAll('.pm-badge').forEach(b => b.remove());
+  renderAllMarks();
+  
+  // 重新启用 observer
+  if (domObserver) domObserver.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style'] });
+};
+```
+
+Vue/React 可直接调用此接口触发角标重渲染。DOM 变更的自动监听已在 5.4 统一处理。
+
+### 5.7 交互规范
+
+| 行为 | 规范 |
+|------|------|
+| 浮窗打开 | **点击角标**触发（非 hover）。再次点击同一角标关闭。 |
+| 浮窗关闭 | ① X 按钮；② 再次点击同一角标；③ 点击页面空白处关闭所有。 |
+| 多浮窗 | 同一编号只能开一个；不同编号可同时开多个。 |
+| 拖拽 | 浮窗整体支持鼠标拖拽（mousedown + mousemove + mouseup）。 |
+| 事件隔离 | 点击浮窗内部及拖拽时阻止事件冒泡。 |
+| 位置 | 默认角标右下方：`top: badgeRect.bottom + 8; left: badgeRect.left`。智能避让：右超 → 左移；下超 → 上方；都不够 → 贴顶 16px。 |
+| 层级 | 浮窗 `z-index: 99999`。 |
+
+### 5.8 Markdown 渲染
+
+浮窗正文 1:1 还原 prd.md 排版：段落（行高 1.6，间距 12px）、加粗、斜体、多级列表、引用块（左边框浅灰）、状态色（`●` 圆点）。
+
+运行时用内联极简 Markdown 解析器（~40 行）将 content 转 HTML。
+
+### 5.9 运行时 JS 架构
+
+注入的 `<script>` 块实现：
+
+1. **MarkParser**：极简 Markdown → HTML
+2. **PopupManager**：click 打开/切换、X 关闭、空白处关闭、拖拽、智能边界避让、事件隔离
+3. **MarkRenderer**：扫描 `[data-pm-mark]` → `document.body.appendChild(badge)` → `position: fixed` + `getBoundingClientRect` → 容器归属检测 → 绑定 click
+4. **全局点击关闭**：`document` 上监听 click，非角标非浮窗内部时关闭所有
+5. **容器状态同步**：按 5.4 节实现
+6. **全局接口**：`window.__pmRenderMarks()`
+
+零外部依赖，全部内联。
 
 ## 步骤 6：自检
 
@@ -83,10 +235,6 @@ cp -r output/prototype/ output/prototypemark/
    - 修改项 → 仅替换 `__PM_ANNOTATIONS` 中对应编号的 Markdown 内容，不改角标位置（除非组件位置变化）。
    - 删除项 → 移除对应 `data-pm-mark` 属性、角标 DOM 和 `__PM_ANNOTATIONS` 条目。
 
-# 实现规范
-
-视觉样式、浮窗交互、运行时 JS 架构的详细规范见 `references/prototype-mark-spec.md`。步骤 5 注入标注系统时严格遵循该规范。
-
 # 硬规则
 
 - **不反写 prd.md**。编号 [1] [2] 只存在于 prototypemark 副本，不写入 `output/prd/prd.md`。
@@ -96,6 +244,8 @@ cp -r output/prototype/ output/prototypemark/
 - **不引入外部 CDN**。所有代码内联。
 - **不进入 review 链路**。prototype-mark 是辅助工具，不生成 metadata、不触发 review。
 - **不生成页面级角标时不标**。非必要不加页面级标记。
+- **角标一律 `position: fixed` + `document.body` 挂载**。禁止 `position: absolute`，禁止插入目标元素内部。
+- **`__PM_ANNOTATIONS` 的 content 字段必须用单引号包裹**。禁止双引号。
 
 # 执行与自检
 
@@ -108,3 +258,7 @@ cp -r output/prototype/ output/prototypemark/
 - [ ] 角标是否 10px 粗体 amber？层级是否正确？
 - [ ] 浮窗是否还原了 Markdown 层级与重点？
 - [ ] 是否未修改 output/prototype/ 和 output/prd/prd.md？
+- [ ] **角标定位**：是否所有角标统一使用 `position: fixed` + `document.body` 挂载？
+- [ ] **多容器场景**：是否检测了角标容器归属（`pm-badge-in-page` / `pm-badge-in-drawer` / `pm-badge-in-modal`）？抽屉/弹窗打开时主页角标是否隐藏？
+- [ ] **数据格式**：`__PM_ANNOTATIONS` 的 content 字段是否使用单引号包裹？
+- [ ] **框架集成**：是否暴露了 `window.__pmRenderMarks()` 全局接口？

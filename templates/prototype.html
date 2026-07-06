@@ -18,7 +18,7 @@
       --color-base-200: #f8f9fa;
       --color-base-300: #e9ecef;
       --color-base-content: #0f172a;
-      --color-primary: #0f172a;
+      --color-primary: #2563eb;
       --color-primary-content: #ffffff;
       --color-neutral: #f1f5f9;
       --color-neutral-content: #0f172a;
@@ -26,6 +26,19 @@
       --rounded-btn: 0.375rem;
       --rounded-selector: 0.25rem;
       --border-color: #e2e8f0;
+    }
+    /* 按钮样式 fallback：解决 daisyUI @layer 导致的 padding/height 失效 */
+    .btn {
+      padding-inline: 1rem !important;
+      min-height: 2.5rem !important;
+    }
+    .btn-sm {
+      padding-inline: 0.75rem !important;
+      min-height: 2rem !important;
+    }
+    .btn-lg {
+      padding-inline: 1.5rem !important;
+      min-height: 3rem !important;
     }
     /* 视觉细节：零成本打磨（纯 CSS） */
     body {

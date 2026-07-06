@@ -95,7 +95,7 @@ python scripts/python/review-precheck.py --stage design
 
 ## 步骤 4：PRD 生成（prd）
 
-**AI 要做：** 调用 `/spm-prd`，基于 design 基线生成 PRD 正文（详细需求说明、数据字典、权限汇总、状态机）。
+**AI 要做：** 调用 `/spm-prd`，基于 design 基线生成 PRD 正文（详细需求说明，含字段定义表、状态机表、权限规则）。
 
 **产出文件：**
 - `output/prd/prd.md` — PRD 正文（人读）
@@ -230,7 +230,7 @@ python scripts/python/stage-prep.py --stage prototype
 |---|---|---|---|
 | stage-prep.py 报 OSError | rules.json 被锁定或损坏 | 删除 rules.json 后重跑 | 若仍报错，检查文件权限 |
 | review-precheck 报 can_start_review: false | 上游产物缺失或章节不完整 | 检查 blocking_issues 列表，先补结构 | 若章节名称用了别名，检查 alias_missed_count |
-| PRD 数据字典缺实体 | PRD 只覆盖了部分 design 实体 | 按 design 实体清单逐个补入 PRD 数据字典 | 若实体已废弃，先从 design 中移除 |
+| PRD 字段定义表缺实体 | PRD 只覆盖了部分 design 实体 | 按 design 实体清单逐个补入 PRD 字段定义表 | 若实体已废弃，先从 design 中移除 |
 | 幻觉字段 | PRD 出现 design 中不存在的字段 | 删除幻觉字段，或回退到 design 补定义 | 运行 prd-consistency-check.py 检查 hallucinated |
 | 同步修复丢了下游 | 改了 design 但忘了同步 PRD | 按传播方向表逐层检查 | 运行 prd-consistency-check.py 检查一致性 |
 | metadata 与正文不一致 | 修改了 design.md 但没重新生成 metadata | 运行 stage-prep.py --stage design 重新生成 | 若仍不一致，检查 design.md 表格格式 |

@@ -8,7 +8,7 @@
       "three_layers": ["界面元素与展示规则", "交互逻辑与状态流转", "异常处理与边界场景"]
     },
     "table_usage": {
-      "allowed_for": ["数据字典", "权限汇总", "天然映射关系"],
+      "allowed_for": ["字段定义表", "状态机表", "权限规则", "天然映射关系"],
       "forbidden_for": ["页面正文主体", "动作描述"]
     },
     "forbidden_expressions": [
@@ -33,8 +33,8 @@
       "避免用户",
       "符合操作"
     ],
-    "required_sections": ["名词说明", "详细需求说明", "权限汇总", "数据字典", "状态机"],
-    "data_dictionary_columns": ["字段", "类型", "必填", "说明"],
+    "required_sections": ["名词说明", "详细需求说明"],
+    "field_definition_columns": ["字段", "类型", "必填", "说明"],
     "bold_usage": "少用加粗，仅用于真正需要强调的少量内容",
     "numbering": {
       "chapter": "## N. ...",

@@ -28,7 +28,7 @@ from shared_md import (
 )
 
 # PRD 章节别名
-# 字段/状态/权限不再有独立章节，归位到 §5 详细需求说明的"模块数据"区
+# 字段/状态/权限按小模块归位到 §5 详细需求说明
 SECTION_ALIASES = {
     "详细需求说明": ["详细需求说明", "详细需求", "需求说明"],
 }
@@ -73,9 +73,9 @@ def _tables_in_range(tables: list, start: int, end: int) -> list:
 # ── PRD 实体提取 ──────────────────────────────────────────────
 
 def extract_prd_fields(headings: list, tables: list) -> list:
-    """从 §5 详细需求说明的"模块数据"区提取字段名（第一列）
+    """从 §5 详细需求说明提取字段名（第一列）
 
-    归位后字段表分布在各模块末尾的"模块数据"区，不再有独立"数据字典"章节。
+    归位后字段表分布在小模块末尾。
     识别规则：在详细需求说明章节范围内，表头含"字段"和"类型"的表视为字段定义表。
     """
     start, end, _ = _find_section_range(headings, "详细需求说明")
@@ -109,7 +109,8 @@ def extract_prd_pages(content: str, headings: list) -> list:
     if start is None:
         return []
 
-    # 章节容器标题黑名单（大模块标题里出现这些词时不是页面）
+    # 章节容器标题黑名单（粗体块页面名等于以下词条时跳过，避免章节标题被误识别为页面）
+    # 包含归位前旧章节名（权限汇总/数据字典/状态机等），保留用于兼容历史 PRD
     blacklist = {
         "业务流程", "核心业务流程", "状态变化", "状态流转",
         "权限汇总", "权限定义", "数据字典", "字段定义",
@@ -140,9 +141,9 @@ def extract_prd_pages(content: str, headings: list) -> list:
 
 
 def extract_prd_states(content: str, headings: list, tables: list) -> list:
-    """从 §5 详细需求说明的"模块数据"区提取状态名
+    """从 §5 详细需求说明提取状态名
 
-    归位后状态机表分布在各模块末尾的"模块数据"区，不再有独立"状态机"章节。
+    归位后状态机表分布在小模块末尾。
     识别规则：在详细需求说明章节范围内，表头同时含"状态"和"触发动作"的表视为状态机表。
     同时兼容箭头文本格式（state1 → state2）。
     """
@@ -204,7 +205,7 @@ def extract_prd_states(content: str, headings: list, tables: list) -> list:
 def extract_prd_permission_pages(headings: list, tables: list) -> list:
     """从 §5 详细需求说明提取大模块名作为权限页面覆盖检查的来源
 
-    权限规则归位到每个大模块末尾的"模块数据"区，不再有独立"权限汇总"章节。
+    权限规则归位到大模块开头。
     识别规则：在详细需求说明章节范围内，提取所有 `### N.N xxx` 大模块标题。
     design permissions.json 的 page 字段是模块名（如"审计计划""项目启动"），
     与 PRD 的大模块标题对应。

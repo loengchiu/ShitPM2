@@ -54,9 +54,9 @@ SECTION_ALIASES = {
 def check_prd_entity_coverage(project_root: Path, stdin_content: str = None) -> dict:
     """校验 PRD 是否覆盖 design 数据字典中的全部实体
 
-    归位后 PRD 不再有独立"数据字典"章节，实体字段表分布在 §5 详细需求说明的"模块数据"区。
+    归位后实体字段表按小模块归位到 §5 详细需求说明。
     检查方式：design 数据字典的实体名在 PRD §5 正文中出现即算覆盖
-    （实体名会出现在模块数据区的字段表前、大模块标题或正文描述中）。
+    （实体名会出现在小模块末尾的字段表前、大模块标题或正文描述中）。
     """
     design_path = project_root / "output" / "design" / "design.md"
     if not design_path.exists():
@@ -117,7 +117,6 @@ def check_prd_entity_coverage(project_root: Path, stdin_content: str = None) -> 
         "passed": passed,
         "detail": "；".join(detail_parts),
         "missing_entities": missing,
-        "extra_entities": extra,
         "coverage_ratio": round(covered / total, 2) if total > 0 else 1.0,
     }
 
