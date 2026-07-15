@@ -68,3 +68,15 @@
  ```
  
  Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
+
+
+## 过程审计
+
+design/prd 产出时同时输出 decision-notes.md，记录相对于上游基准的四类决策：
+
+- **设计决策**：上游未覆盖但必须做的选择
+- **偏离**：未按上游执行的地方及理由
+- **权衡**：考虑过但未采用的方案及原因
+- **待确认**：需要用户定夺的问题
+
+路径：design → `output/design/decision-notes.md`（基准 align），prd → `output/prd/decision-notes.md`（基准 design）。按四类分节，每条列表项写决策+原因，无内容写"无"。
