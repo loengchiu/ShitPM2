@@ -12,7 +12,7 @@ import json
 import sys
 from pathlib import Path
 
-from shared_md import load_json, METADATA_FILE_MAP
+from shared_md import load_json
 
 # ── jsonschema 真校验（依赖缺失则降级跳过） ──────────────────
 try:
@@ -26,20 +26,32 @@ except ImportError:
 _SCHEMA_DIR = Path(__file__).resolve().parent.parent.parent / "schemas"
 _REGISTRY = None
 if _HAS_JSONSCHEMA:
-    _common = load_json(_SCHEMA_DIR / "common.schema.json")
-    if _common:
-        _REGISTRY = Registry().with_resource(
-            "common.schema.json",
-            Resource.from_contents(_common, default_specification=DRAFT7),
-        )
+    _registry = Registry()
+    for _res_name in ["common.schema.json", "align-notes.schema.json"]:
+        _res = load_json(_SCHEMA_DIR / _res_name)
+        if _res:
+            _registry = _registry.with_resource(
+                _res_name,
+                Resource.from_contents(_res, default_specification=DRAFT7),
+            )
+    _REGISTRY = _registry
 
 
-def verify_schema(data, stage) -> list:
-    """用 jsonschema 校验 metadata index.json，返回错误消息列表；依赖缺失返回空"""
+def verify_schema(data, schema_key) -> list:
+    """用 jsonschema 校验 data，返回错误消息列表；依赖缺失返回空
+
+    schema_key 取值：design/prd/prototype/status/review
+    """
     if not _HAS_JSONSCHEMA or _REGISTRY is None:
         return []
-    schema_map = {"design": "design-metadata", "prd": "prd-metadata", "prototype": "prototype-metadata"}
-    schema_name = schema_map.get(stage)
+    schema_map = {
+        "design": "design-metadata",
+        "prd": "prd-metadata",
+        "prototype": "prototype-metadata",
+        "status": "status",
+        "review": "review-result",
+    }
+    schema_name = schema_map.get(schema_key)
     if not schema_name:
         return []
     schema = load_json(_SCHEMA_DIR / f"{schema_name}.schema.json")
@@ -97,17 +109,61 @@ def verify_metadata_integrity(project_root, stage):
     return errors
 
 
+# ── status / review 校验 ────────────────────────────────────
+
+def verify_status(project_root) -> list:
+    """校验 .workflow/status.json 的结构完整性"""
+    errors = []
+    status_path = project_root / ".workflow" / "status.json"
+    if not status_path.exists():
+        return [".workflow/status.json 不存在"]
+
+    status = load_json(status_path)
+    if not status or not isinstance(status, dict):
+        return [".workflow/status.json 缺失或非 JSON 对象"]
+
+    errors.extend(verify_schema(status, "status"))
+    return errors
+
+
+def verify_reviews(project_root) -> list:
+    """校验 .workflow/reviews/ 下所有 review JSON 的结构完整性"""
+    errors = []
+    reviews_dir = project_root / ".workflow" / "reviews"
+    if not reviews_dir.exists():
+        return [".workflow/reviews/ 目录不存在"]
+
+    review_files = sorted(reviews_dir.glob("*.json"))
+    if not review_files:
+        return [".workflow/reviews/ 无 review JSON 文件"]
+
+    for review_file in review_files:
+        review = load_json(review_file)
+        if not review or not isinstance(review, dict):
+            errors.append(f"{review_file.name}: 缺失或非 JSON 对象")
+            continue
+        file_errors = verify_schema(review, "review")
+        errors.extend(f"{review_file.name}: {e}" for e in file_errors)
+
+    return errors
+
+
 # ── 主入口 ───────────────────────────────────────────────────
 
 def main():
     parser = argparse.ArgumentParser(description="metadata 结构完整性校验")
-    parser.add_argument("--stage", required=True, choices=["design", "prd", "prototype"])
+    parser.add_argument("--stage", required=True, choices=["design", "prd", "prototype", "status", "review"])
     parser.add_argument("--project-root", type=Path, default=Path.cwd())
     args = parser.parse_args()
 
     project_root = args.project_root.resolve()
 
-    integrity_errors = verify_metadata_integrity(project_root, args.stage)
+    if args.stage == "status":
+        integrity_errors = verify_status(project_root)
+    elif args.stage == "review":
+        integrity_errors = verify_reviews(project_root)
+    else:
+        integrity_errors = verify_metadata_integrity(project_root, args.stage)
 
     result = {
         "stage": args.stage,

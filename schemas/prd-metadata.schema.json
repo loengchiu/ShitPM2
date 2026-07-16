@@ -16,7 +16,7 @@
       "type": "object",
       "required": ["id", "type", "title"],
       "properties": {
-        "id": { "type": "string", "pattern": "^(MODULE|PAGE|FIELD|RULE|FLOW|STATE|PERM)-design-[0-9]{3}$" },
+        "id": { "type": "string", "pattern": "^(MODULE|PAGE|FIELD|RULE|FLOW|STATE|PERM)-prd-[0-9]{3}$" },
         "type": { "type": "string", "enum": ["module", "page", "field", "rule", "flow", "state", "permission"] },
         "title": { "type": "string" },
         "source_ref": { "type": ["string", "null"] },
@@ -28,7 +28,7 @@
       "type": "object",
       "required": ["id", "type", "from", "to"],
       "properties": {
-        "id": { "type": "string", "pattern": "^REL-design-[0-9]{3}$" },
+        "id": { "type": "string", "pattern": "^REL-prd-[0-9]{3}$" },
         "type": { "$ref": "common.schema.json#/$defs/relation_type_enum" },
         "from": { "type": "string" },
         "to": { "type": "string" }

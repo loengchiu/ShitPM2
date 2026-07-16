@@ -3,7 +3,7 @@
   "title": "PrototypeMetadata",
   "description": "prototype 阶段机读镜像的结构定义",
   "type": "object",
-  "required": ["schema_version", "stage", "artifact_path"],
+  "required": ["schema_version", "stage", "artifact_path", "entity_count", "relation_count"],
   "properties": {
     "schema_version": { "type": "string", "const": "1.0.0" },
     "stage": { "type": "string", "const": "prototype" },

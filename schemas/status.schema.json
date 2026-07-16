@@ -3,7 +3,7 @@
   "title": "Status",
   "description": "新辅助器工作流状态文件，只保留当前真相",
   "type": "object",
-  "required": ["current_stage", "artifacts", "metadata_paths", "latest_reviews", "align_notes", "next_recommended"],
+  "required": ["current_stage", "artifacts", "metadata_paths", "latest_reviews", "next_recommended"],
   "properties": {
     "current_stage": {
       "type": "string",
@@ -42,10 +42,7 @@
       },
       "additionalProperties": false
     },
-    "align_notes": {
-      "type": "object",
-      "description": "对齐阶段内部判断记录（来自 align-notes.json）"
-    },
+    "align_notes": { "$ref": "align-notes.schema.json" },
     "next_recommended": {
       "type": "string",
       "enum": ["align", "design", "design-review", "prd", "prd-review", "prototype", "prototype-review", "fix", "done"],

@@ -11,11 +11,10 @@ description: "设计阶段——把对齐结果结构化成稳定基线。用于
 
 ## 前置检查
 
-运行 `scripts/python/stage-context.py` 检查准入：
+运行 `python $BUNDLE/scripts/python/stage-context.py --project-root .` 检查准入：
 
 1. align.md 存在
-2. metadata/align 完整
-3. align-notes.json 中 `can_enter_design` = true
+2. align-notes.json 中 `can_enter_design` = true
 
 如检查不通过， 停止并输出阻塞项，不写任何产物。
 
@@ -25,14 +24,12 @@ description: "设计阶段——把对齐结果结构化成稳定基线。用于
 
 1. `.workflow/status.json`
 2. `output/align/align.md`（对齐产物）
-3. `.workflow/metadata/align/index.json`
-4. `.workflow/metadata/align/relations.json`
-5. `.workflow/runtime/align/align-notes.json`
-6. `templates/design.md`（产物骨架）
-7. `references/design-writing.md`（写法参考）
-8. `references/design-methodology.md`（设计方法论）
-9. `references/design-state-format.md`（状态定义格式）
-10. `references/design-flow-format.md`（业务流程格式）
+3. `.workflow/runtime/align/align-notes.json`
+4. `templates/design.md`（产物骨架）
+5. `references/design-writing.md`（写法参考）
+6. `references/design-methodology.md`（设计方法论）
+7. `references/design-state-format.md`（状态定义格式）
+8. `references/design-flow-format.md`（业务流程格式）
 
 ## 执行顺序
 

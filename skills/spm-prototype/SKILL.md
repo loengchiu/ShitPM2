@@ -129,9 +129,9 @@ description: "原型阶段——把 design 或 PRD 的页面行为表达成可�
 | 3 | `.workflow/metadata/prototype/index.json` | 原型索引 |
 | 4 | `output/prototype/prototype-feedback.md` | 可选，反馈模板 |
 
-**lib/ 复制必须在生成 HTML 后立即执行**。用 `cp -r lib/ output/prototype/lib/`（如果已有旧 lib/ 则先删除再复制）。
+**lib/ 复制必须在生成 HTML 后立即执行**。用 `cp -r $BUNDLE/lib/ output/prototype/lib/`（如果已有旧 lib/ 则先删除再复制）。
 
-生成后运行 `scripts/python/verify-against-metadata.py --stage prototype --project-root .` 校验结构完整性（schema + ID 唯一性，不校验幻觉）。
+生成后运行 `python $BUNDLE/scripts/python/verify-against-metadata.py --stage prototype --project-root .` 校验结构完整性（schema + ID 唯一性，不校验幻觉）。
 
 ## 处理反馈
 

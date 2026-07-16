@@ -15,7 +15,7 @@ description: "设计 review——判断 design 基线质量。用于用户说 de
 
 ### 第一段：预检查
 
-1. 运行 `scripts/python/review-precheck.py --stage design --no-metadata --stdin-artifact` → `.workflow/runtime/design/review-precheck.json`
+1. 运行 `python $BUNDLE/scripts/python/review-precheck.py --stage design --no-metadata --stdin-artifact` → `.workflow/runtime/design/review-precheck.json`
 2.  脚本失败或 `can_start_review=false` → 停止输出阻塞项。假阳性（alias_missed>0 且 blocking_issues 空）→ 列出 warnings 等用户确认后可继续
 3. 检查核心章节：角色定义/模块定义/页面清单/字段定义/页面与字段落点/规则与状态/权限定义
 4. 检查表格仍为结构化格式（字段定义、页面落点、状态流转、权限矩阵）
@@ -31,13 +31,13 @@ description: "设计 review——判断 design 基线质量。用于用户说 de
 
 **A2. 状态机闭环审查（按 `references/design-state-format.md` 闭环要求 8 条逐项查，违反即 P1）**
 
-3. 结构层（脚本校验）：运行 `scripts/python/state-machine-check.py --project-root .`，直接引用输出 JSON 中的 violations。脚本覆盖 4 条：
+3. 结构层（脚本校验）：运行 `python $BUNDLE/scripts/python/state-machine-check.py --project-root .`，直接引用输出 JSON 中的 violations。脚本覆盖 4 条：
    - non_terminal_must_have_exit：非终态至少一条正向迁移，悬空即 P1
    - non_initial_must_have_entry：非初始状态至少一条迁移指向它，孤岛即 P1
    - rollback_target_illegal：回退/驳回的"下一状态"必须在正向可达路径上，回退到从未经历的状态即 P1
    - transition_ambiguity：同一"触发动作 + 操作人"组合在不同状态下指向冲突的"下一状态"，P2 提示人审是否有业务理由
 
-   脚本依赖 `stage-prep.py` 生成的 states.json 含 transitions/entity 字段。若 states.json 无 transitions（旧版产物），先重跑 `python scripts/python/stage-prep.py --stage design`。
+   脚本依赖 `stage-prep.py` 生成的 states.json 含 transitions/entity 字段。若 states.json 不存在或无 transitions，先运行 `python $BUNDLE/scripts/python/stage-prep.py --stage design --project-root .` 生成 metadata，再跑 state-machine-check.py。
 4. 业务层（人审，逐张状态机表检查）：
    - 合法出路全覆盖：从业务语义看当前状态所有合法操作（推进/撤回/退回/驳回/取消），少一种即 P1
    - 二次流转闭环：回退/驳回后的状态必须能再次推进回原路径，死锁即 P1
@@ -54,7 +54,7 @@ description: "设计 review——判断 design 基线质量。用于用户说 de
 
 ### 第三段：metadata 生成（仅第二段通过后）
 
-1. `scripts/python/stage-prep.py --stage design --project-root <path>` 生成 metadata
+1. `python $BUNDLE/scripts/python/stage-prep.py --stage design --project-root .` 生成 metadata
 2. 一致性校验：8 个 JSON 完整性、字段/页面/模块数与 design.md 一致、page-fields 覆盖率、non-page-fields 覆盖率（≤40%）、design.md 无稳定 ID 泄漏
 3. 校验失败 → 输出不一致项，verdict 降级为"有问题需修改"
 4. 校验通过 → 更新 `status.json` 中 `metadata_paths.design`

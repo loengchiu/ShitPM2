@@ -76,7 +76,7 @@ def check_prd_entity_coverage(project_root: Path, stdin_content: str = None) -> 
             continue
         level = len(m.group(1))
         title = m.group(2).strip()
-        if "数据字典" in title and level <= 2:
+        if any(alias in title for alias in SECTION_ALIASES["design"]["字段定义"]) and level <= 2:
             in_dd = True
             dd_heading_level = level
             continue

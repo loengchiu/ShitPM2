@@ -11,7 +11,7 @@
 - design 提取：generate_design_metadata 及辅助（infer_entities_from_headings /
   extract_entities_from_tables / _extract_design_page_field_map 等）
 - prd/prototype：只生成 index + relations，不提取 anchor（语义检测交给 review skill LLM）
-- 写入与状态：write_metadata / write_align_notes / write_stage_context / update_status
+- 写入与状态：write_metadata / write_stage_context / update_status
 - 调度：main
 """
 
@@ -28,7 +28,7 @@ from shared_md import (
     ID_PREFIXES,
     ARTIFACT_PATHS, METADATA_FILE_MAP,
 )
-VALID_STAGES = ["align", "design", "prd", "prototype"]
+VALID_STAGES = ["design", "prd", "prototype"]
 
 
 # 中文关键词到实体类型的映射
@@ -44,7 +44,6 @@ HEADING_ENTITY_MAP = {
 
 # 每个阶段允许生成的实体类型
 STAGE_ALLOWED_ENTITIES = {
-    "align": set(),  # align 不生成稳定 ID
     "design": {"module", "page", "field", "rule", "flow"},
     "prd": set(),  # prd 不新增实体，只引用 design
     "prototype": set(),
@@ -651,26 +650,6 @@ def _build_page_field_relations(page_fields: list, stage: str, counter: dict) ->
     return relations
 
 
-def generate_align_metadata(content: str, project_root: Path) -> dict:
-    """生成 align 阶段 metadata（不含稳定 ID）"""
-    index = {
-        "schema_version": "1.0.0",
-        "stage": "align",
-        "generated_at": datetime.now(timezone.utc).isoformat(),
-        "request_summary": "",
-        "solution_shape": "",
-        "business_stage": "",
-        "context_gaps": [],
-    }
-
-    relations = []
-
-    return {
-        "index": index,
-        "relations": relations,
-    }
-
-
 def _extract_numbered_rules_from_design(content: str, stage: str, counter: dict, title_to_id: dict) -> list:
     """从 design.md 的"规则"章节提取编号规则实体
 
@@ -867,29 +846,6 @@ def write_metadata(stage: str, data: dict, project_root: Path, dry_run: bool = F
     return written
 
 
-def write_align_notes(project_root: Path, dry_run: bool = False) -> str:
-    """写入 align-notes.json 默认值（AI skill 层会更新实际判断结论）"""
-    notes_dir = project_root / ".workflow" / "runtime" / "align"
-    if not dry_run:
-        notes_dir.mkdir(parents=True, exist_ok=True)
-
-    notes = {
-        "blocking_gaps": [],
-        "needs_ask_back": False,
-        "ask_back_reason": None,
-        "can_enter_design": False,
-        "judgement_note": "由 stage-prep.py 生成的默认值，需 AI skill 层更新实际判断结论",
-        "last_updated_at": datetime.now(timezone.utc).isoformat(),
-    }
-
-    target = notes_dir / "align-notes.json"
-    if not dry_run:
-        with open(target, "w", encoding="utf-8") as f:
-            json.dump(notes, f, ensure_ascii=False, indent=2)
-
-    return str(target)
-
-
 def _count_entities(data: dict) -> int:
     """统计实际写入的实体数
 
@@ -950,7 +906,7 @@ def update_status(stage: str, project_root: Path, dry_run: bool = False):
         "fix": 0, "done": 4,
     }
     old_stage = status.get("current_stage", "align")
-    # stage-prep 只处理主阶段（align/design/prd/prototype），不处理 review 子阶段
+    # stage-prep 只处理主阶段（design/prd/prototype），不处理 review 子阶段
     # 但 old_stage 可能是 review 子阶段，需正确比较避免回退
     if STAGE_ORDER.get(stage, 0) >= STAGE_ORDER.get(old_stage, 0):
         status["current_stage"] = stage
@@ -964,18 +920,6 @@ def update_status(stage: str, project_root: Path, dry_run: bool = False):
 
     if base_next == "done":
         status["next_recommended"] = "done"
-    elif stage == "align":
-        # align 阶段无 review 子阶段，基于 align-notes.json 的 can_enter_design 判断
-        align_notes_path = project_root / ".workflow" / "runtime" / "align" / "align-notes.json"
-        can_enter_design = False
-        if align_notes_path.exists():
-            try:
-                with open(align_notes_path, encoding="utf-8") as f:
-                    align_notes = json.load(f)
-                can_enter_design = bool(align_notes.get("can_enter_design", False))
-            except (json.JSONDecodeError, OSError):
-                pass
-        status["next_recommended"] = "design" if can_enter_design else "align"
     else:
         latest_review = status.get("latest_reviews", {}).get(stage, {})
         if latest_review.get("verdict") == "通过":
@@ -984,7 +928,6 @@ def update_status(stage: str, project_root: Path, dry_run: bool = False):
             status["next_recommended"] = f"{stage}-review"
 
     # 读取当前阶段的 review 文件，取最新的 verdict 和 reviewed_at
-    # align 阶段无 review 子阶段，跳过
     if stage in ("design", "prd", "prototype"):
         reviews_dir = project_root / ".workflow" / "reviews"
         if reviews_dir.exists():
@@ -1037,9 +980,7 @@ def main():
             content = f.read()
 
     # 根据阶段生成 metadata
-    if stage == "align":
-        data = generate_align_metadata(content, project_root)
-    elif stage == "design":
+    if stage == "design":
         data = generate_design_metadata(content, stage, project_root)
     elif stage == "prd":
         data = generate_prd_metadata(content, project_root)
@@ -1053,11 +994,6 @@ def main():
     written_files = write_metadata(stage, data, project_root, dry_run=args.dry_run)
     ctx_file = write_stage_context(stage, data, project_root, dry_run=args.dry_run)
 
-    # align 阶段额外写入 align-notes.json
-    align_notes_file = None
-    if stage == "align":
-        align_notes_file = write_align_notes(project_root, dry_run=args.dry_run)
-
     entities = data.get("entities", [])
     relations = data.get("relations", [])
 
@@ -1069,8 +1005,6 @@ def main():
         "entity_count": _count_entities(data),
         "relation_count": len(relations) if isinstance(relations, list) else 0,
     }
-    if align_notes_file:
-        result["align_notes_file"] = align_notes_file
 
     # 同步更新 status.json
     update_status(stage, project_root, dry_run=args.dry_run)

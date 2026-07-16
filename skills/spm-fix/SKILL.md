@@ -40,7 +40,7 @@ description: "同步修复——把变更影响沿链路传播到当前真相。
 | 目标/范围/建设方式 | 涉及一期做什么、不做什么 | 对齐层 | `output/align/align.md` |
 | 模块/页面/字段/规则 | 涉及数据结构或业务规则定义 | 设计层 | `output/design/design.md` |
 | 流程/状态/权限 | 涉及状态机、权限矩阵、审批流 | 设计层 | `output/design/design.md` |
-| 表现层布局/样式/视觉 | 仅涉及 UI 呈现，不涉及语义 | 原型层 | `output/prototype/index.html` 及其 `pages/` 目录 |
+| 表现层布局/样式/视觉 | 仅涉及 UI 呈现，不涉及语义 | 原型层 | `output/prototype/index.html`（及 `pages/` 目录，若存在） |
 
 **CHECKPOINT · 归属层确认**——若修改指令同时涉及多层（如"新增字段并在页面展示"），必须拆分为多步逐层修复，不混在一层改。
 
@@ -50,9 +50,9 @@ description: "同步修复——把变更影响沿链路传播到当前真相。
 
 | 修改层 | 必须更新 | 需检查是否更新 |
 |--------|---------|---------------|
-| 对齐层 | `output/align/align.md` → `output/design/design.md` | `output/prd/prd.md`、`output/prototype/index.html` 及 `pages/` |
-| 设计层 | `output/design/design.md` | `output/prd/prd.md`、`output/prototype/index.html` 及 `pages/` |
-| 原型层 | `output/prototype/index.html` 及 `pages/` | 无下游 |
+| 对齐层 | `output/align/align.md` → `output/design/design.md` | `output/prd/prd.md`、`output/prototype/index.html`（及 `pages/`，若存在） |
+| 设计层 | `output/design/design.md` | `output/prd/prd.md`、`output/prototype/index.html`（及 `pages/`，若存在） |
+| 原型层 | `output/prototype/index.html`（及 `pages/`，若存在） | 无下游 |
 
 输出格式（必须逐行列出）：
 
@@ -83,7 +83,7 @@ description: "同步修复——把变更影响沿链路传播到当前真相。
 修复涉及 design/PRD/prototype 层时，运行一致性校验：
 
 ```bash
-python scripts/python/verify-against-metadata.py --stage design --project-root .
+python $BUNDLE/scripts/python/verify-against-metadata.py --stage design --project-root .
 ```
 
 校验未通过（schema 校验失败或 ID 唯一性问题）→ 回到步骤 4 修复。

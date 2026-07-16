@@ -45,12 +45,9 @@ python scripts/python/stage-context.py .
 
 **产出文件：**
 - `output/align/align.md` — 对齐稿（人读）
-- `.workflow/metadata/align/` — 机读元数据（自动生成）
+- `.workflow/runtime/align/align-notes.json` — 判断结论（AI 直接写入）
 
-**运行命令：**
-```powershell
-python scripts/python/stage-prep.py --stage align
-```
+align 阶段不生成 metadata，不运行 stage-prep.py。AI 直接写 align-notes.json 和 status.json。
 
 **然后：** 运行 stage-context 确认 `next_recommended` 为 `design`，`gate.can_proceed` 为 `true`。
 

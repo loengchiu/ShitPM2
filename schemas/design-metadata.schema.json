@@ -25,7 +25,7 @@
     },
     "entity_count": {
       "type": "integer",
-      "description": "实体总数（含 modules/pages/fields/rules/flows，不含 states/permissions）"
+      "description": "实体总数（含 modules/pages/fields/rules/flows/states/permissions）"
     },
     "relation_count": {
       "type": "integer",

@@ -12,7 +12,7 @@ description: "PRD 阶段——把 design 基线展开成研发可评审的人读
 
 ```
 # 脚本调用
-python $BUNDLE/scripts/python/stage-context.py --stage design --project-root .
+python $BUNDLE/scripts/python/stage-context.py --project-root .
 
 # 读取 bundle 资源
 Read $BUNDLE/templates/prd.md
@@ -25,7 +25,7 @@ Read .workflow/status.json
 
 ## 前置检查
 
-运行 `python $BUNDLE/scripts/python/stage-context.py --stage design --project-root .`
+运行 `python $BUNDLE/scripts/python/stage-context.py --project-root .`
 
 准入条件：
 1. `output/design/design.md` 存在
@@ -71,7 +71,7 @@ Read .workflow/status.json
 3. 生成 PRD：按分页流水线策略逐页生成详细需求说明，全部页面生成后再依次生成版本记录（v1.0 首行）→ 名词说明 → 辅助章节（如需要）
 4. 写入 `output/prd/prd.md`
 5. 运行 `python $BUNDLE/scripts/python/prd-style-lint.py output/prd/prd.md` 自检
-6. 运行 `$BUNDLE/scripts/python/stage-prep.py --stage prd --project-root .` 生成 PRD metadata（index + relations）
+6. 运行 `python $BUNDLE/scripts/python/stage-prep.py --stage prd --project-root .` 生成 PRD metadata（index + relations）
 7. 运行确定性结构对比：
    ```bash
    cat output/prd/prd.md | python $BUNDLE/scripts/python/prd-consistency-check.py --project-root .
@@ -87,7 +87,7 @@ Read .workflow/status.json
 
    修正后重新运行脚本直到无幻觉
 
-8. 运行 `$BUNDLE/scripts/python/verify-against-metadata.py --stage prd --project-root .` 校验结构完整性
+8. 运行 `python $BUNDLE/scripts/python/verify-against-metadata.py --stage prd --project-root .` 校验结构完整性
 9. 更新 `.workflow/status.json`
 
 ## 写作规则

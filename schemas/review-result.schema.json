@@ -51,6 +51,7 @@
     },
     "next_recommended": {
       "type": "string",
+      "enum": ["align", "design", "design-review", "prd", "prd-review", "prototype", "prototype-review", "fix", "done"],
       "description": "下一步建议"
     },
     "reviewed_at": {
@@ -59,7 +60,7 @@
     },
     "metadata_generated": {
       "type": "boolean",
-      "description": "review 第三段是否已生成 metadata（design review 第三段专用）"
+      "description": "是否已生成 metadata（仅 design review 第三段写入，其他阶段不写）"
     }
   },
   "additionalProperties": false

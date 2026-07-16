@@ -13,7 +13,7 @@ description: "原型 review——判断原型质量。用于用户说 prototype 
 
 ### 第一段：预检查
 
-1. `scripts/python/review-precheck.py --stage prototype --stdin-artifact`（agent 已读 index.html，stdin 传入）→ `.workflow/runtime/prototype/review-precheck.json`
+1. `python $BUNDLE/scripts/python/review-precheck.py --stage prototype --stdin-artifact`（agent 已读 index.html，stdin 传入）→ `.workflow/runtime/prototype/review-precheck.json`
 2.  脚本失败或 `can_start_review=false` → 停止，输出阻塞项
 3. 检查 index.html 存在且有效
 4. 检查 metadata/prototype 完整（index.json）

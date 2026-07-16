@@ -114,10 +114,8 @@ description: "对齐阶段——确认目标、范围、边界、建设方式。
 | 序号 | 文件 | 来源 |
 |------|------|------|
 | 1 | `output/align/align.md` | 按 `templates/align.md` 骨架 |
-| 2 | `.workflow/metadata/align/index.json` | 结构化提取 |
-| 3 | `.workflow/metadata/align/relations.json` | 关系 |
-| 4 | `.workflow/runtime/align/align-notes.json` | 判断结果 |
-| 5 | `.workflow/status.json` | 更新 current_stage |
+| 2 | `.workflow/runtime/align/align-notes.json` | 判断结果（AI 直接写入，schema 见 `schemas/align-notes.schema.json`） |
+| 3 | `.workflow/status.json` | 首次创建（AI 直接写入 current_stage、artifacts.align、next_recommended） |
 
 ## 失败模式
 
