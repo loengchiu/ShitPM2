@@ -70,6 +70,15 @@
  Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
 
 
+## 7. Shell 执行规范
+
+**所有 exec_command 必须通过 WSL 执行。** 不直接使用 PowerShell 运行 Python -c。
+
+- 命令前缀用 wsl，例如: wsl python3 -c 'print(1)' 或 wsl python3 script.py
+- 避免 python -c 直接在 PowerShell 下执行（括号和引号会被 PowerShell 解析破坏）
+- 路径统一用 WSL 格式: D:\work\ShitPM 对应 /mnt/d/work/ShitPM
+- Git 操作统一用 wsl git
+
 ## 过程审计
 
 design/prd 产出时同时输出 decision-notes.md，记录相对于上游基准的四类决策：
