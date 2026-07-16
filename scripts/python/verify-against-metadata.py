@@ -40,14 +40,12 @@ if _HAS_JSONSCHEMA:
 def verify_schema(data, schema_key) -> list:
     """用 jsonschema 校验 data，返回错误消息列表；依赖缺失返回空
 
-    schema_key 取值：design/prd/prototype/status/review
+    schema_key 取值：design/status/review
     """
     if not _HAS_JSONSCHEMA or _REGISTRY is None:
         return []
     schema_map = {
         "design": "design-metadata",
-        "prd": "prd-metadata",
-        "prototype": "prototype-metadata",
         "status": "status",
         "review": "review-result",
     }
@@ -88,8 +86,7 @@ def verify_metadata_integrity(project_root, stage):
         errors.extend(verify_schema(index, stage))
 
     # 实体 ID 唯一性（含 states/permissions，这两类也有稳定 ID）
-    entity_files = {"design": ["modules.json", "pages.json", "fields.json", "rules.json", "states.json", "permissions.json"],
-                    "prd": [], "prototype": []}
+    entity_files = {"design": ["modules.json", "pages.json", "fields.json", "rules.json", "states.json", "permissions.json"]}
     seen_ids = set()
     for fname in entity_files.get(stage, []):
         data = load_json(meta_dir / fname)
@@ -152,7 +149,7 @@ def verify_reviews(project_root) -> list:
 
 def main():
     parser = argparse.ArgumentParser(description="metadata 结构完整性校验")
-    parser.add_argument("--stage", required=True, choices=["design", "prd", "prototype", "status", "review"])
+    parser.add_argument("--stage", required=True, choices=["design", "status", "review"])
     parser.add_argument("--project-root", type=Path, default=Path.cwd())
     args = parser.parse_args()
 

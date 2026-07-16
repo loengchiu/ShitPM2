@@ -71,8 +71,7 @@ Read .workflow/status.json
 3. 生成 PRD：按分页流水线策略逐页生成详细需求说明，全部页面生成后再依次生成版本记录（v1.0 首行）→ 名词说明 → 辅助章节（如需要）
 4. 写入 `output/prd/prd.md`
 5. 运行 `python $BUNDLE/scripts/python/prd-style-lint.py output/prd/prd.md` 自检
-6. 运行 `python $BUNDLE/scripts/python/stage-prep.py --stage prd --project-root .` 生成 PRD metadata（index + relations）
-7. 运行确定性结构对比：
+6. 运行确定性结构对比：
    ```bash
    cat output/prd/prd.md | python $BUNDLE/scripts/python/prd-consistency-check.py --project-root .
    ```
@@ -80,15 +79,14 @@ Read .workflow/status.json
    读取输出的 JSON 报告：
    - `hallucinated` 非空 → 删除幻觉内容，从 design.md 重新提取
    - `missing` 非空 → 补充 PRD 对应章节
+   - `attribute_mismatch` 非空 → 修正字段类型/必填不一致
 
    然后 LLM 补充语义检查（脚本无法覆盖的部分）：
    - 规则覆盖：design rules.json 每条规则 × PRD 正文 → [存在/缺失]
-   - 字段属性一致性：matched 字段的类型和必填是否与 design 一致
 
    修正后重新运行脚本直到无幻觉
 
-8. 运行 `python $BUNDLE/scripts/python/verify-against-metadata.py --stage prd --project-root .` 校验结构完整性
-9. 更新 `.workflow/status.json`
+7. 更新 `.workflow/status.json`
 
 ## 写作规则
 
@@ -208,7 +206,6 @@ Read .workflow/status.json
 
 - `current_stage`：`"prd"`
 - `artifacts.prd`：`"output/prd/prd.md"`
-- `metadata_paths.prd`：`".workflow/metadata/prd/"`
 - `next_recommended`：`"prototype"` 或 `"prd-review"`
 
 ## 停止条件

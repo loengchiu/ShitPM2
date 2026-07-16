@@ -32,15 +32,15 @@ description: "PRD review——判断 PRD 正文质量。用于用户说 prd revi
    cat output/prd/prd.md | python $BUNDLE/scripts/python/prd-consistency-check.py --project-root .
    ```
 
-   直接引用脚本 JSON 报告中的 missing/hallucinated 项。
+   直接引用脚本 JSON 报告中的 missing/hallucinated/attribute_mismatch 项。
 
    然后 LLM 补充检查（脚本无法覆盖的部分）：
    - 规则 checklist：design rules.json 每条规则 × PRD 正文 → [存在/缺失]
-   - 字段属性一致性：matched 字段的类型/必填是否与 design 一致
 
    判定：
    - 脚本报告的 hallucinated 项 = P0
    - 脚本报告的 missing 项 = P1（缺失率 > 50% 升级 P0）
+   - 脚本报告的 attribute_mismatch 项 = P1
    - LLM 发现的规则缺失 = P1
 
 4. **结构**：每个小模块末尾含字段定义、状态机归位内容；大模块开头含权限规则归位；状态机按核心业务对象组织，含状态集合/迁移/触发动作和限制条件；权限规则含页面级/按钮级权限
@@ -83,6 +83,6 @@ issue_layer：`{"structure":N,"content":N,"consistency":N}`。
 4. 预检查失败不跳过
 5. P2 写入 issues 但不计入 verdict
 6. review 通过后不自动推进
-7. 脚本报告的 missing/hallucinated 项逐条列出；为零时直接引用脚本结论
-8. LLM 补充检查（规则覆盖、字段属性一致性）必须逐项列出，不允许笼统结论
+7. 脚本报告的 missing/hallucinated/attribute_mismatch 项逐条列出；为零时直接引用脚本结论
+8. LLM 补充检查（规则覆盖）必须逐项列出，不允许笼统结论
 9. 幻觉项（PRD 有 design 没有）必须标 P0，不放过

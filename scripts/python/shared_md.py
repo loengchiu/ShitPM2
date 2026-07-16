@@ -19,12 +19,9 @@ ARTIFACT_PATHS = {
 }
 
 METADATA_FILE_MAP = {
-    "align": ["index.json", "relations.json"],
     "design": ["index.json", "relations.json", "modules.json", "pages.json",
                "fields.json", "rules.json", "states.json", "permissions.json",
                "page-fields.json", "non-page-fields.json"],
-    "prd": ["index.json", "relations.json"],
-    "prototype": ["index.json"],
 }
 
 ID_PREFIXES = {

@@ -96,12 +96,6 @@ python scripts/python/review-precheck.py --stage design
 
 **产出文件：**
 - `output/prd/prd.md` — PRD 正文（人读）
-- `.workflow/metadata/prd/` — 6 个机读 JSON（自动生成）
-
-**运行命令：**
-```powershell
-python scripts/python/stage-prep.py --stage prd
-```
 
 **风格自检（可选）：**
 ```powershell
@@ -135,12 +129,6 @@ python scripts/python/review-precheck.py --stage prd
 
 **产出文件：**
 - `output/prototype/index.html` — 原型页面（人读）
-- `.workflow/metadata/prototype/` — 2 个机读 JSON（自动生成）
-
-**运行命令：**
-```powershell
-python scripts/python/stage-prep.py --stage prototype
-```
 
 **然后：** 进入 prototype-review。
 
@@ -193,8 +181,7 @@ python scripts/python/review-precheck.py --stage prototype
 ```powershell
 # 示例：design 加了新字段，同步到 prd 和 prototype
 python scripts/python/stage-prep.py --stage design
-python scripts/python/stage-prep.py --stage prd
-python scripts/python/stage-prep.py --stage prototype
+# PRD 和 prototype 不再生成自己的 metadata，只需重新生成 design metadata 后重生人读产物
 ```
 
 ---

@@ -30,7 +30,7 @@ from shared_md import (
 # PRD 章节别名
 # 字段/状态/权限按小模块归位到 §5 详细需求说明
 SECTION_ALIASES = {
-    "详细需求说明": ["详细需求说明", "详细需求", "需求说明"],
+    "详细需求说明": ["详细需求说明", "详细需求", "需求说明", "详细需求规格", "需求详细说明"],
 }
 
 
@@ -73,10 +73,13 @@ def _tables_in_range(tables: list, start: int, end: int) -> list:
 # ── PRD 实体提取 ──────────────────────────────────────────────
 
 def extract_prd_fields(headings: list, tables: list) -> list:
-    """从 §5 详细需求说明提取字段名（第一列）
+    """从 §5 详细需求说明提取字段（含属性）
 
     归位后字段表分布在小模块末尾。
     识别规则：在详细需求说明章节范围内，表头含"字段"和"类型"的表视为字段定义表。
+    PRD 字段表格式：| 字段 | 类型 | 必填 | 说明 |（4 列）
+
+    返回 [{"name": str, "type": str, "required": bool}, ...]
     """
     start, end, _ = _find_section_range(headings, "详细需求说明")
     if start is None:
@@ -91,9 +94,22 @@ def extract_prd_fields(headings: list, tables: list) -> list:
         header_text = "|".join(headers)
         if "字段" not in header_text or "类型" not in header_text:
             continue
+        # 定位列索引
+        name_idx = next((i for i, h in enumerate(headers) if "字段" in h), 0)
+        type_idx = next((i for i, h in enumerate(headers) if "类型" in h), 1)
+        required_idx = next((i for i, h in enumerate(headers) if "必填" in h), None)
         for row in table["rows"]:
-            if row and row[0] and row[0] not in ("---", "字段"):
-                fields.append(row[0].strip())
+            if not row or not row[0] or row[0] in ("---", "字段"):
+                continue
+            name = row[name_idx].strip() if name_idx < len(row) else ""
+            if not name:
+                continue
+            field_type = row[type_idx].strip() if type_idx < len(row) else ""
+            required = None
+            if required_idx is not None and required_idx < len(row):
+                required_cell = row[required_idx].strip()
+                required = required_cell == "是" if required_cell in ("是", "否") else None
+            fields.append({"name": name, "type": field_type, "required": required})
     return fields
 
 
@@ -234,6 +250,78 @@ def extract_prd_permission_pages(headings: list, tables: list) -> list:
     return pages
 
 
+# ── 字段属性对比 ──────────────────────────────────────────────
+
+def _normalize_type(type_str: str) -> str:
+    """归一化类型字符串以便比较：去空格、转小写"""
+    if not type_str:
+        return ""
+    return re.sub(r"\s+", "", type_str).lower()
+
+
+def compare_field_attributes(
+    design_fields: list,
+    prd_fields: list,
+    design_title_to_id: dict,
+    fuzzy_fn=None,
+) -> list:
+    """对比 matched 字段的类型和必填属性
+
+    返回 attribute_mismatch 列表：
+    [{"name": str, "design_type": str, "prd_type": str,
+      "design_required": bool, "prd_required": bool}, ...]
+    """
+    # 构建 design title → attributes 映射
+    design_attrs = {}
+    for f in design_fields:
+        if not isinstance(f, dict) or "title" not in f:
+            continue
+        attrs = f.get("attributes", {})
+        design_attrs[f["title"]] = {
+            "type": attrs.get("数据类型", ""),
+            "required": attrs.get("必填"),
+        }
+
+    mismatches = []
+    matched_pairs = set()  # 避免重复匹配
+
+    for prd_field in prd_fields:
+        if not isinstance(prd_field, dict) or "name" not in prd_field:
+            continue
+        prd_name = prd_field["name"]
+        # 尝试匹配 design 字段名
+        matched_design = _try_match(prd_name, design_title_to_id, fuzzy_fn)
+        if not matched_design or matched_design not in design_attrs:
+            continue
+        pair_key = (prd_name, matched_design)
+        if pair_key in matched_pairs:
+            continue
+        matched_pairs.add(pair_key)
+
+        d_attrs = design_attrs[matched_design]
+        d_type = _normalize_type(d_attrs["type"])
+        p_type = _normalize_type(prd_field.get("type", ""))
+        d_required = d_attrs["required"]
+        p_required = prd_field.get("required")
+
+        type_mismatch = d_type != p_type and d_type and p_type
+        required_mismatch = (
+            d_required is not None and p_required is not None
+            and d_required != p_required
+        )
+
+        if type_mismatch or required_mismatch:
+            mismatches.append({
+                "name": prd_name,
+                "design_type": d_attrs["type"],
+                "prd_type": prd_field.get("type", ""),
+                "design_required": d_required,
+                "prd_required": p_required,
+            })
+
+    return mismatches
+
+
 # ── 集合对比 ──────────────────────────────────────────────────
 
 def _try_match(name: str, name_to_id: dict, fuzzy_fn) -> str | None:
@@ -357,10 +445,15 @@ def main():
     prd_states = extract_prd_states(content, headings, tables)
     prd_perm_pages = extract_prd_permission_pages(headings, tables)
 
-    # 集合对比
+    # 集合对比（字段用名称列表做集合对比）
+    prd_field_names = [f["name"] for f in prd_fields if isinstance(f, dict) and "name" in f]
     field_result = compare_entities(
         [f["title"] for f in design_fields if isinstance(f, dict)],
-        prd_fields, field_title_to_id, fuzzy_field_match,
+        prd_field_names, field_title_to_id, fuzzy_field_match,
+    )
+    # 字段属性对比（类型 + 必填）
+    field_result["attribute_mismatch"] = compare_field_attributes(
+        design_fields, prd_fields, field_title_to_id, fuzzy_field_match,
     )
     page_result = compare_entities(
         [p["title"] for p in design_pages if isinstance(p, dict)],
@@ -384,6 +477,7 @@ def main():
         + len(state_result["hallucinated"])
         + len(perm_result["hallucinated"])
     )
+    total_attribute_mismatch = len(field_result["attribute_mismatch"])
 
     result = {
         "fields": field_result,
@@ -393,6 +487,7 @@ def main():
         "summary": {
             "total_missing": total_missing,
             "total_hallucinated": total_hallucinated,
+            "total_attribute_mismatch": total_attribute_mismatch,
             "has_hallucination": total_hallucinated > 0,
         },
     }

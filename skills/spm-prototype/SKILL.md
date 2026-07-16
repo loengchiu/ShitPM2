@@ -41,9 +41,8 @@ description: "原型阶段——把 design 或 PRD 的页面行为表达成可�
    d. 生成该页 HTML 片段，生成立即自检：该页字段与 design.md 原文是否一致
 3. 全部页面生成完后组装页框、导航
 4.  全量自检：所有页面字段数量总和与 design.md 原文定义是否对齐
-5. 运行 `verify-against-metadata.py`（结构完整性安全网——只校验 schema 和 ID 唯一性，不做语义对比。幻觉检测由 AI 在步骤 d 自检完成）
 
-> **分页流水线核心：每页上下文 ~15KB，AI 只读 design.md 原文照抄。幻觉自检在生成阶段由 AI 对照 design.md 完成，verify 脚本只做结构兜底。**
+> **分页流水线核心：每页上下文 ~15KB，AI 只读 design.md 原文照抄。幻觉自检在生成阶段由 AI 对照 design.md 完成。**
 
 
 ## 执行顺序
@@ -126,12 +125,9 @@ description: "原型阶段——把 design 或 PRD 的页面行为表达成可�
 |------|---------|------|
 | 1 | `output/prototype/index.html` | 主原型文件（或按页面拆分） |
 | 2 | `output/prototype/lib/` | **必须复制**——从 `lib/` 复制到 `output/prototype/lib/`，使原型目录自包含 |
-| 3 | `.workflow/metadata/prototype/index.json` | 原型索引 |
-| 4 | `output/prototype/prototype-feedback.md` | 可选，反馈模板 |
+| 3 | `output/prototype/prototype-feedback.md` | 可选，反馈模板 |
 
 **lib/ 复制必须在生成 HTML 后立即执行**。用 `cp -r $BUNDLE/lib/ output/prototype/lib/`（如果已有旧 lib/ 则先删除再复制）。
-
-生成后运行 `python $BUNDLE/scripts/python/verify-against-metadata.py --stage prototype --project-root .` 校验结构完整性（schema + ID 唯一性，不校验幻觉）。
 
 ## 处理反馈
 
@@ -157,7 +153,7 @@ AI 读取 `prototype-feedback.md` 后，必须先输出固定格式归类结果�
 
 归类规则：
 
-- 表现问题：只修改 prototype + metadata/prototype，不回写 design
+- 表现问题：只修改 prototype，不回写 design
 - 语义问题：先回写 design + metadata/design，再视影响范围重生 PRD 或 prototype
 - 若某一类为空，保留标题并写"无"
 

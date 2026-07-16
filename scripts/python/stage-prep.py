@@ -28,7 +28,7 @@ from shared_md import (
     ID_PREFIXES,
     ARTIFACT_PATHS, METADATA_FILE_MAP,
 )
-VALID_STAGES = ["design", "prd", "prototype"]
+VALID_STAGES = ["design"]
 
 
 # 中文关键词到实体类型的映射
@@ -45,8 +45,6 @@ HEADING_ENTITY_MAP = {
 # 每个阶段允许生成的实体类型
 STAGE_ALLOWED_ENTITIES = {
     "design": {"module", "page", "field", "rule", "flow"},
-    "prd": set(),  # prd 不新增实体，只引用 design
-    "prototype": set(),
 }
 
 # 章节级标题模式（不应被识别为实体条目）
@@ -765,53 +763,6 @@ def generate_design_metadata(content: str, stage: str, project_root: Path) -> di
     return result
 
 
-def generate_prd_metadata(content: str, project_root: Path) -> dict:
-    """生成 PRD 阶段 metadata（只 index + relations）
-
-    PRD 不再提取字段/页面/规则/状态/权限 anchor——语义检测交给 review skill 的 LLM 逐项 checklist。
-    """
-    index = {
-        "schema_version": "1.0.0",
-        "stage": "prd",
-        "artifact_path": "output/prd/prd.md",
-        "generated_at": datetime.now(timezone.utc).isoformat(),
-    }
-    design_relations = _load_design_metadata_relations(project_root)
-    return {
-        "index": index,
-        "relations": design_relations,
-    }
-
-
-def _load_design_metadata_relations(project_root: Path) -> list:
-    """加载 design 阶段的 relations.json"""
-    meta_file = project_root / ".workflow" / "metadata" / "design" / "relations.json"
-    if meta_file.exists():
-        try:
-            with open(meta_file, encoding="utf-8") as f:
-                data = json.load(f)
-            return data if isinstance(data, list) else []
-        except (json.JSONDecodeError, OSError):
-            pass
-    return []
-
-
-def generate_prototype_metadata(content: str, project_root: Path) -> dict:
-    """生成 prototype 阶段 metadata（只 index）
-
-    prototype 不再提取页面/字段 anchor——语义检测交给 review skill 的 LLM 逐项 checklist。
-    """
-    index = {
-        "schema_version": "1.0.0",
-        "stage": "prototype",
-        "artifact_path": "output/prototype/index.html",
-        "generated_at": datetime.now(timezone.utc).isoformat(),
-        "entity_count": 0,
-        "relation_count": 0,
-    }
-    return {"index": index}
-
-
 def write_metadata(stage: str, data: dict, project_root: Path, dry_run: bool = False) -> list:
     """将 metadata 写入文件"""
     metadata_dir = project_root / ".workflow" / "metadata" / stage
@@ -982,10 +933,6 @@ def main():
     # 根据阶段生成 metadata
     if stage == "design":
         data = generate_design_metadata(content, stage, project_root)
-    elif stage == "prd":
-        data = generate_prd_metadata(content, project_root)
-    elif stage == "prototype":
-        data = generate_prototype_metadata(content, project_root)
     else:
         print(f"错误: 不支持的阶段: {stage}", file=sys.stderr)
         sys.exit(1)

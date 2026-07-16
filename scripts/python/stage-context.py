@@ -35,8 +35,8 @@ REQUIRED_ARTIFACTS = {
 REQUIRED_METADATA = {
     "align": [],
     "design": [],  # metadata 在 design review 通过后生成
-    "prd": [".workflow/metadata/design/"],
-    "prototype": [".workflow/metadata/design/"],
+    "prd": [".workflow/metadata/design/"],  # PRD 引用 design 镜像做一致性检查
+    "prototype": [".workflow/metadata/design/"],  # prototype 引用 design 镜像做页面覆盖检查
     "fix": [],
 }
 
