@@ -26,6 +26,7 @@ from shared_md import (
     fuzzy_state_match,
     clean_page_title,
     load_json,
+    strip_heading_number,
 )
 
 # PRD 章节别名
