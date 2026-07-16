@@ -18,14 +18,13 @@ import os
 import re
 import sys
 from pathlib import Path
-from shared_md import ARTIFACT_PATHS, METADATA_FILE_MAP
+from shared_md import ARTIFACT_PATHS, METADATA_FILE_MAP, strip_heading_number
 
 VALID_STAGES = ["design", "prd", "prototype"]
 
 
 METADATA_EMPTY_OK = {
     "design": {"relations.json"},
-    "prd": {"relations.json"},
 }
 
 CORE_SECTIONS = {
@@ -76,7 +75,9 @@ def check_prd_entity_coverage(project_root: Path, stdin_content: str = None) -> 
             continue
         level = len(m.group(1))
         title = m.group(2).strip()
-        if any(alias in title for alias in SECTION_ALIASES["design"]["字段定义"]) and level <= 2:
+        # 精确匹配：标题去除编号后与别名完全相等，避免子串误匹配
+        title_no_prefix = strip_heading_number(title)
+        if any(title_no_prefix == alias or title == alias for alias in SECTION_ALIASES["design"]["字段定义"]) and level <= 2:
             in_dd = True
             dd_heading_level = level
             continue
@@ -136,6 +137,12 @@ def check_prd_entity_coverage(project_root: Path, stdin_content: str = None) -> 
 def check_artifact_exists(project_root: Path, stage: str, stdin_content: str = None) -> dict:
     artifact_rel = ARTIFACT_PATHS[stage]
     if stdin_content is not None:
+        if not stdin_content.strip():
+            return {
+                "check": "artifact_exists",
+                "passed": False,
+                "detail": f"{artifact_rel} 读取失败（stdin 为空）",
+            }
         result = {
             "check": "artifact_exists",
             "passed": True,
@@ -382,21 +389,27 @@ def check_design_page_field_coverage(project_root: Path) -> dict:
     }
 
 
-def run_prd_style_lint(project_root: Path) -> list:
-    """Run PRD style lint via direct import instead of subprocess."""
-    prd_path = project_root / ARTIFACT_PATHS["prd"]
-    if not prd_path.exists():
-        return []
-    try:
+def run_prd_style_lint(project_root: Path, content: str = None) -> list:
+    """Run PRD style lint via direct import instead of subprocess.
+
+    优先使用 content 参数（来自 stdin），否则从磁盘读取。
+    """
+    if content is not None:
+        prd_content = content
+    else:
+        prd_path = project_root / ARTIFACT_PATHS["prd"]
+        if not prd_path.exists():
+            return [f"PRD 产物不存在: {ARTIFACT_PATHS["prd"]}"]
         with open(prd_path, encoding="utf-8") as f:
-            content = f.read()
+            prd_content = f.read()
+    try:
         # 文件名含连字符，无法用普通 import，用 importlib 加载
         import importlib.util
         scripts_dir = os.path.dirname(os.path.abspath(__file__))
         spec = importlib.util.spec_from_file_location("prd_style_lint", os.path.join(scripts_dir, "prd-style-lint.py"))
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
-        issues = mod.run_lint(content)
+        issues = mod.run_lint(prd_content)
         warnings = []
         for issue in issues:
             if issue.severity in ("error", "warning"):
@@ -406,8 +419,6 @@ def run_prd_style_lint(project_root: Path) -> list:
         return [f"lint 脚本加载失败（依赖缺失）: {e}"]
     except Exception as e:
         return [f"lint 执行异常: {e}"]
-
-
 def main():
     parser = argparse.ArgumentParser(description="review 确定性预检查")
     parser.add_argument("--stage", required=True, choices=VALID_STAGES, help="被 review 的阶段")
@@ -454,7 +465,7 @@ def main():
             blocking_issues.append(coverage_check["detail"])
 
     if stage == "prd":
-        lint_warnings = run_prd_style_lint(project_root)
+        lint_warnings = run_prd_style_lint(project_root, stdin_content)
         if lint_warnings:
             deterministic_checks.append({
                 "check": "prd_style_lint",

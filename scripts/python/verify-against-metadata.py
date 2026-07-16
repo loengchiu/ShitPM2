@@ -160,7 +160,7 @@ def verify_reviews(project_root) -> list:
 
 def main():
     parser = argparse.ArgumentParser(description="metadata 结构完整性校验")
-    parser.add_argument("--stage", required=True, choices=["design", "prd", "prototype", "status", "review"])
+    parser.add_argument("--stage", required=True, choices=["design", "status", "review"])
     parser.add_argument("--project-root", type=Path, default=Path.cwd())
     args = parser.parse_args()
 

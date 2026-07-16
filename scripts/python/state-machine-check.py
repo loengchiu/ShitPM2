@@ -113,7 +113,7 @@ def _check_entity(entity, ent_states):
             })
 
     # 规则3：回退目标合法（须在正向可达集内）
-    forward_reachable = _forward_reachable(initial, state_map)
+    forward_reachable = _forward_reachable(initial, state_map, global_transitions)
     for s in non_wildcard:
         for t in s.get("transitions", []):
             trig = t["trigger"]
@@ -148,8 +148,8 @@ def _check_entity(entity, ent_states):
     return v
 
 
-def _forward_reachable(initial, state_map):
-    """从初始态经非回退边 BFS 的正向可达集"""
+def _forward_reachable(initial, state_map, global_transitions=None):
+    """从初始态经非回退边 BFS 的正向可达集（含全局迁移目标状态扩张）"""
     if not initial:
         return set()
     queue = deque([initial])
@@ -169,6 +169,28 @@ def _forward_reachable(initial, state_map):
             to = t["to_state"]
             if to not in visited:
                 queue.append(to)
+    # 纳入全局迁移（通配状态）的目标状态做二次扩张
+    if global_transitions:
+        for gt in global_transitions:
+            to = gt.get("to_state")
+            if to and to not in visited:
+                visited.add(to)
+                queue.append(to)
+        while queue:
+            cur = queue.popleft()
+            if cur in visited:
+                continue
+            visited.add(cur)
+            s = state_map.get(cur)
+            if not s:
+                continue
+            for t in s.get("transitions", []):
+                trig = t["trigger"]
+                if any(k in trig for k in ROLLBACK_KEYWORDS):
+                    continue
+                to = t["to_state"]
+                if to not in visited:
+                    queue.append(to)
     return visited
 
 
@@ -194,7 +216,7 @@ def main():
         "summary": {"total": len(violations), "P1": p1, "P2": p2},
     }
     print(json.dumps(result, ensure_ascii=False, indent=2))
-    return 0
+    return 1 if p1 > 0 else 0
 
 
 if __name__ == "__main__":

@@ -71,6 +71,27 @@ MINIMAL_READ_SET = {
     "fix": [
         ".workflow/status.json",
     ],
+    "design-review": [
+        ".workflow/status.json",
+        "output/design/design.md",
+        ".workflow/metadata/design/",
+        "contracts/review-checklist.md",
+        "references/design-writing.md",
+        "references/design-state-format.md",
+    ],
+    "prd-review": [
+        ".workflow/status.json",
+        "output/design/design.md",
+        "output/prd/prd.md",
+        ".workflow/metadata/design/",
+        "contracts/review-checklist.md",
+    ],
+    "prototype-review": [
+        ".workflow/status.json",
+        "output/design/design.md",
+        "output/prototype/index.html",
+        "contracts/review-checklist.md",
+    ],
 }
 
 
@@ -120,6 +141,12 @@ def load_align_notes(project_root: Path):
 
 def determine_stage(project_root: Path, status: dict) -> str:
     """根据 status 和产物存在情况判断实际应处阶段"""
+    current_stage = status.get("current_stage", "align")
+
+    # 如果当前是 review 子阶段，直接返回该 review 子阶段
+    if current_stage in ("design-review", "prd-review", "prototype-review"):
+        return current_stage
+
     artifacts = status.get("artifacts", {})
 
     has_align = artifacts.get("align") and (project_root / artifacts["align"]).exists()
@@ -135,7 +162,7 @@ def determine_stage(project_root: Path, status: dict) -> str:
         return "prd"
     if not has_prototype:
         return "prototype"
-    return status.get("current_stage", "prototype")
+    return current_stage
 
 
 def determine_next(status: dict, align_notes) -> str:
@@ -271,6 +298,10 @@ def main():
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
     # 如有阻塞问题，exit code = 1
+
+    # 非法 stage 或 status.json 缺失
+    if "error" in result:
+        sys.exit(1)
     if result.get("gate", {}).get("blocking_issues"):
         sys.exit(1)
 

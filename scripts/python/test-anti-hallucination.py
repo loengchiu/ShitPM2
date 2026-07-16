@@ -33,6 +33,11 @@ EXPECTED_HALLUCINATIONS = {
 }
 
 
+
+def _tables_in_range_compat(tables, start, end):
+    """返回指定行范围内的表格"""
+    return [t for t in tables if start <= t.get("line_offset", 0) < (end or float("inf"))]
+
 def _gen_design_metadata():
     """从固定 PRD 反推生成 design metadata
 
@@ -59,6 +64,59 @@ def _gen_design_metadata():
     prd_pages = mod.extract_prd_pages(content, headings)
     prd_states = mod.extract_prd_states(content, headings, tables)
     prd_perm_pages = mod.extract_prd_permission_pages(headings, tables)
+
+    # 兼容旧格式：独立章节的数据字典、权限汇总、状态机
+    # 如果 §5 详细需求说明中没有字段/状态/权限，从独立章节补提取
+    if not prd_fields:
+        data_dict_start, data_dict_end, _ = mod._find_section_range(headings, "数据字典")
+        if data_dict_start:
+            for table in _tables_in_range_compat(tables, data_dict_start, data_dict_end):
+                headers = table.get("headers", [])
+                if not headers:
+                    continue
+                header_text = "|".join(headers)
+                if "字段" not in header_text or "类型" not in header_text:
+                    continue
+                name_idx = next((j for j, h in enumerate(headers) if "字段" in h), 0)
+                type_idx = next((j for j, h in enumerate(headers) if "类型" in h), 1)
+                for row in table["rows"]:
+                    if not row or not row[0] or row[0] in ("---", "字段"):
+                        continue
+                    name = row[name_idx].strip() if name_idx < len(row) else ""
+                    if name:
+                        prd_fields.append(name)
+    if not prd_states:
+        sm_start, sm_end, _ = mod._find_section_range(headings, "状态机")
+        if sm_start:
+            for table in _tables_in_range_compat(tables, sm_start, sm_end):
+                headers = table.get("headers", [])
+                if not headers:
+                    continue
+                header_text = "|".join(headers)
+                if "状态" not in header_text or "触发动作" not in header_text:
+                    continue
+                state_cols = [j for j, h in enumerate(headers) if "状态" in h]
+                for row in table["rows"]:
+                    for col_idx in state_cols:
+                        if col_idx < len(row) and row[col_idx]:
+                            cell = row[col_idx].strip().strip("")
+                            if cell and cell not in ("—", "-", "状态", "任意状态"):
+                                prd_states.append(cell)
+    if not prd_perm_pages:
+        perm_start, perm_end, _ = mod._find_section_range(headings, "权限汇总")
+        if perm_start:
+            for h in headings:
+                if h["line"] < perm_start:
+                    continue
+                if perm_end and h["line"] >= perm_end:
+                    continue
+                if h["level"] == 3:
+                    title = h["title"]
+                    cleaned = re.sub(r'^\d+\.\d+\s*', '', title).strip()
+                    if cleaned.endswith("模块"):
+                        cleaned = cleaned[:-2].strip()
+                    if cleaned:
+                        prd_perm_pages.append(cleaned)
 
     # 将 PRD 提取结果封装为 design metadata 格式
     fields = [{"id": f"FIELD-design-{i+1:03d}", "type": "field", "title": t} for i, t in enumerate(prd_fields)]

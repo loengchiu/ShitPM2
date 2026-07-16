@@ -104,7 +104,7 @@
 | 脚本 | 职责 | 不做的事 |
 |------|------|---------|
 | verify-against-metadata.py | schema 校验 + ID 唯一性校验 | 语义检测、幻觉检测、一致性比对 |
-| prd-consistency-check.py | PRD 幻觉字段检测 + 集合对比 | schema 校验 |
+| prd-consistency-check.py | PRD 幻觉字段检测 + 集合对比 | 不生成 metadata，不校验 |
 | review-precheck.py | review 前置结构完整性检查 | 语义检测 |
 | prd-style-lint.py | PRD 文风 lint（标签式、流水账、占位符等） | 语义检测 |
 

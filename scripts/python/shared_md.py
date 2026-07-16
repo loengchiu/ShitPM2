@@ -9,7 +9,7 @@ import re
 
 # ── 常量 ──────────────────────────────────────────────────────
 
-STABLE_ID_PATTERN = re.compile(r'(MODULE|PAGE|FIELD|RULE|FLOW|REL|PERM|STATE)-(design|prd)-\d{3}')
+STABLE_ID_PATTERN = re.compile(r'(MODULE|PAGE|FIELD|RULE|FLOW|REL|PERM|STATE)-(design|prd|prototype)-\\d{3}')
 
 ARTIFACT_PATHS = {
     "align": "output/align/align.md",
@@ -22,8 +22,6 @@ METADATA_FILE_MAP = {
     "design": ["index.json", "relations.json", "modules.json", "pages.json",
                "fields.json", "rules.json", "states.json", "permissions.json",
                "page-fields.json", "non-page-fields.json"],
-    "prd": ["index.json", "relations.json"],
-    "prototype": ["index.json"],
 }
 
 ID_PREFIXES = {
@@ -31,6 +29,22 @@ ID_PREFIXES = {
     "rule": "RULE", "flow": "FLOW", "permission": "PERM",
     "state": "STATE", "relation": "REL",
 }
+
+
+# ── 章节标题辅助 ──────────────────────────────────────────────
+
+
+def strip_heading_number(title: str) -> str:
+    """去除 Markdown 标题的编号前缀（阿拉伯/中文序号），返回纯文本标题"""
+    text_str = title.strip()
+    # 1) 阿拉伯数字编号
+    text_str = re.sub(r'^\d+(?:\.\d+)*[.\s]*', '', text_str)
+    text_str = re.sub(r'^[（(]\d+[）)]\s*', '', text_str)
+    # 2) 中文序号
+    text_str = re.sub(r'^[（(]([一二三四五六七八九十]+)[）)]\s*', lambda m: '', text_str)
+    text_str = re.sub(r'^([一二三四五六七八九十]+)[、，。,\.]\s*', lambda m: '', text_str)
+    return text_str
+
 
 
 # ── JSON 工具 ─────────────────────────────────────────────────
