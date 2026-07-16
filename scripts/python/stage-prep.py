@@ -177,12 +177,16 @@ def infer_entities_from_headings(headings: list, stage: str, project_root: Path 
 
 
 def _build_field_attributes(row: list, headers: list) -> dict:
-    """根据列数适配 5 列或 9 列字段格式
+    """根据列名适配 5 列或 9 列字段格式
 
     5 列格式（当前设计稿）：字段 | 类型 | 必填 | 枚举值 / 规则 | 说明
     9 列格式（原模板）：字段 | 类型 | 长度 | 必填 | 默认值 | 枚举值 | 格式 | 业务来源 | 说明
+
+    判断依据：表头是否含"长度"和"默认值"列，而非列数阈值。
     """
-    if len(headers) >= 7:
+    has_length = any("长度" in h for h in headers)
+    has_default = any("默认值" in h for h in headers)
+    if has_length and has_default:
         # 9 列格式
         return {
             "数据类型": row[1] if len(row) > 1 else None,
@@ -266,19 +270,10 @@ def extract_entities_from_tables(content: str, headings: list, stage: str, count
                     })
 
     # 状态机表提取（迁移 + 实体归属）移至 _extract_states_from_tables 独立处理
-    # 状态提取：优先状态机表解析（含迁移），兜底从"状态集合"列表项解析（无迁移）
+    # 状态提取：优先状态机表解析（含迁移+ID），兜底从"状态集合"列表项解析（含ID）
     states = _extract_states_from_tables(tables, headings, stage, counter)
     if not states:
-        states = _extract_states_from_content(content)
-
-    # 为 states 分配稳定 ID
-    state_counter = counter.get("STATE", 0)
-    for s in states:
-        if "id" not in s:
-            state_counter += 1
-            s["id"] = f"STATE-{stage}-{state_counter:03d}"
-            s["type"] = "state"
-    counter["STATE"] = state_counter
+        states = _extract_states_from_content(content, stage, counter)
 
     # 权限深度提取：解析权限章节下 "### 页面名" 子标题内的 "- role：action" 列表项
     # 输出 (page_title, role, action_text) 三元组，不再把页面名当权限实体
@@ -338,6 +333,10 @@ def _extract_states_from_tables(tables, headings, stage, counter):
         trigger_idx = _find_header_index(headers, ["触发动作"])
         to_idx = _find_header_index(headers, ["下一状态"])
         if from_idx is None or operator_idx is None or trigger_idx is None or to_idx is None:
+            # 4 列表头时友好提示（常见旧格式：状态|含义|说明|备注）
+            from_only = _find_header_index(headers, ["状态"])
+            if from_only is not None and len(headers) <= 4:
+                print(f"  警告: 发现 4 列旧格式状态表（行 {table['line_offset']}），未提取状态机迁移数据。请改用 6 列规范格式：状态 | 含义 | 操作人 | 触发动作 | 下一状态 | 限制条件", file=sys.stderr)
             continue
 
         condition_idx = _find_header_index(headers, ["限制条件"])
@@ -397,6 +396,18 @@ def _extract_states_from_tables(tables, headings, stage, counter):
                 "is_terminal": False, "is_wildcard": True,
             }
 
+    # 标记每个实体的初始态（第一个非通配、非终态状态，按行序）
+    _entity_first = {}
+    for key, s in state_map.items():
+        entity_key = key[0]
+        if s.get("is_wildcard"):
+            continue
+        if entity_key not in _entity_first or s.get("line", 9999) < _entity_first[entity_key].get("line", 9999):
+            _entity_first[entity_key] = s
+    for s in _entity_first.values():
+        if not s.get("is_terminal"):
+            s["is_initial"] = True
+
     states = []
     for s in state_map.values():
         state_counter = counter.get("STATE", 0) + 1
@@ -431,14 +442,15 @@ _STATE_SECTION_KEYWORDS = ("状态集合", "状态定义", "状态流转", "状�
 _PERM_SECTION_KEYWORDS = ("权限定义", "角色权限", "权限矩阵")
 
 
-def _extract_states_from_content(content: str) -> list:
-    """从"状态集合"子章节的列表项提取状态实体
+def _extract_states_from_content(content: str, stage: str, counter: dict) -> list:
+    """从"状态集合"子章节的列表项提取状态实体（含 ID 分配）
 
     design 格式：
       ### 状态集合
       - `draft`：草稿
       - `submitted`：已提交
 
+    ID 分配与此函数内联，与 _extract_states_from_tables 对称。
     不再提取 h3 标题（"状态集合"/"状态迁移" 是容器标题不是状态）。
     """
     states = []
@@ -460,7 +472,15 @@ def _extract_states_from_content(content: str) -> list:
         if match:
             state_name = match.group(1).strip()
             state_desc = match.group(2).strip()
-            states.append({"title": state_name, "detail": state_desc, "line": i + 1})
+            state_counter = counter.get("STATE", 0) + 1
+            counter["STATE"] = state_counter
+            states.append({
+                "id": f"STATE-{stage}-{state_counter:03d}",
+                "type": "state",
+                "title": state_name,
+                "detail": state_desc,
+                "line": i + 1,
+            })
 
     return states
 
@@ -531,11 +551,13 @@ def _extract_design_page_field_map(content: str, headings: list, pages: list, fi
             continue
         if in_section and h["level"] <= section_level:
             break
-        if in_section and h["level"] > section_level and h["level"] <= section_level + 2:
+        if in_section and h["level"] > section_level:
             page_title = clean_page_title(title)
-            if "非页面落点字段" in page_title:
+            # 去"页"尾缀，与 pages.json 中页面名格式对齐
+            page_key = page_title[:-1].strip() if page_title.endswith('页') else page_title
+            if "非页面落点字段" in page_key:
                 continue
-            mappings.setdefault(page_title, {
+            mappings.setdefault(page_key, {
                 "page_title": page_title,
                 "design_page": fuzzy_page_match(page_title, page_title_to_id),
                 "line": h["line"],
@@ -549,11 +571,12 @@ def _extract_design_page_field_map(content: str, headings: list, pages: list, fi
         if not (is_under_heading(table["line_offset"], headings, "页面与字段落点") or is_under_heading(table["line_offset"], headings, "页面数据落点")):
             continue
         page_title = clean_page_title(table["section_title"])
-        if "非页面落点字段" in page_title:
+        page_key = page_title[:-1].strip() if page_title.endswith('页') else page_title
+        if "非页面落点字段" in page_key:
             continue
-        if not page_title:
+        if not page_key:
             continue
-        entry = mappings.setdefault(page_title, {
+        entry = mappings.setdefault(page_key, {
             "page_title": page_title,
             "design_page": fuzzy_page_match(page_title, page_title_to_id),
             "line": table["line_offset"],
@@ -658,15 +681,21 @@ def _extract_numbered_rules_from_design(content: str, stage: str, counter: dict,
     entities = []
     lines = content.split('\n')
     in_rules_section = False
+    rules_section_level = None
+    rule_index = 0
 
     for i, line in enumerate(lines):
         stripped = line.strip()
-        # 检测进入/退出"规则"章节（h3 级别）
-        if re.match(r'^###\s+', stripped):
-            if "规则" in stripped and "状态" not in stripped:
+        # 检测进入/退出"规则"章节（h3 级别，按层级退出更可靠）
+        heading_match = re.match(r'^(#{1,6})\s+(.+)$', stripped)
+        if heading_match:
+            level = len(heading_match.group(1))
+            heading_title = heading_match.group(2)
+            if "规则" in heading_title and "状态" not in heading_title:
                 in_rules_section = True
+                rules_section_level = level
                 continue
-            elif in_rules_section:
+            elif in_rules_section and level <= rules_section_level:
                 in_rules_section = False
                 continue
 
@@ -677,8 +706,9 @@ def _extract_numbered_rules_from_design(content: str, stage: str, counter: dict,
         match = re.match(r'^(\d+)[.、）)]\s*(.+)$', stripped)
         if match:
             rule_text = match.group(2).strip()
-            # 截取前 30 字符作为标题
-            title = rule_text[:30] + ("..." if len(rule_text) > 30 else "")
+            rule_index += 1
+            # 用编号做 title 保证唯一性，规则原文存 detail
+            title = f"规则 {rule_index}"
             if title in title_to_id:
                 entity_id = title_to_id[title]
             else:
@@ -691,6 +721,7 @@ def _extract_numbered_rules_from_design(content: str, stage: str, counter: dict,
                 "type": "rule",
                 "title": title,
                 "line": i + 1,
+                "detail": rule_text,
             })
 
     return entities
@@ -725,8 +756,15 @@ def generate_design_metadata(content: str, stage: str, project_root: Path) -> di
     page_fields = _extract_design_page_field_map(content, headings, table_pages, table_fields)
     non_page_fields = _extract_design_non_page_fields(content, headings, table_fields)
 
-    # 合并所有实体（标题推断的 modules/rules + 表格解析的 pages/fields + 编号规则）
-    entities = heading_entities + table_pages + table_fields + numbered_rules
+    # 合并所有实体（标题推断 + 表格解析 + 编号规则），按 (type, id) 去重
+    raw_entities = heading_entities + table_pages + table_fields + numbered_rules
+    seen = set()
+    entities = []
+    for e in raw_entities:
+        key = (e.get("type"), e.get("id"))
+        if key not in seen:
+            seen.add(key)
+            entities.append(e)
 
     relations = []
     relations.extend(_build_page_field_relations(page_fields, stage, counter))
@@ -866,7 +904,12 @@ def update_status(stage: str, project_root: Path, dry_run: bool = False):
         status.setdefault("artifacts", {})[stage] = artifact_path
     status.setdefault("metadata_paths", {})[stage] = f".workflow/metadata/{stage}/"
 
-    next_map = {"align": "design", "design": "prd", "prd": "prototype", "prototype": "done", "fix": "design"}
+    next_map = {
+        "align": "design", "design": "prd", "design-review": "prd",
+        "prd": "prototype", "prd-review": "prototype",
+        "prototype": "done", "prototype-review": "done",
+        "fix": "design", "done": "done",
+    }
     base_next = next_map.get(stage, stage)
 
     if base_next == "done":
@@ -903,6 +946,9 @@ def update_status(stage: str, project_root: Path, dry_run: bool = False):
                     "verdict": latest["verdict"],
                     "reviewed_at": latest["reviewed_at"],
                 }
+            else:
+                # review 文件缺失时清空过期数据，避免基于过时 review 做错误判定
+                status.setdefault("latest_reviews", {}).pop(stage, None)
 
     with open(status_path, "w", encoding="utf-8") as f:
         json.dump(status, f, ensure_ascii=False, indent=2)
@@ -929,6 +975,9 @@ def main():
             sys.exit(1)
         with open(artifact_path, encoding="utf-8") as f:
             content = f.read()
+        if not content.strip():
+            print(f"错误: 人读产物为空: {artifact_path}", file=sys.stderr)
+            sys.exit(1)
 
     # 根据阶段生成 metadata
     if stage == "design":

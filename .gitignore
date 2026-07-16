@@ -45,6 +45,10 @@ test-fixture/output/prd/prd-hallucination.md
 .trae-cn/
 .trae/
 
+# === 测试/开发遗留产物 ===
+test-prototype-mark.html
+test-fixture/output/prd/prd-module-5.4.md
+
 # === 内部评估报告 ===
 shitpm-plugin-evaluation-v3.md
 skills-evaluation-report-v2.md

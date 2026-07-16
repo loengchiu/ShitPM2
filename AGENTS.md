@@ -7,13 +7,13 @@
 - 写作与产物规则优先描述目标状态；只有门禁、安全、越界、防幻觉才优先用禁止式写法
 
 
-## 3.旧项目仓库目录
+## 2. 旧项目仓库目录
  - PMFlow：D:\work\PMFlow
  - Omp：D:\work\AIskills\OhMyPm
  - shitpm：D:\work\ShitPM
  - testany：D:\work\AIskills\testany-agent-skills\plugins\testany-eng
 
- ## 4. Think Before Coding
+ ## 3. Think Before Coding
  
  **Don't assume. Don't hide confusion. Surface tradeoffs.**
  
@@ -23,7 +23,7 @@
  - If a simpler approach exists, say so. Push back when warranted.
  - If something is unclear, stop. Name what's confusing. Ask.
  
- ## 5. Simplicity First
+ ## 4. Simplicity First
  
  **Minimum code that solves the problem. Nothing speculative.**
  
@@ -35,7 +35,7 @@
  
  Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
  
- ## 6. Surgical Changes
+ ## 5. Surgical Changes
  
  **Touch only what you must. Clean up only your own mess.**
  
@@ -51,7 +51,7 @@
  
  The test: Every changed line should trace directly to the user's request.
  
- ## 7. Goal-Driven Execution
+ ## 6. Goal-Driven Execution
  
  **Define success criteria. Loop until verified.**
  

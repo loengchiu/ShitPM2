@@ -59,7 +59,9 @@ def is_shitpm_junction(path: Path) -> bool:
         target = path.resolve()
         return str(REPO_ROOT) in str(target)
     except OSError:
-        return False
+        # junction 损坏时 resolve 失败，退到检查路径名
+        name = path.name
+        return name == BUNDLE_NAME or name in SKILL_NAMES
 
 
 def remove_path(path: Path) -> None:
@@ -95,7 +97,7 @@ def safe_remove_junction(path: Path, label: str) -> None:
 
 def ensure_junction(link_path: Path, target_path: Path) -> None:
     if link_path.exists() or link_path.is_symlink():
-        remove_path(link_path)
+        safe_remove_junction(link_path, "ensure_junction")
     ensure_dir(link_path.parent)
     result = subprocess.run(
         ['cmd', '/c', 'mklink', '/J', str(link_path), str(target_path)],

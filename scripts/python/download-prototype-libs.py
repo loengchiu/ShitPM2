@@ -12,37 +12,40 @@ from pathlib import Path
 LIB_DIR = Path(__file__).resolve().parents[2] / "lib"
 
 RESOURCES = [
-    # (filename, url)
+    # (filename, url, expected_min_bytes)
     ("vue.global.prod.js",
-     "https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.prod.js"),
+     "https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.prod.js", 50000),
     ("tailwind.js",
-     "https://cdn.tailwindcss.com/3.4.16"),
-    # daisyUI 5 完整 CSS（含全部组件类），946KB
+     "https://cdn.tailwindcss.com/3.4.16", 200000),
+    # daisyUI 5 完整 CSS（含全部组件类），~946KB
     ("daisyui.css",
-     "https://cdn.jsdelivr.net/npm/daisyui@5.5.23/daisyui.css"),
-    # daisyUI 主题 CSS，37KB
+     "https://cdn.jsdelivr.net/npm/daisyui@5.5.23/daisyui.css", 800000),
+    # daisyUI 主题 CSS，~37KB
     ("daisyui-themes.css",
-     "https://cdn.jsdelivr.net/npm/daisyui@5.5.23/themes.css"),
+     "https://cdn.jsdelivr.net/npm/daisyui@5.5.23/themes.css", 20000),
 ]
 
 
-def download(filename: str, url: str) -> int:
+def download(filename: str, url: str, expected_min_bytes: int = 0) -> int:
     target = LIB_DIR / filename
     print(f"[下载] {url} -> {target}")
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
     with urllib.request.urlopen(req, timeout=60) as resp:
         data = resp.read()
+    actual_size = len(data)
     target.write_bytes(data)
-    print(f"  OK: {len(data)} bytes")
-    return len(data)
+    if expected_min_bytes and actual_size < expected_min_bytes:
+        print(f"  WARN: {actual_size} bytes < expected {expected_min_bytes}, 可能下载不完整", file=sys.stderr)
+    print(f"  OK: {actual_size} bytes")
+    return actual_size
 
 
 def main() -> int:
     LIB_DIR.mkdir(parents=True, exist_ok=True)
     total = 0
-    for name, url in RESOURCES:
+    for name, url, expected_min in RESOURCES:
         try:
-            total += download(name, url)
+            total += download(name, url, expected_min)
         except Exception as e:
             print(f"  FAIL: {e}", file=sys.stderr)
             return 1

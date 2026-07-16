@@ -104,7 +104,7 @@ def _inject_hallucinations():
     # 同步给所有数据行追加一列
     import re
     for module_name in ["审计计划", "项目启动", "审计准备", "审计实施", "审计报告", "审计反馈", "审计知识库", "审计总览", "项目档案", "系统管理"]:
-        pattern = re.compile(rf'(\| {re.escape(module_name)} \| [^\n]+)\n')
+        pattern = re.compile(rf'(\| *{re.escape(module_name)} *\| [^\n]+)\n')
         content = pattern.sub(r'\1 | 查看 |\n', content, count=1)
 
     HALLUCINATION_PRD.write_text(content, encoding="utf-8")

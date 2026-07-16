@@ -16,7 +16,7 @@ description: "PRD review——判断 PRD 正文质量。用于用户说 prd revi
 1. `python $BUNDLE/scripts/python/review-precheck.py --stage prd --no-metadata --stdin-artifact`（agent 已读 prd.md，stdin 传入）→ `.workflow/runtime/prd/review-precheck.json`
 2.  脚本失败或 `can_start_review=false` → 停止，输出阻塞项
 3. 检查核心章节：详细需求说明（含每个小模块末尾的字段/状态机归位 + 大模块开头的权限规则归位）
-4. 运行 `python $BUNDLE/scripts/python/prd-style-lint.py` 检查文风
+4. 运行 `python $BUNDLE/scripts/python/prd-style-lint.py output/prd/prd.md` 检查文风
 5. 检查 prd.md 无稳定 ID 泄漏
 
  有阻塞问题 → 停止，不进入第二段。

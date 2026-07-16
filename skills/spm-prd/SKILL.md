@@ -12,7 +12,7 @@ description: "PRD 阶段——把 design 基线展开成研发可评审的人读
 
 ```
 # 脚本调用
-python $BUNDLE/scripts/python/stage-context.py --project-root .
+python $BUNDLE/scripts/python/stage-context.py .
 
 # 读取 bundle 资源
 Read $BUNDLE/templates/prd.md
@@ -25,7 +25,7 @@ Read .workflow/status.json
 
 ## 前置检查
 
-运行 `python $BUNDLE/scripts/python/stage-context.py --project-root .`
+运行 `python $BUNDLE/scripts/python/stage-context.py .`
 
 准入条件：
 1. `output/design/design.md` 存在

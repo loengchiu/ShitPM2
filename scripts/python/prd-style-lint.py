@@ -42,9 +42,14 @@ _PROFILE = load_json(_PROFILE_PATH) or {}
 _PROFILE_FORBIDDEN = _PROFILE.get("constraints", {}).get("forbidden_expressions", [])
 
 # 标签式正文模式：从 profile 的 ** 开头表达式动态生成（单一事实源）
-# 降级兜底：profile 加载失败时使用内置 5 项
+# 降级兜底：profile 加载失败时使用内置完整列表（从 prd-writing.profile.json 同步）
 _FALLBACK_LABEL_EXPRS = [
     "**页面目标：**", "**关键动作：**", "**状态变化：**", "**异常提示：**", "**关联功能点：**",
+]
+_PLACEHOLDER_FALLBACK = [
+    "按配置", "按规范", "同常规", "待补充", "需支持", "需考虑",
+    "详见原型", "待定", "按业务规则", "具体数值见", "用于承载", "用于支撑",
+    "方便用户", "避免用户", "符合操作", "TBD", "TODO",
 ]
 _LABEL_EXPRS = [w for w in _PROFILE_FORBIDDEN if w.startswith("**")] or _FALLBACK_LABEL_EXPRS
 LABEL_PATTERNS = []
@@ -64,9 +69,7 @@ CAUSE_PHRASE_PATTERNS = {
 }
 _CAUSE_PHRASE_WORDS = set(CAUSE_PHRASE_PATTERNS.keys())
 
-PLACEHOLDER_PATTERNS = [w for w in _PROFILE_FORBIDDEN if not w.startswith("**") and w not in _CAUSE_PHRASE_WORDS] or [
-    "待定", "待补充", "TBD", "TODO",
-]
+PLACEHOLDER_PATTERNS = [w for w in _PROFILE_FORBIDDEN if not w.startswith("**") and w not in _CAUSE_PHRASE_WORDS] or _PLACEHOLDER_FALLBACK
 PLACEHOLDER_RULES = {
     "待定": re.compile(r'(?<![\u4e00-\u9fa5])待定(?!性|稿|人|项|状态|原因|结论|计划|方案)'),
     "待补充": re.compile(r'(?<![\u4e00-\u9fa5])待补充(?!说明|材料|资料|附件|内容|信息|证据|记录|明细|清单)'),

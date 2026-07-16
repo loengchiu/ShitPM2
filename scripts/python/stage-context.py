@@ -171,6 +171,9 @@ def determine_next(status: dict, align_notes) -> str:
     if current == "fix":
         return "design"
 
+    if current == "done":
+        return "done"
+
     return current
 
 

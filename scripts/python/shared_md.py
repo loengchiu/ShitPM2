@@ -22,6 +22,8 @@ METADATA_FILE_MAP = {
     "design": ["index.json", "relations.json", "modules.json", "pages.json",
                "fields.json", "rules.json", "states.json", "permissions.json",
                "page-fields.json", "non-page-fields.json"],
+    "prd": ["index.json", "relations.json"],
+    "prototype": ["index.json"],
 }
 
 ID_PREFIXES = {
@@ -46,8 +48,8 @@ def find_stable_id_leaks(text: str) -> list:
     """扫描文本中的稳定 ID 泄漏，返回 [(line_no, matched_str), ...]"""
     leaks = []
     for i, line in enumerate(text.split('\n')):
-        for m in STABLE_ID_PATTERN.findall(line):
-            leaks.append((i + 1, m))
+        for m in STABLE_ID_PATTERN.finditer(line):
+            leaks.append((i + 1, m.group(0)))
     return leaks
 
 
@@ -144,6 +146,28 @@ def fuzzy_page_match(page_title: str, page_title_to_id: dict) -> str | None:
     with_suffix = page_title + '页'
     if with_suffix in page_title_to_id:
         return page_title_to_id[with_suffix]
+    return None
+
+
+def fuzzy_state_match(state_name: str, state_title_to_id: dict) -> str | None:
+    """模糊匹配状态名 → 稳定 ID"""
+    if not state_name:
+        return None
+    if state_name in state_title_to_id:
+        return state_title_to_id[state_name]
+    # 去"状态"后缀
+    if state_name.endswith('状态'):
+        no_suffix = state_name[:-2].strip()
+        if no_suffix in state_title_to_id:
+            return state_title_to_id[no_suffix]
+    # 加"状态"后缀
+    with_suffix = state_name + '状态'
+    if with_suffix in state_title_to_id:
+        return state_title_to_id[with_suffix]
+    # 去括号内容
+    stripped = re.sub(r'[（(][^）)]*[）)]', '', state_name).strip()
+    if stripped and stripped in state_title_to_id:
+        return state_title_to_id[stripped]
     return None
 
 

@@ -52,7 +52,40 @@ def _check_entity(entity, ent_states):
 
     non_wildcard = [s for s in ent_states if not s.get("is_wildcard")]
     non_wildcard.sort(key=lambda x: x.get("line", 0))
-    initial = non_wildcard[0]["title"] if non_wildcard else None
+
+    # 初始态判定优先级：1) is_initial 标注 > 2) 行首非终态 > 3) 第一个非通配
+    initial = None
+    initial_method = None
+    for s in non_wildcard:
+        if s.get("is_initial"):
+            initial = s["title"]
+            initial_method = "explicit"
+            break
+    if initial is None:
+        for s in non_wildcard:
+            if not s.get("is_terminal"):
+                initial = s["title"]
+                initial_method = "first_non_terminal"
+                break
+    if initial_method == "first_non_terminal":
+        v.append({
+            "rule": "initial_state_inferred",
+            "entity": entity, "state": initial,
+            "severity": "P2",
+            "detail": f"初始态从行首非终态推断为'{initial}'，请确认。建议在 states.json 中显式标注 is_initial",
+            "line": non_wildcard[0].get("line", 0),
+        })
+    if initial is None and non_wildcard:
+        initial = non_wildcard[0]["title"]
+        initial_method = "fallback_first"
+    if initial_method == "fallback_first":
+        v.append({
+            "rule": "initial_state_ambiguous",
+            "entity": entity, "state": initial,
+            "severity": "P1",
+            "detail": "未找到明确初始态标记，已按行序选第一个非通配状态为初始态，回退合法性校验可能误报",
+            "line": non_wildcard[0].get("line", 0),
+        })
 
     # 规则1：非终态必有出路
     for s in non_wildcard:
@@ -165,4 +198,4 @@ def main():
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    sys.exit(main())

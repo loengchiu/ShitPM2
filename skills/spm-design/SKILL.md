@@ -11,7 +11,7 @@ description: "设计阶段——把对齐结果结构化成稳定基线。用于
 
 ## 前置检查
 
-运行 `python $BUNDLE/scripts/python/stage-context.py --project-root .` 检查准入：
+运行 `python $BUNDLE/scripts/python/stage-context.py .` 检查准入：
 
 1. align.md 存在
 2. align-notes.json 中 `can_enter_design` = true

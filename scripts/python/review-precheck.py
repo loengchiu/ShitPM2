@@ -98,10 +98,23 @@ def check_prd_entity_coverage(project_root: Path, stdin_content: str = None) -> 
         with open(prd_path, encoding="utf-8") as f:
             prd_content = f.read()
 
-    # 归位后：检查 design 实体名是否在 PRD 正文中出现
+    # 归位后：检查 design 实体名是否在 PRD 正文的关键位置出现
+    # 仅在标题/粗体块/表格行首匹配，避免短实体名在任意位置误匹配；
+    # 长实体名（>2字）兜底用全文子串匹配保持容错
     missing = []
-    for entity in design_entities:
-        if entity not in prd_content:
+    for entity in sorted(design_entities):
+        _entity_context_pattern = re.compile(
+            rf'(?:^#+\s+.*?|^\*\*.*?|^\|\s*){re.escape(entity)}', re.MULTILINE)
+        entity_found = bool(_entity_context_pattern.search(prd_content))
+        # 对非常短的实体名（≤2字），额外要求出现在标题行或粗体块中
+        if not entity_found and len(entity) <= 2:
+            _heading_or_bold = re.compile(
+                rf'(?:^#+\s+.*?|^\*\*.*?){re.escape(entity)}', re.MULTILINE)
+            entity_found = bool(_heading_or_bold.search(prd_content))
+        # 兜底：全文子串匹配（宽松，保持对长实体名的容错）
+        if not entity_found and len(entity) > 2:
+            entity_found = entity in prd_content
+        if not entity_found:
             missing.append(entity)
 
     covered = len(design_entities) - len(missing)
@@ -389,8 +402,10 @@ def run_prd_style_lint(project_root: Path) -> list:
             if issue.severity in ("error", "warning"):
                 warnings.append(f"{issue.code}: {issue.message}")
         return warnings
+    except ImportError as e:
+        return [f"lint 脚本加载失败（依赖缺失）: {e}"]
     except Exception as e:
-        return [f"lint error: {e}"]
+        return [f"lint 执行异常: {e}"]
 
 
 def main():

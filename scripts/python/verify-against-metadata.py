@@ -37,13 +37,14 @@ if _HAS_JSONSCHEMA:
     _REGISTRY = _registry
 
 
-def verify_schema(data, schema_key) -> list:
-    """用 jsonschema 校验 data，返回错误消息列表；依赖缺失返回空
+def verify_schema(data, schema_key) -> tuple:
+    """用 jsonschema 校验 data，返回 (errors, schema_validation_skipped)
 
     schema_key 取值：design/status/review
+    返回 (errors_list, skipped_bool)。skipped=True 表示因依赖缺失跳过了 schema 校验。
     """
     if not _HAS_JSONSCHEMA or _REGISTRY is None:
-        return []
+        return [], True
     schema_map = {
         "design": "design-metadata",
         "status": "status",
@@ -51,16 +52,16 @@ def verify_schema(data, schema_key) -> list:
     }
     schema_name = schema_map.get(schema_key)
     if not schema_name:
-        return []
+        return [], False
     schema = load_json(_SCHEMA_DIR / f"{schema_name}.schema.json")
     if not schema:
-        return []
+        return [], False
     try:
         validator = jsonschema.Draft7Validator(schema, registry=_REGISTRY)
         return [f"schema 校验失败: {e.message} (at {list(e.absolute_path)})"
-                for e in validator.iter_errors(data)]
+                for e in validator.iter_errors(data)], False
     except Exception as e:
-        return [f"schema 校验异常（已降级）: {e}"]
+        return [f"schema 校验异常（已降级）: {e}"], False
 
 
 # ── Metadata 结构完整性校验 ─────────────────────────────────
@@ -83,10 +84,17 @@ def verify_metadata_integrity(project_root, stage):
         if index.get("stage") != stage:
             errors.append(f"index.json stage={index.get('stage')}，期望 {stage}")
         # jsonschema 真校验（依赖缺失自动降级）
-        errors.extend(verify_schema(index, stage))
+        schema_errs, schema_skipped = verify_schema(index, stage)
+        errors.extend(schema_errs)
+        if schema_skipped:
+            errors.append("schema 校验已跳过（jsonschema 依赖缺失）")
 
     # 实体 ID 唯一性（含 states/permissions，这两类也有稳定 ID）
-    entity_files = {"design": ["modules.json", "pages.json", "fields.json", "rules.json", "states.json", "permissions.json"]}
+    entity_files = {
+        "design": ["modules.json", "pages.json", "fields.json", "rules.json", "states.json", "permissions.json"],
+        "prd": ["relations.json"],
+        "prototype": [],
+    }
     seen_ids = set()
     for fname in entity_files.get(stage, []):
         data = load_json(meta_dir / fname)
@@ -119,7 +127,10 @@ def verify_status(project_root) -> list:
     if not status or not isinstance(status, dict):
         return [".workflow/status.json 缺失或非 JSON 对象"]
 
-    errors.extend(verify_schema(status, "status"))
+    schema_errs, schema_skipped = verify_schema(status, "status")
+    errors.extend(schema_errs)
+    if schema_skipped:
+        errors.append("schema 校验已跳过（jsonschema 依赖缺失）")
     return errors
 
 
@@ -139,8 +150,8 @@ def verify_reviews(project_root) -> list:
         if not review or not isinstance(review, dict):
             errors.append(f"{review_file.name}: 缺失或非 JSON 对象")
             continue
-        file_errors = verify_schema(review, "review")
-        errors.extend(f"{review_file.name}: {e}" for e in file_errors)
+        file_errs, _ = verify_schema(review, "review")
+        errors.extend(f"{review_file.name}: {e}" for e in file_errs)
 
     return errors
 
@@ -149,7 +160,7 @@ def verify_reviews(project_root) -> list:
 
 def main():
     parser = argparse.ArgumentParser(description="metadata 结构完整性校验")
-    parser.add_argument("--stage", required=True, choices=["design", "status", "review"])
+    parser.add_argument("--stage", required=True, choices=["design", "prd", "prototype", "status", "review"])
     parser.add_argument("--project-root", type=Path, default=Path.cwd())
     args = parser.parse_args()
 

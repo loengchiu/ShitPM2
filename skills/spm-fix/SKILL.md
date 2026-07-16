@@ -44,6 +44,13 @@ description: "同步修复——把变更影响沿链路传播到当前真相。
 
 **CHECKPOINT · 归属层确认**——若修改指令同时涉及多层（如"新增字段并在页面展示"），必须拆分为多步逐层修复，不混在一层改。
 
+**CHECKPOINT · 阶段一致性校验**——对比修改归属层与 `status.json` 的 `current_stage`：
+- 归属层对应的阶段 > `current_stage` → 警告用户"当前项目尚未进入该阶段"，建议先推进，不直接修复
+- 归属层对应的阶段 < `current_stage` → 允许修复，但提示"修改上游可能影响下游已有产物"
+- `current_stage` 为 `fix` 或 `done` → 从 `artifacts` 字段推断实际最远阶段，按上述规则判断
+
+阶段映射：align → design → prd → prototype。review 子阶段等于对应主阶段。
+
 ### 步骤 3：读取传播矩阵，确定影响范围
 
 读取 `contracts/fix-propagation-rules.md`，按传播矩阵列出所有受影响的产物文件：

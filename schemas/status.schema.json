@@ -25,7 +25,9 @@
       "type": "object",
       "description": "各阶段机读物目录路径",
       "properties": {
-        "design": { "type": ["string", "null"] }
+        "design": { "type": ["string", "null"] },
+        "prd": { "type": ["string", "null"] },
+        "prototype": { "type": ["string", "null"] }
       },
       "additionalProperties": false
     },

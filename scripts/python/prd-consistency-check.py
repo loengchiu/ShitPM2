@@ -23,6 +23,7 @@ from shared_md import (
     parse_tables_with_context,
     fuzzy_field_match,
     fuzzy_page_match,
+    fuzzy_state_match,
     clean_page_title,
     load_json,
 )
@@ -47,7 +48,10 @@ def _find_section_range(headings: list, canonical: str) -> tuple:
 
     for h in headings:
         for alias in aliases:
-            if alias in h["title"]:
+            # 去标题编号前缀（如 "5. 详细需求说明" / "1.2.3 标题" / "(1) 标题"）后检查前缀匹配
+            title_no_prefix = re.sub(r'^\d+(?:\.\d+)*[.\s]*', '', h["title"])
+            title_no_prefix = re.sub(r'^[（(]\d+[）)]\s*', '', title_no_prefix)
+            if title_no_prefix.startswith(alias):
                 if best is None or h["level"] < best[1]:
                     best = (h["line"], h["level"])
                 break
@@ -169,7 +173,7 @@ def extract_prd_states(content: str, headings: list, tables: list) -> list:
 
     states = []
 
-    # 格式 1: 箭头文本（→ 或 ->）——在详细需求说明范围内扫描
+    # 格式 1: 箭头文本（→ 或 ->）——仅扫描详细需求说明章节范围内
     lines = content.split("\n")
     for i, line in enumerate(lines):
         line_no = i + 1
@@ -181,6 +185,9 @@ def extract_prd_states(content: str, headings: list, tables: list) -> list:
         if not stripped or stripped.startswith("#"):
             continue
         if "→" in stripped or "->" in stripped:
+            # 过滤 UI 交互箭头：含点击/跳转/打开/弹出等非状态迁移行
+            if any(ui_word in stripped for ui_word in ("点击", "跳转", "打开", "弹出", "返回", "进入页面")):
+                continue
             arrow = "→" if "→" in stripped else "->"
             parts = [p.strip().strip("`") for p in stripped.split(arrow)]
             for p in parts:
@@ -461,7 +468,7 @@ def main():
     )
     state_result = compare_entities(
         [s["title"] for s in design_states if isinstance(s, dict)],
-        prd_states, state_title_to_id, None,
+        prd_states, state_title_to_id, fuzzy_state_match,
     )
     perm_result = compare_permission_pages(design_permissions, prd_perm_pages)
 
