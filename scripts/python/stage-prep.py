@@ -268,14 +268,9 @@ def extract_entities_from_tables(content: str, headings: list, stage: str, count
                         "attributes": _build_field_attributes(row, headers),
                     })
 
-        # 规则与状态定义章节中的状态内容（表格模式）
-        if any(kw in section for kw in ("规则与状态", "状态定义", "状态流转", "状态机")):
-            for row in table["rows"]:
-                if any("状态" in cell for cell in row):
-                    states.append({"title": row[0] if row else "", "line": table["line_offset"]})
-
-    # 状态深度提取：表格未命中时，从"状态集合"子章节的列表项解析
-    # design 格式：### 状态集合 \n - `draft`：草稿 \n - `submitted`：已提交
+    # 状态机表提取（迁移 + 实体归属）移至 _extract_states_from_tables 独立处理
+    # 状态提取：优先状态机表解析（含迁移），兜底从"状态集合"列表项解析（无迁移）
+    states = _extract_states_from_tables(tables, headings, stage, counter)
     if not states:
         states = _extract_states_from_content(content)
 
@@ -300,6 +295,119 @@ def extract_entities_from_tables(content: str, headings: list, stage: str, count
     counter["PERM"] = perm_counter
 
     return pages, fields, states, permissions
+
+
+def _find_header_index(headers, candidates):
+    """返回 headers 中第一个匹配 candidates 任一词的列索引，无匹配返回 None"""
+    for i, h in enumerate(headers):
+        for c in candidates:
+            if c in h:
+                return i
+    return None
+
+
+def _infer_entity_from_headings(table_line, headings):
+    """从表格行号往上找最近的 ### 实体标题（跳过容器标题黑名单）
+
+    状态机表通常在 ## 级章节下用 ### 分实体。遇 ## 级标题停止（实体不会在 ## 之上）。
+    """
+    for h in sorted(headings, key=lambda x: x["line"], reverse=True):
+        if h["line"] >= table_line:
+            continue
+        if h["level"] == 3 and h["title"] not in HEADING_BLACKLIST:
+            return h["title"]
+        if h["level"] <= 2:
+            break
+    return None
+
+
+def _extract_states_from_tables(tables, headings, stage, counter):
+    """从状态机表提取状态 + 迁移 + 实体归属
+
+    仅支持 6 列规范格式：状态 | 含义 | 操作人 | 触发动作 | 下一状态 | 限制条件。
+    识别条件：表头同时含"状态"+"操作人"+"触发动作"+"下一状态"四列。
+    返回 states 列表，每个状态含 id/type/title/entity/is_terminal/transitions。
+    "任意状态"通配 from_state 挂为该实体的伪状态（is_wildcard=True），供校验脚本特殊处理。
+    终态推断：无自身出边且该实体无全局迁移出路 → 终态。
+    ID 按 counter 顺序分配（不跨重跑稳定，states 无脚本消费者依赖 ID 稳定）。
+    """
+    state_map = {}
+    entity_global = {}
+
+    for table in tables:
+        headers = table["headers"]
+        from_idx = _find_header_index(headers, ["状态"])
+        operator_idx = _find_header_index(headers, ["操作人"])
+        trigger_idx = _find_header_index(headers, ["触发动作"])
+        to_idx = _find_header_index(headers, ["下一状态"])
+        if from_idx is None or operator_idx is None or trigger_idx is None or to_idx is None:
+            continue
+
+        condition_idx = _find_header_index(headers, ["限制条件"])
+        entity = _infer_entity_from_headings(table["line_offset"], headings)
+        line = table["line_offset"]
+        last_from = None
+
+        for row in table["rows"]:
+            from_state = row[from_idx].strip() if from_idx < len(row) else ""
+            if not from_state:
+                from_state = last_from or ""
+            if from_state:
+                last_from = from_state
+            trigger = row[trigger_idx].strip() if trigger_idx < len(row) else ""
+            to_state = row[to_idx].strip() if to_idx < len(row) else ""
+            operator = row[operator_idx].strip() if operator_idx is not None and operator_idx < len(row) else None
+            condition = row[condition_idx].strip() if condition_idx is not None and condition_idx < len(row) else None
+            is_terminal_row = trigger in ("—", "-", "") and to_state in ("—", "-", "")
+
+            if from_state == "任意状态":
+                if entity not in entity_global:
+                    entity_global[entity] = []
+                if not is_terminal_row and trigger and to_state and to_state not in ("—", "-"):
+                    entity_global[entity].append({
+                        "trigger": trigger, "to_state": to_state,
+                        "operator": operator, "condition": condition, "line": line,
+                    })
+            elif from_state:
+                key = (entity, from_state)
+                if key not in state_map:
+                    state_map[key] = {
+                        "title": from_state, "entity": entity,
+                        "transitions": [], "line": line, "is_terminal": False,
+                    }
+                if is_terminal_row:
+                    state_map[key]["is_terminal"] = True
+                elif trigger and to_state and to_state not in ("—", "-"):
+                    state_map[key]["transitions"].append({
+                        "trigger": trigger, "to_state": to_state,
+                        "operator": operator, "condition": condition, "line": line,
+                    })
+
+            if to_state and to_state not in ("—", "-", "任意状态"):
+                key = (entity, to_state)
+                if key not in state_map:
+                    state_map[key] = {
+                        "title": to_state, "entity": entity,
+                        "transitions": [], "line": line, "is_terminal": False,
+                    }
+
+    for entity, transits in entity_global.items():
+        key = (entity, "任意状态")
+        if key not in state_map:
+            state_map[key] = {
+                "title": "任意状态", "entity": entity,
+                "transitions": transits, "line": 0,
+                "is_terminal": False, "is_wildcard": True,
+            }
+
+    states = []
+    for s in state_map.values():
+        state_counter = counter.get("STATE", 0) + 1
+        counter["STATE"] = state_counter
+        s["id"] = f"STATE-{stage}-{state_counter:03d}"
+        s["type"] = "state"
+        states.append(s)
+    return states
 
 
 def _split_field_tokens(raw_text: str) -> list:

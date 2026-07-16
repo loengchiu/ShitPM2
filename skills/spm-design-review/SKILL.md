@@ -31,11 +31,13 @@ description: "设计 review——判断 design 基线质量。用于用户说 de
 
 **A2. 状态机闭环审查（按 `references/design-state-format.md` 闭环要求 8 条逐项查，违反即 P1）**
 
-3. 结构层（可机读，逐张状态机表检查）：
-   - 非终态必有出路：每个非终态至少有一条正向迁移，悬空即 P1
-   - 非初始态必有入路：每个非初始状态至少有一条迁移指向它，孤岛即 P1
-   - 回退目标合法：回退/驳回的"下一状态"必须是历史正向路径上的状态，回退到从未经历的状态即 P1
-   - 迁移无歧义：同一"触发动作 + 操作人"组合在不同状态下指向冲突的"下一状态"且无业务理由即 P1
+3. 结构层（脚本校验）：运行 `scripts/python/state-machine-check.py --project-root .`，直接引用输出 JSON 中的 violations。脚本覆盖 4 条：
+   - non_terminal_must_have_exit：非终态至少一条正向迁移，悬空即 P1
+   - non_initial_must_have_entry：非初始状态至少一条迁移指向它，孤岛即 P1
+   - rollback_target_illegal：回退/驳回的"下一状态"必须在正向可达路径上，回退到从未经历的状态即 P1
+   - transition_ambiguity：同一"触发动作 + 操作人"组合在不同状态下指向冲突的"下一状态"，P2 提示人审是否有业务理由
+
+   脚本依赖 `stage-prep.py` 生成的 states.json 含 transitions/entity 字段。若 states.json 无 transitions（旧版产物），先重跑 `python scripts/python/stage-prep.py --stage design`。
 4. 业务层（人审，逐张状态机表检查）：
    - 合法出路全覆盖：从业务语义看当前状态所有合法操作（推进/撤回/退回/驳回/取消），少一种即 P1
    - 二次流转闭环：回退/驳回后的状态必须能再次推进回原路径，死锁即 P1
