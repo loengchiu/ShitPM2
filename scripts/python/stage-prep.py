@@ -457,37 +457,119 @@ def _extract_states_from_content(content: str, stage: str, counter: dict) -> lis
       - `draft`：草稿
       - `submitted`：已提交
 
+      ### 状态迁移
+      1. 创建周报后进入 `draft`
+      2. 提交后进入 `submitted`
+      3. 撤回后从 `submitted` 回到 `draft`
+
+    vNext 修复：补全 entity/transitions/is_terminal 字段，并解析"状态迁移"编号列表，
+    使 state-machine-check.py 能正确判断闭环（之前只提取状态名，不提取迁移，导致全部被判为"无出路"）。
     ID 分配与此函数内联，与 _extract_states_from_tables 对称。
     不再提取 h3 标题（"状态集合"/"状态迁移" 是容器标题不是状态）。
     """
     states = []
+    state_by_name = {}
     lines = content.split('\n')
     in_state_section = False
+    current_subsection = None  # "set" 或 "transition"
+    last_to_state = None  # 链式推导用：上一条的 to_state
 
     for i, line in enumerate(lines):
         stripped = line.strip()
         # 检测进入状态子章节
         if re.match(r'^#{3,}\s+', stripped):
-            if any(kw in stripped for kw in _STATE_SECTION_KEYWORDS):
+            title_no_prefix = re.sub(r'^#{3,}\s+', '', stripped)
+            if any(kw in title_no_prefix for kw in ("状态集合", "状态定义")):
                 in_state_section = True
+                current_subsection = "set"
+            elif any(kw in title_no_prefix for kw in ("状态迁移", "状态流转", "状态机")):
+                in_state_section = True
+                current_subsection = "transition"
+            elif any(kw in title_no_prefix for kw in _STATE_SECTION_KEYWORDS):
+                in_state_section = True
+                current_subsection = "set"
             else:
                 in_state_section = False
+                current_subsection = None
             continue
         if not in_state_section:
             continue
-        match = _KEY_VALUE_LIST_PATTERN.match(stripped)
-        if match:
-            state_name = match.group(1).strip()
-            state_desc = match.group(2).strip()
-            state_counter = counter.get("STATE", 0) + 1
-            counter["STATE"] = state_counter
-            states.append({
-                "id": f"STATE-{stage}-{state_counter:03d}",
-                "type": "state",
-                "title": state_name,
-                "detail": state_desc,
-                "line": i + 1,
-            })
+
+        # 子章节 1: 状态集合 - 提取状态名
+        if current_subsection == "set":
+            match = _KEY_VALUE_LIST_PATTERN.match(stripped)
+            if match:
+                state_name = match.group(1).strip()
+                state_desc = match.group(2).strip()
+                state_counter = counter.get("STATE", 0) + 1
+                counter["STATE"] = state_counter
+                state_obj = {
+                    "id": f"STATE-{stage}-{state_counter:03d}",
+                    "type": "state",
+                    "title": state_name,
+                    "detail": state_desc,
+                    "entity": None,  # 自然语言格式无实体归属，统一归 None
+                    "transitions": [],
+                    "is_terminal": False,
+                    "line": i + 1,
+                }
+                states.append(state_obj)
+                state_by_name[state_name] = state_obj
+
+        # 子章节 2: 状态迁移 - 解析编号列表，附加 transitions
+        elif current_subsection == "transition":
+            # 编号列表：1. xxx 后进入 `state` / 1. xxx 后从 `A` 回到 `B`
+            m = re.match(r'^\d+[.、）)]\s+(.+)$', stripped)
+            if not m:
+                continue
+            desc = m.group(1)
+            # 提取所有反引号标记的状态名
+            quoted_states = re.findall(r'`([^`]+)`', desc)
+            # 提取动作关键词作为 trigger
+            trigger = desc
+            # 去掉状态名占位
+            trigger = re.sub(r'`[^`]+`', '', trigger).strip()
+            # 去掉"后进入/后回到/后变为/后转为"等连接词
+            trigger = re.sub(r'后(进入|回到|变为|转为|变成).*$', '', trigger).strip()
+            trigger = re.sub(r'(进入|回到|变为|转为|变成).*$', '', trigger).strip()
+            # 去掉"从 X"前缀
+            trigger = re.sub(r'^从.*?(?:开始|起)?', '', trigger).strip()
+            if not trigger:
+                trigger = desc[:20]  # 兜底：取前 20 字符
+
+            # 推断 from_state 和 to_state
+            from_state = None
+            to_state = None
+            if len(quoted_states) >= 2:
+                from_state = quoted_states[0]
+                to_state = quoted_states[1]
+            elif len(quoted_states) == 1:
+                to_state = quoted_states[0]
+                # 尝试从"从 X"提取 from_state
+                from_match = re.search(r'从\s*`?([^`\s，,。.]+)`?\s*(?:回到|变为|转为|变成)', desc)
+                if from_match:
+                    from_state = from_match.group(1).strip()
+
+            if to_state:
+                # 如果 from_state 未明确，用上一条的 to_state 链式推导
+                if from_state is None and last_to_state:
+                    from_state = last_to_state
+
+                # 把 transition 附加到 from_state
+                if from_state and from_state in state_by_name:
+                    state_by_name[from_state]["transitions"].append({
+                        "trigger": trigger,
+                        "to_state": to_state,
+                        "operator": None,
+                        "condition": None,
+                        "line": i + 1,
+                    })
+                # 如果 from_state 不在已定义状态中（如"创建"隐含从无到 draft），
+                # to_state 仍需记录以便初始态推断；附加到一个虚拟初始入口
+                # state-machine-check.py 通过 first_non_terminal 推断初始态，无需额外处理
+
+                # 更新 last_to_state 用于下一条链式推导
+                last_to_state = to_state
 
     return states
 

@@ -60,10 +60,10 @@ def _gen_design_metadata():
     headings = parse_headings(content)
     tables = parse_tables_with_context(content, headings)
 
-    prd_fields = mod.extract_prd_fields(headings, tables)
+    prd_fields = mod.extract_prd_fields(headings, tables, content)
     prd_pages = mod.extract_prd_pages(content, headings)
     prd_states = mod.extract_prd_states(content, headings, tables)
-    prd_perm_pages = mod.extract_prd_permission_pages(headings, tables)
+    prd_perm_pages = mod.extract_prd_permission_pages(headings, tables, content)
 
     # 兼容旧格式：独立章节的数据字典、权限汇总、状态机
     # 如果 §5 详细需求说明中没有字段/状态/权限，从独立章节补提取
@@ -119,7 +119,9 @@ def _gen_design_metadata():
                         prd_perm_pages.append(cleaned)
 
     # 将 PRD 提取结果封装为 design metadata 格式
-    fields = [{"id": f"FIELD-design-{i+1:03d}", "type": "field", "title": t} for i, t in enumerate(prd_fields)]
+    # extract_prd_fields 返回 [{"name": str, "type": str, "required": bool}, ...]，取 name 作为 title
+    # 其他提取函数返回字符串列表
+    fields = [{"id": f"FIELD-design-{i+1:03d}", "type": "field", "title": f["name"] if isinstance(f, dict) else f} for i, f in enumerate(prd_fields)]
     pages = [{"id": f"PAGE-design-{i+1:03d}", "type": "page", "title": t} for i, t in enumerate(prd_pages)]
     states = [{"id": f"STATE-design-{i+1:03d}", "type": "state", "title": t} for i, t in enumerate(prd_states)]
     perms = [{"id": f"PERM-design-{i+1:03d}", "type": "permission", "page": t} for i, t in enumerate(prd_perm_pages)]
@@ -154,16 +156,11 @@ def _inject_hallucinations():
         "| 任意状态 | — | 管理员 | 手动归档停用 | 已停用 | 管理员操作 |\n| 幻觉状态X | — | 不存在 | 触发动作 | 已幻觉 | — |",
         1,
     )
-    # 4. 幻觉权限页面（在模块级权限矩阵表头追加一列，所有数据行同步追加）
-    # 注：将表头第一列从"模块"改为"模块/角色"以匹配 extract_prd_permission_pages 的格式 B 判断（含"角色"关键字）
-    old_perm_header = "| 模块 | 集团领导 | 公司领导 | 审计用户 | 外包审计用户 | 被审单位用户 |"
-    new_perm_header = "| 模块/角色 | 集团领导 | 公司领导 | 审计用户 | 外包审计用户 | 被审单位用户 | 幻觉权限页Y |"
-    content = content.replace(old_perm_header, new_perm_header, 1)
-    # 同步给所有数据行追加一列
-    import re
-    for module_name in ["审计计划", "项目启动", "审计准备", "审计实施", "审计报告", "审计反馈", "审计知识库", "审计总览", "项目档案", "系统管理"]:
-        pattern = re.compile(rf'(\| *{re.escape(module_name)} *\| [^\n]+)\n')
-        content = pattern.sub(r'\1 | 查看 |\n', content, count=1)
+    # 4. 幻觉权限页面（在模块级权限矩阵表末尾追加一行，第一列为幻觉页面名）
+    # extract_prd_permission_pages 从表格第一列提取页面名，所以幻觉项必须作为第一列的值
+    old_perm_row = "| 系统管理 | 不可见 | 不可见 | 仅管理员 | 不可见 | 不可见 |"
+    new_perm_row = "| 系统管理 | 不可见 | 不可见 | 仅管理员 | 不可见 | 不可见 |\n| 幻觉权限页Y | 不可见 | 不可见 | 不可见 | 不可见 | 不可见 |"
+    content = content.replace(old_perm_row, new_perm_row, 1)
 
     HALLUCINATION_PRD.write_text(content, encoding="utf-8")
 

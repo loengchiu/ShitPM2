@@ -177,6 +177,7 @@ def extract_prd_pages(content: str, headings: list) -> list:
     4. 在"页面说明"章节内的 `### 页面名` 标题（无编号）
 
     跳过大模块（##）和容器章节标题。
+    vNext 修复：候选章节不再包含"详细需求说明"，避免把详细需求下的子模块标题误识别为页面。
     """
     blacklist = {
         "业务流程", "核心业务流程", "状态变化", "状态流转",
@@ -189,9 +190,9 @@ def extract_prd_pages(content: str, headings: list) -> list:
     pages = []
     seen = set()
 
-    # 候选章节范围：页面说明 / 详细需求说明
+    # 候选章节范围：仅页面说明类章节（不再含"详细需求说明"，避免子模块标题误判为页面）
     candidate_ranges = _find_multiple_section_ranges(
-        headings, ["页面说明", "页面清单", "页面列表", "详细需求说明"]
+        headings, ["页面说明", "页面清单", "页面列表", "页面规划", "页面目录"]
     )
 
     # 格式 1: 粗体块页面名 **N.N.N 页面名**
@@ -263,6 +264,27 @@ def extract_prd_pages(content: str, headings: list) -> list:
     return pages
 
 
+def _strip_code_blocks(text: str) -> str:
+    """排除 fenced code block（```...```），避免 Mermaid 图语法被当成状态文本
+
+    保留代码块占位行（空行），保持行号一致。
+    """
+    lines = text.split("\n")
+    result = []
+    in_fence = False
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("```"):
+            in_fence = not in_fence
+            result.append("")
+            continue
+        if in_fence:
+            result.append("")
+            continue
+        result.append(line)
+    return "\n".join(result)
+
+
 def extract_prd_states(content: str, headings: list, tables: list) -> list:
     """从 PRD 提取状态名
 
@@ -270,6 +292,7 @@ def extract_prd_states(content: str, headings: list, tables: list) -> list:
     - 候选章节：详细需求说明、状态机、状态定义、状态流转
     - 在候选章节范围内查找箭头文本和状态机表格
     - 如候选章节都未找到，降级为全文扫描
+    - vNext 修复：先排除 fenced code block，避免 Mermaid 图语法（A[草稿] -->、|审批通过| C[已通过]）被误识别为状态
 
     支持格式：
     1. 箭头文本：state1 → state2 或 state1 -> state2
@@ -286,13 +309,22 @@ def extract_prd_states(content: str, headings: list, tables: list) -> list:
         name = name.strip().strip("`")
         if not name or name in ("—", "-", "N/A", "任意状态", "状态"):
             return
+        # 过滤 Mermaid 残留片段（如 A[草稿]、|审批通过|）
+        if re.match(r'^[A-Z]\[', name) or name.startswith("|") or name.endswith("]"):
+            return
+        # 过滤含特殊语法的片段
+        if any(ch in name for ch in ("-->", "---", "==>", "~~", ">>", "<<")):
+            return
         if name not in seen:
             seen.add(name)
             states.append(name)
 
+    # vNext 修复：先排除代码块再扫描
+    content_clean = _strip_code_blocks(content)
+
     # 策略 1: 在候选章节范围内查找
     if candidate_ranges:
-        ranges_content = _lines_in_ranges(content, candidate_ranges)
+        ranges_content = _lines_in_ranges(content_clean, candidate_ranges)
         ranges_lines = ranges_content.split("\n")
 
         # 格式 1: 箭头文本
@@ -325,7 +357,7 @@ def extract_prd_states(content: str, headings: list, tables: list) -> list:
 
     # 策略 2: 候选章节未找到，降级为全文扫描
     if not states:
-        for line in content.split("\n"):
+        for line in content_clean.split("\n"):
             stripped = line.strip()
             if not stripped or stripped.startswith("#"):
                 continue
@@ -358,8 +390,8 @@ def extract_prd_permission_pages(headings: list, tables: list, content: str) -> 
     """从 PRD 提取权限页面名
 
     vNext 多模板兼容策略：
-    - 候选章节：详细需求说明、权限汇总、权限定义、权限规则
-    - 策略 1：在候选章节范围内提取 `### N.N xxx` 大模块标题
+    - 候选章节：权限汇总、权限定义、权限规则（vNext 修复：移除"详细需求说明"，避免子模块标题误判为权限页面）
+    - 策略 1：在权限章节范围内的 `### N.N xxx` 大模块标题
     - 策略 2：在权限汇总章节内的表格第一列提取页面名（旧模板格式）
     - 策略 3：候选章节未找到，降级为全文扫描权限表
 
@@ -367,7 +399,7 @@ def extract_prd_permission_pages(headings: list, tables: list, content: str) -> 
     与 PRD 的大模块标题或权限表第一列对应。
     """
     candidate_ranges = _find_multiple_section_ranges(
-        headings, ["详细需求说明", "权限汇总", "权限定义", "权限规则"]
+        headings, ["权限汇总", "权限定义", "权限规则"]
     )
 
     pages = []
@@ -612,14 +644,14 @@ def main():
     project_root = args.project_root.resolve()
 
     # vNext: 直接读 prd.md（兼容 stdin 模式以保留旧调用方式）
+    # vNext 修复：stdin 为空时回退读取默认 prd.md，而非直接报错（CI/重定向环境稳定性）
+    prd_path = project_root / "output" / "prd" / "prd.md"
+    content = None
     if not sys.stdin.isatty():
-        content = sys.stdin.read()
-        if not content.strip():
-            prd_path = project_root / "output" / "prd" / "prd.md"
-            print(json.dumps({"error": f"stdin 为空且未提供 PRD 内容；尝试读取 {prd_path} 失败"}, ensure_ascii=False))
-            sys.exit(2)
-    else:
-        prd_path = project_root / "output" / "prd" / "prd.md"
+        stdin_content = sys.stdin.read()
+        if stdin_content.strip():
+            content = stdin_content
+    if content is None:
         if not prd_path.exists():
             print(json.dumps({"error": f"prd.md not found: {prd_path}"}, ensure_ascii=False))
             sys.exit(2)
