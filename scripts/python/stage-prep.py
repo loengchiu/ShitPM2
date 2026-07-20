@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
-"""stage-prep.py — 机读镜像生成脚本
+"""stage-prep.py — 机读镜像生成脚本（vNext: legacy compatibility）
+
+vNext 状态：此脚本标记为 legacy compatibility。
+- 新主流程不再默认调用此脚本生成 metadata。
+- vNext 主流程直接基于人读稿（design.md/prd.md/prototype）工作，不依赖 metadata。
+- 旧项目仍可显式调用此脚本生成或刷新 metadata，用于兼容诊断。
+- 生成的 metadata 仅作为参考，不作为新流程的硬门禁或产物质量证明。
+- generate_design_metadata 函数仍可被其他脚本（如 prd-consistency-check.py）复用以从 design.md 提取实体。
 
 职责：从当前人读稿中抽取并生成 metadata anchor。
 不判断是否允许进入该阶段，不修改人读稿正文。

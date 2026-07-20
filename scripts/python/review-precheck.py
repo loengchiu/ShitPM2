@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""review-precheck.py — reviewer 开始前的确定性预检查
+"""review-precheck.py — reviewer 开始前的确定性预检查（vNext: 文件存在性与基础结构检查）
 
-职责：
-1. 记录当前阶段 reviewer 读取的是哪份人读稿和哪套机读物
-2. 记录脚本已完成的结构检查结果
-3. 提前暴露阻塞 reviewer 的缺口
-4. 告诉 reviewer 本轮应重点做人审，还是先回上游补结构
+vNext 职责：
+1. 检查人读稿文件存在性、可读性和基础结构（核心章节）。
+2. 不决定是否允许 Review（can_start_review 仅基于文件存在性，不基于 metadata）。
+3. 不要求 metadata 存在。metadata 检查仅在旧项目存在 metadata 时作为参考，记入 warnings。
+4. vNext 主流程不生成 metadata，因此 metadata 检查不再是硬阻塞。
 
 它不是：最终 review 结论、人读摘要、第二份 reviewer 报告。
 
@@ -192,7 +192,8 @@ def check_core_sections(project_root: Path, stage: str, stdin_content: str = Non
             "passed": found,
             "detail": matched_alias if found else f"缺少章节：{section}",
             "canonical": section,
-            "alias_missed": not found,
+            # found_via_alias=True 表示通过别名匹配上（非精确 canonical 名），存在假阳性风险，需人审确认
+            "found_via_alias": matched_alias is not None and matched_alias != section,
         })
     return results
 
@@ -399,7 +400,7 @@ def run_prd_style_lint(project_root: Path, content: str = None) -> list:
     else:
         prd_path = project_root / ARTIFACT_PATHS["prd"]
         if not prd_path.exists():
-            return [f"PRD 产物不存在: {ARTIFACT_PATHS["prd"]}"]
+            return [f"PRD 产物不存在: {ARTIFACT_PATHS['prd']}"]
         with open(prd_path, encoding="utf-8") as f:
             prd_content = f.read()
     try:
@@ -420,11 +421,12 @@ def run_prd_style_lint(project_root: Path, content: str = None) -> list:
     except Exception as e:
         return [f"lint 执行异常: {e}"]
 def main():
-    parser = argparse.ArgumentParser(description="review 确定性预检查")
+    parser = argparse.ArgumentParser(description="review 确定性预检查（vNext: 文件存在性与基础结构检查）")
     parser.add_argument("--stage", required=True, choices=VALID_STAGES, help="被 review 的阶段")
     parser.add_argument("--project-root", type=Path, default=Path.cwd(), help="项目根目录")
-    parser.add_argument("--stdin-artifact", action="store_true", help="从 stdin 读取人读稿内容")
-    parser.add_argument("--no-metadata", action="store_true", help="design 阶段无 metadata 模式")
+    parser.add_argument("--stdin-artifact", action="store_true", help="从 stdin 读取人读稿内容（需通过管道或重定向传入）")
+    parser.add_argument("--artifact-file", type=Path, default=None, help="直接指定人读稿文件路径，避免 stdin 管道依赖")
+    parser.add_argument("--no-metadata", action="store_true", help="(vNext: deprecated，metadata 检查默认不阻塞)")
     args = parser.parse_args()
 
     project_root = args.project_root.resolve()
@@ -434,8 +436,18 @@ def main():
     blocking_issues = []
     warnings = []
 
+    # vNext: 优先用 --artifact-file 明确路径；其次 --stdin-artifact；最后从默认产物路径读
     stdin_content = None
-    if args.stdin_artifact:
+    if args.artifact_file is not None:
+        artifact_path = args.artifact_file
+        if not artifact_path.is_absolute():
+            artifact_path = (project_root / artifact_path).resolve()
+        if not artifact_path.exists():
+            stdin_content = ""
+        else:
+            with open(artifact_path, encoding="utf-8") as f:
+                stdin_content = f.read()
+    elif args.stdin_artifact:
         stdin_content = sys.stdin.read()
     artifact_check = check_artifact_exists(project_root, stage, stdin_content)
     deterministic_checks.append(artifact_check)
@@ -446,23 +458,28 @@ def main():
     deterministic_checks.extend(section_checks)
     for sc in section_checks:
         if not sc["passed"]:
-            if sc.get("alias_missed"):
-                warnings.append(f"章节名称不匹配（可能为假阳性）：{sc.get('canonical', sc['detail'])}")
-            else:
-                blocking_issues.append(sc["detail"])
+            # vNext: 核心章节缺失直接阻塞 Review（与 review-checklist.md 契约一致）
+            blocking_issues.append(sc["detail"])
+        elif sc.get("found_via_alias"):
+            # 通过别名匹配上：假阳性风险，记入 warning 供 reviewer 人审确认
+            warnings.append(f"章节通过别名匹配（请人审确认）：{sc.get('canonical')} → {sc.get('detail')}")
 
-    if not args.no_metadata:
+    # vNext: metadata 检查改为可选——只在旧项目存在 metadata 目录时作为参考
+    metadata_dir = project_root / ".workflow" / "metadata" / stage
+    if metadata_dir.exists():
         metadata_checks = check_metadata_complete(project_root, stage)
         deterministic_checks.extend(metadata_checks)
         for mc in metadata_checks:
             if not mc["passed"]:
-                blocking_issues.append(mc["detail"])
+                # vNext: metadata 问题记入 warnings，不阻塞 review
+                warnings.append(f"[legacy metadata] {mc['detail']}")
 
-    if stage == "design" and not args.no_metadata:
-        coverage_check = check_design_page_field_coverage(project_root)
-        deterministic_checks.append(coverage_check)
-        if not coverage_check["passed"]:
-            blocking_issues.append(coverage_check["detail"])
+        if stage == "design":
+            coverage_check = check_design_page_field_coverage(project_root)
+            deterministic_checks.append(coverage_check)
+            if not coverage_check["passed"]:
+                # vNext: 字段覆盖问题记入 warnings，不阻塞 review
+                warnings.append(f"[legacy metadata] {coverage_check['detail']}")
 
     if stage == "prd":
         lint_warnings = run_prd_style_lint(project_root, stdin_content)
@@ -477,8 +494,10 @@ def main():
         entity_cov = check_prd_entity_coverage(project_root, stdin_content)
         deterministic_checks.append(entity_cov)
         if not entity_cov["passed"]:
-            blocking_issues.append(entity_cov["detail"])
+            # vNext: 实体覆盖问题记入 warnings，不阻塞 review（PRD review 仍可执行）
+            warnings.append(f"[prd_entity_coverage] {entity_cov['detail']}")
 
+    # vNext: can_start_review 只基于 artifact 存在和核心章节存在
     can_start_review = len(blocking_issues) == 0
 
     if blocking_issues:
@@ -486,28 +505,25 @@ def main():
     elif warnings:
         recommended_focus = "正文写法与一致性"
     elif stage == "design":
-        if args.no_metadata:
-            recommended_focus = "结构完整性、表格规范性、字段定义属性齐全性"
-        else:
-            recommended_focus = "字段定义属性齐全性、权限覆盖、状态完整性"
+        recommended_focus = "结构完整性、表格规范性、字段定义属性齐全性、状态机闭环、高影响缺口暴露"
     elif stage == "prd":
-        recommended_focus = "坏味道、三层覆盖、与 design 镜像一致性"
+        recommended_focus = "坏味道、三层覆盖、与 design 镜像一致性、Design 未授权高影响事实检查"
     elif stage == "prototype":
-        recommended_focus = "页面结构、状态表达、交互主路径"
+        recommended_focus = "页面结构、状态表达、交互主路径、Design 未授权高影响行为检查"
     else:
         recommended_focus = "正文质量"
 
-    metadata_dir = project_root / ".workflow" / "metadata" / stage
     metadata_paths = []
     if metadata_dir.exists():
         for fname in sorted(metadata_dir.glob("*.json")):
             metadata_paths.append(f".workflow/metadata/{stage}/{fname.name}")
 
-    alias_missed_count = sum(1 for sc in section_checks if not sc.get("passed") and sc.get("alias_missed"))
+    alias_missed_count = sum(1 for sc in section_checks if sc.get("passed") and sc.get("found_via_alias"))
     output = {
         "stage": stage,
         "artifact_path": ARTIFACT_PATHS[stage],
         "metadata_paths": metadata_paths,
+        "metadata_check_mode": "legacy_optional" if metadata_dir.exists() else "skipped_no_metadata",
         "deterministic_checks": deterministic_checks,
         "blocking_issues": blocking_issues,
         "warnings": warnings,

@@ -1,6 +1,6 @@
 ---
 name: spm-prototype
-description: "原型阶段——把 design 或 PRD 的页面行为表达成可看、可讨论的原型。用于用户说开始原型、做原型、生成原型时，或 stage-context 建议进入 prototype 阶段时。基于 design 基线生成 HTML 原型。反馈先归类再修改，表现问题只改 prototype，语义问题先回写 design。"
+description: "原型阶段——把确认版 design.md 的页面行为表达成可看、可讨论的原型。vNext：直接读取确认版 Design，不依赖 PRD、Design metadata、page-fields、分页流水线或逐页字段计数。保留 HTML + Vue + Tailwind + daisyUI + 本地 lib 架构。反馈先归类再修改，表现问题只改 prototype，语义问题先回写 design。"
 ---
 ## 路径解析
 
@@ -10,40 +10,62 @@ description: "原型阶段——把 design 或 PRD 的页面行为表达成可�
 - `.workflow/`、`output/` 开头 → 当前项目根目录下
 
 
+## vNext 职责定位
+
+- **直接读取**确认版 `output/design/design.md`
+- **不依赖** PRD、Design metadata、page-fields、分页流水线或逐页字段计数
+- **保留** HTML + Vue + Tailwind + daisyUI + 本地 lib 架构
+- **首次正式写入前**必须完成 Design 到 Prototype 的语义对照
+- 关键角色权限、状态、操作限制、主要路径和关键反馈必须表达
+- **不得引入** Design 未授权的高影响行为
+
+## 前置检查
+
+运行 `python $BUNDLE/scripts/python/stage-context.py --project-root .`
+
+vNext 准入条件：
+1. `output/design/design.md` 存在
+2. Design 确认标记有效（`.workflow/confirmations/design.json` 中 `content_sha256` 与当前 design.md 哈希一致）
+
+**不要求**：
+- PRD 存在
+- Design metadata 存在
+- page-fields.json 存在
+- Prototype Review 通过
+
+如 Design 未确认，停下告知用户：
+> Design 未确认或已修改。请由用户明确确认当前 Design 后再生成 Prototype。
+> 确认方式：运行 `python $BUNDLE/scripts/python/design-confirmation.py --project-root . confirm`
+
 ## 输入依赖
 
 1. 必须读取：`output/design/design.md`
-2. 如已存在，还需读取：`output/prd/prd.md` 中的详细需求说明（含字段定义表、状态机表、权限规则）
-3. 如存在反馈，读取：`output/prototype/prototype-feedback.md`
+2. 如存在反馈，读取：`output/prototype/prototype-feedback.md`
+3. **不读取** PRD（Prototype 不依赖 PRD）
+4. **不读取** `.workflow/metadata/design/` 下任何文件
 
 ## 最小读取集合
 
 **一次读取**——用一次工具调用读取以下全部文件：
 
 1. `.workflow/status.json`
-2. `.workflow/metadata/design/page-fields.json`（页面→字段索引，仅用于定位，不作内容源）
-3. `output/design/design.md`（逐页切片时读对应段落，不一次读全文）
-4. `output/prd/prd.md`（如已存在，作为字段对齐第二事实源）
-5. `templates/prototype.html`（HTML 骨架）
-6. `references/prototype-writing.md`（写法参考）
+2. `output/design/design.md`（人读事实源）
+3. `output/design/decision-notes.md`（如存在，参考待确认项避免静默拍板）
+4. `templates/prototype.html`（HTML 骨架）
+5. `references/prototype-writing.md`（写法参考）
 
->  fields.json/permissions.json/states.json 是 stage-prep 生成的机读镜像，供 review 与一致性检查使用，**AI 不读**。AI 只从 design.md 原文逐页照抄。
+## 生成策略
 
-## 分页流水线生成策略
+vNext：取消分页流水线、page-fields 索引、逐页字段计数等能力补偿型机制。
 
-**禁止一口气生成全量原型**——design.md 可能 120KB+、50+ 页，上下文窗口后半段必然遗忘。与 spm-prd 共用同一份 `page-fields.json` 索引，逐页生成：
-
-1. 先读 `page-fields.json` 获取全部页面→字段名列表（仅索引，无字段值）
-2. 按 design.md 页面清单顺序，逐页处理：
-   a. 从 design.md 原文中读取**当前页**的完整段落——字段列表、类型、枚举值、必填标记、权限规则、状态规则（按 page-fields.json 索引定位，每次只读 2-3KB）
-   b. **照抄**：字段类型/枚举值/必填标记/权限/状态一律从 design.md 原文照抄，不改写不推断
-   c.  PRD 已存在时，对照 PRD 同页的字段数量和名称为"第二事实源"——PRD 和原型必须字段对齐
-   d. 生成该页 HTML 片段，生成立即自检：该页字段与 design.md 原文是否一致
-3. 全部页面生成完后组装页框、导航
-4.  全量自检：所有页面字段数量总和与 design.md 原文定义是否对齐
-
-> **分页流水线核心：每页上下文 ~15KB，AI 只读 design.md 原文照抄。幻觉自检在生成阶段由 AI 对照 design.md 完成。**
-
+1. 先通读 `output/design/design.md`，建立整体认知
+2. 完成 Design 到 Prototype 的语义对照（首次正式写入前必做）：
+   - 列出 design 中的模块、页面、字段、状态、权限清单
+   - 标记关键角色权限、状态、操作限制、主要路径、关键反馈
+   - 标记 Design 中"待确认"项，Prototype 不得静默拍板
+3. 按 design 页面清单顺序生成各页面 HTML
+4. 大型设计（>10 页）可分批生成，每批生成后立即自检
+5. 全量生成后组装页框、导航
 
 ## 执行顺序
 
@@ -59,19 +81,14 @@ description: "原型阶段——把 design 或 PRD 的页面行为表达成可�
 
 **CHECKPOINT · 资源可读性**——templates/prototype.html 和 lib/ 目录下的 CSS/JS 文件是否存在？缺失时停下告知用户具体缺失文件路径，不凭记忆生成原型。
 
-### 步骤 2：分页流水线策略
+### 步骤 2：前置检查 + 语义对照
 
-**禁止一次性读取 design.md 全文**。按以下策略逐页生成：
-
-1. 读 `page-fields.json` → 获取全部页面及对应字段名（仅索引）
-2. 逐页处理（按 design.md 页面清单顺序）：
-   - 从 design.md 原文定位当前页段落，只读 2-3KB
-   - 所有字段类型/枚举值/必填/权限/状态一律从 design.md 原文照抄
-   - 生成当前页 HTML 片段
-   - 生成立即自检：字段与 design.md 原文一致
-3. 全部页面生成完后组装页框、导航
-
-**CHECKPOINT · 逐页生成**——每页生成后自检字段对齐，全量组装后验证总字段数 = design.md 定义。
+1. 运行前置检查（含 Design 确认哈希校验）
+2. 通读 `output/design/design.md`，建立整体认知
+3. 完成 Design 到 Prototype 的语义对照：
+   - 列出 design 中的模块、页面、字段、状态、权限清单
+   - 标记关键角色权限、状态、操作限制、主要路径、关键反馈
+   - 标记 Design 中"待确认"项
 
 ### 步骤 3：生成原型
 
@@ -106,6 +123,14 @@ description: "原型阶段——把 design 或 PRD 的页面行为表达成可�
 5. 页面名称默认放在主体区顶部的页签条中表达；页签支持关闭按钮，不再另起一块大页头重复写页面标题
 6. 模板中的查询工具条、卡片容器、留白区域只用于示意内容层级，不代表所有页面都必须有查询条件或工具栏
 
+**关键语义表达要求（vNext 强化）：**
+1. 关键角色权限必须表达：不同角色看到的页面/按钮/字段差异按 design 权限定义呈现
+2. 状态必须表达：有状态机的实体，列表/详情/按钮可用性按 design 状态机呈现
+3. 操作限制必须表达：design 中的业务规则和限制条件在原型交互中体现
+4. 主要路径必须表达：design 中的核心业务流程在原型中可走通
+5. 关键反馈必须表达：操作成功/失败/异常的反馈按 design 异常路径呈现
+6. **不得引入** Design 未授权的高影响行为（新增字段、状态、权限、流程、模块边界）
+
 ### 步骤 4：生成后自检
 
 每次生成或修改原型 HTML 后，必须执行以下自检：
@@ -114,6 +139,8 @@ description: "原型阶段——把 design 或 PRD 的页面行为表达成可�
 |------|--------|---------|------------|
 | 1 | 页面能正常渲染 | 在浏览器中打开验证 | 立即回滚到修改前版本 |
 | 2 | Vue 控制台无报错 | 检查控制台输出 | 排查变量丢失问题 |
+| 3 | 字段与 design.md 一致 | 对照 design 字段定义表 | 删除幻觉字段，从 design.md 重新提取 |
+| 4 | 关键语义已表达 | 对照 design 权限/状态/规则 | 补充缺失的语义表达 |
 
 **CHECKPOINT · 自检通过**——自检全部通过后，才进入步骤 5 输出产物。
 
@@ -128,6 +155,14 @@ description: "原型阶段——把 design 或 PRD 的页面行为表达成可�
 | 3 | `output/prototype/prototype-feedback.md` | 可选，反馈模板 |
 
 **lib/ 复制必须在生成 HTML 后立即执行**。用 `cp -r $BUNDLE/lib/ output/prototype/lib/`（如果已有旧 lib/ 则先删除再复制）。
+
+### 步骤 6：更新状态
+
+更新 `.workflow/status.json`：
+
+- `current_stage`：`"prototype"`（如已存在 PRD 则可设为 `"done"`）
+- `artifacts.prototype`：`"output/prototype/index.html"`
+- `next_recommended`：可省略或设为 `null`
 
 ## 处理反馈
 
@@ -154,7 +189,7 @@ AI 读取 `prototype-feedback.md` 后，必须先输出固定格式归类结果�
 归类规则：
 
 - 表现问题：只修改 prototype，不回写 design
-- 语义问题：先回写 design + metadata/design，再视影响范围重生 PRD 或 prototype
+- 语义问题：先回写 design（使旧确认失效），再视影响范围重生 PRD 或 prototype；用户重新确认 Design 后才继续
 - 若某一类为空，保留标题并写"无"
 
 ## 失败模式
@@ -163,12 +198,14 @@ AI 读取 `prototype-feedback.md` 后，必须先输出固定格式归类结果�
 |------|---------|---------|-----------|
 | HTML 骨架缺失 | `templates/prototype.html` 不存在 | 告知用户具体缺失路径 | 停下，不凭记忆生成 |
 | lib/ 目录不完整 | CSS/JS 文件缺失 | 列出缺失文件清单 | 停下，要求用户补充资源到 `lib/` |
-| design.md 不存在 | `output/design/design.md` 不存在 | 检查是否有 PRD 可替代 | 停下告知用户需要先完成设计阶段 |
+| design.md 不存在 | `output/design/design.md` 不存在 | 停下告知用户需要先完成设计阶段 | —— |
+| Design 未确认 | 确认哈希不匹配或无确认记录 | 停下告知用户先确认 Design | — |
 | 页面渲染空白 | 生成的 HTML 在浏览器中不显示 | 检查 Vue 初始化代码和数据绑定 | 回滚到上一个可工作的版本 |
 | Vue 控制台报错 | 运行时报错 | 根据错误信息定位变量丢失或组件注册问题 | 回滚并排查 |
 | 字符串替换静默失败 | \n vs \r\n 差异导致替换不生效 | 改用 Python 脚本按行号操作 | 告知用户手动替换 |
 | LLM 自检发现幻觉字段 | 生成时 AI 对照 design.md 发现字段不存在 | 删除幻觉字段，从 design.md 原文重新提取 | 标注幻觉项让用户确认 |
 | 反馈归类不清 | 用户反馈同时涉及表现和语义 | 拆分为两个独立修复任务 | 追问用户确认优先级 |
+| Design 待确认项被静默拍板 | 语义对照发现 Prototype 自行结论化 | 暴露到反馈归类，标"语义问题" | 停下让用户确认 |
 
 ## 不要做什么
 
@@ -183,3 +220,6 @@ AI 读取 `prototype-feedback.md` 后，必须先输出固定格式归类结果�
 | 7 | 使用任何 `el-` 前缀组件 | daisyUI 已全面替代 Element Plus | 参考 `references/prototype-writing.md` 第三章 daisyUI 类名 |
 | 8 | 使用外部 CDN | file:// 协议下加载失败 | 使用本地 `output/prototype/lib/`，每次生成后复制 |
 | 9 | 不验证直接交付 | 可能存在渲染空白、控制台报错等问题 | 每次修改后执行步骤 4 自检 |
+| 10 | 依赖 PRD 存在 | Prototype 不依赖 PRD | 直接读 Design |
+| 11 | 依赖 Design metadata/page-fields | vNext 取消这些能力补偿机制 | 直接读 design.md 人读事实源 |
+| 12 | 引入 Design 未授权的高影响行为 | 违反 Design 是唯一事实源 | 高影响意见先回写 Design |

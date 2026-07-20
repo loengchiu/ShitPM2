@@ -1,9 +1,13 @@
-# Metadata 规则
+# Metadata 规则（legacy compatibility）
 
-> 本文件是 stage-prep.py（metadata 生成）和 verify-against-metadata.py（结构校验）的规则来源。
-> 引用规约 §3.6 和 §5.2。
+> **vNext 状态：legacy compatibility**
+> 本文件描述的 metadata 机制在 vNext 主流程中不再作为事实索引或硬门禁。
+> 新项目无需生成 metadata，仍可正常生成、Review、Fix、Start。
+> 旧项目保留的 metadata 文件可被读取、诊断和逐步迁移，但不构成当前产物质量证明。
+>
+> 本文件保留作为 `stage-prep.py`（legacy）和 `verify-against-metadata.py`（legacy）的规则来源，仅供旧项目兼容诊断使用。
 
-## 失败模式速查表
+## 失败模式速查表（legacy）
 
 | 场景 | 触发条件 | 一线修复 | 仍失败兜底 |
 |---|---|---|---|
@@ -19,7 +23,7 @@
 | metadata 与正文数量不一致 | 字段数/页面数/模块数对比偏差 | 运行 stage-prep.py --stage design 重新生成 | 若重新生成仍不一致，检查 design.md 表格格式 |
 | 状态/权限提取到章节标题 | states.json 含"状态集合"等容器标题 | _extract_states_from_content 改解析列表项，非标题 | 确认 design 状态章节格式为列表项 |
 
-## 反例黑名单（不要做的事）
+## 反例黑名单（legacy）
 
 | # | 反模式 | 为什么不要做 | 替代做法 |
 |---|---|---|---|
@@ -29,9 +33,11 @@
 | 4 | **把下游实体塞回上游关系** | 违反关系独立建模原则 | 关系用 REL- 前缀独立 ID |
 | 5 | **跳过 read_existing_entities()** | 新运行会重排已有 ID | 每次生成前先读取已有 ID 映射 |
 | 6 | **metadata 文件留空不报错** | 空文件可能是提取失败，不是真没内容 | 检查 METADATA_EMPTY_OK 白名单 |
+| 7 | **把 metadata 当成新项目硬门禁** | vNext 新项目不要求 metadata | 新项目可直接生成 Design/PRD/Prototype，无需 metadata |
+| 8 | **把 metadata 当成产物质量证明** | vNext 旧 metadata 仅用于兼容诊断 | 以确认版 Design 为唯一事实基线 |
 
 
-## 一、稳定 ID 前缀规范
+## 一、稳定 ID 前缀规范（legacy）
 
 第一版只使用以下 8 种前缀：
 
@@ -48,7 +54,7 @@
 
 不引入：`REQ-*`、`RISK-*`、`CASE-*`、`WVR-*`
 
-## 二、ID 生成规则
+## 二、ID 生成规则（legacy）
 
 1. 稳定 ID 首次在 design 阶段生成
 2. 稳定 ID 只存在于外置机读物（`.workflow/metadata/`）
@@ -57,7 +63,7 @@
 5. 同一前缀的编号只增不减，多次运行从 max+1 继续
 6. 同步修复时由脚本维护稳定 ID，不靠人工手改
 
-## 三、关系建模规范
+## 三、关系建模规范（legacy）
 
 1. 关系使用 `REL-` 前缀的独立 ID
 2. 关系独立建模，不把下游桶塞回上游对象
@@ -70,14 +76,16 @@
    - `verifies`：验证关系
 4. 关系的 `from` 和 `to` 必须引用已存在的实体 ID
 
-## 四、metadata 文件清单
+## 四、metadata 文件清单（legacy）
 
-### align 阶段（2 个文件）
+> 以下文件清单仅在旧项目或显式运行 legacy 脚本时存在。vNext 新项目不会生成这些文件。
+
+### align 阶段（2 个文件，legacy）
 
 - `index.json`：总索引
 - `relations.json`：关系列表
 
-### design 阶段（10 个文件）
+### design 阶段（10 个文件，legacy）
 
 - `index.json`：总索引
 - `relations.json`：关系列表
@@ -90,22 +98,24 @@
 - `page-fields.json`：页面与字段落点映射
 - `non-page-fields.json`：非页面落点字段例外表
 
-### PRD 阶段（2 个文件）
+### PRD 阶段（已移除）
 
-- `index.json`：总索引
-- `relations.json`：关系列表
+vNext 不再为 PRD 阶段生成 metadata。
 
-### prototype 阶段（1 个文件）
+### prototype 阶段（已移除）
 
-- `index.json`：总索引
+vNext 不再为 prototype 阶段生成 metadata。
 
-## 五、校验职责划分
+## 五、校验职责划分（vNext 调整后）
 
-| 脚本 | 职责 | 不做的事 |
+| 脚本 | vNext 职责 | legacy 行为 |
 |------|------|---------|
-| verify-against-metadata.py | schema 校验 + ID 唯一性校验 | 语义检测、幻觉检测、一致性比对 |
-| prd-consistency-check.py | PRD 幻觉字段检测 + 集合对比 | 不生成 metadata，不校验 |
-| review-precheck.py | review 前置结构完整性检查 | 语义检测 |
-| prd-style-lint.py | PRD 文风 lint（标签式、流水账、占位符等） | 语义检测 |
+| verify-against-metadata.py | legacy compatibility：仅在旧项目存在 metadata 时按需执行 | schema 校验 + ID 唯一性校验 |
+| prd-consistency-check.py | vNext：直接读取人读 Design 和人读 PRD，检查明确可解析的标题、角色、对象、状态、关键动作和明显冲突 | 不依赖 Design metadata |
+| review-precheck.py | vNext：文件存在性、可读性和基础结构检查 | 不决定是否允许 Review |
+| prd-style-lint.py | vNext：PRD 模板、文风和格式 | 不变 |
+| state-machine-check.py | vNext：按需检查，不作为所有生成任务的硬门禁 | 无 metadata 时降级 |
+| stage-prep.py | legacy compatibility：新主流程不默认调用 | 仅旧项目兼容诊断 |
+| design-confirmation.py | vNext：Design 确认标记读写 | 无 legacy 对应 |
 
 幻觉检测和语义一致性判断由 review skill 的 LLM 逐项 checklist 完成，不依赖脚本。

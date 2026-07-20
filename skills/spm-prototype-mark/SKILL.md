@@ -1,6 +1,6 @@
 ---
 name: spm-prototype-mark
-description: "原型标注——为已生成的原型添加悬浮导航栏、关键点标记和内容备注弹窗。用于用户说开始标注、原型标注、prototype mark 时，复制原型到 prototypemark 目录并注入标注系统，AI 根据 design 和 PRD 自动生成初始备注。不进入 review 链路，不修改原始原型。"
+description: "原型标注——vNext：为已生成的原型添加悬浮导航栏、关键点标记和内容备注弹窗。用于用户说开始标注、原型标注、prototype mark 时，复制原型到 prototypemark 目录并注入标注系统，AI 根据 design 和（可选）PRD 自动生成初始备注。不进入 review 链路，不修改原始原型，不成为产品事实源，高影响意见交由 Fix 回写 Design。"
 ---
 
 ## 路径解析
@@ -10,6 +10,13 @@ description: "原型标注——为已生成的原型添加悬浮导航栏、关
 - `scripts/python/`、`references/`、`templates/`、`contracts/`、`lib/` 开头 → `$BUNDLE/` 下
 - `.workflow/`、`output/` 开头 → 当前项目根目录下
 
+## vNext 职责定位
+
+- **不修改原始 Prototype**：只操作 `output/prototypemark/` 副本
+- **不成为产品事实源**：标注内容只是 PRD/Design 内容的展示载体，不是新事实源
+- **高影响意见交由 Fix 回写 Design**：标注过程中发现的高影响问题（缺失模块、错误状态等）不直接修改 Prototype 或 Design，而是提示用户通过 spm-fix 回写 Design
+- **PRD 可选**：vNext 中 Prototype 可独立于 PRD 生成，标注也可在无 PRD 时基于 design.md 生成
+- **不进入 review 链路**：不生成 metadata、不触发 review
 
 # 任务判定
 
@@ -19,14 +26,20 @@ description: "原型标注——为已生成的原型添加悬浮导航栏、关
 
 # Workflow A：初始化标注
 
-触发场景：用户提供 prd.md 和原型页面，要求开始标注。
+触发场景：用户提供原型页面（可选 PRD），要求开始标注。
 
 ## 步骤 1：前置检查
 
-| 资源 | 路径 | 缺失动作 |
-|------|------|---------|
-| PRD | `output/prd/prd.md` |  停下，告知需先完成 spm-prd |
-| 原型 | `output/prototype/` 目录下有 `.html` 文件 |  停下，告知需先完成 spm-prototype |
+| 资源 | 路径 | 必需 | 缺失动作 |
+|------|------|------|---------|
+| 原型 | `output/prototype/` 目录下有 `.html` 文件 | 是 | 停下，告知需先完成 spm-prototype |
+| PRD | `output/prd/prd.md` | 否 | 退化为基于 `output/design/design.md` 生成备注 |
+| Design | `output/design/design.md` | 是 | 停下，告知需先完成 spm-design 并确认 |
+
+**vNext PRD 缺失时的退化策略**：
+- 读取 `output/design/design.md` 中字段定义、状态机、权限规则章节
+- 浮窗内容直接引用 design.md 对应章节描述
+- 在浮窗顶部标注"内容来源：design.md（PRD 未生成）"
 
 ## 步骤 2：复制原型
 
@@ -38,7 +51,7 @@ cp -r output/prototype/ output/prototypemark/
 
 ## 步骤 3：模块化需求聚合
 
-读取 `output/prd/prd.md`，以模块化聚合整合需求点：
+读取 `output/prd/prd.md`（vNext：PRD 缺失时退化为读取 `output/design/design.md` 中对应模块章节），以模块化聚合整合需求点：
 
 - **组件归一化**：同一组件/模块只标一个角标。将属于同一功能区域的需求整合至一个编号内。
   - 示例：列表行的编辑/删除/查看/权限控制 → 一个角标，挂在操作栏标题。
@@ -226,18 +239,19 @@ Vue/React 可直接调用此接口触发角标重渲染。DOM 变更的自动监
 
 # Workflow B：增量更新
 
-触发场景：prd.md 或原型有调整，需要更新已有标注。
+触发场景：design.md / prd.md / 原型有调整，需要更新已有标注。
 
-1. **差异识别**：对比当前标注与调整后的 prd.md / 原型，识别新增/修改/删除项。
+1. **差异识别**：对比当前标注与调整后的 design.md / prd.md / 原型，识别新增/修改/删除项。
 2. **样式锁定**：严禁修改任何视觉样式参数（角标颜色、尺寸、浮窗背景、偏移量等）。
 3. **精准替换**：
    - 新增项 → 按既定规范生成新角标，编号连续递增。
    - 修改项 → 仅替换 `__PM_ANNOTATIONS` 中对应编号的 Markdown 内容，不改角标位置（除非组件位置变化）。
    - 删除项 → 移除对应 `data-pm-mark` 属性、角标 DOM 和 `__PM_ANNOTATIONS` 条目。
+4. **高影响意见处理（vNext 新增）**：标注过程中发现的高影响问题（缺失模块、错误状态、权限漏洞等）→ 不直接修改 Prototype 或 Design，而是在标注报告末尾列出"高影响意见清单"，建议用户通过 spm-fix 回写 Design。
 
 # 硬规则
 
-- **不反写 prd.md**。编号 [1] [2] 只存在于 prototypemark 副本，不写入 `output/prd/prd.md`。
+- **不反写 prd.md / design.md**。编号 [1] [2] 只存在于 prototypemark 副本，不写入 `output/prd/prd.md` 或 `output/design/design.md`。
 - **不修改 `output/prototype/`**。只操作 `output/prototypemark/`。
 - **不修改 lib/ 路径**。prototype 已自包含 `lib/`，复制后路径自然正确。
 - **不引入 Python 脚本**。AI 直接用 Edit 工具编辑 HTML。
@@ -246,6 +260,8 @@ Vue/React 可直接调用此接口触发角标重渲染。DOM 变更的自动监
 - **不生成页面级角标时不标**。非必要不加页面级标记。
 - **角标一律 `position: fixed` + `document.body` 挂载**。禁止 `position: absolute`，禁止插入目标元素内部。
 - **`__PM_ANNOTATIONS` 的 content 字段必须用单引号包裹**。禁止双引号。
+- **不成为产品事实源（vNext）**。标注内容只是 PRD/Design 的展示载体，不构成新事实源。
+- **高影响意见交由 Fix 回写 Design（vNext）**。不直接修改 Prototype 或 Design，仅输出意见清单。
 
 # 执行与自检
 
@@ -253,12 +269,13 @@ Vue/React 可直接调用此接口触发角标重渲染。DOM 变更的自动监
 
 - [ ] 执行的是初始化还是增量更新？
 - [ ] 同一组件/模块是否只有一个角标？
-- [ ] 浮窗信息是否足够替代 PRD？
+- [ ] 浮窗信息是否足够替代 PRD（或退化时足够替代 design.md 对应章节）？
 - [ ] 浮窗是否支持拖拽？是否只能通过 X 关闭？点击浮窗是否隔离了页面事件？
 - [ ] 角标是否 10px 粗体 amber？层级是否正确？
 - [ ] 浮窗是否还原了 Markdown 层级与重点？
-- [ ] 是否未修改 output/prototype/ 和 output/prd/prd.md？
+- [ ] 是否未修改 output/prototype/ 和 output/prd/prd.md 和 output/design/design.md？
 - [ ] **角标定位**：是否所有角标统一使用 `position: fixed` + `document.body` 挂载？
 - [ ] **多容器场景**：是否检测了角标容器归属（`pm-badge-in-page` / `pm-badge-in-drawer` / `pm-badge-in-modal`）？抽屉/弹窗打开时主页角标是否隐藏？
 - [ ] **数据格式**：`__PM_ANNOTATIONS` 的 content 字段是否使用单引号包裹？
 - [ ] **框架集成**：是否暴露了 `window.__pmRenderMarks()` 全局接口？
+- [ ] **高影响意见清单**：是否在报告末尾列出待用户决策的高影响意见（vNext）？

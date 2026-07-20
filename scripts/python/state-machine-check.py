@@ -1,8 +1,14 @@
 #!/usr/bin/env python3
-"""state-machine-check.py — 状态机闭环结构层校验
+"""state-machine-check.py — 状态机闭环结构层校验（vNext: 按需检查）
 
-职责：读 .workflow/metadata/design/states.json，按 entity 分组，对每个实体的状态机
-做结构层 4 条图论校验（design-state-format.md 闭环要求的结构层部分）。
+vNext 状态：此脚本保留为按需检查，不作为所有生成任务的硬门禁。
+- 新主流程不默认调用此脚本。
+- Review skill 可显式调用此脚本做结构层校验。
+- vNext：无 states.json 时降级为基于 design.md 解析（调用 stage-prep.py 的解析函数）。
+- 解析失败时跳过结构层检查，仅由 LLM 人审业务层。
+
+职责：读 .workflow/metadata/design/states.json（vNext: 或直接从 design.md 解析），按 entity 分组，
+对每个实体的状态机做结构层 4 条图论校验（design-state-format.md 闭环要求的结构层部分）。
 业务层 4 条（合法出路全覆盖/二次流转闭环/操作人匹配角色/状态语义自洽）仍由 LLM 审查。
 
 4 条结构层校验：
@@ -16,12 +22,38 @@
 """
 
 import argparse
+import importlib.util
 import json
+import os
 import sys
 from collections import defaultdict, deque
 from pathlib import Path
 
 ROLLBACK_KEYWORDS = ("退回", "驳回", "撤回")
+
+
+def _load_states_from_design_md(project_root: Path):
+    """vNext: 无 states.json 时，从 design.md 直接解析状态机
+
+    复用 stage-prep.py 的 generate_design_metadata 函数（标记为 legacy 但解析逻辑仍可复用）。
+    返回 (states_list, error_message)；成功时 error_message 为 None。
+    """
+    design_path = project_root / "output" / "design" / "design.md"
+    if not design_path.exists():
+        return None, f"design.md not found: {design_path}"
+    try:
+        with open(design_path, encoding="utf-8") as f:
+            content = f.read()
+        # 用 importlib 加载 stage-prep.py（文件名含连字符，无法用普通 import）
+        scripts_dir = os.path.dirname(os.path.abspath(__file__))
+        spec = importlib.util.spec_from_file_location("stage_prep", os.path.join(scripts_dir, "stage-prep.py"))
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        data = mod.generate_design_metadata(content, "design", project_root)
+        states = data.get("states", [])
+        return states, None
+    except Exception as e:
+        return None, f"从 design.md 解析状态机失败: {e}"
 
 
 def check_state_machines(states):
@@ -195,23 +227,67 @@ def _forward_reachable(initial, state_map, global_transitions=None):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="状态机闭环结构层校验")
+    parser = argparse.ArgumentParser(description="状态机闭环结构层校验（vNext: 按需检查）")
     parser.add_argument("--project-root", default=".")
+    parser.add_argument(
+        "--source",
+        choices=["auto", "design", "states-json"],
+        default="auto",
+        help="状态机数据来源：auto（默认 design.md，缺失时降级 states.json）/ design（强制 design.md）/ states-json（强制旧 metadata）",
+    )
     args = parser.parse_args()
 
-    states_file = Path(args.project_root) / ".workflow" / "metadata" / "design" / "states.json"
-    if not states_file.exists():
-        print(json.dumps({"error": f"states.json not found: {states_file}"}, ensure_ascii=False))
+    project_root = Path(args.project_root).resolve()
+    states_file = project_root / ".workflow" / "metadata" / "design" / "states.json"
+    design_path = project_root / "output" / "design" / "design.md"
+
+    states = None
+    source = None
+    errors = []
+
+    # vNext: Design 是唯一事实源，默认从 design.md 解析
+    # 仅当 --source=states-json 或 design.md 不存在时才读 states.json
+    use_design_first = args.source in ("auto", "design")
+    use_states_json = args.source in ("auto", "states-json")
+
+    if use_design_first and design_path.exists():
+        states, err = _load_states_from_design_md(project_root)
+        if states is not None:
+            source = "design.md"
+        elif err:
+            errors.append(err)
+
+    if states is None and use_states_json and states_file.exists():
+        try:
+            with open(states_file, encoding="utf-8") as f:
+                states = json.load(f)
+            source = "states.json"
+        except (json.JSONDecodeError, OSError) as e:
+            errors.append(f"states.json 解析失败: {e}")
+
+    if states is None:
+        combined_err = "; ".join(errors) if errors else "未找到状态机数据（design.md 和 states.json 均不可用）"
+        print(json.dumps({"error": combined_err}, ensure_ascii=False))
         return 1
-    with open(states_file, encoding="utf-8") as f:
-        states = json.load(f)
+
+    if not states:
+        print(json.dumps({
+            "stage": "design",
+            "source": source,
+            "entity_count": 0,
+            "violations": [],
+            "summary": {"total": 0, "P1": 0, "P2": 0},
+            "note": "未找到状态机数据，跳过结构层校验",
+        }, ensure_ascii=False, indent=2))
+        return 0
 
     violations = check_state_machines(states)
     p1 = sum(1 for x in violations if x["severity"] == "P1")
     p2 = sum(1 for x in violations if x["severity"] == "P2")
     result = {
         "stage": "design",
-        "entity_count": len(set(s.get("entity") for s in states)),
+        "source": source,
+        "entity_count": len(set(s.get("entity") for s in states if isinstance(s, dict))),
         "violations": violations,
         "summary": {"total": len(violations), "P1": p1, "P2": p2},
     }

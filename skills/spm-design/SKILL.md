@@ -1,6 +1,6 @@
 ---
 name: spm-design
-description: "设计阶段——把对齐结果结构化成稳定基线。用于用户说开始设计、做设计、进入设计时，或 stage-context 建议进入 design 阶段时。按固定顺序生成角色、模块、页面、字段、规则、权限等完整设计基线。设计是唯一事实源。"
+description: "设计阶段——vNext：同时承担 Product Definition 和唯一 Design 基线。用于用户说开始设计、做设计、进入设计时。首次生成必须尽量完成业务流程、角色权限、数据范围、状态转换、模块边界、跨系统责任、异常路径和方案权衡。高影响问题不能推迟给 PRD、Prototype 或 Review。Design 是唯一事实源。"
 ---
 ## 路径解析
 
@@ -9,32 +9,45 @@ description: "设计阶段——把对齐结果结构化成稳定基线。用于
 - `scripts/python/`、`references/`、`templates/`、`contracts/`、`lib/` 开头 → `$BUNDLE/` 下
 - `.workflow/`、`output/` 开头 → 当前项目根目录下
 
+## 职责定位
+
+vNext：spm-design 同时承担 **Product Definition** 和 **Design 基线**。
+
+- 首次生成必须尽量完成：业务流程、角色权限、数据范围、状态转换、模块边界、跨系统责任、异常路径、方案权衡
+- 高影响问题不能推迟给 PRD、Prototype 或 Review
+- 高影响缺口必须明确暴露并请求用户确认，不能静默猜测
+- Design 是唯一事实源，PRD 和 Prototype 都直接依赖确认版 Design
+- 用户确认后的 design.md 是唯一产品事实基线
+
 ## 前置检查
 
-运行 `python $BUNDLE/scripts/python/stage-context.py .` 检查准入：
+运行 `python $BUNDLE/scripts/python/stage-context.py --project-root .` 检查上下文。
 
-1. align.md 存在
-2. align-notes.json 中 `can_enter_design` = true
+vNext **不再要求**：
+- Align 必须存在
+- align-notes.json 中 `can_enter_design` = true
+- metadata 必须生成
+- Review 通过
 
-如检查不通过， 停止并输出阻塞项，不写任何产物。
-
-**失败分支：stage-context.py 执行失败**——脚本报错时停下告知用户，不跳过前置检查。
+如 design.md 不存在，提示用户首次生成；如已存在，提示用户可修改或重新生成。**失败分支：stage-context.py 执行失败**——脚本报错时停下告知用户，不跳过前置检查。
 
 ## 最小读取集合
 
 1. `.workflow/status.json`
-2. `output/align/align.md`（对齐产物）
-3. `.workflow/runtime/align/align-notes.json`
-4. `templates/design.md`（产物骨架）
-5. `references/design-writing.md`（写法参考）
-6. `references/design-methodology.md`（设计方法论）
-7. `references/design-state-format.md`（状态定义格式）
-8. `references/design-flow-format.md`（业务流程格式）
+2. `output/align/align.md`（**可选**，如存在则读取作为参考）
+3. `templates/design.md`（产物骨架）
+4. `references/design-writing.md`（写法参考）
+5. `references/design-methodology.md`（设计方法论）
+6. `references/design-state-format.md`（状态定义格式）
+7. `references/design-flow-format.md`（业务流程格式）
+8. 用户提供的背景材料（文件路径、原话摘要）
+
+模板/参考不存在时停下告知缺失路径，不凭记忆生成。
 
 ## 执行顺序
 
-1. 运行前置检查
-2. 读取最小读取集合
+1. 运行前置检查（仅上下文，不构成硬门禁）
+2. 读取最小读取集合（align.md 可选）
 3. **设计思考**（必须在生成正文前完成，写入内部推理，不写入 design.md 正文）
 4. 按以下顺序生成设计：
    - 角色定义
@@ -47,7 +60,9 @@ description: "设计阶段——把对齐结果结构化成稳定基线。用于
    - 规则设计
    - 权限定义（细到字段级）
 5. 生成 design.md 人读产物
-6. 更新 status.json
+6. **必须同时生成** `output/design/decision-notes.md`（四类分节：设计决策、偏离、权衡、待确认）
+7. 更新 status.json
+8. **不自动写确认标记**——由用户明确确认后才写入 `.workflow/confirmations/design.json`
 
 ## 设计思考（生成前必做）
 
@@ -57,6 +72,9 @@ description: "设计阶段——把对齐结果结构化成稳定基线。用于
 
 1. 每个模块下的页面是否属于同一个业务域？不是 → 模块组织有问题
 2. 信息密度为"重"的页面是否标注了分区策略？没有 → 补上
+3. 是否存在未暴露的高影响缺口？是 → 明确暴露并请求用户确认
+4. 是否存在"推迟给下游"的高影响问题？是 → 在 Design 阶段解决或明确标"待确认"
+5. 业务流程、角色权限、数据范围、状态转换、模块边界、跨系统责任、异常路径是否完整？
 
 自检不通过的项目必须修正后再写正文。
 
@@ -135,6 +153,14 @@ PRD 可为交付目的镜像这些内容，但不得独立改写语义。
 4. “非页面落点字段”使用结构化表格，至少包含“字段”“原因”两列
 5. 生成 design 时优先保证这三处结构可机读，再追求人读润色
 
+### 高影响缺口暴露（vNext 强化）
+
+spm-design 同时承担 Product Definition，高影响缺口必须在 Design 阶段暴露：
+
+1. 业务流程、角色权限、数据范围、状态转换、模块边界、跨系统责任、异常路径和方案权衡不能有静默缺口
+2. 不能"推迟给下游"——高影响问题必须在 Design 阶段解决或明确标"待确认"
+3. 未经用户确认的高影响假设必须在 decision-notes.md 中标记为"待确认"
+4. 无法判断时按最保守策略记录，并在 decision-notes.md 中说明
 
 ## 失败模式
 
@@ -142,33 +168,27 @@ PRD 可为交付目的镜像这些内容，但不得独立改写语义。
 |------|---------|---------|-----------|
 | 前置检查失败 | stage-context.py 返回阻塞项 | 输出阻塞项清单，停下等用户补充 | 不跳过前置检查直接写 design |
 | stage-context.py 执行失败 | 脚本报错或超时 | 检查脚本路径和 Python 环境 | 停下告知用户具体错误，不跳过 |
-| align.md 不存在 | output/align/align.md 不存在 | 停下，需要先完成对齐阶段 | —— |
 | 模板文件不存在 | templates/design.md 不存在 | 使用内置最小模板（角色/模块/页面/字段/规则/权限） | 停下告知用户安装模板 |
 | 参考文件不存在 | references/design-writing.md 不存在 | 跳过参考，按硬规则生成 | —— |
-| 设计规模过大 | 页面 > 10 或字段 > 50 | 先生成索引，再逐块生成，最后组装 | 告知用户可能需要分多次 review |
-| metadata 生成失败 | stage-prep.py 报错 | 检查 design.md 格式是否符合解析要求 | 告知用户 metadata 未生成，不影响人读产物 |
 | 多级组织架构未定义数据范围 | 设计涉及多级架构但未标注 | 补充数据范围层级定义 | 停下，不进入 PRD |
-### 稳定 ID 规则
+| 高影响缺口静默 | 推进给 PRD/Prototype/Review | 停下，在 Design 阶段解决或标"待确认" | 在 decision-notes.md 中记录 |
 
-1. 稳定 ID 首次在 design 阶段生成
-2. 只存在于外置机读物，由 review 通过后 `scripts/python/stage-prep.py` 脚本注入
+### 稳定 ID 规则（legacy）
+
+1. vNext 新项目不要求生成稳定 ID
+2. 旧项目保留的 metadata 仅用于兼容诊断，不构成 Design 质量证明
 3. design.md 正文不得出现稳定 ID
-4. 第一版只使用以下前缀：
-   - `MODULE-design-NNN`
-   - `PAGE-design-NNN`
-   - `FIELD-design-NNN`
-   - `RULE-design-NNN`
-   - `FLOW-design-NNN`
-   - `REL-design-NNN`
-5. 不引入 `REQ-*`、`RISK-*`、`CASE-*`、`WVR-*`
 
-### 大型设计分块
+## decision-notes.md（必须生成）
 
-如页面 > 10 个或字段 > 50 个：
+vNext：spm-design 必须同时生成 `output/design/decision-notes.md`，记录相对于上游基准（align 或用户原始需求）的四类决策：
 
-1. 先生成索引（模块 → 页面 → 字段概览）
-2. 再逐块生成，每块局部自检
-3. 最后组装
+- **设计决策**：上游未覆盖但必须做的选择
+- **偏离**：未按上游执行的地方及理由
+- **权衡**：考虑过但未采用的方案及原因
+- **待确认**：需要用户定夺的问题
+
+每条列表项写决策+原因，无内容写"无"。
 
 ## 输出要求
 
@@ -190,23 +210,33 @@ PRD 可为交付目的镜像这些内容，但不得独立改写语义。
 - 范围与建设方式
 - 核心业务流程
 
+### decision-notes.md
+
+写入 `output/design/decision-notes.md`，四类分节。
+
 ### 状态更新
 
 更新 `.workflow/status.json`：
 
 - `current_stage`：更新为 `"design"`
 - `artifacts.design`：指向 `output/design/design.md`
-- `metadata_paths.design`：指向 `.workflow/metadata/design/`
-- `next_recommended`：`"prd"`（design 通过后进入 prd）
+- `next_recommended`：可省略或设为 `null`（vNext 不再线性推进）
+
+### 确认标记（不自动写）
+
+生成或修改 Design 后**不得自动写**确认标记。告知用户：
+> Design 已生成/修改。请由用户明确确认后，下游才能生成 PRD 或 Prototype。
+> 确认方式：运行 `python $BUNDLE/scripts/python/design-confirmation.py --project-root . confirm`
 
 ## 停止条件
 
 1. design.md 核心章节全部存在
-2. 无新增 align 未确认的范围
-3. 页面清单、字段定义、页面与字段落点三处能互相对齐
-4. 设计思考自检清单 5 项全部通过（不通过的已在生成前修正）
+2. 页面清单、字段定义、页面与字段落点三处能互相对齐
+3. 设计思考自检清单全部通过
+4. 高影响缺口已暴露并标记（无静默缺口）
+5. decision-notes.md 已生成
 
-满足以上 4 条后停止，建议 `/spm-design-review`。
+满足以上 5 条后停止，建议用户确认 Design，确认后可调用 `/spm-prd` 或 `/spm-prototype`。
 
 ## 不要做什么
 
@@ -218,3 +248,7 @@ PRD 可为交付目的镜像这些内容，但不得独立改写语义。
 6. 不重新判断建设类型
 7. 不重新解释原始材料
 8. 不把 prototype 的表现层问题直接提升为业务事实
+9. 不自动写确认标记
+10. 不把高影响问题推迟给 PRD、Prototype 或 Review
+11. 不要求 Align 必须存在
+12. 不要求生成 metadata

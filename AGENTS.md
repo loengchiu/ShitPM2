@@ -6,13 +6,6 @@
 - 对外产物不得出现 AI 痕迹、内部路径、metadata 字段或调试字段。
 - 写作与产物规则优先描述目标状态；只有门禁、安全、越界、防幻觉才优先用禁止式写法
 
-
-## 2. 旧项目仓库目录
- - PMFlow：D:\work\PMFlow
- - Omp：D:\work\AIskills\OhMyPm
- - shitpm：D:\work\ShitPM
- - testany：D:\work\AIskills\testany-agent-skills\plugins\testany-eng
-
  ## 3. Think Before Coding
 
  **Don't assume. Don't hide confusion. Surface tradeoffs.**
@@ -68,16 +61,6 @@
  ```
 
  Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
-
-
-## 7. Shell 执行规范
-
-**所有 exec_command 必须通过 WSL 执行。** 不直接使用 PowerShell 运行 Python -c。
-
-- 命令前缀用 wsl，例如: wsl python3 -c 'print(1)' 或 wsl python3 script.py
-- 避免 python -c 直接在 PowerShell 下执行（括号和引号会被 PowerShell 解析破坏）
-- 路径统一用 WSL 格式: D:\work\ShitPM 对应 /mnt/d/work/ShitPM
-- Git 操作统一用 wsl git
 
 ## 过程审计
 

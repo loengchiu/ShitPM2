@@ -1,7 +1,7 @@
 # 同步修复传播规则
 
 > 本文件是 fix skill 的执行依据。
-> 引用规约 §4.6。
+> vNext：Design 是唯一事实源；高影响 Fix 必须回写 Design 并使旧确认失效；下游冲突按 Design 修正下游。
 
 ## 一、最小判断清单
 
@@ -13,9 +13,10 @@
 | 传播遗漏 | 改了 design 但忘了同步 PRD | 传播方向表逐层检查 | 运行 prd-consistency-check.py 检查 PRD 与 design 一致性 |
 | 逆向定源 | PRD 直接改了 design 的语义 | 识别到语义变更后，先停，回写 design | 若已误改 PRD，revert PRD 改动，先修 design |
 | fix 改了不该改的内容 | 表现层问题被误判为语义问题 | 重新归类：表现问题只改 prototype，语义问题才回 design | 若已误改，按传播方向表反向恢复 |
-| metadata 被手动修改 | fix 时直接改了 metadata JSON | 恢复 metadata 原文 | 运行 stage-prep.py --stage <stage> 重新生成 |
-| 多版本并存 | fix 覆盖后旧版本未清理 | 确认每阶段只有一份当前稿 | 删除 output/<stage>/ 下的旧版本文件 |
+| Design 改了但旧确认未失效 | 修改 design.md 后忘记提示用户重新确认 | 修改 design.md 后必须提示用户重新确认；下游 Skill 启动时重新计算哈希 | 运行 design-confirmation.py check 查看是否 hash_mismatch |
 | 上游缺失导致下游无法修复 | design 中缺少字段定义 | 先在 design 中补字段定义 | 若字段来源不明，标记 [待确认] 回退 PM |
+| 多版本并存 | fix 覆盖后旧版本未清理 | 确认每阶段只有一份当前稿 | 删除 output/<stage>/ 下的旧版本文件 |
+| 把下游内容提升为事实源 | PRD 或 Prototype 反向覆盖 Design | 拒绝下游反向覆盖；以下游反馈为由先回写 Design | 若已误改，恢复 Design 原文，按传播方向重新同步 |
 
 ## 反例黑名单（不要做的事）
 
@@ -23,10 +24,13 @@
 |---|---|---|---|
 | 1 | **跳过影响分析直接改下游** | 可能遗漏受影响阶段，或改错归属层 | 必须按最小判断清单 6 步执行 |
 | 2 | **fix 时整篇重写** | 破坏当前真相原则，引入不必要的变更 | 只改必要内容，覆盖式更新 |
-| 3 | **手动修改 metadata** | metadata 由脚本生成，手动改可能破坏一致性 | review 通过后由 stage-prep.py 重新生成 |
-| 4 | **PRD 直接改 design 语义** | 违反逆向定源禁令 | 先停，说明问题，由 PM 确认后回写 design |
-| 5 | **不输出 review 建议** | PM 不知道 fix 完成后需要重新 review | fix 完成后必须输出 review 建议 |
-| 6 | **归类前直接修改** | 表现问题和语义问题的传播路径完全不同 | 必须先归类再修改 |
+| 3 | **PRD 直接改 design 语义** | 违反逆向定源禁令 | 先停，说明问题，由 PM 确认后回写 design |
+| 4 | **不输出 review 建议** | PM 不知道 fix 完成后需要重新 review | fix 完成后必须输出 review 建议 |
+| 5 | **归类前直接修改** | 表现问题和语义问题的传播路径完全不同 | 必须先归类再修改 |
+| 6 | **修改 Design 后不提示重新确认** | 旧确认哈希失效，下游会卡在确认检查 | 修改 design.md 后必须明确提示用户重新确认 |
+| 7 | **自动确认 Design** | 违反“用户明确确认才写入确认标记”原则 | Fix 不自动调用 confirm；由用户明确确认 |
+| 8 | **自动生成所有下游** | 违反“用户手动触发下游”原则 | Design 重新确认后，由用户决定是否重新生成 PRD/Prototype |
+| 9 | **把下游意见直接提升为 Design 事实** | 违反 Design 是唯一事实源 | 下游意见需经用户确认后回写 Design |
 
 ---
 
@@ -45,28 +49,56 @@
 
 ## 二、传播方向
 
-| 修改发起层 | 事实源 | 传播方向 |
-|-----------|--------|---------|
-| 对齐 | 对齐 | 对齐 → design → PRD → prototype |
-| 设计 | 设计 | design → PRD → prototype |
-| PRD 发现设计有误 | 设计 | 先回写 design → 再更新 PRD |
-| 原型语义反馈 | 设计 | 先回写 design → 再同步 PRD/原型 |
-| 原型表现反馈 | 原型 | 只改原型，不回写 design |
+| 修改发起层 | 事实源 | 传播方向 | 是否触发 Design 确认失效 |
+|-----------|--------|---------|----------------------|
+| 对齐 | 对齐 | 对齐 → design（如重新生成 Design）→ PRD/prototype | 是（若 design.md 被修改） |
+| 设计（高影响） | 设计 | design → PRD → prototype | 是 |
+| 设计（纯格式） | 设计 | 只改 design.md 表述，不改语义 | 否（但建议重新确认以避免歧义） |
+| PRD 发现设计有误 | 设计 | 先回写 design → 再更新 PRD | 是 |
+| 原型语义反馈 | 设计 | 先回写 design → 再同步 PRD/原型 | 是 |
+| 原型表现反馈 | 原型 | 只改原型，不回写 design | 否 |
+| 纯格式/措辞/排版 | 对应下游 | 只改对应下游，不回写 design | 否 |
 
 ## 三、传播原则
 
 1. 只改必要内容，不整篇重写
-2. 覆盖式更新（当前真相原则），不制造多版本并存；覆盖范围仅限人读物，机读物在下次 review 通过后由脚本重新生成
-3. 不允许逆向定源（PRD 不能直接改 design 的语义）
+2. 覆盖式更新（当前真相原则），不制造多版本并存
+3. 不允许逆向定源（PRD/Prototype 不能直接改 design 的语义）
 4. 若无法判断归属层，先停在澄清，不得直接改下游
-5. fix 不手动修改 metadata，由 review 通过后脚本重生成
+5. 无法判断影响范围时，按高影响变化处理
+6. Fix 不自动确认 Design，不自动生成所有下游
+7. 修改 design.md 后必须使旧确认标记失效（哈希自动不一致）
+8. Design 重新确认后，下游是否重新生成由用户决定
 
-## 四、修复完成后的 review 建议
+## 四、Design 确认失效与重新确认流程
+
+vNext：用户确认版 design.md 是唯一产品事实基线。
+
+1. **修改 design.md 时**：
+   - 不需要手动删除 `.workflow/confirmations/design.json`
+   - 下次运行 `design-confirmation.py check` 或 `stage-context.py` 时会自动检测到 `hash_mismatch`
+   - 必须在 Fix 完成后明确告知用户：“Design 已修改，旧确认失效，请重新确认后再生成下游”
+
+2. **用户重新确认 Design 时**：
+   - 由用户明确触发 `design-confirmation.py confirm` 写入新的确认标记
+   - 不由 Fix 自动触发
+
+3. **Design 未重新确认时**：
+   - `stage-context.py` 输出 `available_actions` 中 spm-prd 和 spm-prototype 标记为 unavailable
+   - 下游 Skill 自行启动时会重新计算哈希，发现不一致时拒绝继续
+
+4. **纯格式/措辞/排版修复**：
+   - 可以只修改对应下游（PRD 或 Prototype），不回写 Design
+   - 不触发 Design 确认失效
+   - 但若涉及任何业务语义（字段、状态、权限、流程、模块边界），必须回写 Design
+
+## 五、修复完成后的 review 建议
 
 fix 完成覆盖后，必须输出：
 
 ```
 建议进入 [阶段] review，检查对象：[对象列表]
+若修改了 design.md：Design 已修改，旧确认失效。请由用户重新确认 Design 后再生成下游。
 ```
 
 不自动执行 review，由 PM 手动确认后触发。

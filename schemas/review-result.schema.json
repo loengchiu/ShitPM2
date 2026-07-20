@@ -3,7 +3,7 @@
   "title": "ReviewResult",
   "description": "review 结果机读 JSON",
   "type": "object",
-  "required": ["stage", "verdict", "issues", "issue_layer", "affected_objects", "needs_upstream_sync", "next_recommended", "reviewed_at"],
+  "required": ["stage", "verdict", "issues", "issue_layer", "affected_objects", "needs_upstream_sync", "reviewed_at"],
   "properties": {
     "stage": {
       "$ref": "common.schema.json#/$defs/review_stage_enum",
@@ -50,9 +50,9 @@
       "description": "是否需要回上游同步修复"
     },
     "next_recommended": {
-      "type": "string",
-      "enum": ["align", "design", "design-review", "prd", "prd-review", "prototype", "prototype-review", "fix", "done"],
-      "description": "下一步建议"
+      "type": ["string", "null"],
+      "enum": ["align", "design", "design-review", "prd", "prd-review", "prototype", "prototype-review", "fix", "done", null],
+      "description": "下一步建议（vNext 可选，不再线性推进；不输出或输出 null 均合法）"
     },
     "reviewed_at": {
       "type": "string",

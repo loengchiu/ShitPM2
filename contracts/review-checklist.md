@@ -1,7 +1,7 @@
 # Review 检查项清单
 
 > 本文件是 reviewer skill 的执行依据，不是 writer 的写作指导。
-> 检查项引用规约 §3.4 和 §7.2。
+> vNext：Review 是按需独立挑战，不构成生成前置门禁，不要求 metadata，不要求先通过其他 Review。
 
 ## 失败模式速查表
 
@@ -12,9 +12,8 @@
 | 字段名模糊匹配误判 | design 与 PRD 字段名不完全一致 | 以 design.md 原文字段名为准，修正 PRD | 若无法判断，标记 [待确认] 回退 PM |
 | 非页面落点字段占比异常高 | 过多字段被归入例外表 | 逐一检查是否有字段实际应分配到页面 | 若确认为合理内部字段，在例外表注明原因 |
 | review 结论三档无法区分 | 既有 P0 又有 P1 | verdict = max(severity)，P0 -> 阻塞 | 若 P0 可快速修（<5min），建议修后再出 verdict |
-| stable ID 泄漏到正文 | design.md / prd.md 出现 FIELD-design-001 | 全文搜索并删除 ID 引用 | 确认 stage-prep.py 未将 ID 写入正文模板 |
-| metadata 与正文数量不一致 | 字段数/页面数/模块数对比偏差 | 运行 stage-prep.py --stage design 重新生成 | 若重新生成仍不一致，检查 design.md 表格格式 |
 | PRD 字段定义表缺少 design 中的实体 | PRD 只覆盖部分实体 | 按 design 实体清单逐个补入 PRD 字段定义表 | 若实体已废弃，先从 design 中移除再同步 |
+| 把下游内容误当事实源 | PRD 或 Prototype 与 Design 冲突时 | 以确认版 Design 为唯一事实源；下游必须让位 | 若需提升下游意见，先经 spm-fix 回写 Design |
 
 ## 反例黑名单（不要做的事）
 
@@ -25,21 +24,26 @@
 | 3 | **用建议代替 verdict** | 建议关注不阻塞下游，PM 可能忽略 | 正式 verdict 只用三档：通过 / 有问题需修改 / 阻塞 |
 | 4 | **只查结构不查语义** | 章节完整不等于内容正确 | 结构检查用 precheck，语义检查用人审，两者缺一不可 |
 | 5 | **一次性输出全部检查项** | PM 看不完，重点被淹没 | 先输出 P0/P1，P2 可选输出 |
-| 6 | **review 通过后自动推进阶段** | 违反 review 不自动推进原则 | 通过后输出建议进入下一阶段，由 PM 手动触发 |
+| 6 | **review 通过后自动推进阶段** | 违反 review 不自动推进原则 | 通过后输出建议，由 PM 手动触发下一步 |
 | 7 | **忽略 alias 假阳性** | 章节名用别名时 precheck 可能误报缺失 | 检查 alias_missed_count，>0 时人工确认 |
-| 8 | **metadata 不存在就判定阻塞** | design 阶段 metadata 在 review 通过后才生成 | design review 用 --no-metadata 模式，第三段再生成 |
+| 8 | **把 metadata 当成 Review 前置** | vNext 不要求 metadata 存在 | 即使无 metadata 也可执行 Review，结构完整性由 precheck 判断 |
+| 9 | **把下游内容提升为事实源** | Design 是唯一事实源 | 下游冲突按 Design 修正下游，或经 Fix 回写 Design |
+| 10 | **承担计划内补全** | Review 是独立挑战，不补生成 | 计划内缺口由对应生成 Skill 负责；Review 只输出问题 |
 
 ## CHECKPOINT - review 开始前
 
-运行 review-precheck.py --stage <stage> 并确认 can_start_review: true。
+运行 review-precheck.py --project-root <path> --stage <stage> 并确认 can_start_review: true。
 若 blocking_issues 非空，先回上游补结构，不进入人审。
+Review 不要求 metadata 存在，不要求先通过其他 Review。
 
 ## CHECKPOINT - review 结束前
 
 输出 verdict 后，检查：
 1. 是否有 P0 未修 -> verdict 必须为 阻塞
 2. 是否需要回上游 -> 输出 needs_upstream_sync: true + affected_objects
-3. PM 是否能看到下一步建议 -> 输出 next_recommended
+3. 是否区分了确定性问题、产品风险和待用户决策问题
+
+> vNext：`next_recommended` 可选输出，不再线性推进；reviewer 可不填或填 null，PM 根据 `available_actions` 自行决定下一步。
 
 ---
 
@@ -61,30 +65,37 @@
 6. 权限是否按“页面 > 角色 > 字段权限例外”组织
 7. 状态机闭环审查（按 `references/design-state-format.md` 闭环要求逐项查，违反即 P1）：
    - **结构层 4 条（已脚本化，由 `state-machine-check.py` 执行）**：非终态必有出路 / 非初始态必有入路 / 回退目标合法 / 迁移无歧义
-   - **业务层 4 条（仍 LLM 人审）**：
+   - **业务层 4 条（仍 LLM 人审）**
 8. 是否存在“页面与字段落点”章节，且按页面组织字段落点
 
-#### 一致性（不依赖 metadata）
+#### 一致性（直接基于人读 Design，不依赖 metadata）
 
 9. 数据字典中的每个业务字段是否在“页面与字段落点”中出现至少一次
 10. “页面与字段落点”中是否引用了数据字典未定义的字段
 11. 纯内部字段是否进入“非页面落点字段”例外表并写明原因，而不是静默遗漏
 12. “非页面落点字段”中是否混入了本应落页面的可见/可编辑/可筛选字段
 13. 页面清单中的页面是否全部出现在“页面与字段落点”中
-14. 不新增 align 未确认的范围
-15. 状态定义是否包含流转速览 + 状态明细表（进入/退出条件）+ 逐条迁移规则（触发角色、前置条件、是否可逆）
-16. 涉及多角色或 3+ 步骤的业务流程是否按阶段展开，关键分支是否写具体判断条件，异常路径是否覆盖
+14. 状态定义是否包含流转速览 + 状态明细表（进入/退出条件）+ 逐条迁移规则（触发角色、前置条件、是否可逆）
+15. 涉及多角色或 3+ 步骤的业务流程是否按阶段展开，关键分支是否写具体判断条件，异常路径是否覆盖
 
-### Phase B：metadata 一致性（stage-prep.py 生成后自动校验）
+### Phase B：高影响缺口暴露（vNext 强化）
 
-> 以下检查项由 design review 第三段自动执行，不需要人工判断。
+> vNext：spm-design 同时承担 Product Definition，高影响缺口必须在 Design 阶段暴露，不能推迟给 PRD、Prototype 或 Review。
 
-17. metadata/design 与 design.md 字段/页面/模块数量一致
-18. page-fields 覆盖率：所有页面清单中的页面是否出现在 page-fields.json
-19. non-page-fields 覆盖率：非页面落点字段是否合理（不超过总字段 40%）
-20. 字段约束一致性（review 时人工抽查 fields.json 与 design.md 一致性）
-21. 稳定 ID 是否正确生成（8 种前缀）
-22. design.md 正文中无稳定 ID 泄漏
+16. 业务流程、角色权限、数据范围、状态转换、模块边界、跨系统责任、异常路径和方案权衡是否存在静默缺口
+17. 是否存在“推迟给下游”的高影响问题（应明确暴露并请求用户确认）
+18. 是否存在未经用户确认的高影响假设
+
+### Phase C：legacy metadata 一致性（仅在旧项目存在 metadata 时按需执行）
+
+> 仅当 `.workflow/metadata/design/` 存在时执行，新项目无需执行本节。本节不构成 Review 前置门禁。
+
+19. metadata/design 与 design.md 字段/页面/模块数量一致
+20. page-fields 覆盖率：所有页面清单中的页面是否出现在 page-fields.json
+21. non-page-fields 覆盖率：非页面落点字段是否合理（不超过总字段 40%）
+22. 字段约束一致性（review 时人工抽查 fields.json 与 design.md 一致性）
+23. 稳定 ID 是否正确生成（8 种前缀）
+24. design.md 正文中无稳定 ID 泄漏
 
 ## 二、PRD review 检查项
 
@@ -130,7 +141,9 @@
 32. 表格是否只用于字段定义表、权限规则、状态映射、枚举定义
 33. 是否禁用模板腔和模糊表述
 
-### 一致性检查
+### 一致性检查（直接基于人读 Design 与人读 PRD）
+
+> vNext：一致性检查直接读取人读 design.md 和 prd.md，不依赖 metadata。
 
 34. PRD 字段列表与 design.md 字段定义是否一致
 35. PRD 权限口径与 design.md 权限定义是否一致
@@ -167,12 +180,19 @@
 55. 业务流程是否按阶段展开、关键分支是否写具体判断条件和字段值、异常路径是否覆盖降级策略
 56. 存在跨页面流转或状态变更的模块，是否在详细需求说明中用自然语言明确说明了流转边界和关键结果
 
+### Design 未授权高影响事实检查（vNext 新增）
+
+57. PRD 是否引入了 Design 未授权的高影响产品事实（字段、状态、权限、流程、模块边界）
+58. Design 未决的高影响问题是否被 PRD 静默拍板
+59. PRD 是否把 Design 中的待确认问题自行结论化
+
 ### 门禁规则
 
-57. 一致性校验为必做门禁，不是建议
-58. 功能/页面/字段/字段落地/模糊表述有任何缺口，不得通过 review
-59. 仅表达不足：留在当前稿件修正
-60. 问题来自上游（design 缺失或错误）：停止，回退到 design 修复
+60. 一致性校验为必做门禁，不是建议
+61. 功能/页面/字段/字段落地/模糊表述有任何缺口，不得通过 review
+62. 仅表达不足：留在当前稿件修正
+63. 问题来自上游（design 缺失或错误）：停止，回退到 design 修复
+64. 高影响未授权事实：停止，回退到 design 修复
 
 ### 角色视角自审
 

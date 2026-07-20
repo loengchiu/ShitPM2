@@ -1,14 +1,14 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Status",
-  "description": "新辅助器工作流状态文件，只保留当前真相",
+  "description": "ShitPM 工作流状态文件。vNext 起不再把 current_stage 当成唯一流程真相，PRD 和 Prototype 是 Design 的两个独立下游。历史字段保留兼容读取。",
   "type": "object",
-  "required": ["current_stage", "artifacts", "metadata_paths", "latest_reviews", "next_recommended"],
+  "required": ["current_stage", "artifacts"],
   "properties": {
     "current_stage": {
       "type": "string",
       "enum": ["align", "design", "design-review", "prd", "prd-review", "prototype", "prototype-review", "fix", "done"],
-      "description": "当前所处阶段"
+      "description": "历史字段，仅用于兼容读取。vNext 流程不再线性，以 available_actions 和确认标记为准。"
     },
     "artifacts": {
       "type": "object",
@@ -23,7 +23,7 @@
     },
     "metadata_paths": {
       "type": "object",
-      "description": "各阶段机读物目录路径",
+      "description": "历史字段：旧 metadata 目录路径。vNew 主流程不依赖，仅用于兼容诊断。",
       "properties": {
         "design": { "type": ["string", "null"] },
         "prd": { "type": ["string", "null"] },
@@ -33,7 +33,7 @@
     },
     "latest_reviews": {
       "type": "object",
-      "description": "最近一次 review 结果摘要",
+      "description": "历史字段：最近一次 review 结果摘要。Review 在 vNext 为按需调用，旧记录不构成产物质量证明。",
       "properties": {
         "design": { "$ref": "#/$defs/review_summary" },
         "prd": { "$ref": "#/$defs/review_summary" },
@@ -43,9 +43,36 @@
     },
     "align_notes": { "$ref": "align-notes.schema.json" },
     "next_recommended": {
-      "type": "string",
-      "enum": ["align", "design", "design-review", "prd", "prd-review", "prototype", "prototype-review", "fix", "done"],
-      "description": "下一步唯一建议"
+      "type": ["string", "null"],
+      "enum": ["align", "design", "design-review", "prd", "prd-review", "prototype", "prototype-review", "fix", "done", null],
+      "description": "历史字段：旧线性流程下一步建议。vNext 改用 available_actions 列出所有可用动作。"
+    },
+    "available_actions": {
+      "type": "array",
+      "description": "vNext：当前项目所有可用动作的非阻塞列表。任何 Skill 都可以出现在列表中，是否执行由用户决定。",
+      "items": {
+        "type": "object",
+        "required": ["action", "available", "reason"],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["spm-align", "spm-design", "spm-prd", "spm-prototype", "spm-design-review", "spm-prd-review", "spm-prototype-review", "spm-fix", "spm-prototype-mark", "confirm-design"]
+          },
+          "available": { "type": "boolean", "description": "当前是否可执行" },
+          "reason": { "type": "string", "description": "available=false 时给出阻塞原因；available=true 时给一句话说明" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "design_confirmation": {
+      "type": ["object", "null"],
+      "description": "vNext：Design 确认标记的镜像（结构与 .workflow/confirmations/design.json 一致）。下游通过比对 content_sha256 判断 Design 是否仍处于已确认状态。",
+      "properties": {
+        "artifact": { "type": "string" },
+        "content_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "confirmed_at": { "type": "string", "format": "date-time" }
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": false,

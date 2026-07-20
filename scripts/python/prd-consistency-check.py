@@ -1,19 +1,27 @@
 #!/usr/bin/env python3
-"""prd-consistency-check.py — PRD 与 design 确定性结构对比
+"""prd-consistency-check.py — PRD 与 design 确定性结构对比（vNext: 直接读人读稿，多模板兼容）
 
-从 PRD 正文确定性提取字段/页面/状态/权限实体集合，
-与 design metadata 做集合对比，输出 JSON 报告。
+vNext 变更：
+- 不再依赖 .workflow/metadata/design/ 下的 metadata 文件。
+- 直接读取 output/design/design.md 和 output/prd/prd.md，从人读稿中提取实体做集合对比。
+- 复用 stage-prep.py 的 generate_design_metadata 函数从 design.md 提取实体（不写入 metadata 文件）。
+- 多模板兼容：支持新归位模板（字段/状态/权限归位到 §5 详细需求说明）和旧模板（数据字典/状态机/权限汇总独立章节 + `### page-N 页面名`）。
+- 只做确定性提取和集合对比，不做语义判断。
+- 语义判断（规则覆盖、字段类型/必填一致性）由 review skill 的 LLM 完成。
 
-只做确定性提取和集合对比，不做语义判断。
-语义判断（规则覆盖、字段类型/必填一致性）由 review skill 的 LLM 完成。
+退出码：
+- 0: 通过（无 missing、无 hallucinated、无 attribute_mismatch）
+- 1: 发现 hallucinated / missing / attribute_mismatch（调用方必须修正后重新检查）
+- 2: 致命错误（design.md 或 prd.md 不存在等）
 
 用法：
-  cat output/prd/prd.md | python prd-consistency-check.py --project-root .
-  python prd-consistency-check.py --project-root . < output/prd/prd.md
+  python prd-consistency-check.py --project-root .
 """
 
 import argparse
+import importlib.util
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -29,14 +37,17 @@ from shared_md import (
     strip_heading_number,
 )
 
-# PRD 章节别名
-# 字段/状态/权限按小模块归位到 §5 详细需求说明
+# PRD 章节别名（用于章节定位，但 vNext 主要采用全文扫描策略，章节定位仅作辅助）
 SECTION_ALIASES = {
     "详细需求说明": ["详细需求说明", "详细需求", "需求说明", "详细需求规格", "需求详细说明"],
+    "数据字典": ["数据字典", "字段定义", "字段清单", "字段列表", "数据项定义"],
+    "页面说明": ["页面说明", "页面清单", "页面列表", "页面规划", "页面目录"],
+    "状态机": ["状态机", "状态定义", "状态流转", "规则与状态定义"],
+    "权限汇总": ["权限汇总", "权限定义", "权限规则", "权限矩阵", "权限"],
 }
 
 
-# ── 章节定位 ──────────────────────────────────────────────────
+# ── 章节定位（辅助） ────────────────────────────────────────────
 
 def _find_section_range(headings: list, canonical: str) -> tuple:
     """定位章节范围，返回 (start_line, end_line, section_level)
@@ -49,9 +60,8 @@ def _find_section_range(headings: list, canonical: str) -> tuple:
 
     for h in headings:
         for alias in aliases:
-            # 去标题编号前缀（如 "5. 详细需求说明" / "1.2.3 标题" / "(1) 标题"）后检查前缀匹配
-            title_no_prefix = re.sub(r'^\d+(?:\.\d+)*[.\s]*', '', h["title"])
-            title_no_prefix = re.sub(r'^[（(]\d+[）)]\s*', '', title_no_prefix)
+            # 用 shared_md.strip_heading_number 去除阿拉伯和中文数字前缀
+            title_no_prefix = strip_heading_number(h["title"])
             if title_no_prefix.startswith(alias):
                 if best is None or h["level"] < best[1]:
                     best = (h["line"], h["level"])
@@ -70,191 +80,344 @@ def _find_section_range(headings: list, canonical: str) -> tuple:
     return start_line, end_line, section_level
 
 
-def _tables_in_range(tables: list, start: int, end: int) -> list:
-    """返回指定行范围内的表格"""
-    return [t for t in tables if start <= t["line_offset"] < (end or float("inf"))]
+def _find_multiple_section_ranges(headings: list, canonical_list: list) -> list:
+    """定位多个候选章节范围，返回 [(start, end, level), ...]"""
+    ranges = []
+    for canonical in canonical_list:
+        start, end, level = _find_section_range(headings, canonical)
+        if start is not None:
+            ranges.append((start, end, level))
+    return ranges
 
 
-# ── PRD 实体提取 ──────────────────────────────────────────────
+def _tables_in_ranges(tables: list, ranges: list) -> list:
+    """返回指定行范围集合内的表格"""
+    result = []
+    for t in tables:
+        line = t["line_offset"]
+        for start, end, _ in ranges:
+            if start <= line < (end or float("inf")):
+                result.append(t)
+                break
+    return result
 
-def extract_prd_fields(headings: list, tables: list) -> list:
-    """从 §5 详细需求说明提取字段（含属性）
 
-    归位后字段表分布在小模块末尾。
-    识别规则：在详细需求说明章节范围内，表头含"字段"和"类型"的表视为字段定义表。
-    PRD 字段表格式：| 字段 | 类型 | 必填 | 说明 |（4 列）
+def _lines_in_ranges(content: str, ranges: list) -> str:
+    """返回指定行范围集合内的文本"""
+    lines = content.split("\n")
+    result = []
+    for start, end, _ in ranges:
+        end_idx = end if end else len(lines)
+        result.extend(lines[start - 1:end_idx - 1])
+    return "\n".join(result)
+
+
+# ── PRD 实体提取（多模板兼容） ─────────────────────────────────
+
+def extract_prd_fields(headings: list, tables: list, content: str) -> list:
+    """从 PRD 提取字段（含属性）
+
+    vNext 多模板兼容策略：
+    - 候选章节：详细需求说明、数据字典、字段定义、字段清单
+    - 在候选章节范围内的表头含"字段"和"类型"的表视为字段定义表
+    - 如候选章节都未找到，降级为全文扫描所有表头含"字段"和"类型"的表
+
+    PRD 字段表格式：| 字段 | 类型 | 必填 | 说明 |（4 列，轻量格式）
 
     返回 [{"name": str, "type": str, "required": bool}, ...]
     """
-    start, end, _ = _find_section_range(headings, "详细需求说明")
-    if start is None:
-        return []
+    candidate_ranges = _find_multiple_section_ranges(
+        headings, ["详细需求说明", "数据字典", "字段定义", "字段清单"]
+    )
 
     fields = []
-    for table in _tables_in_range(tables, start, end):
-        headers = table.get("headers", [])
-        if not headers:
-            continue
-        # 字段定义表的特征：表头含"字段"和"类型"
-        header_text = "|".join(headers)
-        if "字段" not in header_text or "类型" not in header_text:
-            continue
-        # 定位列索引
-        name_idx = next((i for i, h in enumerate(headers) if "字段" in h), 0)
-        type_idx = next((i for i, h in enumerate(headers) if "类型" in h), 1)
-        required_idx = next((i for i, h in enumerate(headers) if "必填" in h), None)
-        for row in table["rows"]:
-            if not row or not row[0] or row[0] in ("---", "字段"):
+
+    def _extract_from_tables(table_list):
+        for table in table_list:
+            headers = table.get("headers", [])
+            if not headers:
                 continue
-            name = row[name_idx].strip() if name_idx < len(row) else ""
-            if not name:
+            header_text = "|".join(headers)
+            if "字段" not in header_text or "类型" not in header_text:
                 continue
-            field_type = row[type_idx].strip() if type_idx < len(row) else ""
-            required = None
-            if required_idx is not None and required_idx < len(row):
-                required_cell = row[required_idx].strip()
-                required = required_cell == "是" if required_cell in ("是", "否") else None
-            fields.append({"name": name, "type": field_type, "required": required})
+            name_idx = next((i for i, h in enumerate(headers) if "字段" in h), 0)
+            type_idx = next((i for i, h in enumerate(headers) if "类型" in h), 1)
+            required_idx = next((i for i, h in enumerate(headers) if "必填" in h), None)
+            for row in table["rows"]:
+                if not row or not row[0] or row[0] in ("---", "字段"):
+                    continue
+                name = row[name_idx].strip() if name_idx < len(row) else ""
+                if not name:
+                    continue
+                field_type = row[type_idx].strip() if type_idx < len(row) else ""
+                required = None
+                if required_idx is not None and required_idx < len(row):
+                    required_cell = row[required_idx].strip()
+                    required = required_cell == "是" if required_cell in ("是", "否") else None
+                fields.append({"name": name, "type": field_type, "required": required})
+
+    # 策略 1: 在候选章节范围内提取
+    if candidate_ranges:
+        _extract_from_tables(_tables_in_ranges(tables, candidate_ranges))
+
+    # 策略 2: 候选章节未找到，降级为全文扫描
+    if not fields:
+        _extract_from_tables(tables)
+
     return fields
 
 
 def extract_prd_pages(content: str, headings: list) -> list:
-    """从详细需求说明提取页面名
+    """从 PRD 提取页面名
 
-    识别规则（新编号体系）：
-    - 页面用粗体块 `**N.N.N.N 页面名**` 表示，不再是 Markdown 标题
-    - 大模块是 `### N.N 模块名`，子模块是 `#### N.N.N 子模块名`
-    - 跳过大模块（###）和子模块（####）标题，只提取粗体块页面名
+    vNext 多模板兼容策略，识别以下格式：
+    1. 新编号体系粗体块：`**N.N.N 页面名**` 或 `**N.N.N.N 页面名**`
+    2. 旧模板格式：`### page-N 页面名`（如 `### page-1 我的周报列表`）
+    3. 中编号格式：`### N.N 页面名`（如 `### 3.1 我的周报列表`）
+    4. 在"页面说明"章节内的 `### 页面名` 标题（无编号）
+
+    跳过大模块（##）和容器章节标题。
     """
-    start, end, _ = _find_section_range(headings, "详细需求说明")
-    if start is None:
-        return []
-
-    # 章节容器标题黑名单（粗体块页面名等于以下词条时跳过，避免章节标题被误识别为页面）
-    # 包含归位前旧章节名（权限汇总/数据字典/状态机等），保留用于兼容历史 PRD
     blacklist = {
         "业务流程", "核心业务流程", "状态变化", "状态流转",
         "权限汇总", "权限定义", "数据字典", "字段定义",
         "状态机", "状态定义", "验收标准", "风险与待确认",
+        "页面说明", "页面清单", "页面列表", "页面规划", "页面目录",
+        "详细需求说明", "详细需求", "需求说明",
     }
 
-    # 粗体块页面名模式：**N.N.N 页面名** 或 **N.N.N.N 页面名**
-    # N.N.N 是单子模块大模块的页面，N.N.N.N 是多子模块大模块的页面
-    page_bold_pattern = re.compile(r'^\*\*(\d+(?:\.\d+)+)\s+(.+?)\*\*\s*$')
-
     pages = []
+    seen = set()
+
+    # 候选章节范围：页面说明 / 详细需求说明
+    candidate_ranges = _find_multiple_section_ranges(
+        headings, ["页面说明", "页面清单", "页面列表", "详细需求说明"]
+    )
+
+    # 格式 1: 粗体块页面名 **N.N.N 页面名**
+    page_bold_pattern = re.compile(r'^\*\*(\d+(?:\.\d+)+)\s+(.+?)\*\*\s*$')
+    # 格式 2: ### page-N 页面名
+    page_legacy_pattern = re.compile(r'^#+\s+page[-_]?(\d+)\s+(.+?)\s*$', re.IGNORECASE)
+    # 格式 3: ### N.N 页面名
+    page_numbered_pattern = re.compile(r'^#+\s+(\d+\.\d+(?:\.\d+)*)\s+(.+?)\s*$')
+
+    def _add_page(name):
+        name = clean_page_title(name).strip()
+        if not name or name in blacklist:
+            return
+        if name not in seen:
+            seen.add(name)
+            pages.append(name)
+
     lines = content.split('\n')
+    in_candidate = False
+    current_range_idx = 0
+    candidate_ranges_sorted = sorted(candidate_ranges, key=lambda r: r[0])
+
     for i, line in enumerate(lines):
         line_no = i + 1
-        if line_no <= start:
-            continue
-        if end and line_no >= end:
-            break
 
-        m = page_bold_pattern.match(line.strip())
-        if m:
-            page_name = m.group(2).strip()
-            if page_name in blacklist:
+        # 检查是否进入或离开候选章节
+        while current_range_idx < len(candidate_ranges_sorted):
+            start, end, _ = candidate_ranges_sorted[current_range_idx]
+            if line_no < start:
+                break
+            elif line_no >= start and (end is None or line_no < end):
+                in_candidate = True
+                break
+            elif end is not None and line_no >= end:
+                current_range_idx += 1
+                in_candidate = False
                 continue
-            pages.append(clean_page_title(page_name))
+            else:
+                break
+
+        stripped = line.strip()
+
+        # 格式 1: 粗体块页面名（新编号体系）
+        m = page_bold_pattern.match(stripped)
+        if m:
+            _add_page(m.group(2))
+            continue
+
+        # 格式 2: ### page-N 页面名（旧模板）
+        m = page_legacy_pattern.match(stripped)
+        if m:
+            _add_page(m.group(2))
+            continue
+
+        # 格式 3: ### N.N 页面名（中编号）
+        # 仅在候选章节内识别，避免误匹配其他编号标题
+        if in_candidate:
+            m = page_numbered_pattern.match(stripped)
+            if m:
+                _add_page(m.group(2))
+                continue
+
+            # 格式 4: ### 页面名（在"页面说明"章节内的无编号标题，level >= 3）
+            heading_match = re.match(r'^(#{3,})\s+(.+?)\s*$', stripped)
+            if heading_match:
+                title = heading_match.group(2)
+                _add_page(title)
 
     return pages
 
 
 def extract_prd_states(content: str, headings: list, tables: list) -> list:
-    """从 §5 详细需求说明提取状态名
+    """从 PRD 提取状态名
 
-    归位后状态机表分布在小模块末尾。
-    识别规则：在详细需求说明章节范围内，表头同时含"状态"和"触发动作"的表视为状态机表。
-    同时兼容箭头文本格式（state1 → state2）。
+    vNext 多模板兼容策略：
+    - 候选章节：详细需求说明、状态机、状态定义、状态流转
+    - 在候选章节范围内查找箭头文本和状态机表格
+    - 如候选章节都未找到，降级为全文扫描
+
+    支持格式：
+    1. 箭头文本：state1 → state2 或 state1 -> state2
+    2. 状态机表格：表头同时含"状态"和"触发动作"
     """
-    start, end, _ = _find_section_range(headings, "详细需求说明")
-    if start is None:
-        return []
+    candidate_ranges = _find_multiple_section_ranges(
+        headings, ["详细需求说明", "状态机", "状态定义", "状态流转"]
+    )
 
     states = []
-
-    # 格式 1: 箭头文本（→ 或 ->）——仅扫描详细需求说明章节范围内
-    lines = content.split("\n")
-    for i, line in enumerate(lines):
-        line_no = i + 1
-        if line_no < start:
-            continue
-        if end and line_no >= end:
-            break
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#"):
-            continue
-        if "→" in stripped or "->" in stripped:
-            # 过滤 UI 交互箭头：含点击/跳转/打开/弹出等非状态迁移行
-            if any(ui_word in stripped for ui_word in ("点击", "跳转", "打开", "弹出", "返回", "进入页面")):
-                continue
-            arrow = "→" if "→" in stripped else "->"
-            parts = [p.strip().strip("`") for p in stripped.split(arrow)]
-            for p in parts:
-                # 去掉前缀（如 "周报状态："）
-                p = re.sub(r'^[^：:]*[：:]', '', p).strip()
-                if p and p not in ("—", "-", "N/A"):
-                    states.append(p)
-
-    # 格式 2: 状态机表格——表头同时含"状态"和"触发动作"
-    for table in _tables_in_range(tables, start, end):
-        headers = table.get("headers", [])
-        if not headers:
-            continue
-        header_text = "|".join(headers)
-        if "状态" not in header_text or "触发动作" not in header_text:
-            continue
-        # 找所有含"状态"的列（当前状态、目标状态、下一状态等）
-        state_cols = [i for i, h in enumerate(headers) if "状态" in h]
-        if not state_cols:
-            continue
-        for row in table["rows"]:
-            for col_idx in state_cols:
-                if col_idx < len(row) and row[col_idx]:
-                    cell = row[col_idx].strip().strip("`")
-                    if cell and cell not in ("—", "-", "状态", "任意状态"):
-                        states.append(cell)
-
-    # 去重保序
     seen = set()
-    unique = []
-    for s in states:
-        if s not in seen:
-            seen.add(s)
-            unique.append(s)
-    return unique
+
+    def _add_state(name):
+        name = name.strip().strip("`")
+        if not name or name in ("—", "-", "N/A", "任意状态", "状态"):
+            return
+        if name not in seen:
+            seen.add(name)
+            states.append(name)
+
+    # 策略 1: 在候选章节范围内查找
+    if candidate_ranges:
+        ranges_content = _lines_in_ranges(content, candidate_ranges)
+        ranges_lines = ranges_content.split("\n")
+
+        # 格式 1: 箭头文本
+        for line in ranges_lines:
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            if "→" in stripped or "->" in stripped:
+                if any(ui_word in stripped for ui_word in ("点击", "跳转", "打开", "弹出", "返回", "进入页面")):
+                    continue
+                arrow = "→" if "→" in stripped else "->"
+                parts = [p.strip().strip("`") for p in stripped.split(arrow)]
+                for p in parts:
+                    p = re.sub(r'^[^：:]*[：:]', '', p).strip()
+                    _add_state(p)
+
+        # 格式 2: 状态机表格
+        for table in _tables_in_ranges(tables, candidate_ranges):
+            headers = table.get("headers", [])
+            if not headers:
+                continue
+            header_text = "|".join(headers)
+            if "状态" not in header_text or "触发动作" not in header_text:
+                continue
+            state_cols = [i for i, h in enumerate(headers) if "状态" in h]
+            for row in table["rows"]:
+                for col_idx in state_cols:
+                    if col_idx < len(row) and row[col_idx]:
+                        _add_state(row[col_idx])
+
+    # 策略 2: 候选章节未找到，降级为全文扫描
+    if not states:
+        for line in content.split("\n"):
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            if "→" in stripped or "->" in stripped:
+                if any(ui_word in stripped for ui_word in ("点击", "跳转", "打开", "弹出", "返回", "进入页面")):
+                    continue
+                arrow = "→" if "→" in stripped else "->"
+                parts = [p.strip().strip("`") for p in stripped.split(arrow)]
+                for p in parts:
+                    p = re.sub(r'^[^：:]*[：:]', '', p).strip()
+                    _add_state(p)
+
+        for table in tables:
+            headers = table.get("headers", [])
+            if not headers:
+                continue
+            header_text = "|".join(headers)
+            if "状态" not in header_text or "触发动作" not in header_text:
+                continue
+            state_cols = [i for i, h in enumerate(headers) if "状态" in h]
+            for row in table["rows"]:
+                for col_idx in state_cols:
+                    if col_idx < len(row) and row[col_idx]:
+                        _add_state(row[col_idx])
+
+    return states
 
 
-def extract_prd_permission_pages(headings: list, tables: list) -> list:
-    """从 §5 详细需求说明提取大模块名作为权限页面覆盖检查的来源
+def extract_prd_permission_pages(headings: list, tables: list, content: str) -> list:
+    """从 PRD 提取权限页面名
 
-    权限规则归位到大模块开头。
-    识别规则：在详细需求说明章节范围内，提取所有 `### N.N xxx` 大模块标题。
+    vNext 多模板兼容策略：
+    - 候选章节：详细需求说明、权限汇总、权限定义、权限规则
+    - 策略 1：在候选章节范围内提取 `### N.N xxx` 大模块标题
+    - 策略 2：在权限汇总章节内的表格第一列提取页面名（旧模板格式）
+    - 策略 3：候选章节未找到，降级为全文扫描权限表
+
     design permissions.json 的 page 字段是模块名（如"审计计划""项目启动"），
-    与 PRD 的大模块标题对应。
+    与 PRD 的大模块标题或权限表第一列对应。
     """
-    start, end, _ = _find_section_range(headings, "详细需求说明")
-    if start is None:
-        return []
+    candidate_ranges = _find_multiple_section_ranges(
+        headings, ["详细需求说明", "权限汇总", "权限定义", "权限规则"]
+    )
 
     pages = []
-    for h in headings:
-        if h["line"] < start:
-            continue
-        if end and h["line"] >= end:
-            continue
-        # 大模块标题：### N.N xxx（level 3）
-        if h["level"] != 3:
-            continue
-        title = h["title"]
+    seen = set()
+
+    def _add_page(name):
+        name = name.strip()
         # 去掉编号前缀
-        cleaned = re.sub(r'^\d+\.\d+\s*', '', title).strip()
+        name = re.sub(r'^\d+\.\d+(?:\.\d+)*\s*', '', name)
         # 去掉尾部的"模块"二字
-        if cleaned.endswith("模块"):
-            cleaned = cleaned[:-2].strip()
-        if cleaned:
-            pages.append(cleaned)
+        if name.endswith("模块"):
+            name = name[:-2].strip()
+        # 去掉尾部的"页"字
+        if name.endswith("页"):
+            name = name[:-1].strip()
+        if not name:
+            return
+        if name not in seen:
+            seen.add(name)
+            pages.append(name)
+
+    # 策略 1: 在候选章节范围内提取 ### N.N xxx 大模块标题
+    for h in headings:
+        for start, end, _ in candidate_ranges:
+            if h["line"] < start:
+                continue
+            if end is not None and h["line"] >= end:
+                continue
+            if h["level"] != 3:
+                continue
+            _add_page(h["title"])
+            break
+
+    # 策略 2: 在权限汇总章节内的表格第一列提取页面名（旧模板）
+    perm_ranges = _find_multiple_section_ranges(headings, ["权限汇总", "权限定义", "权限规则"])
+    if perm_ranges:
+        for table in _tables_in_ranges(tables, perm_ranges):
+            headers = table.get("headers", [])
+            if not headers:
+                continue
+            header_text = "|".join(headers)
+            # 权限表的特征：表头含"页面"或"对象"或"模块"
+            if not any(k in header_text for k in ("页面", "对象", "模块")):
+                continue
+            # 第一列是页面名
+            for row in table["rows"]:
+                if not row or not row[0] or row[0] in ("---",):
+                    continue
+                _add_page(row[0])
+
     return pages
 
 
@@ -279,7 +442,6 @@ def compare_field_attributes(
     [{"name": str, "design_type": str, "prd_type": str,
       "design_required": bool, "prd_required": bool}, ...]
     """
-    # 构建 design title → attributes 映射
     design_attrs = {}
     for f in design_fields:
         if not isinstance(f, dict) or "title" not in f:
@@ -291,13 +453,12 @@ def compare_field_attributes(
         }
 
     mismatches = []
-    matched_pairs = set()  # 避免重复匹配
+    matched_pairs = set()
 
     for prd_field in prd_fields:
         if not isinstance(prd_field, dict) or "name" not in prd_field:
             continue
         prd_name = prd_field["name"]
-        # 尝试匹配 design 字段名
         matched_design = _try_match(prd_name, design_title_to_id, fuzzy_fn)
         if not matched_design or matched_design not in design_attrs:
             continue
@@ -395,7 +556,6 @@ def compare_permission_pages(
 
     prd_set = set(prd_perm_pages)
 
-    # 精确匹配 + 已知变体匹配
     matched_design = set()
     matched_prd = set()
 
@@ -404,7 +564,6 @@ def compare_permission_pages(
             matched_design.add(prd_page)
             matched_prd.add(prd_page)
         else:
-            # 尝试 fuzzy_page_match 处理已知变体
             for dp in design_pages_with_perms:
                 if fuzzy_page_match(prd_page, {dp: dp}):
                     matched_design.add(dp)
@@ -423,35 +582,74 @@ def compare_permission_pages(
 
 # ── 主入口 ────────────────────────────────────────────────────
 
+def _load_design_entities_from_md(project_root: Path):
+    """vNext: 从 output/design/design.md 直接提取实体（不依赖 metadata）
+
+    复用 stage-prep.py 的 generate_design_metadata 函数。
+    返回 (design_data, error_message)；成功时 error_message 为 None。
+    """
+    design_path = project_root / "output" / "design" / "design.md"
+    if not design_path.exists():
+        return None, f"design.md not found: {design_path}"
+    try:
+        with open(design_path, encoding="utf-8") as f:
+            content = f.read()
+        scripts_dir = os.path.dirname(os.path.abspath(__file__))
+        spec = importlib.util.spec_from_file_location("stage_prep", os.path.join(scripts_dir, "stage-prep.py"))
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        data = mod.generate_design_metadata(content, "design", project_root)
+        return data, None
+    except Exception as e:
+        return None, f"从 design.md 解析实体失败: {e}"
+
+
 def main():
-    parser = argparse.ArgumentParser(description="PRD 与 design 确定性结构对比")
+    parser = argparse.ArgumentParser(description="PRD 与 design 确定性结构对比（vNext: 直接读人读稿，多模板兼容）")
     parser.add_argument("--project-root", type=Path, default=Path.cwd(), help="项目根目录")
     args = parser.parse_args()
 
     project_root = args.project_root.resolve()
-    content = sys.stdin.read()
 
-    meta_dir = project_root / ".workflow" / "metadata" / "design"
+    # vNext: 直接读 prd.md（兼容 stdin 模式以保留旧调用方式）
+    if not sys.stdin.isatty():
+        content = sys.stdin.read()
+        if not content.strip():
+            prd_path = project_root / "output" / "prd" / "prd.md"
+            print(json.dumps({"error": f"stdin 为空且未提供 PRD 内容；尝试读取 {prd_path} 失败"}, ensure_ascii=False))
+            sys.exit(2)
+    else:
+        prd_path = project_root / "output" / "prd" / "prd.md"
+        if not prd_path.exists():
+            print(json.dumps({"error": f"prd.md not found: {prd_path}"}, ensure_ascii=False))
+            sys.exit(2)
+        with open(prd_path, encoding="utf-8") as f:
+            content = f.read()
+
+    # vNext: 从 design.md 直接提取实体（不依赖 metadata）
+    design_data, err = _load_design_entities_from_md(project_root)
+    if design_data is None:
+        print(json.dumps({"error": err or "无法加载 design 实体"}, ensure_ascii=False))
+        sys.exit(2)
+
+    design_fields = design_data.get("fields", []) or []
+    design_pages = design_data.get("pages", []) or []
+    design_states = design_data.get("states", []) or []
+    design_permissions = design_data.get("permissions", []) or []
 
     headings = parse_headings(content)
     tables = parse_tables_with_context(content, headings)
-
-    # 加载 design metadata
-    design_fields = load_json(meta_dir / "fields.json") or []
-    design_pages = load_json(meta_dir / "pages.json") or []
-    design_states = load_json(meta_dir / "states.json") or []
-    design_permissions = load_json(meta_dir / "permissions.json") or []
 
     # 构建 title → id 映射
     field_title_to_id = {f["title"]: f.get("id", f["title"]) for f in design_fields if isinstance(f, dict) and "title" in f}
     page_title_to_id = {p["title"]: p.get("id", p["title"]) for p in design_pages if isinstance(p, dict) and "title" in p}
     state_title_to_id = {s["title"]: s.get("id", s["title"]) for s in design_states if isinstance(s, dict) and "title" in s}
 
-    # 从 PRD 提取实体
-    prd_fields = extract_prd_fields(headings, tables)
+    # 从 PRD 提取实体（多模板兼容）
+    prd_fields = extract_prd_fields(headings, tables, content)
     prd_pages = extract_prd_pages(content, headings)
     prd_states = extract_prd_states(content, headings, tables)
-    prd_perm_pages = extract_prd_permission_pages(headings, tables)
+    prd_perm_pages = extract_prd_permission_pages(headings, tables, content)
 
     # 集合对比（字段用名称列表做集合对比）
     prd_field_names = [f["name"] for f in prd_fields if isinstance(f, dict) and "name" in f]
@@ -488,6 +686,16 @@ def main():
     total_attribute_mismatch = len(field_result["attribute_mismatch"])
 
     result = {
+        "source": {
+            "design": "output/design/design.md (human-readable)",
+            "prd": "output/prd/prd.md (human-readable)",
+        },
+        "extracted": {
+            "prd_fields_count": len(prd_fields),
+            "prd_pages_count": len(prd_pages),
+            "prd_states_count": len(prd_states),
+            "prd_permission_pages_count": len(prd_perm_pages),
+        },
         "fields": field_result,
         "pages": page_result,
         "states": state_result,
@@ -497,12 +705,16 @@ def main():
             "total_hallucinated": total_hallucinated,
             "total_attribute_mismatch": total_attribute_mismatch,
             "has_hallucination": total_hallucinated > 0,
+            "has_missing": total_missing > 0,
+            "has_attribute_mismatch": total_attribute_mismatch > 0,
         },
     }
 
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
-    if total_hallucinated > 0:
+    # vNext: missing / hallucinated / attribute_mismatch 任一非零都返回退出码 1
+    # 调用方必须修正后重新检查
+    if total_hallucinated > 0 or total_missing > 0 or total_attribute_mismatch > 0:
         sys.exit(1)
 
 
