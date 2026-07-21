@@ -11,7 +11,10 @@ vNext 状态：此脚本标记为 legacy compatibility。
 职责：从当前人读稿中抽取并生成 metadata anchor。
 不判断是否允许进入该阶段，不修改人读稿正文。
 
-用法：python stage-prep.py --stage <stage> [--project-root <path>] [--dry-run]
+用法：python stage-prep.py --stage design [--project-root <path>] [--dry-run]
+
+vNext: CLI 仅暴露 design 阶段；prd/prototype 的 metadata 生成能力保留为内部函数，
+不再经 CLI 调用（新主流程不依赖 metadata）。
 
 结构说明（按职责分组，便于维护时定位）：
 - 通用 ID 工具：read_existing_entities / _scan_ids_recursive

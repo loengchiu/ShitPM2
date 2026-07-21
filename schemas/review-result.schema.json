@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "ReviewResult",
-  "description": "review 结果机读 JSON",
+  "description": "review 结果机读 JSON（文档性契约：当前无脚本强制校验此文件，仅作为 review 结果 JSON 的结构约定；如需强制校验请接入 jsonschema 执行路径）",
   "type": "object",
   "required": ["stage", "verdict", "issues", "issue_layer", "affected_objects", "needs_upstream_sync", "reviewed_at"],
   "properties": {

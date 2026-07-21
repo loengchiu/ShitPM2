@@ -77,6 +77,12 @@
 
  Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
 
+## 7. 执行环境
+
+- 执行 PowerShell 命令时固定使用 PowerShell 7：`C:\Users\guduj\AppData\Local\Microsoft\WindowsApps\Microsoft.PowerShell_8wekyb3d8bbwe\pwsh.exe`。
+- 执行 Bash 命令时固定使用 Git Bash：`C:\Program Files\Git\bin\bash.exe`。
+- 不依赖裸命令 `pwsh` 或 `bash` 的 PATH 解析，避免命中错误的应用别名或 WSL 入口。
+
 ## 过程审计
 
 design/prd 产出时同时输出 decision-notes.md，记录相对于上游基准的四类决策：

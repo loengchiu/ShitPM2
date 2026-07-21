@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Status",
-  "description": "ShitPM 工作流状态文件（持久化于 .workflow/status.json）。vNext 起不再把 current_stage 当成唯一流程真相，PRD 和 Prototype 是 Design 的两个独立下游。available_actions 和 design_confirmation 等运行时计算结果由 stage-context.py 实时输出，不持久化到此文件。",
+  "description": "ShitPM 工作流状态文件（持久化于 .workflow/status.json）。vNext 起不再把 current_stage 当成唯一流程真相，PRD 和 Prototype 是 Design 的两个独立下游。available_actions 和 design_confirmation 等运行时计算结果由 stage-context.py 实时输出，不持久化到此文件。本 schema 为文档性契约：当前无脚本对 .workflow/status.json 做强制 schema 校验（stage-context.py 读取时仅做必要字段判断，不加载本文件），仅作为 status.json 的结构约定。",
   "type": "object",
   "required": ["current_stage", "artifacts"],
   "properties": {

@@ -529,6 +529,7 @@ def main():
         if not artifact_path.is_absolute():
             artifact_path = (project_root / artifact_path).resolve()
         if not artifact_path.exists():
+            warnings.append(f"[artifact_file] 指定的 --artifact-file 不存在：{artifact_path}，回退到 canonical 产物检查")
             stdin_content = ""
         else:
             stdin_content, err = _read_text_safely(artifact_path)

@@ -412,26 +412,20 @@ def format_json(issues: list) -> str:
 
 
 def main():
-    if len(sys.argv) < 2:
-        print("用法: python prd-style-lint.py <prd_file> [--format text|json] [--output <path>]", file=sys.stderr)
-        sys.exit(1)
+    import argparse
 
-    prd_path = Path(sys.argv[1]).resolve()
+    parser = argparse.ArgumentParser(
+        description="PRD 文风 lint 脚本：检查 PRD 正文中可机械识别的 9 类问题。",
+    )
+    parser.add_argument("prd_file", help="PRD 文件路径")
+    parser.add_argument("--format", choices=["text", "json"], default="text", help="输出格式（默认 text）")
+    parser.add_argument("--output", type=Path, default=None, help="将 JSON 结果写入指定路径")
+    args = parser.parse_args()
+
+    prd_path = Path(args.prd_file).resolve()
     if not prd_path.exists():
         print(f"错误: 文件不存在: {prd_path}", file=sys.stderr)
         sys.exit(2)
-
-    output_format = "text"
-    if "--format" in sys.argv:
-        idx = sys.argv.index("--format")
-        if idx + 1 < len(sys.argv):
-            output_format = sys.argv[idx + 1]
-
-    output_path = None
-    if "--output" in sys.argv:
-        idx = sys.argv.index("--output")
-        if idx + 1 < len(sys.argv):
-            output_path = Path(sys.argv[idx + 1])
 
     with open(prd_path, encoding="utf-8") as f:
         content = f.read()
@@ -440,12 +434,12 @@ def main():
 
     json_output = format_json(issues)
 
-    if output_path:
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(output_path, "w", encoding="utf-8") as f:
+    if args.output:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        with open(args.output, "w", encoding="utf-8") as f:
             f.write(json_output)
 
-    if output_format == "json":
+    if args.format == "json":
         print(json_output)
     else:
         print(format_text(issues))

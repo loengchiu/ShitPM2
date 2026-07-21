@@ -4,6 +4,7 @@
 
 daisyUI 5 是 CSS-only 库（无 JS），所有交互通过纯 CSS + tabindex 或 Vue 状态管理实现。
 """
+import argparse
 import urllib.request
 import sys
 from pathlib import Path
@@ -41,6 +42,10 @@ def download(filename: str, url: str, expected_min_bytes: int = 0) -> int:
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="下载 spm-prototype 所需本地 CSS/JS 资源到 lib/（Vue 3 / Tailwind / daisyUI 5）",
+    )
+    parser.parse_args()  # 提供 -h/--help；拒绝未知参数。裸调用（无参数）仍执行下载。
     LIB_DIR.mkdir(parents=True, exist_ok=True)
     total = 0
     for name, url, expected_min in RESOURCES:
