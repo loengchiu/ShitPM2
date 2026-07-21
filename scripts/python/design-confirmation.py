@@ -20,6 +20,11 @@ vNext：用户对当前 design.md 的最小确认机制。
   confirm: 0=写入成功, 1=错误（design.md 不存在等）
   check:   0=哈希一致（已确认有效）, 2=哈希不一致（需重新确认）, 3=无确认记录, 1=错误
   show:    0=输出确认内容, 3=无确认记录, 1=错误
+
+仅修改 `output/design/decision-notes.md` 不影响 Design 确认状态，也不改变下游事实基线。
+
+确认标记的契约定义见 `schemas/design-confirmation.schema.json`，本脚本用标准库实现等价必要校验，
+不依赖可选 jsonschema 库。确认 Schema 已进入执行路径：cmd_check 和 cmd_show 在读取后立即校验。
 """
 
 import argparse
@@ -63,8 +68,50 @@ def load_confirmation(root: Path) -> dict | None:
     path = _confirmation_path(root)
     if not path.exists():
         return None
-    with open(path, encoding="utf-8") as f:
-        return json.load(f)
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, UnicodeDecodeError, OSError) as e:
+        return {"__corrupted__": True, "source": str(path), "error": str(e)}
+    if not isinstance(data, dict):
+        return {
+            "__corrupted__": True,
+            "source": str(path),
+            "error": f"confirmation JSON 必须是对象，实际为 {type(data).__name__}",
+        }
+    return data
+
+
+def _validate_payload(payload: dict) -> list[str]:
+    problems: list[str] = []
+    if payload.get("artifact") != DESIGN_ARTIFACT:
+        problems.append(f"artifact 必须等于 {DESIGN_ARTIFACT!r}")
+    digest = payload.get("content_sha256")
+    if not isinstance(digest, str) or not digest:
+        problems.append("content_sha256 必须是非空字符串")
+    else:
+        if len(digest) != 64:
+            problems.append(f"content_sha256 长度必须为 64，实际 {len(digest)}")
+        else:
+            try:
+                int(digest, 16)
+            except ValueError:
+                problems.append("content_sha256 必须是十六进制字符串")
+    confirmed_at = payload.get("confirmed_at")
+    if not isinstance(confirmed_at, str) or not confirmed_at:
+        problems.append("confirmed_at 必须是非空字符串")
+    else:
+        try:
+            datetime.datetime.fromisoformat(confirmed_at.replace("Z", "+00:00"))
+        except ValueError:
+            problems.append("confirmed_at 必须是合法 ISO 8601 时间字符串")
+    confirmed_by = payload.get("confirmed_by")
+    if not (confirmed_by is None or isinstance(confirmed_by, str)):
+        problems.append("confirmed_by 必须是字符串或 None")
+    note = payload.get("note")
+    if not (note is None or isinstance(note, str)):
+        problems.append("note 必须是字符串或 None")
+    return problems
 
 
 def save_confirmation(root: Path, payload: dict) -> None:
@@ -110,6 +157,26 @@ def cmd_check(root: Path) -> int:
         }, ensure_ascii=False, indent=2))
         return 3
 
+    if confirmation.get("__corrupted__"):
+        print(json.dumps({
+            "ok": False,
+            "error": f"confirmation JSON corrupted: {confirmation.get('error', '')}",
+            "source": confirmation.get("source", ""),
+            "hint": "请用 design-confirmation.py confirm 重新写入。",
+        }, ensure_ascii=False, indent=2), file=sys.stderr)
+        return 1
+
+    problems = _validate_payload(confirmation)
+    if problems:
+        print(json.dumps({
+            "ok": True,
+            "confirmed": False,
+            "reason": "confirmation_invalid",
+            "problems": problems,
+            "hint": "确认文件字段不合规。请用 design-confirmation.py confirm 重新写入。",
+        }, ensure_ascii=False, indent=2))
+        return 1
+
     try:
         current_digest = compute_sha256(design)
     except FileNotFoundError as e:
@@ -146,6 +213,27 @@ def cmd_show(root: Path) -> int:
             "reason": "no_confirmation_record",
         }, ensure_ascii=False, indent=2))
         return 3
+
+    if confirmation.get("__corrupted__"):
+        print(json.dumps({
+            "ok": False,
+            "error": f"confirmation JSON corrupted: {confirmation.get('error', '')}",
+            "source": confirmation.get("source", ""),
+            "hint": "请用 design-confirmation.py confirm 重新写入。",
+        }, ensure_ascii=False, indent=2), file=sys.stderr)
+        return 1
+
+    problems = _validate_payload(confirmation)
+    if problems:
+        print(json.dumps({
+            "ok": True,
+            "confirmed": False,
+            "reason": "confirmation_invalid",
+            "problems": problems,
+            "hint": "确认文件字段不合规。请用 design-confirmation.py confirm 重新写入。",
+        }, ensure_ascii=False, indent=2))
+        return 1
+
     print(json.dumps({"ok": True, "confirmation": confirmation}, ensure_ascii=False, indent=2))
     return 0
 

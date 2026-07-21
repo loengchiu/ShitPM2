@@ -7,8 +7,8 @@
 
 | 场景 | 触发条件 | 一线修复 | 仍失败兜底 |
 |---|---|---|---|
-| precheck 阻塞但产物实际存在 | 路径编码不一致（大小写/中文路径） | 检查文件名大小写，修正路径 | 手动运行 review-precheck.py 查看 blocking_issues 详情 |
-| 检查项数过多导致 reviewer 疲劳 | 一次性输出全部检查项 | 先跑 Phase A 结构完整性，通过后再跑 Phase B | 若 Phase A 已有 P0，不进入 Phase B |
+| precheck 报告目标不可读 | 路径编码不一致（大小写/中文路径）或文件确实缺失 | 检查文件名大小写，修正路径 | 手动运行 review-precheck.py 查看 blocking_issues 详情 |
+| 检查项数过多导致 reviewer 疲劳 | 一次性输出全部检查项 | 先输出 P0/P1 检查项，P2 可选输出 | 若 P0 已阻塞，明确标注不再展开 P2 |
 | 字段名模糊匹配误判 | design 与 PRD 字段名不完全一致 | 以 design.md 原文字段名为准，修正 PRD | 若无法判断，标记 [待确认] 回退 PM |
 | 非页面落点字段占比异常高 | 过多字段被归入例外表 | 逐一检查是否有字段实际应分配到页面 | 若确认为合理内部字段，在例外表注明原因 |
 | review 结论三档无法区分 | 既有 P0 又有 P1 | verdict = max(severity)，P0 -> 阻塞 | 若 P0 可快速修（<5min），建议修后再出 verdict |
@@ -19,7 +19,7 @@
 
 | # | 反模式 | 为什么不要做 | 替代做法 |
 |---|---|---|---|
-| 1 | **跳过 precheck 直接人审** | 产物不存在或章节缺失时人审无意义 | 必须先跑 review-precheck.py，can_start_review=true 才开始 |
+| 1 | **把 precheck 当门禁** | vNext：precheck 仅在目标文件不存在/不可读/无法解析时阻止执行；章节缺失、内容不足是 Review finding，不是阻塞 | 缺章节、结构不足应作为 Review 结论输出，不阻止 Review 开始 |
 | 2 | **把 reviewer 写成 writer** | reviewer 职责是判断质量，不是代写正文 | 只输出 verdict + issues，不输出修改后的文档 |
 | 3 | **用建议代替 verdict** | 建议关注不阻塞下游，PM 可能忽略 | 正式 verdict 只用三档：通过 / 有问题需修改 / 阻塞 |
 | 4 | **只查结构不查语义** | 章节完整不等于内容正确 | 结构检查用 precheck，语义检查用人审，两者缺一不可 |
@@ -29,11 +29,12 @@
 | 8 | **把 metadata 当成 Review 前置** | vNext 不要求 metadata 存在 | 即使无 metadata 也可执行 Review，结构完整性由 precheck 判断 |
 | 9 | **把下游内容提升为事实源** | Design 是唯一事实源 | 下游冲突按 Design 修正下游，或经 Fix 回写 Design |
 | 10 | **承担计划内补全** | Review 是独立挑战，不补生成 | 计划内缺口由对应生成 Skill 负责；Review 只输出问题 |
+| 11 | **把一致性校验当门禁** | vNext：一致性校验是 Review finding，不是阻塞门禁 | 一致性问题作为 verdict 依据，不阻止 Review 进行 |
 
 ## CHECKPOINT - review 开始前
 
-运行 review-precheck.py --project-root <path> --stage <stage> 并确认 can_start_review: true。
-若 blocking_issues 非空，先回上游补结构，不进入人审。
+运行 review-precheck.py --project-root <path> --stage <stage> 查看 blocking_issues。
+vNext：precheck 仅在目标文件不存在、不可读或完全无法解析时阻止 Review；章节缺失、结构不足、metadata 缺失和正文质量问题应作为 Review finding 返回，不阻止 Review 开始。
 Review 不要求 metadata 存在，不要求先通过其他 Review。
 
 ## CHECKPOINT - review 结束前
@@ -188,7 +189,7 @@ Review 不要求 metadata 存在，不要求先通过其他 Review。
 
 ### 门禁规则
 
-60. 一致性校验为必做门禁，不是建议
+60. 一致性校验是 Review finding 的重要依据，不是阻塞门禁；Review 仍可执行并输出 verdict
 61. 功能/页面/字段/字段落地/模糊表述有任何缺口，不得通过 review
 62. 仅表达不足：留在当前稿件修正
 63. 问题来自上游（design 缺失或错误）：停止，回退到 design 修复

@@ -2,10 +2,14 @@
 """review-precheck.py — reviewer 开始前的确定性预检查（vNext: 文件存在性与基础结构检查）
 
 vNext 职责：
-1. 检查人读稿文件存在性、可读性和基础结构（核心章节）。
-2. 不决定是否允许 Review（can_start_review 仅基于文件存在性，不基于 metadata）。
+1. 检查人读稿文件存在性、可读性和基础结构（核心章节作为 finding，不阻塞）。
+2. can_start_review 只基于 artifact 文件可读性，不基于章节完整性或 metadata。
 3. 不要求 metadata 存在。metadata 检查仅在旧项目存在 metadata 时作为参考，记入 warnings。
 4. vNext 主流程不生成 metadata，因此 metadata 检查不再是硬阻塞。
+5. 章节缺失、结构不足、质量问题作为 Review finding 返回，不阻止 Review 开始。
+
+vNext 中 can_start_review 只在文件不存在/不可读/无法解析时为 false；
+block_review 字段为其反向布尔，供维护者明确语义。
 
 它不是：最终 review 结论、人读摘要、第二份 reviewer 报告。
 
@@ -42,12 +46,31 @@ SECTION_ALIASES = {
         "页面与字段落点": ["页面与字段落点", "页面数据落点", "字段落点", "页面字段映射", "页面字段落点"],
         "规则与状态定义": ["规则与状态定义", "规则定义", "状态定义", "状态流转", "状态机", "业务规则与状态"],
         "权限定义": ["权限定义", "角色权限", "权限矩阵", "权限", "权限规则", "权限清单"],
+        # vNext: Product Definition 新章节别名映射（不加入 CORE_SECTIONS，仅作 informational 检查）
+        "产品目标": ["产品目标", "目标和成功标准", "目标与成功标准"],
+        "非目标": ["非目标", "out of scope"],
+        "目标用户": ["目标用户", "用户角色", "关键用户"],
+        "核心业务流程": ["核心业务流程", "业务流程"],
+        "数据范围": ["数据范围", "数据边界"],
+        "系统边界": ["系统边界", "范围边界"],
+        "高影响待确认": ["高影响待确认", "待确认问题", "高影响问题"],
     },
     "prd": {
         "名词说明": ["名词说明", "术语说明", "术语表", "名词解释", "术语定义"],
         "详细需求说明": ["详细需求说明", "详细需求", "需求说明", "详细需求规格", "需求详细说明"],
     },
 }
+
+
+def _read_text_safely(path: Path) -> tuple[str | None, str | None]:
+    """安全读取文本文件，返回 (content, error)"""
+    try:
+        with open(path, encoding="utf-8") as f:
+            return f.read(), None
+    except UnicodeDecodeError as e:
+        return None, f"编码错误（非 UTF-8）: {e}"
+    except OSError as e:
+        return None, str(e)
 
 
 def check_prd_entity_coverage(project_root: Path, stdin_content: str = None) -> dict:
@@ -61,8 +84,9 @@ def check_prd_entity_coverage(project_root: Path, stdin_content: str = None) -> 
     if not design_path.exists():
         return {"check": "prd_entity_coverage", "passed": False, "detail": "design.md 不存在"}
 
-    with open(design_path, encoding="utf-8") as f:
-        design_content = f.read()
+    design_content, err = _read_text_safely(design_path)
+    if err:
+        return {"check": "prd_entity_coverage", "passed": False, "detail": f"design.md {err}"}
 
     # Extract entity names from design.md data dictionary section
     design_entities = set()
@@ -96,8 +120,9 @@ def check_prd_entity_coverage(project_root: Path, stdin_content: str = None) -> 
         prd_path = project_root / "output" / "prd" / "prd.md"
         if not prd_path.exists():
             return {"check": "prd_entity_coverage", "passed": False, "detail": "prd.md 不存在"}
-        with open(prd_path, encoding="utf-8") as f:
-            prd_content = f.read()
+        prd_content, err = _read_text_safely(prd_path)
+        if err:
+            return {"check": "prd_entity_coverage", "passed": False, "detail": f"prd.md {err}"}
 
     # 归位后：检查 design 实体名是否在 PRD 正文的关键位置出现
     # 仅在标题/粗体块/表格行首匹配，避免短实体名在任意位置误匹配；
@@ -151,16 +176,33 @@ def check_artifact_exists(project_root: Path, stage: str, stdin_content: str = N
         }
         return result
     artifact_path = project_root / artifact_rel
-    exists = artifact_path.exists()
-    result = {
-        "check": "artifact_exists",
-        "passed": exists,
-        "detail": artifact_rel if exists else f"{artifact_rel} 不存在",
-    }
-    if exists and stage in ("design", "prd"):
+    if not artifact_path.exists():
+        return {
+            "check": "artifact_exists",
+            "passed": False,
+            "detail": f"{artifact_rel} 不存在",
+        }
+    try:
         with open(artifact_path, encoding="utf-8") as f:
             content = f.read()
-        result["size_chars"] = len(content)
+    except UnicodeDecodeError as e:
+        return {
+            "check": "artifact_exists",
+            "passed": False,
+            "detail": f"{artifact_rel} 编码错误（非 UTF-8）: {e}",
+        }
+    if not content.strip():
+        return {
+            "check": "artifact_exists",
+            "passed": False,
+            "detail": f"{artifact_rel} 文件为空",
+        }
+    result = {
+        "check": "artifact_exists",
+        "passed": True,
+        "detail": artifact_rel,
+        "size_chars": len(content),
+    }
     return result
 
 
@@ -174,8 +216,9 @@ def check_core_sections(project_root: Path, stage: str, stdin_content: str = Non
     elif not artifact_path.exists():
         return [{"check": "core_sections", "passed": False, "detail": f"{artifact_rel} 不存在，无法检查章节"}]
     else:
-        with open(artifact_path, encoding="utf-8") as f:
-            content = f.read()
+        content, err = _read_text_safely(artifact_path)
+        if err:
+            return [{"check": "core_sections", "passed": False, "detail": f"{artifact_rel} {err}"}]
     aliases = SECTION_ALIASES.get(stage, {})
     results = []
     for section in CORE_SECTIONS[stage]:
@@ -194,6 +237,48 @@ def check_core_sections(project_root: Path, stage: str, stdin_content: str = Non
             "canonical": section,
             # found_via_alias=True 表示通过别名匹配上（非精确 canonical 名），存在假阳性风险，需人审确认
             "found_via_alias": matched_alias is not None and matched_alias != section,
+        })
+    return results
+
+
+def check_design_product_definition_sections(project_root: Path, stdin_content: str = None) -> list:
+    """检查 Design Product Definition 新增章节（informational，不阻塞 Review）
+
+    vNext 修复包 D：Product Definition + Design Baseline 双承载后的新增章节，
+    只检查存在性并输出到 deterministic_checks，不进 blocking_issues 也不进 warnings。
+    """
+    pd_sections = [
+        "产品目标", "非目标", "目标用户", "核心业务流程",
+        "数据范围", "系统边界", "高影响待确认",
+    ]
+    artifact_rel = ARTIFACT_PATHS["design"]
+    artifact_path = project_root / artifact_rel
+    if stdin_content is not None:
+        content = stdin_content
+    elif not artifact_path.exists():
+        return [{"check": "design_pd_section_present", "passed": False, "detail": f"{artifact_rel} 不存在，无法检查 Product Definition 章节"}]
+    else:
+        content, err = _read_text_safely(artifact_path)
+        if err:
+            return [{"check": "design_pd_section_present", "passed": False, "detail": f"{artifact_rel} {err}"}]
+    aliases = SECTION_ALIASES.get("design", {})
+    results = []
+    for section in pd_sections:
+        found = bool(re.search(re.escape(section), content))
+        matched_alias = section if found else None
+        if not found and section in aliases:
+            for alias in aliases[section]:
+                if alias != section and re.search(re.escape(alias), content):
+                    found = True
+                    matched_alias = alias
+                    break
+        results.append({
+            "check": "design_pd_section_present",
+            "passed": found,
+            "detail": matched_alias if found else f"Product Definition 章节缺失：{section}",
+            "canonical": section,
+            "found_via_alias": matched_alias is not None and matched_alias != section,
+            "informational": True,
         })
     return results
 
@@ -401,8 +486,9 @@ def run_prd_style_lint(project_root: Path, content: str = None) -> list:
         prd_path = project_root / ARTIFACT_PATHS["prd"]
         if not prd_path.exists():
             return [f"PRD 产物不存在: {ARTIFACT_PATHS['prd']}"]
-        with open(prd_path, encoding="utf-8") as f:
-            prd_content = f.read()
+        prd_content, err = _read_text_safely(prd_path)
+        if err:
+            return [f"PRD 产物读取失败: {err}"]
     try:
         # 文件名含连字符，无法用普通 import，用 importlib 加载
         import importlib.util
@@ -445,8 +531,9 @@ def main():
         if not artifact_path.exists():
             stdin_content = ""
         else:
-            with open(artifact_path, encoding="utf-8") as f:
-                stdin_content = f.read()
+            stdin_content, err = _read_text_safely(artifact_path)
+            if err:
+                stdin_content = ""
     elif args.stdin_artifact:
         stdin_content = sys.stdin.read()
     artifact_check = check_artifact_exists(project_root, stage, stdin_content)
@@ -458,11 +545,16 @@ def main():
     deterministic_checks.extend(section_checks)
     for sc in section_checks:
         if not sc["passed"]:
-            # vNext: 核心章节缺失直接阻塞 Review（与 review-checklist.md 契约一致）
-            blocking_issues.append(sc["detail"])
+            # vNext: 章节缺失是 Review finding，不阻塞 Review 开始
+            warnings.append(f"[core_section] {sc['detail']}")
         elif sc.get("found_via_alias"):
             # 通过别名匹配上：假阳性风险，记入 warning 供 reviewer 人审确认
             warnings.append(f"章节通过别名匹配（请人审确认）：{sc.get('canonical')} → {sc.get('detail')}")
+
+    # vNext: Design stage 额外检查 Product Definition 新增章节（informational，不进 blocking/warnings）
+    if stage == "design":
+        pd_checks = check_design_product_definition_sections(project_root, stdin_content)
+        deterministic_checks.extend(pd_checks)
 
     # vNext: metadata 检查改为可选——只在旧项目存在 metadata 目录时作为参考
     metadata_dir = project_root / ".workflow" / "metadata" / stage
@@ -497,11 +589,14 @@ def main():
             # vNext: 实体覆盖问题记入 warnings，不阻塞 review（PRD review 仍可执行）
             warnings.append(f"[prd_entity_coverage] {entity_cov['detail']}")
 
-    # vNext: can_start_review 只基于 artifact 存在和核心章节存在
+    # vNext: can_start_review 只基于 artifact 文件可读性，不基于章节完整性或 metadata
     can_start_review = len(blocking_issues) == 0
+    # block_review 为 can_start_review 的反向布尔，供维护者明确这是阻塞字段
+    block_review = not can_start_review
 
     if blocking_issues:
-        recommended_focus = "先回上游补结构"
+        # vNext: blocking_issues 只剩 artifact 不存在/不可读，所以推荐补产物而非补结构
+        recommended_focus = "先回上游补产物（文件不存在或不可读）"
     elif warnings:
         recommended_focus = "正文写法与一致性"
     elif stage == "design":
@@ -528,6 +623,7 @@ def main():
         "blocking_issues": blocking_issues,
         "warnings": warnings,
         "can_start_review": can_start_review,
+        "block_review": block_review,
         "alias_missed_count": alias_missed_count,
         "recommended_focus": recommended_focus,
     }

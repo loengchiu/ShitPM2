@@ -49,15 +49,19 @@
 
 ## 二、传播方向
 
-| 修改发起层 | 事实源 | 传播方向 | 是否触发 Design 确认失效 |
-|-----------|--------|---------|----------------------|
-| 对齐 | 对齐 | 对齐 → design（如重新生成 Design）→ PRD/prototype | 是（若 design.md 被修改） |
-| 设计（高影响） | 设计 | design → PRD → prototype | 是 |
-| 设计（纯格式） | 设计 | 只改 design.md 表述，不改语义 | 否（但建议重新确认以避免歧义） |
-| PRD 发现设计有误 | 设计 | 先回写 design → 再更新 PRD | 是 |
-| 原型语义反馈 | 设计 | 先回写 design → 再同步 PRD/原型 | 是 |
-| 原型表现反馈 | 原型 | 只改原型，不回写 design | 否 |
-| 纯格式/措辞/排版 | 对应下游 | 只改对应下游，不回写 design | 否 |
+vNext 强制时序：**修改事实源 → 旧确认失效 → 用户审阅并重新确认 Design → 用户显式触发下游重新生成**。Design 是唯一事实源，PRD 和 Prototype 是 Design 的两个独立下游分支。不存在默认的 Design → PRD → Prototype 链路。Fix 阶段只修复事实源层，下游重新生成由用户重新确认 Design 后显式触发 spm-prd / spm-prototype，不自动同步。
+
+| 修改发起层 | 事实源 | Fix 阶段传播方向 | 下游处理（用户重新确认后由用户显式触发） | 是否触发 Design 确认失效 |
+|-----------|--------|----------------|---------------------------------------|----------------------|
+| 对齐 | 设计（align 仅作输入参考） | align → design.md（回写事实源）→ **立即停下** | spm-prd / spm-prototype（由用户显式触发） | 是（design.md 被修改） |
+| 设计（高影响） | 设计 | 只改 design.md → **立即停下** | spm-prd / spm-prototype（由用户显式触发，两个分支独立） | 是 |
+| 设计（纯格式） | 设计 | 只改 design.md 表述，不改语义 | 无下游处理（建议重新确认以避免歧义） | 否 |
+| PRD 发现设计有误 | 设计 | 先回写 design.md → **立即停下** | 用户重新确认后由用户显式触发 spm-prd（Prototype 是否同步由用户决定） | 是 |
+| 原型语义反馈 | 设计 | 先回写 design.md → **立即停下** | 用户重新确认后由用户显式触发 spm-prototype（PRD 是否同步由用户决定） | 是 |
+| 原型表现反馈 | 原型 | 只改原型，不回写 design | 无下游处理 | 否 |
+| 纯格式/措辞/排版 | 对应下游 | 只改对应下游，不回写 design | 无下游处理 | 否 |
+
+**关键约束**：Fix 阶段不直接修改下游 PRD 或 Prototype。下游重新生成必须走完整首次生成责任流程（含语义对照和自检），由用户重新确认 Design 后显式触发 spm-prd / spm-prototype，而不是由 Fix 内部局部修补。
 
 ## 三、传播原则
 
@@ -66,18 +70,21 @@
 3. 不允许逆向定源（PRD/Prototype 不能直接改 design 的语义）
 4. 若无法判断归属层，先停在澄清，不得直接改下游
 5. 无法判断影响范围时，按高影响变化处理
-6. Fix 不自动确认 Design，不自动生成所有下游
-7. 修改 design.md 后必须使旧确认标记失效（哈希自动不一致）
-8. Design 重新确认后，下游是否重新生成由用户决定
+6. **Fix 阶段只修复事实源层，不修改下游 PRD 或 Prototype**——下游重新生成由用户重新确认 Design 后显式触发 spm-prd / spm-prototype（走完整首次生成责任流程）
+7. Fix 不自动确认 Design，不自动生成所有下游
+8. 修改 design.md 后必须使旧确认标记失效（哈希自动不一致）
+9. Design 重新确认后，下游是否重新生成由用户决定
+10. **Align 不是事实源**——目标/范围/建设方式的事实源是 design.md；align.md 仅作为输入参考，不通过 Align 反向定源
 
 ## 四、Design 确认失效与重新确认流程
 
-vNext：用户确认版 design.md 是唯一产品事实基线。
+vNext：用户确认版 design.md 是唯一产品事实基线。强制时序：**修改事实源 → 旧确认失效 → 用户审阅并重新确认 Design → 用户显式触发下游重新生成**。
 
 1. **修改 design.md 时**：
    - 不需要手动删除 `.workflow/confirmations/design.json`
    - 下次运行 `design-confirmation.py check` 或 `stage-context.py` 时会自动检测到 `hash_mismatch`
    - 必须在 Fix 完成后明确告知用户：“Design 已修改，旧确认失效，请重新确认后再生成下游”
+   - **Fix 阶段不修改下游 PRD 或 Prototype**——下游重新生成必须等用户重新确认后由用户显式触发 spm-prd / spm-prototype
 
 2. **用户重新确认 Design 时**：
    - 由用户明确触发 `design-confirmation.py confirm` 写入新的确认标记
@@ -90,7 +97,7 @@ vNext：用户确认版 design.md 是唯一产品事实基线。
 4. **纯格式/措辞/排版修复**：
    - 可以只修改对应下游（PRD 或 Prototype），不回写 Design
    - 不触发 Design 确认失效
-   - 但若涉及任何业务语义（字段、状态、权限、流程、模块边界），必须回写 Design
+   - 但若涉及任何业务语义（字段、状态、权限、流程、模块边界、目标/范围），必须回写 Design
 
 ## 五、修复完成后的 review 建议
 

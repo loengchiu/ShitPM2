@@ -1,236 +1,332 @@
-# ShitPM 辅助器使用说明
+# ShitPM 使用说明
 
-## 环境准备
+ShitPM 是运行在 AI 编程助手中的产品工作台。vNext 以确认版 `design.md` 为唯一产品事实基线，PRD 与 Prototype 是 Design 的并列下游，Review、Fix、Prototype Mark 按需调用，不再有固定八步门禁。
+
+## 1. 环境准备
 
 - Python 3.10+
-- 项目根目录为 `D:\work\ShitPM`（以下命令中的路径按实际位置替换）
+- 项目根目录为本仓库根目录（以下命令中的 `.` 代表项目根）
+- 不需要安装任何开发工具或构建链
+- 不需要预先创建 `.workflow/` 目录或 `status.json`
 
-## 启动
+## 2. 安装与卸载
 
-每次开始工作前，先检查当前状态：
-
-```powershell
-python scripts/python/stage-context.py .
-```
-
-输出中的 `current_stage` 是当前所处阶段，`next_recommended` 是下一步建议，`gate.can_proceed` 表示是否可以继续。
-
-## 阶段总览
-
-| 步骤 | 阶段 | 做什么 | 谁做 |
-|------|------|--------|------|
-| 0 | start | 识别当前项目、阶段、入口 | AI（`/spm-start`） |
-| 1 | align | 需求对齐，产出对齐稿 | PM + AI（`/spm-align`） |
-| 2 | design | 详细设计，产出设计基线 | AI（`/spm-design`） |
-| 3 | design-review | 审查设计基线 | PM（`/spm-design-review`） |
-| 4 | prd | 生成 PRD 正文 | AI（`/spm-prd`） |
-| 5 | prd-review | 审查 PRD | PM（`/spm-prd-review`） |
-| 6 | prototype | 生成 HTML 原型 | AI（`/spm-prototype`） |
-| 7 | prototype-review | 审查原型 | PM（`/spm-prototype-review`） |
-| (可选) | prototype-mark | 给原型加标注 | AI（`/spm-prototype-mark`） |
-
-每个 AI 生成步骤完成后，需运行 `stage-prep.py` 同步机读元数据。
-
-## 步骤 0：启动（start）
-
-**AI 要做：** 调用 `/spm-start`，识别当前项目、当前阶段、当前可继续的入口。
-
-新项目（无 status.json）时，AI 会扫描已有产物推断当前阶段。
-
----
-
-## 步骤 1：需求对齐（align）
-
-**PM 要做：** 使用 `/spm-align` 与 AI 多轮对话，确认需求理解、范围边界、角色场景。
-
-**产出文件：**
-- `output/align/align.md` — 对齐稿（人读）
-- `.workflow/runtime/align/align-notes.json` — 判断结论（AI 直接写入）
-
-align 阶段不生成 metadata，不运行 stage-prep.py。AI 直接写 align-notes.json 和 status.json。
-
-**然后：** 运行 stage-context 确认 `next_recommended` 为 `design`，`gate.can_proceed` 为 `true`。
-
----
-
-## 步骤 2：详细设计（design）
-
-**AI 要做：** 调用 `/spm-design`，基于 align 对齐稿生成设计基线（模块、页面、字段、状态、权限、规则）。
-
-**产出文件：**
-- `output/design/design.md` — 设计基线（人读）
-- `.workflow/metadata/design/` — 9 个机读 JSON（自动生成）
-
-**运行命令：**
-```powershell
-python scripts/python/stage-prep.py --stage design
-```
-
-**然后：** 进入 design-review。
-
----
-
-## 步骤 3：设计审查（design-review）
-
-**PM 要做：** 调用 `/spm-design-review`，AI 会自动：
-1. 运行 `review-precheck.py --stage design` 做确定性预检查
-2. 读取 design.md 和 metadata/design 做质量审查
-3. 输出审查结果（通过/有问题需修改/阻塞）
-
-**产出文件：**
-- `.workflow/reviews/design-review-1.json` — 机读审查结果
-- `.workflow/reviews/design-review-1.md` — 人读审查摘要
-
-**手动预检查（可选）：**
-```powershell
-python scripts/python/review-precheck.py --stage design
-```
-
-**如果不通过：** 先修复问题，重新生成 design，再审查。通过后进入 prd。
-
----
-
-## 步骤 4：PRD 生成（prd）
-
-**AI 要做：** 调用 `/spm-prd`，基于 design 基线生成 PRD 正文（详细需求说明，含字段定义表、状态机表、权限规则）。
-
-**产出文件：**
-- `output/prd/prd.md` — PRD 正文（人读）
-
-**风格自检（可选）：**
-```powershell
-python scripts/python/prd-style-lint.py output/prd/prd.md --format json --output .workflow/runtime/prd/lint.json
-```
-
-**然后：** 进入 prd-review。
-
----
-
-## 步骤 5：PRD 审查（prd-review）
-
-**PM 要做：** 调用 `/spm-prd-review`，AI 会自动执行预检查和正文质量审查（坏味道、三层覆盖、与 design 一致性）。
-
-**产出文件：**
-- `.workflow/reviews/prd-review-1.json` — 机读审查结果
-- `.workflow/reviews/prd-review-1.md` — 人读审查摘要
-
-**手动预检查（可选）：**
-```powershell
-python scripts/python/review-precheck.py --stage prd
-```
-
-**如果不通过：** 先修复问题（可能需回 design 同步修复），重新生成 prd，再审查。通过后进入 prototype。
-
----
-
-## 步骤 6：原型生成（prototype）
-
-**AI 要做：** 调用 `/spm-prototype`，基于 design 基线生成 HTML 业务原型。
-
-**产出文件：**
-- `output/prototype/index.html` — 原型页面（人读）
-
-**然后：** 进入 prototype-review。
-
----
-
-## 步骤 7：原型审查（prototype-review）
-
-**PM 要做：** 调用 `/spm-prototype-review`，AI 自动检查页面覆盖、状态表达、交互主路径、权限表现。
-
-**产出文件：**
-- `.workflow/reviews/prototype-review-1.json` — 机读审查结果
-- `.workflow/reviews/prototype-review-1.md` — 人读审查摘要
-
-**手动预检查（可选）：**
-```powershell
-python scripts/python/review-precheck.py --stage prototype
-```
-
-**通过后：** 辅助器全链路完成。`stage-context.py` 的 `next_recommended` 显示 `done`。
-
----
-
-## 步骤（可选）：原型标注（prototype-mark）
-
-**AI 要做：** 调用 `/spm-prototype-mark`，复制原型到 `output/prototypemark/`，在副本中注入悬浮导航栏、关键点标记和内容备注弹窗。AI 根据 design 和 PRD 自动生成初始备注内容。
-
-**产出文件：**
-- `output/prototypemark/index.html` — 标注原型（含悬浮栏 + 标记 + 弹窗）
-
-**不产出：** 不生成 metadata，不修改 status.json，不进入 review 链路。
-
-**标注系统功能：**
-1. 悬浮栏（左上角）：页面列表跳转、始终展开开关、显示标注开关
-2. 关键点标记：每个页面 3-8 个标记点，点击弹出备注
-3. 内容备注弹窗：可拖拽、可缩放、可编辑备注（编辑后保存在 localStorage）
-
-**触发指令：** 对 AI 说"开始标注"或"原型标注"。
-
----
-
-## 同步修复（fix）
-
-当 review 发现跨阶段问题时（如 design 缺字段 → prd 需同步），使用 fix 链路：
-
-1. 调用 `/spm-fix`，描述要修改的内容和受影响范围
-2. AI 按"事实源 → 下游"顺序依次修复各阶段产物
-3. 每个阶段修复后运行对应的 `stage-prep.py`
-4. 重新运行受影响的 review
+ShitPM 通过 junction 把本仓库注册到宿主工具的 bundle 目录，宿主因此能加载 Skill 和全局规则。
 
 ```powershell
-# 示例：design 加了新字段，同步到 prd 和 prototype
-python scripts/python/stage-prep.py --stage design
-# PRD 和 prototype 不再生成自己的 metadata，只需重新生成 design metadata 后重生人读产物
+# 安装到指定宿主
+python scripts/python/shitpm-host.py install --host <codex|trae-cn|claude-code|workbuddy>
+
+# 验证安装
+python scripts/python/shitpm-host.py verify --host <host>
+
+# 卸载
+python scripts/python/shitpm-host.py remove --host <host>
 ```
 
----
+关于 junction 安装的性质：
 
-## 关键脚本速查
+- junction 指向当前仓库工作树，仓库内容变化实时反映到宿主侧，无需重新安装
+- `verify` 只检查 junction 是否指向本仓库、Skill 映射和全局规则是否就位，不检查 commit 哈希、不证明版本完整性、也不是发布版本证明
+- 修改 Skill、模板、契约或脚本后无需重装；只有更换宿主或卸载时才需要重新执行安装命令
+
+安装覆盖以下 10 个 Skill：
+
+| Skill | 职责 |
+|------|------|
+| `spm-start` | 状态与导航，列出可用动作和模型建议 |
+| `spm-align` | 可选需求整理 |
+| `spm-design` | Product Definition 与 Design 基线生成 |
+| `spm-prd` | PRD 生成（基于确认版 Design） |
+| `spm-prototype` | Prototype 生成（基于确认版 Design） |
+| `spm-fix` | 变更同步传播 |
+| `spm-design-review` | Design 独立挑战 |
+| `spm-prd-review` | PRD 独立挑战 |
+| `spm-prototype-review` | Prototype 独立挑战 |
+| `spm-prototype-mark` | 原型标注副本生成 |
+
+## 3. 启动与状态查询
+
+每次开始工作前查询当前可用动作：
+
+```powershell
+python scripts/python/stage-context.py --project-root .
+```
+
+输出关键字段：
+
+| 字段 | 含义 |
+|------|------|
+| `current_stage` | 历史兼容字段，从 `status.json` 读取，缺失时回退到 `actual_stage` |
+| `actual_stage` | 基于 canonical 文件探测得出的实际阶段 |
+| `available_actions` | 当前可用的动作列表，每项含 `available`、`reason`、`model_tier`、`reasoning_depth` |
+| `design_confirmation` | Design 确认状态，含 `confirmed`、`reason`、`confirmed_at` 等 |
+| `bundle_resources` | bundle root 及 templates/references/contracts/schemas 路径与存在性 |
+| `status_source` | `loaded` / `missing` / `corrupted`，表示 `status.json` 读取情况 |
+| `next_recommended` | 始终为 `null`，vNext 不再线性推进，由用户从 `available_actions` 选择 |
+
+说明：
+
+- 无 `status.json` 时脚本仍能正常输出，`status_source` 标记为 `missing`
+- canonical 文件探测（`output/align/align.md`、`output/design/design.md`、`output/prd/prd.md`、`output/prototype/index.html`）优先于 `status.json` 中的 artifacts 镜像
+- `status.json` 损坏时输出稳定错误信息，不抛出 traceback，`status_source` 标记为 `corrupted`
+- `next_recommended` 不再给出"下一步建议"，vNext 把选择权交给用户
+
+## 4. vNext 流程总览
+
+```text
+可选：spm-align（需求整理）
+        ↓
+spm-design（Product Definition + Design 基线）
+        ↓
+用户明确确认 design.md
+        ├───────────────┐
+        ↓               ↓
+      spm-prd       spm-prototype
+  研发规格表达       页面与交互表达
+
+按需辅助：
+spm-design-review / spm-prd-review / spm-prototype-review
+spm-fix
+spm-prototype-mark
+```
+
+| 动作 | 可用条件 | 默认模型等级 |
+|------|----------|--------------|
+| `spm-align` | 始终可用，可跳过 | 视任务而定（探索型用深度推理模型，整理型可用轻量模型） |
+| `spm-design` | 始终可用 | 深度推理模型 |
+| `confirm-design` | `design.md` 存在 | 无需模型 |
+| `spm-prd` | `design.md` 存在且已确认 | 根据确认版 Design 判断（决策完整可用轻量模型） |
+| `spm-prototype` | `design.md` 存在且已确认 | 根据交互和实现复杂度判断 |
+| `spm-design-review` | `design.md` 存在 | 深度推理模型 |
+| `spm-prd-review` | `prd.md` 存在 | 深度推理模型 |
+| `spm-prototype-review` | `prototype/index.html` 存在 | 深度推理模型 |
+| `spm-fix` | 始终可用 | 根据变更影响判断 |
+| `spm-prototype-mark` | `prototype/index.html` 存在 | 轻量模型 |
+
+关键原则：
+
+- Align 可选，空项目可直接进入 Design
+- Design 同时承担 Product Definition 与 Design Baseline，是主链路唯一人工确认点
+- 用户确认后的 `design.md` 是 PRD 和 Prototype 的唯一产品事实基线
+- PRD 与 Prototype 并列，可以任意顺序、单独生成
+- Review 是按需独立挑战，不构成门禁，不自动阻塞下一步
+- 默认流程不依赖 metadata、`stage-prep.py` 或三个 Review 全部通过
+
+## 5. 核心流程
+
+### 5.1 需求整理（可选）：spm-align
+
+何时使用：
+
+- 目标、范围或边界含糊，需要先和用户对齐
+- 有会议结论、业务材料、已有系统说明需要整理
+- 用户希望先列出高影响未知项再进入 Design
+
+何时跳过：
+
+- 需求与材料已经明确
+- 用户希望直接进入 Design
+
+产物：`output/align/align.md`。
+
+不承担完整业务流程、权限、状态或产品方案设计，也不作为进入 Design 的强制准入。
+
+### 5.2 设计生成：spm-design
+
+输入：
+
+- 可选的 `align.md`
+- 用户原始需求、业务材料、补充说明
+
+产物：
+
+- `output/design/design.md` — 设计基线
+- `output/design/decision-notes.md` — 过程审计（设计决策、偏离、权衡、待确认）
+
+首次生成责任：
+
+- 明确产品目标、范围、非目标和外部边界
+- 建立产品对象、模块和页面或交互载体
+- 形成端到端业务流程和关键分支
+- 设计角色职责、功能权限和数据权限
+- 设计核心状态、流转条件和结果
+- 处理跨模块、跨系统关系和共享实体归属
+- 识别关键异常、责任边界和不可逆行为
+- 比较主要可选方案并形成有理由的选择
+- 高影响待确认事项必须显式暴露，不能伪装成确定事实
+
+`decision-notes.md` 只用于过程审计，不作为下游事实输入。
+
+### 5.3 Design 确认
+
+Design 是主链路唯一人工确认点。用户明确确认当前 `design.md` 后，它才成为下游事实基线。
+
+```powershell
+# 确认当前 design.md
+python scripts/python/design-confirmation.py --project-root . confirm
+
+# 检查确认是否仍然有效（design.md 修改后旧确认自动失效）
+python scripts/python/design-confirmation.py --project-root . check
+
+# 查看当前确认记录
+python scripts/python/design-confirmation.py --project-root . show
+```
+
+`confirm` 计算 `design.md` 的 sha256 并写入 `.workflow/confirmations/design.json`。`check` 比对当前 sha256 与已记录 sha256，不匹配时返回 `confirmed: false` 并提示需要重新确认。
+
+确认行为说明：
+
+- 修改 `design.md` 后旧确认自动失效，下游动作会被 `stage-context.py` 标记为不可用
+- 仅修改 `decision-notes.md` 不影响确认
+- 确认记录只标识版本，不复制产品事实，不构成事实索引
+
+### 5.4 PRD 生成：spm-prd
+
+权威输入：当前确认版 `design.md`。`align.md` 和已有 Prototype 仅作辅助参考。
+
+产物：
+
+- `output/prd/prd.md`
+- `output/prd/decision-notes.md`
+
+首次生成责任：
+
+- 维持现有 PRD 模板、页面组织和写作风格
+- 正式写入前完成 Design → PRD 语义对照，覆盖核心对象、角色、状态、关键动作、流程、权限、模块和跨系统边界
+- 已识别的事实偏差和语义漂移在首次交付前修正
+- 发现必须新增高影响产品判断时不得猜测，返回 Design 处理
+
+不读取 Design `decision-notes.md` 作为事实输入。
+
+### 5.5 Prototype 生成：spm-prototype
+
+权威输入：当前确认版 `design.md`。已有 PRD 可作为页面、字段和动作细节的辅助参考，但不能成为产品事实源。
+
+产物：`output/prototype/index.html` 及本地运行资源。
+
+首次生成责任：
+
+- 覆盖本轮指定的模块、页面、核心任务路径和关键状态
+- 业务流程、角色权限、核心状态和产品边界与 Design 一致
+- 沿用 HTML + Vue + Tailwind + daisyUI + 本地 `lib/` 的轻量基座
+- 正式交付前实际打开并检查渲染、交互可达性、关键状态和资源加载
+- 发现必须改变业务行为才能完成原型时返回 Design，不在页面中静默发明规则
+
+不要求 PRD 存在；Prototype-only 是合法状态。
+
+## 6. 按需动作
+
+### 6.1 Review
+
+三个 Review（`spm-design-review`、`spm-prd-review`、`spm-prototype-review`）按需独立调用，不构成门禁。
+
+- 简单项目可以不调用 Review
+- Review 不修改原始产物、不自动推进阶段、不自动确认 Design
+- Review 结论区分确定性缺陷、产品风险、需用户决策的问题
+- precheck 只在目标文件不存在、不可读或完全无法解析时阻止执行；缺章节、内容不足、冲突和质量问题作为 finding 返回，不用 `can_start_review=false` 阻止
+- 深度业务 Review 使用深度推理模型；结构和明确规则核对可使用轻量模型或脚本
+
+### 6.2 Fix
+
+`spm-fix` 用于在用户确认事实或产品决策发生变化后传播影响。
+
+- 高影响变化先回写 Design 并使旧确认失效，再由用户决定重新生成哪个下游
+- 仅表现层变化可以只修改 Prototype
+- 支持 PRD-only、Prototype-only 和双下游项目
+- PRD 存在时运行 `prd-consistency-check.py`；Prototype-only 项目无 PRD 时使用 `--allow-no-prd` 跳过，不阻塞 Fix
+- 不自动确认 Design，不自动重新生成全部下游
+
+### 6.3 Prototype Mark
+
+`spm-prototype-mark` 复制原型到 `output/prototypemark/`，注入悬浮导航栏、关键点标记和内容备注弹窗。
+
+- 不修改原始 Prototype
+- 不回写 Design 或 PRD
+- 不进入默认主链路
+- 高影响反馈通过结构化输出约定供 Fix 使用
+
+## 7. 模型选择建议
+
+模型选择发生在每个独立流程开始前，开始后不切换。
+
+| 动作 | 默认建议 | 可使用轻量模型的条件 |
+|------|----------|----------------------|
+| `spm-align` | 视任务而定 | 目标、范围和边界已明确，仅需整理 |
+| `spm-design` | 深度推理模型 | 业务确实简单、输入完整、无方案权衡、角色状态权限关系简单 |
+| `spm-prd` | 根据确认版 Design 判断 | Design 决策完整，主要按现有模板展开明确规格 |
+| `spm-prototype` | 根据交互和实现复杂度判断 | 页面少、路径单一、行为明确，主要做既定表达与实现 |
+| `spm-design-review` | 深度推理模型 | 仅做结构和明确规则检查时可改用轻量模型或脚本 |
+| `spm-prd-review` | 深度推理模型 | 仅做结构和一致性检查时可改用轻量模型或脚本 |
+| `spm-prototype-review` | 深度推理模型 | 仅做结构检查时可改用轻量模型或脚本 |
+| `spm-fix` | 根据变更影响判断 | 修改范围、正确结果和受影响位置都已明确 |
+| `spm-prototype-mark` | 轻量模型 | 主动发现产品或交互问题时应另行使用深度 Review |
+
+无法判断任务复杂度时使用深度推理模型，优先保护首次产物质量。模型建议不写入业务产物正文，不构成强制门禁。
+
+## 8. 确定性脚本速查
 
 | 脚本 | 功能 |
 |------|------|
-| `stage-context.py .` | 查看当前阶段、门控状态、下一步建议 |
-| `stage-prep.py --stage <阶段>` | 从人读产物生成/刷新机读元数据，同步 status.json |
-| `review-precheck.py --stage <阶段>` | review 预检查（产物存在、章节完整、metadata 完整、ID 泄漏、lint） |
-| `prd-style-lint.py <prd.md>` | PRD 风格检查（坏味道、流水账、模糊表述等 8 项规则） |
+| `stage-context.py` | 状态查询、可用动作、模型建议；无 `status.json` 也能正常工作 |
+| `design-confirmation.py confirm` | 写入 Design 确认记录（sha256 + 时间戳） |
+| `design-confirmation.py check` | 检查当前 `design.md` 是否仍与已确认版本一致 |
+| `design-confirmation.py show` | 查看当前确认记录 |
+| `review-precheck.py` | Review 前置检查：文件可读性、章节 finding；缺章节不阻止 Review |
+| `prd-consistency-check.py` | PRD 与 Design 确定性对比，输出 `hallucinated` / `missing` / `attribute_mismatch`；`--allow-no-prd` 支持 Prototype-only 项目 |
+| `prd-style-lint.py` | PRD 风格检查（坏味道、流水账、模糊表述等） |
+| `state-machine-check.py` | 状态机闭环检查，按需调用 |
+| `stage-prep.py` | legacy：仅旧项目兼容诊断，vNext 主流程不依赖 |
+| `verify-against-metadata.py` | legacy：仅旧项目 metadata 结构校验 |
+| `shitpm-host.py install/verify/remove` | 安装、验证、卸载宿主映射 |
 
----
+典型用法：
 
-## 验收标准
+```powershell
+python scripts/python/stage-context.py --project-root .
+python scripts/python/design-confirmation.py --project-root . confirm
+python scripts/python/design-confirmation.py --project-root . check
+python scripts/python/review-precheck.py --project-root . --stage design
+python scripts/python/prd-consistency-check.py --project-root .
+python scripts/python/prd-consistency-check.py --project-root . --allow-no-prd
+python scripts/python/prd-style-lint.py output/prd/prd.md --format json --output .workflow/runtime/prd/lint.json
+python scripts/python/state-machine-check.py --project-root .
+```
 
-全链路完成时应满足：
+## 9. 常见问题
 
-1. `stage-context.py .` 输出 `next_recommended: "done"`，`gate.can_proceed: true`
-2. 三个 review（design / prd / prototype）的 verdict 均为"通过"
-3. `review-precheck.py --stage design` / `--stage prd` / `--stage prototype` 均无阻塞项，`can_start_review: true`
-4. `git status` 运行产物（metadata/runtime/reviews）不出现在未追踪文件列表中
+**Q: 没有 `status.json` 能用吗？**
+能。`stage-context.py` 优先探测 canonical 文件，`status_source` 标记为 `missing` 时仍正常输出可用动作。
 
----
+**Q: PRD 一定要先于 Prototype 吗？**
+不一定。两者并列，可以任意顺序、单独生成。Prototype-only 是合法状态。
 
-## 失败模式速查表
+**Q: Design 改了，PRD 还能用吗？**
+不能直接用。`design.md` 修改后旧确认自动失效，`stage-context.py` 会把 PRD、Prototype 标记为不可用。需要重新确认 Design 后再生成下游。
 
-| 场景 | 触发条件 | 一线修复 | 仍失败兜底 |
-|---|---|---|---|
-| stage-prep.py 报 OSError | rules.json 被锁定或损坏 | 删除 rules.json 后重跑 | 若仍报错，检查文件权限 |
-| review-precheck 报 can_start_review: false | 上游产物缺失或章节不完整 | 检查 blocking_issues 列表，先补结构 | 若章节名称用了别名，检查 alias_missed_count |
-| PRD 字段定义表缺实体 | PRD 只覆盖了部分 design 实体 | 按 design 实体清单逐个补入 PRD 字段定义表 | 若实体已废弃，先从 design 中移除 |
-| 幻觉字段 | PRD 出现 design 中不存在的字段 | 删除幻觉字段，或回退到 design 补定义 | 运行 prd-consistency-check.py 检查 hallucinated |
-| 同步修复丢了下游 | 改了 design 但忘了同步 PRD | 按传播方向表逐层检查 | 运行 prd-consistency-check.py 检查一致性 |
-| metadata 与正文不一致 | 修改了 design.md 但没重新生成 metadata | 运行 stage-prep.py --stage design 重新生成 | 若仍不一致，检查 design.md 表格格式 |
-| git index.lock 锁定 | 上次 git 操作中断 | Remove-Item .git\index.lock -Force | 若仍锁定，用 temp-index 工作区 |
-| 子 agent 调用失败 | 环境限制或资源不足 | 退化为 dry_run 模式，在 results.tsv 标注 | 检查是否有足够的上下文窗口 |
+**Q: 只想生成 Prototype 不想生成 PRD 可以吗？**
+可以。Design 确认后直接调用 `spm-prototype`，PRD 不存在不影响 Prototype 生成。
 
-## 常见问题
+**Q: Review 不通过会阻塞下一步吗？**
+不会。Review 是 finding 不是门禁，不自动阻断后续工作，也不替用户决定是否继续。
 
-**Q: `stage-context.py` 报 `gate.can_proceed: false`？**
-检查 `blocking_issues` 列表，通常是上游产物缺失或 align-notes 未确认可进入设计。
+**Q: 旧项目有 metadata 怎么办？**
+不影响 vNext 主流程。canonical 文件探测优先于 `status.json` 的 artifacts 镜像，metadata 不再构成硬门禁。`stage-prep.py` 和 `verify-against-metadata.py` 仅作为 legacy 兼容诊断保留。
 
-**Q: `review-precheck.py` 报 `can_start_review: false`？**
-检查 `blocking_issues` 列表，通常是产物文件不存在、核心章节缺失或 metadata 文件不完整。
+**Q: `stage-context.py` 报 `status_source: corrupted` 怎么办？**
+`status.json` JSON 损坏。脚本仍会基于 canonical 文件输出可用动作，但建议修复或删除 `.workflow/status.json` 后由后续流程重建。
 
-**Q: prd-style-lint 报 STYLE002 警告？**
-检查 PRD 正文是否存在连续短步骤（动作流水账），应改写为自然段落，补充展示规则、状态流转和异常边界。
+**Q: `design-confirmation.py check` 返回 `hash_mismatch` 怎么办？**
+`design.md` 在上次确认后被修改。需要重新运行 `confirm` 命令重新确认当前版本，下游动作才会恢复可用。
 
-**Q: `stage-context.py` 和 `status.json` 的 `next_recommended` 不一致？**
-以 `stage-context.py` 输出为准（它实时计算）。不一致的根因是 `status.json` 由 `stage-prep.py` 在上次运行时写入，可能已滞后于当前产物状态。如果仍不一致，检查 `status.json` 的 `current_stage` 是否正确。
+## 10. 验收标准（vNext）
+
+vNext 主流程应满足：
+
+1. `stage-context.py` 输出 `available_actions`，PRD、Prototype 在 Design 确认后可用
+2. Design 修改后旧确认自动失效，`design-confirmation.py check` 返回 `hash_mismatch`
+3. PRD、Prototype 可独立生成，任意顺序
+4. Review 不再因章节缺失被 precheck 阻止，缺章节作为 finding 返回
+5. 无 `status.json` 时 `stage-context.py` 仍能正常输出
+6. Prototype-only 项目调用 `prd-consistency-check.py --allow-no-prd` 不阻塞 Fix
+7. 安装后 `verify` 通过，10 个 Skill 映射就位

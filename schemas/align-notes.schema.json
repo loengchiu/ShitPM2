@@ -1,14 +1,14 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "AlignNotes",
-  "description": "对齐阶段内部判断记录，只保留判断结论",
+  "description": "对齐阶段内部判断记录，只表达整理结果和未解决问题，不表达是否允许进入 Design",
   "type": "object",
-  "required": ["blocking_gaps", "needs_ask_back", "ask_back_reason", "can_enter_design", "judgement_note", "last_updated_at"],
+  "required": ["blocking_gaps", "needs_ask_back", "ask_back_reason", "judgement_note", "last_updated_at"],
   "properties": {
     "blocking_gaps": {
       "type": "array",
       "items": { "type": "string" },
-      "description": "阻塞进入设计的真实缺口"
+      "description": "整理过程中识别的真实阻塞问题"
     },
     "needs_ask_back": {
       "type": "boolean",
@@ -17,10 +17,6 @@
     "ask_back_reason": {
       "type": ["string", "null"],
       "description": "追问原因"
-    },
-    "can_enter_design": {
-      "type": "boolean",
-      "description": "是否允许进入设计阶段"
     },
     "judgement_note": {
       "type": ["string", "null"],

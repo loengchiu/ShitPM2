@@ -10,36 +10,40 @@ description: "PRD 阶段——把确认版 design.md 展开成研发可评审的
 - `scripts/python/`、`references/`、`templates/`、`contracts/`、`lib/` 开头 → `$BUNDLE/` 下
 - `.workflow/`、`output/` 开头 → 当前项目根目录下
 
+## 模型建议（运行时输出）
+
+流程开始时输出模型等级和推理深度建议（直接复用 PRD §6.3 推荐矩阵）：
+
+- **深度推理模型**：复杂 Design 的语义理解和全文一致展开
+- **轻量模型**：Design 决策完整且关系简单，主要按现有模板展开明确规格
+- **无法判断时**：使用深度推理模型
+
+建议必须是实际运行输出，不只是背景说明。
+
 ## vNext 职责定位
 
-- **直接读取**确认版 `output/design/design.md`
+- **直接读取**确认版 `output/design/design.md` 作为唯一产品事实基线
 - **不依赖** Design metadata、page-fields、分页流水线、逐页 Checkpoint 或 Review 前置
+- **不读取** Design decision notes 作为事实输入
 - **保留**现有 PRD 模板、页面组织、写作风格和写作要求
 - **首次正式写入前**必须完成 Design 到 PRD 的语义对照
 - **不得引入** Design 未授权的高影响产品事实
 - Design 未决的高影响问题不能由 PRD 静默拍板
 - **必须同时生成** `output/prd/decision-notes.md`（四类分节，基准是 Design）
 
-```
-# 脚本调用
-python $BUNDLE/scripts/python/stage-context.py --project-root .
-
-# 读取 bundle 资源
-Read $BUNDLE/templates/prd.md
-Read $BUNDLE/references/prd-writing.md
-
-# 读取项目文件
-Read output/design/design.md
-Read .workflow/status.json
-```
-
 ## 前置检查
 
-运行 `python $BUNDLE/scripts/python/stage-context.py --project-root .`
+### 准入条件
 
-vNext 准入条件：
 1. `output/design/design.md` 存在
-2. Design 确认标记有效（`.workflow/confirmations/design.json` 中 `content_sha256` 与当前 design.md 哈希一致）
+2. Design 确认标记有效：运行 `python $BUNDLE/scripts/python/design-confirmation.py --project-root . check`
+   - 退出码 0 → 哈希一致，可继续
+   - 退出码 2 → design.md 已修改，旧确认失效。**拒绝继续**，提示用户重新确认
+   - 退出码 3 → 无确认记录。**拒绝继续**，提示用户先确认 Design
+
+如 Design 未确认或哈希不一致，停下告知用户：
+> Design 未确认或已修改。请由用户明确确认当前 Design 后再生成 PRD。
+> 确认方式：运行 `python $BUNDLE/scripts/python/design-confirmation.py --project-root . confirm`
 
 **不要求**：
 - Design metadata 存在
@@ -47,61 +51,41 @@ vNext 准入条件：
 - Design Review 通过
 - Prototype 存在
 
-如 Design 未确认，停下告知用户：
-> Design 未确认或已修改。请由用户明确确认当前 Design 后再生成 PRD。
-> 确认方式：运行 `python $BUNDLE/scripts/python/design-confirmation.py --project-root . confirm`
+## 输入事实源
 
-不通过则输出阻塞项，不写任何产物。
+读取以下文件：
 
-## 最小读取集合
+1. `.workflow/status.json`（如存在）
+2. `output/design/design.md`（人读事实源，唯一产品事实基线）
+3. `$BUNDLE/templates/prd.md`（章节骨架与注释引导）
+4. `$BUNDLE/references/prd-writing.md`（正反例对照、复杂度分级）
+5. `$BUNDLE/references/prd-writing.profile.json`（机读硬约束）
+6. `$BUNDLE/references/prd-glossary-format.md`（名词说明写法）
+7. `$BUNDLE/references/prd-versioning.md`（版本记录维护规则）
+8. `$BUNDLE/references/prd-scene-checklist.md`（场景覆盖自检清单）
+9. `output/prototype/`（如存在，仅作为表现和页面辅助参考；与 Design 冲突时忽略并报告）
 
-一次工具调用批量读取，不逐个读：
+字段定义、页面落点、权限矩阵、状态机从 design.md 原文读取。**不读取** `.workflow/metadata/design/` 下的任何文件，**不读取** `output/design/decision-notes.md` 作为事实输入。
 
-1. `.workflow/status.json`
-2. `output/design/design.md`（人读事实源）
-3. `output/design/decision-notes.md`（如存在，参考待确认项避免静默拍板）
-4. `$BUNDLE/templates/prd.md`（章节骨架与注释引导）
-5. `$BUNDLE/references/prd-writing.md`（正反例对照、复杂度分级）
-6. `$BUNDLE/references/prd-writing.profile.json`（机读硬约束）
-7. `$BUNDLE/references/prd-glossary-format.md`（名词说明写法）
-8. `$BUNDLE/references/prd-versioning.md`（版本记录维护规则）
-9. `$BUNDLE/references/prd-scene-checklist.md`（场景覆盖自检清单）
+## 首次写入前的语义对照
 
-字段定义、页面落点、权限矩阵、状态机从 design.md 原文读取。**不读取** `.workflow/metadata/design/` 下的任何文件。
+正式写入 prd.md 前必须完成 Design → PRD 的语义对照（输出对照结果，不要求思维过程）：
+
+- 列出 design 中的模块、页面、字段、状态、权限清单
+- 核心对象、角色、状态、关键动作、流程、权限、模块和跨系统边界逐项对照，确认 PRD 表达不超出 Design 范围
+- 标记 Design 中"待确认"项，PRD 不得静默拍板
+- 标记 Design 未授权但 PRD 可能需要的高影响事实，必须暴露在 `output/prd/decision-notes.md` 中
+- 已有 Prototype 与 Design 冲突时，以 Design 为准并在 decision-notes.md 中报告冲突
 
 ## 生成策略
 
 vNext：取消分页流水线、逐页 Checkpoint、page-fields 索引等能力补偿型机制。
 
-1. 先通读 `output/design/design.md`，建立整体认知
-2. 完成Design 到 PRD 的语义对照（首次正式写入前必做）：
-   - 列出 design 中的模块、页面、字段、状态、权限清单
-   - 标记 Design 中"待确认"项，PRD 不得静默拍板
-   - 标记 Design 未授权但 PRD 可能需要的高影响事实，必须暴露在 decision-notes.md 中
+1. 通读 `output/design/design.md`，建立整体认知
+2. 完成首次写入前的语义对照
 3. 按 PRD 模板组织内容，逐模块/页面生成详细需求说明
 4. 大型设计（>10 页或 >50 字段）可分批生成，每批生成后立即自检字段对齐
 5. 全量生成后运行 `prd-style-lint.py` 和 `prd-consistency-check.py` 自检
-
-## 执行顺序
-
-1. 运行前置检查（含 Design 确认哈希校验）
-2. 读取最小读取集合
-3. 完成 Design 到 PRD 的语义对照（写入内部推理）
-4. 生成 PRD：按模块/小模块/页面/动作组织详细需求说明
-5. 生成版本记录（v1.0 首行）→ 名词说明 → 辅助章节
-6. 写入 `output/prd/prd.md`
-7. 生成 `output/prd/decision-notes.md`（四类分节，基准是 Design）
-8. 运行 `python $BUNDLE/scripts/python/prd-style-lint.py output/prd/prd.md` 自检
-9. 运行确定性结构对比：
-   ```bash
-   python $BUNDLE/scripts/python/prd-consistency-check.py --project-root .
-   ```
-   读取输出的 JSON 报告：
-   - `hallucinated` 非空 → 删除幻觉内容，从 design.md 重新提取
-   - `missing` 非空 → 补充 PRD 对应章节
-   - `attribute_mismatch` 非空 → 修正字段类型/必填不一致
-   修正后重新运行脚本直到无幻觉
-10. 更新 `.workflow/status.json`
 
 ## 写作规则
 
@@ -170,6 +154,7 @@ vNext：取消分页流水线、逐页 Checkpoint、page-fields 索引等能力�
 5. 版本记录是 PRD 修订历史的留痕区，不承担内容事实
 6. **Design 未授权的高影响产品事实不得引入**（字段、状态、权限、流程、模块边界）
 7. **Design 未决的高影响问题不能由 PRD 静默拍板**——必须暴露在 `output/prd/decision-notes.md` 中
+8. **已有 Prototype 与 Design 冲突时以 Design 为准**，并在 decision-notes.md 中报告冲突
 
 ## 名词说明
 
@@ -210,9 +195,11 @@ vNext：spm-prd 必须同时生成 `output/prd/decision-notes.md`，记录相对
 - **设计决策**：Design 未覆盖但 PRD 必须做的选择
 - **偏离**：未按 Design 执行的地方及理由
 - **权衡**：考虑过但未采用的方案及原因
-- **待确认**：需要用户定夺的问题（含 Design 中已标"待确认"但 PRD 无法推进的项）
+- **待确认**：需要用户定夺的问题（含 Design 中已标"待确认"但 PRD 无法推进的项；含 Prototype 与 Design 冲突的报告）
 
 每条列表项写决策+原因，无内容写"无"。
+
+**decision-notes.md 只用于审计，不是下游事实输入**。
 
 ## 输出要求
 
@@ -240,15 +227,25 @@ vNext：spm-prd 必须同时生成 `output/prd/decision-notes.md`，记录相对
 - `artifacts.prd`：`"output/prd/prd.md"`
 - `next_recommended`：可省略或设为 `null`
 
-## 停止条件
+## 完成报告
 
-1. prd.md 核心章节全部存在
-2. `prd-style-lint.py` 无 P0 问题
-3. PRD 内容不超出 design 范围
-4. decision-notes.md 已生成
-5. Design 中"待确认"项未在 PRD 中静默拍板
+输出完成后告知用户：
+- PRD 已生成
+- 可调用 `/spm-prd-review` 获取独立挑战
+- 已有 Prototype 与 Design 冲突时（如有）已在 decision-notes.md 中报告
 
-满足以上 5 条后停止，建议 `/spm-prd-review`。
+## 失败模式
+
+| 场景 | 触发条件 | 一线修复 | 仍失败兜底 |
+|------|---------|---------|-----------|
+| Design 未确认 | design-confirmation.py check 返回非 0 退出码 | 停下告知用户先确认 Design | — |
+| design.md 不存在 | output/design/design.md 不存在 | 停下，需要先完成设计阶段 | —— |
+| prd-style-lint.py 报 P0 | lint 检查发现严重格式问题 | 按 lint 输出逐条修正 | 修正后重新运行 lint 直到通过 |
+| 幻觉自检发现幻觉项 | consistency-check 报告 hallucinated 非空 | 删除幻觉字段/页面，从 design.md 重新提取 | 重新自检直到 checklist 无幻觉 |
+| 模板文件不存在 | templates/prd.md 不存在 | 使用内置最小模板 | 停下告知用户安装模板 |
+| 参考文件不存在 | references/prd-writing.md 不存在 | 跳过参考，按硬规则生成 | —— |
+| Design 待确认项被静默拍板 | 语义对照发现 PRD 自行结论化 | 暴露到 decision-notes.md，标"待确认" | 停下让用户确认 |
+| Prototype 与 Design 冲突 | 已有 Prototype 与 Design 表达不一致 | 以 Design 为准，在 decision-notes.md 中报告 | — |
 
 ## 不要做什么
 
@@ -259,22 +256,11 @@ vNext：spm-prd 必须同时生成 `output/prd/decision-notes.md`，记录相对
 5. 不执行 review（建议 `/spm-prd-review`）
 6. 不自动推进到下一阶段
 7. 不依赖 Design metadata、page-fields、分页流水线、逐页 Checkpoint
-8. 不依赖 Prototype 存在
+8. 不依赖 Prototype 存在；已有 Prototype 仅作辅助参考
 9. 不依赖 Design Review 通过
 10. 不引入 Design 未授权的高影响产品事实
 11. 不把 Design 未决的高影响问题静默拍板
-12. 幻觉自检：脚本报告的 missing/hallucinated 项逐条列出；LLM 补充检查（规则覆盖、字段属性一致性）必须逐项列出
-
-## 失败模式
-
-| 场景 | 触发条件 | 一线修复 | 仍失败兜底 |
-|------|---------|---------|-----------|
-| 前置检查失败 | stage-context.py 返回阻塞项 | 输出阻塞项清单，停下等用户补充 | 不跳过前置检查 |
-| Design 未确认 | 确认哈希不匹配或无确认记录 | 停下告知用户先确认 Design | — |
-| stage-context.py 执行失败 | 脚本报错或超时 | 检查脚本路径和 Python 环境 | 停下告知用户具体错误 |
-| design.md 不存在 | output/design/design.md 不存在 | 停下，需要先完成设计阶段 | —— |
-| prd-style-lint.py 报 P0 | lint 检查发现严重格式问题 | 按 lint 输出逐条修正 | 修正后重新运行 lint 直到通过 |
-| 幻觉自检发现幻觉项 | checklist 中标记幻觉 | 删除幻觉字段/页面，从 design.md 重新提取 | 重新自检直到 checklist 无幻觉 |
-| 模板文件不存在 | templates/prd.md 不存在 | 使用内置最小模板 | 停下告知用户安装模板 |
-| 参考文件不存在 | references/prd-writing.md 不存在 | 跳过参考，按硬规则生成 | —— |
-| Design 待确认项被静默拍板 | semantic 对照发现 PRD 自行结论化 | 暴露到 decision-notes.md，标"待确认" | 停下让用户确认 |
+12. 不读取 Design decision notes 作为事实输入
+13. 幻觉自检：脚本报告的 missing/hallucinated 项逐条列出；LLM 补充检查（规则覆盖、字段属性一致性）必须逐项列出
+14. 不使用不存在的 Read 伪命令（如 `Read $BUNDLE/...`），文件读取用实际可用的工具
+15. 不要求模型输出思维过程，只输出结论、产物、决策和待确认项

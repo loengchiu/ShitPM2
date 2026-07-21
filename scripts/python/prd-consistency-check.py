@@ -10,12 +10,17 @@ vNext 变更：
 - 语义判断（规则覆盖、字段类型/必填一致性）由 review skill 的 LLM 完成。
 
 退出码：
-- 0: 通过（无 missing、无 hallucinated、无 attribute_mismatch）
+- 0: 通过（无 missing、无 hallucinated、无 attribute_mismatch），或 skipped（Prototype-only + --allow-no-prd）
 - 1: 发现 hallucinated / missing / attribute_mismatch（调用方必须修正后重新检查）
 - 2: 致命错误（design.md 或 prd.md 不存在等）
 
 用法：
   python prd-consistency-check.py --project-root .
+
+vNext 修复包 D 增强：
+- 输出分类区分确定性冲突、可能遗漏、需模型语义判断，便于调用方（如 Fix）按严重程度处理。
+- 支持 --allow-no-prd 参数：Prototype-only 项目无 PRD 时返回 skipped，退出码 0，不阻塞 Fix。
+- 字段属性差异（attribute_mismatch）不再视为硬错误，需 LLM 语义判断。
 """
 
 import argparse
@@ -453,6 +458,279 @@ def extract_prd_permission_pages(headings: list, tables: list, content: str) -> 
     return pages
 
 
+# ── 权限角色对提取（vNext 增强：覆盖角色级一致性） ────────────
+
+# 权限章节关键词（与 stage-prep.py _PERM_SECTION_KEYWORDS 保持一致并扩展）
+_PERM_SECTION_KEYWORDS_EXTENDED = (
+    "权限汇总", "权限定义", "权限规则", "角色权限", "权限矩阵", "权限",
+)
+
+# 列表项 - role：action 模式（与 stage-prep.py _KEY_VALUE_LIST_PATTERN 等价）
+_KV_LIST_PATTERN = re.compile(r'^[-*]\s*`?([^`：:\s]+)`?\s*[：:]\s*(.+)$')
+
+
+def _extract_perm_pairs_from_table(table: dict, pairs: list, seen: set) -> None:
+    """从单个权限表格提取 (page, role) 二元组，追加到 pairs 列表"""
+    headers = table.get("headers", [])
+    if not headers or len(headers) < 2:
+        return
+    # 权限表特征：第一列表头含"模块"、"操作对象"、"页面"、"对象"
+    if not any(k in headers[0] for k in ("模块", "操作对象", "页面", "对象")):
+        return
+    # 表头其他列是角色名
+    role_cols = [(i, h) for i, h in enumerate(headers) if i > 0 and h and h != "---"]
+    for row in table["rows"]:
+        if not row or not row[0] or row[0] in ("---",):
+            continue
+        page_name = re.sub(r'^\d+\.\d+(?:\.\d+)*\s*', '', row[0].strip())
+        if not page_name:
+            continue
+        for col_idx, role_name in role_cols:
+            if col_idx < len(row):
+                cell = row[col_idx] if row[col_idx] else ""
+                # 单元格非空且非分隔符即认为该 (page, role) 二元组存在
+                if cell.strip() and cell.strip() != "---":
+                    role_clean = re.sub(r'^\d+\.\d+(?:\.\d+)*\s*', '', role_name.strip()).strip('`')
+                    if not role_clean:
+                        continue
+                    key = (page_name, role_clean)
+                    if key not in seen:
+                        seen.add(key)
+                        pairs.append({"page": page_name, "role": role_clean})
+
+
+def _extract_perm_pairs_from_list(content: str, pairs: list, seen: set) -> None:
+    """从权限章节内的 ### 页面名 + - role：action 列表提取 (page, role) 二元组"""
+    lines = content.split('\n')
+    in_perm_section = False
+    current_page = ""
+
+    for line in lines:
+        stripped = line.strip()
+        # 检测进入/退出权限章节（h1/h2 级别）
+        if re.match(r'^#{1,2}\s+', stripped):
+            if any(kw in stripped for kw in _PERM_SECTION_KEYWORDS_EXTENDED):
+                in_perm_section = True
+            else:
+                in_perm_section = False
+            current_page = ""
+            continue
+        if not in_perm_section:
+            continue
+        # h3/h4 子标题 = 页面分组名
+        if re.match(r'^#{3,}\s+', stripped):
+            current_page = re.sub(r'^#{3,}\s+', '', stripped).strip()
+            current_page = re.sub(r'^\d+\.\d+(?:\.\d+)*\s*', '', current_page)
+            continue
+        # - role：action 列表项
+        match = _KV_LIST_PATTERN.match(stripped)
+        if match and current_page:
+            role = match.group(1).strip().strip('`')
+            if not role:
+                continue
+            key = (current_page, role)
+            if key not in seen:
+                seen.add(key)
+                pairs.append({"page": current_page, "role": role})
+
+
+def extract_prd_permission_role_pairs(headings: list, tables: list, content: str) -> list:
+    """从 PRD 提取权限 (page, role) 二元组
+
+    支持两种格式：
+    - 表格格式：表头是角色名列表，第一列是模块/操作对象名（vNext PRD 模板）
+    - 列表格式：### 页面名 + - role：action（与 design 权限格式一致）
+
+    返回 [{"page": str, "role": str}, ...]
+    """
+    pairs = []
+    seen = set()
+
+    candidate_ranges = _find_multiple_section_ranges(
+        headings, list(_PERM_SECTION_KEYWORDS_EXTENDED)
+    )
+
+    # 策略 1：从权限章节内的表格提取
+    for table in _tables_in_ranges(tables, candidate_ranges):
+        _extract_perm_pairs_from_table(table, pairs, seen)
+
+    # 策略 2：从权限章节内的列表提取
+    _extract_perm_pairs_from_list(content, pairs, seen)
+
+    return pairs
+
+
+def extract_prd_roles(headings: list, tables: list, content: str) -> list:
+    """从 PRD 权限章节提取所有角色名集合
+
+    来源：
+    - 权限表格的表头列名（除第一列）
+    - 权限列表的 role 部分
+
+    返回排序后的角色名列表
+    """
+    roles = set()
+
+    candidate_ranges = _find_multiple_section_ranges(
+        headings, list(_PERM_SECTION_KEYWORDS_EXTENDED)
+    )
+
+    # 从表格表头提取角色名
+    for table in _tables_in_ranges(tables, candidate_ranges):
+        headers = table.get("headers", [])
+        if not headers or len(headers) < 2:
+            continue
+        if not any(k in headers[0] for k in ("模块", "操作对象", "页面", "对象")):
+            continue
+        for h in headers[1:]:
+            if h and h != "---":
+                role = re.sub(r'^\d+\.\d+(?:\.\d+)*\s*', '', h.strip()).strip('`')
+                if role:
+                    roles.add(role)
+
+    # 从列表项提取角色名
+    lines = content.split('\n')
+    in_perm_section = False
+    for line in lines:
+        stripped = line.strip()
+        if re.match(r'^#{1,2}\s+', stripped):
+            if any(kw in stripped for kw in _PERM_SECTION_KEYWORDS_EXTENDED):
+                in_perm_section = True
+            else:
+                in_perm_section = False
+            continue
+        if not in_perm_section:
+            continue
+        match = _KV_LIST_PATTERN.match(stripped)
+        if match:
+            role = match.group(1).strip().strip('`')
+            if role:
+                roles.add(role)
+
+    return sorted(roles)
+
+
+def compare_permission_role_pairs(
+    design_perms: list,
+    prd_perm_pairs: list,
+) -> dict:
+    """对比 (page, role) 二元组集合
+
+    PRD 中出现 design 没有的 (page, role) 视为 hallucinated
+    Design 中出现 PRD 没有的 (page, role) 视为 missing
+
+    page 用 fuzzy_page_match 做模糊匹配，role 要求精确匹配。
+    """
+    design_pairs = set()
+    for p in design_perms:
+        if isinstance(p, dict) and p.get("page") and p.get("role"):
+            design_pairs.add((p["page"], p["role"]))
+
+    prd_pairs = set()
+    for p in prd_perm_pairs:
+        if isinstance(p, dict) and p.get("page") and p.get("role"):
+            prd_pairs.add((p["page"], p["role"]))
+
+    design_pages = {p[0] for p in design_pairs}
+
+    matched_design = set()
+    matched_prd = set()
+
+    for prd_page, prd_role in prd_pairs:
+        # 精确匹配
+        if (prd_page, prd_role) in design_pairs:
+            matched_design.add((prd_page, prd_role))
+            matched_prd.add((prd_page, prd_role))
+            continue
+        # 模糊匹配 page（role 必须精确一致）
+        for dp in design_pages:
+            if dp == prd_page:
+                continue
+            if fuzzy_page_match(prd_page, {dp: dp}):
+                if (dp, prd_role) in design_pairs:
+                    matched_design.add((dp, prd_role))
+                    matched_prd.add((prd_page, prd_role))
+                    break
+
+    missing = sorted(design_pairs - matched_design)
+    hallucinated = sorted(prd_pairs - matched_prd)
+
+    missing_list = [{"page": p, "role": r} for p, r in missing]
+    hallucinated_list = [{"page": p, "role": r} for p, r in hallucinated]
+
+    return {
+        "missing": missing_list,
+        "hallucinated": hallucinated_list,
+        "matched_count": len(matched_design),
+    }
+
+
+# ── 模块提取与对比（vNext 增强：覆盖模块职责一致性） ──────────
+
+def extract_prd_modules(headings: list, content: str) -> list:
+    """从 PRD 详细需求说明章节提取模块名
+
+    策略：在"详细需求说明"章节范围内，提取 ### N.N 模块名 标题
+    返回去重后的模块名列表
+    """
+    candidate_ranges = _find_multiple_section_ranges(
+        headings, ["详细需求说明", "详细需求", "需求说明", "详细需求规格", "需求详细说明"]
+    )
+
+    modules = []
+    seen = set()
+
+    for h in headings:
+        for start, end, _ in candidate_ranges:
+            if h["line"] < start:
+                continue
+            if end is not None and h["line"] >= end:
+                continue
+            if h["level"] != 3:
+                continue
+            title = strip_heading_number(h["title"])
+            title = re.sub(r'^\d+\.\d+(?:\.\d+)*\s*', '', title).strip()
+            if not title:
+                continue
+            if title not in seen:
+                seen.add(title)
+                modules.append(title)
+            break
+
+    return modules
+
+
+def _normalize_module_name(name: str) -> str:
+    """归一化模块名：去尾部"模块"二字，便于 design 和 PRD 对比"""
+    if not name:
+        return ""
+    name = name.strip()
+    if name.endswith("模块"):
+        name = name[:-2].strip()
+    return name
+
+
+def compare_modules(design_modules: list, prd_modules: list) -> dict:
+    """对比模块名集合（归一化后对比）
+
+    design modules title 通常带"模块"后缀（如"审计计划模块"），
+    PRD 模块标题可能带也可能不带"模块"后缀。
+    归一化后做集合对比。
+    """
+    design_set = {_normalize_module_name(m) for m in design_modules if m}
+    prd_set = {_normalize_module_name(m) for m in prd_modules if m}
+
+    matched = design_set & prd_set
+    missing = sorted(design_set - matched)
+    hallucinated = sorted(prd_set - matched)
+
+    return {
+        "missing": missing,
+        "hallucinated": hallucinated,
+        "matched_count": len(matched),
+    }
+
+
 # ── 字段属性对比 ──────────────────────────────────────────────
 
 def _normalize_type(type_str: str) -> str:
@@ -639,6 +917,12 @@ def _load_design_entities_from_md(project_root: Path):
 def main():
     parser = argparse.ArgumentParser(description="PRD 与 design 确定性结构对比（vNext: 直接读人读稿，多模板兼容）")
     parser.add_argument("--project-root", type=Path, default=Path.cwd(), help="项目根目录")
+    parser.add_argument(
+        "--allow-no-prd",
+        action="store_true",
+        default=False,
+        help="Prototype-only 项目无 PRD 时返回 skipped，退出码 0，不阻塞 Fix",
+    )
     args = parser.parse_args()
 
     project_root = args.project_root.resolve()
@@ -653,6 +937,15 @@ def main():
             content = stdin_content
     if content is None:
         if not prd_path.exists():
+            # vNext 修复包 D：--allow-no-prd 时 Prototype-only 项目跳过检查，退出码 0，不阻塞 Fix
+            if args.allow_no_prd:
+                print(json.dumps({
+                    "skipped": True,
+                    "reason": "PRD 不存在（Prototype-only 项目），跳过 PRD 一致性检查",
+                    "project_type": "prototype-only",
+                    "exit_reason": "skipped",
+                }, ensure_ascii=False, indent=2))
+                sys.exit(0)
             print(json.dumps({"error": f"prd.md not found: {prd_path}"}, ensure_ascii=False))
             sys.exit(2)
         with open(prd_path, encoding="utf-8") as f:
@@ -668,6 +961,9 @@ def main():
     design_pages = design_data.get("pages", []) or []
     design_states = design_data.get("states", []) or []
     design_permissions = design_data.get("permissions", []) or []
+    design_modules_raw = design_data.get("modules", []) or []
+    # vNext：design 中标记为"非页面落点字段"的内部/审计字段，不应在 PRD 字段表中重复要求
+    design_non_page_fields = design_data.get("non_page_fields", []) or []
 
     headings = parse_headings(content)
     tables = parse_tables_with_context(content, headings)
@@ -683,10 +979,22 @@ def main():
     prd_states = extract_prd_states(content, headings, tables)
     prd_perm_pages = extract_prd_permission_pages(headings, tables, content)
 
+    # vNext：构建"非页面落点字段"排除集（按 design_field 稳定 ID 匹配）
+    # 这些字段在 design 中已明确标注为内部/审计/不展示，PRD 字段表无需重复要求
+    excluded_field_ids = {
+        entry.get("design_field")
+        for entry in design_non_page_fields
+        if isinstance(entry, dict) and entry.get("design_field")
+    }
+    visible_design_fields = [
+        f for f in design_fields
+        if isinstance(f, dict) and f.get("id") not in excluded_field_ids
+    ]
+
     # 集合对比（字段用名称列表做集合对比）
     prd_field_names = [f["name"] for f in prd_fields if isinstance(f, dict) and "name" in f]
     field_result = compare_entities(
-        [f["title"] for f in design_fields if isinstance(f, dict)],
+        [f["title"] for f in visible_design_fields if isinstance(f, dict)],
         prd_field_names, field_title_to_id, fuzzy_field_match,
     )
     # 字段属性对比（类型 + 必填）
@@ -703,19 +1011,101 @@ def main():
     )
     perm_result = compare_permission_pages(design_permissions, prd_perm_pages)
 
+    # vNext 增强：权限角色对对比（覆盖角色级一致性，检测 PRD 中 design 没有的角色-页面组合）
+    prd_perm_pairs = extract_prd_permission_role_pairs(headings, tables, content)
+    perm_pair_result = compare_permission_role_pairs(design_permissions, prd_perm_pairs)
+
+    # vNext 增强：角色集合对比（检测 PRD 中 design 没有的角色，如"超级管理员"幻觉角色）
+    design_roles = sorted({p["role"] for p in design_permissions if isinstance(p, dict) and p.get("role")})
+    prd_roles = extract_prd_roles(headings, tables, content)
+    role_title_to_id = {r: r for r in design_roles}
+    role_result = compare_entities(design_roles, prd_roles, role_title_to_id, None)
+
+    # vNext 增强：模块集合对比（覆盖模块职责一致性）
+    # 过滤只保留以"模块"结尾的标题，避免从 design 标题推断时误识别非模块标题
+    design_modules = [m["title"] for m in design_modules_raw if isinstance(m, dict) and "title" in m and isinstance(m["title"], str) and m["title"].endswith("模块")]
+    prd_modules = extract_prd_modules(headings, content)
+    module_result = compare_modules(design_modules, prd_modules)
+
     total_missing = (
         len(field_result["missing"])
         + len(page_result["missing"])
         + len(state_result["missing"])
         + len(perm_result["missing"])
+        + len(perm_pair_result["missing"])
+        + len(role_result["missing"])
+        + len(module_result["missing"])
     )
     total_hallucinated = (
         len(field_result["hallucinated"])
         + len(page_result["hallucinated"])
         + len(state_result["hallucinated"])
         + len(perm_result["hallucinated"])
+        + len(perm_pair_result["hallucinated"])
+        + len(role_result["hallucinated"])
+        + len(module_result["hallucinated"])
     )
     total_attribute_mismatch = len(field_result["attribute_mismatch"])
+
+    # vNext 修复包 D：问题分类（确定性冲突 / 可能遗漏 / 需模型语义判断）
+    deterministic_conflicts_count = (
+        len(field_result["hallucinated"])
+        + len(page_result["hallucinated"])
+        + len(state_result["hallucinated"])
+        + len(perm_result["hallucinated"])
+        + len(perm_pair_result["hallucinated"])
+        + len(role_result["hallucinated"])
+        + len(module_result["hallucinated"])
+    )
+    possible_omissions_count = (
+        len(field_result["missing"])
+        + len(page_result["missing"])
+        + len(state_result["missing"])
+        + len(perm_result["missing"])
+        + len(perm_pair_result["missing"])
+        + len(role_result["missing"])
+        + len(module_result["missing"])
+    )
+    needs_semantic_judgment_count = len(field_result["attribute_mismatch"])
+
+    classification = {
+        "deterministic_conflicts": {
+            "fields": field_result["hallucinated"],
+            "pages": page_result["hallucinated"],
+            "states": state_result["hallucinated"],
+            "permission_pages": perm_result["hallucinated"],
+            "permission_role_pairs": perm_pair_result["hallucinated"],
+            "roles": role_result["hallucinated"],
+            "modules": module_result["hallucinated"],
+            "count": deterministic_conflicts_count,
+        },
+        "possible_omissions": {
+            "fields": field_result["missing"],
+            "pages": page_result["missing"],
+            "states": state_result["missing"],
+            "permission_pages": perm_result["missing"],
+            "permission_role_pairs": perm_pair_result["missing"],
+            "roles": role_result["missing"],
+            "modules": module_result["missing"],
+            "count": possible_omissions_count,
+        },
+        "needs_semantic_judgment": {
+            "attribute_mismatches": field_result["attribute_mismatch"],
+            "count": needs_semantic_judgment_count,
+            "hint": "字段属性差异需 LLM 判断是否为业务合理变体，不作为确定性错误。",
+        },
+    }
+
+    # vNext 修复包 D：exit_reason 按严重程度优先级判定
+    # 优先级：deterministic_conflict > possible_omission > needs_semantic_judgment > ok
+    if total_hallucinated > 0:
+        exit_reason = "deterministic_conflict"
+    elif total_missing > 0:
+        exit_reason = "possible_omission"
+    elif total_attribute_mismatch > 0:
+        exit_reason = "needs_semantic_judgment"
+    else:
+        exit_reason = "ok"
 
     result = {
         "source": {
@@ -727,11 +1117,18 @@ def main():
             "prd_pages_count": len(prd_pages),
             "prd_states_count": len(prd_states),
             "prd_permission_pages_count": len(prd_perm_pages),
+            "prd_permission_role_pairs_count": len(prd_perm_pairs),
+            "prd_roles_count": len(prd_roles),
+            "prd_modules_count": len(prd_modules),
         },
         "fields": field_result,
         "pages": page_result,
         "states": state_result,
         "permissions": perm_result,
+        "permission_role_pairs": perm_pair_result,
+        "roles": role_result,
+        "modules": module_result,
+        "classification": classification,
         "summary": {
             "total_missing": total_missing,
             "total_hallucinated": total_hallucinated,
@@ -740,13 +1137,16 @@ def main():
             "has_missing": total_missing > 0,
             "has_attribute_mismatch": total_attribute_mismatch > 0,
         },
+        "exit_reason": exit_reason,
     }
 
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
-    # vNext: missing / hallucinated / attribute_mismatch 任一非零都返回退出码 1
-    # 调用方必须修正后重新检查
-    if total_hallucinated > 0 or total_missing > 0 or total_attribute_mismatch > 0:
+    # vNext 修复包 D：退出码语义
+    # - 0: 无任何问题（exit_reason == "ok"）
+    # - 1: 存在确定性冲突 / 可能遗漏 / 属性不一致（调用方按 exit_reason 处理）
+    # - 2: 致命错误（design.md 不存在、JSON 损坏等，已在前面 sys.exit(2) 处理）
+    if exit_reason != "ok":
         sys.exit(1)
 
 

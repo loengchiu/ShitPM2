@@ -13,7 +13,7 @@
 | 表现问题被当成语义问题 | UI 布局问题被误判为业务错误 | 先归类：表现问题 vs 语义问题 | 表现问题只改 prototype，语义问题才回写 design |
 | 未归类就开始修改 | 读完 feedback 后直接改 | 必须先输出归类结果，再开始修改 | 若无法归类，停在澄清，不直接改 |
 | 原型依赖 lib/ 缺失 | `lib/` 目录下 vue/tailwind/daisyui 缺失 | 提示用户运行 `python scripts/python/download-prototype-libs.py` | 停下，不凭记忆生成 |
-| 状态表达不完整 | 只有默认状态，缺异常/空/加载状态 | 按 design 状态定义逐个补入原型 | 若状态过多，先补核心状态，其余标注 [TODO] |
+| 状态表达不完整 | 只有默认状态，缺异常/空/加载状态 | 按 design 状态定义逐个补入原型 | 若状态过多，先补核心状态，其余在 output/prototype/decision-notes.md 中记录待补，不在原型中残留 [TODO] |
 | 页面渲染空白 | createShellApp 选项合并错误 / lib 缺失 | 1) 检查四件套[^四件套] lib 引用 2) 按 references 第七章模板重写 shell | 回滚到上一可工作版本 |
 | 页面无样式 | HTML 缺 Tailwind/daisyUI 引用 | 给全部 HTML 补齐本地 lib/ 四件套[^四件套]引用 | —— |
 

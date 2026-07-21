@@ -340,9 +340,10 @@ def _extract_states_from_tables(tables, headings, stage, counter):
         trigger_idx = _find_header_index(headers, ["触发动作"])
         to_idx = _find_header_index(headers, ["下一状态"])
         if from_idx is None or operator_idx is None or trigger_idx is None or to_idx is None:
-            # 4 列表头时友好提示（常见旧格式：状态|含义|说明|备注）
+            # 仅在表头同时含"状态"+"触发动作"或"下一状态"时才警告，避免误报"待确认问题"等非状态机表
             from_only = _find_header_index(headers, ["状态"])
-            if from_only is not None and len(headers) <= 4:
+            has_trigger_or_next = _find_header_index(headers, ["触发动作", "下一状态"])
+            if from_only is not None and has_trigger_or_next is not None and len(headers) <= 4:
                 print(f"  警告: 发现 4 列旧格式状态表（行 {table['line_offset']}），未提取状态机迁移数据。请改用 6 列规范格式：状态 | 含义 | 操作人 | 触发动作 | 下一状态 | 限制条件", file=sys.stderr)
             continue
 
@@ -1001,14 +1002,12 @@ def update_status(stage: str, project_root: Path, dry_run: bool = False):
     }
     base_next = next_map.get(stage, stage)
 
-    if base_next == "done":
-        status["next_recommended"] = "done"
-    else:
-        latest_review = status.get("latest_reviews", {}).get(stage, {})
-        if latest_review.get("verdict") == "通过":
-            status["next_recommended"] = base_next
-        else:
-            status["next_recommended"] = f"{stage}-review"
+    # vNext 契约：next_recommended 始终为 null（USAGE.md / status.schema.json 声明）。
+    # legacy stage-prep 不再写入非 null 值，避免与 vNext 契约矛盾；
+    # 线性推进由用户从 stage-context.py 的 available_actions 自行选择。
+    # 保留 base_next 计算仅用于潜在的诊断输出，不写入 status。
+    _ = base_next  # noqa: F841（保留计算结果供调试，不写入 status）
+    status["next_recommended"] = None
 
     # 读取当前阶段的 review 文件，取最新的 verdict 和 reviewed_at
     if stage in ("design", "prd", "prototype"):

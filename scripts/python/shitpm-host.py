@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import ctypes
 import re
 import shutil
 import subprocess
@@ -45,8 +46,28 @@ def ensure_dir(path: Path) -> None:
 
 
 def _is_junction(path: Path) -> bool:
-    """兼容 Python 3.12 以下版本的 is_junction 判断。"""
-    return getattr(path, 'is_junction', lambda: False)()
+    """检测 Windows junction（reparse point）。
+
+    Python 3.12+ 可直接用 Path.is_junction()；3.10/3.11 需要通过
+    GetFileAttributesW 检查 FILE_ATTRIBUTE_REPARSE_POINT (0x400) 标志。
+    junction 是 reparse point 的一种，所以此标志为真即视为 junction。
+    """
+    if sys.platform != 'win32':
+        return False
+    # Python 3.12+ 优先用原生方法
+    native = getattr(path, 'is_junction', None)
+    if callable(native):
+        try:
+            return bool(native())
+        except OSError:
+            return False
+    # Python 3.10/3.11 fallback：检查 reparse point 属性
+    FILE_ATTRIBUTE_REPARSE_POINT = 0x400
+    INVALID_FILE_ATTRIBUTES = 0xFFFFFFFF
+    attrs = ctypes.windll.kernel32.GetFileAttributesW(str(path))
+    if attrs == INVALID_FILE_ATTRIBUTES:
+        return False
+    return bool(attrs & FILE_ATTRIBUTE_REPARSE_POINT)
 
 
 def is_shitpm_junction(path: Path) -> bool:
@@ -252,7 +273,11 @@ def verify_global_rules(host: str) -> None:
     content = read_text(target)
     if 'ShitPM bundle root:' not in content and 'ShitPM 插件' not in content:
         raise RuntimeError(f'global rules missing ShitPM block: {target}')
-    if str(host_bundle(host) / 'AGENTS.md') not in content:
+    # 验证时统一用 POSIX 路径，与 write_global_rules 的写入格式保持一致
+    # （write_global_rules 用 .as_posix() 写入正斜杠路径，str() 在 Windows 上是反斜杠会导致误报）
+    bundle_ref_posix = (host_bundle(host) / 'AGENTS.md').as_posix()
+    bundle_ref_native = str(host_bundle(host) / 'AGENTS.md')
+    if bundle_ref_posix not in content and bundle_ref_native not in content:
         raise RuntimeError(f'global rules missing bundle ref: {target}')
 
 

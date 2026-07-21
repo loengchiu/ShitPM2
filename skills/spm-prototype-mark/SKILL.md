@@ -10,11 +10,21 @@ description: "原型标注——vNext：为已生成的原型添加悬浮导航�
 - `scripts/python/`、`references/`、`templates/`、`contracts/`、`lib/` 开头 → `$BUNDLE/` 下
 - `.workflow/`、`output/` 开头 → 当前项目根目录下
 
+## 模型建议（运行时输出）
+
+流程开始时输出模型等级和推理深度建议（直接复用 PRD §6.3 推荐矩阵）：
+
+- **轻量模型**：明确标注的定位和展示
+- **深度推理模型（Prototype Review）**：主动发现产品或交互问题属于 Prototype Review，不属于 Mark
+
+建议必须是实际运行输出，不只是背景说明。
+
 ## vNext 职责定位
 
 - **不修改原始 Prototype**：只操作 `output/prototypemark/` 副本
-- **不成为产品事实源**：标注内容只是 PRD/Design 内容的展示载体，不是新事实源
-- **高影响意见交由 Fix 回写 Design**：标注过程中发现的高影响问题（缺失模块、错误状态等）不直接修改 Prototype 或 Design，而是提示用户通过 spm-fix 回写 Design
+- **不成为产品事实源**：标注内容只是 PRD/Design 内容的展示载体，不是新事实源；**不承诺脱离源文件后仍是权威规格**
+- **可以展示必要上下文，但必须标明来源**：浮窗内容需标注"内容来源：design.md"或"内容来源：prd.md"，脱离源文件后不构成权威规格
+- **高影响意见交由 Fix 回写 Design**：标注过程中发现的高影响问题（缺失模块、错误状态等）不直接修改 Prototype 或 Design，而是按"高影响反馈结构化输出约定"输出意见清单，提示用户通过 spm-fix 回写 Design
 - **PRD 可选**：vNext 中 Prototype 可独立于 PRD 生成，标注也可在无 PRD 时基于 design.md 生成
 - **不进入 review 链路**：不生成 metadata、不触发 review
 
@@ -43,11 +53,9 @@ description: "原型标注——vNext：为已生成的原型添加悬浮导航�
 
 ## 步骤 2：复制原型
 
-```bash
-cp -r output/prototype/ output/prototypemark/
-```
+将 `output/prototype/` 整个目录复制为 `output/prototypemark/`（跨平台兼容的目录复制，结果须保证 `output/prototypemark/` 与 `output/prototype/` 内容一致，包括 `lib/` 子目录）。
 
- `output/prototype/lib/` 已随原型一起输出，复制后 `output/prototypemark/lib/` 自然存在，**不需要做任何路径修正**。
+`output/prototype/lib/` 已随原型一起输出，复制后 `output/prototypemark/lib/` 自然存在，**不需要做任何路径修正**。
 
 ## 步骤 3：模块化需求聚合
 
@@ -69,7 +77,7 @@ cp -r output/prototype/ output/prototypemark/
 - 表单 → 标注 `<form>` 或最外层 `<div>`。
 - 页面级 → 可在页面容器上加 `data-pm-mark-page="N"`。
 
-**编辑原则**：只做 `data-pm-mark` 属性插入，不修改任何现有 class、结构、content。使用 Edit 工具精确替换 `<tag` 为 `<tag data-pm-mark="N"`。
+**编辑原则**：只做 `data-pm-mark` 属性插入，不修改任何现有 class、结构、content。使用通用编辑工具精确替换 `<tag` 为 `<tag data-pm-mark="N"`（不依赖特定 Agent 工具名）。
 
 ## 步骤 5：注入标注系统
 
@@ -247,21 +255,41 @@ Vue/React 可直接调用此接口触发角标重渲染。DOM 变更的自动监
    - 新增项 → 按既定规范生成新角标，编号连续递增。
    - 修改项 → 仅替换 `__PM_ANNOTATIONS` 中对应编号的 Markdown 内容，不改角标位置（除非组件位置变化）。
    - 删除项 → 移除对应 `data-pm-mark` 属性、角标 DOM 和 `__PM_ANNOTATIONS` 条目。
-4. **高影响意见处理（vNext 新增）**：标注过程中发现的高影响问题（缺失模块、错误状态、权限漏洞等）→ 不直接修改 Prototype 或 Design，而是在标注报告末尾列出"高影响意见清单"，建议用户通过 spm-fix 回写 Design。
+4. **高影响意见处理（vNext 新增）**：标注过程中发现的高影响问题（缺失模块、错误状态、权限漏洞等）→ 不直接修改 Prototype 或 Design，而是按"高影响反馈结构化输出约定"在标注报告末尾列出"高影响意见清单"，建议用户通过 spm-fix 回写 Design。
+
+## 高影响反馈结构化输出约定（vNext 新增）
+
+标注过程中发现的高影响问题必须有明确、可被 spm-fix 使用的结构化输出。每条意见包含以下字段：
+
+```
+高影响意见清单：
+
+1. 归属层：[对齐层 / 设计层 / 原型层]
+   改什么：[具体对象，如"审计模块状态机缺少'驳回'状态"]
+   改成什么：[建议状态，如"在状态机表中新增'驳回'状态及对应迁移"]
+   影响范围：[受影响的产物文件清单]
+   来源：[发现位置，如"prototypemark/index.html 第 N 页 '审批' 按钮"]
+   建议处理：[通过 spm-fix 回写 Design / 仅改 Prototype 等]
+```
+
+此清单可被 spm-fix 直接读取并解析为修复指令的输入。
 
 # 硬规则
 
 - **不反写 prd.md / design.md**。编号 [1] [2] 只存在于 prototypemark 副本，不写入 `output/prd/prd.md` 或 `output/design/design.md`。
 - **不修改 `output/prototype/`**。只操作 `output/prototypemark/`。
 - **不修改 lib/ 路径**。prototype 已自包含 `lib/`，复制后路径自然正确。
-- **不引入 Python 脚本**。AI 直接用 Edit 工具编辑 HTML。
+- **不引入 Python 脚本**。AI 直接用通用编辑工具编辑 HTML（不依赖特定 Agent 工具名）。
 - **不引入外部 CDN**。所有代码内联。
 - **不进入 review 链路**。prototype-mark 是辅助工具，不生成 metadata、不触发 review。
 - **不生成页面级角标时不标**。非必要不加页面级标记。
 - **角标一律 `position: fixed` + `document.body` 挂载**。禁止 `position: absolute`，禁止插入目标元素内部。
 - **`__PM_ANNOTATIONS` 的 content 字段必须用单引号包裹**。禁止双引号。
-- **不成为产品事实源（vNext）**。标注内容只是 PRD/Design 的展示载体，不构成新事实源。
-- **高影响意见交由 Fix 回写 Design（vNext）**。不直接修改 Prototype 或 Design，仅输出意见清单。
+- **不成为产品事实源（vNext）**。标注内容只是 PRD/Design 内容的展示载体，不构成新事实源；不承诺脱离源文件后仍是权威规格。
+- **展示必要上下文必须标明来源**：浮窗内容需标注"内容来源：design.md"或"内容来源：prd.md"。
+- **高影响意见交由 Fix 回写 Design（vNext）**。不直接修改 Prototype 或 Design，按"高影响反馈结构化输出约定"输出意见清单。
+- **不使用 `cp -r` 等 Unix 专属命令**：目录复制操作描述目标结果，由实际工具跨平台执行。
+- **不硬编码特定 Agent 工具协议**：用通用编辑工具描述代替。
 
 # 执行与自检
 
@@ -269,7 +297,7 @@ Vue/React 可直接调用此接口触发角标重渲染。DOM 变更的自动监
 
 - [ ] 执行的是初始化还是增量更新？
 - [ ] 同一组件/模块是否只有一个角标？
-- [ ] 浮窗信息是否足够替代 PRD（或退化时足够替代 design.md 对应章节）？
+- [ ] 浮窗内容是否标注了来源（design.md / prd.md），且未声明脱离源文件后仍是权威规格？
 - [ ] 浮窗是否支持拖拽？是否只能通过 X 关闭？点击浮窗是否隔离了页面事件？
 - [ ] 角标是否 10px 粗体 amber？层级是否正确？
 - [ ] 浮窗是否还原了 Markdown 层级与重点？
@@ -278,4 +306,5 @@ Vue/React 可直接调用此接口触发角标重渲染。DOM 变更的自动监
 - [ ] **多容器场景**：是否检测了角标容器归属（`pm-badge-in-page` / `pm-badge-in-drawer` / `pm-badge-in-modal`）？抽屉/弹窗打开时主页角标是否隐藏？
 - [ ] **数据格式**：`__PM_ANNOTATIONS` 的 content 字段是否使用单引号包裹？
 - [ ] **框架集成**：是否暴露了 `window.__pmRenderMarks()` 全局接口？
-- [ ] **高影响意见清单**：是否在报告末尾列出待用户决策的高影响意见（vNext）？
+- [ ] **来源标注**：浮窗内容是否标注了"内容来源：design.md"或"内容来源：prd.md"？
+- [ ] **高影响意见清单**：是否在报告末尾按结构化输出约定列出待用户决策的高影响意见（vNext）？每条意见是否包含归属层、改什么、改成什么、影响范围、来源、建议处理六字段？

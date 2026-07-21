@@ -24,7 +24,7 @@
 按周归档查看历史周报。
 
 ## 四、详细需求说明
-### 周报填写
+### 周报管理
 用户可新建周报，填写本周完成、下周计划等信息。
 
 ## 五、数据字典
@@ -35,6 +35,9 @@
 | report.week | string | 是 | 所属周 |
 | report.this_week | text | 是 | 本周完成 |
 | report.next_week | text | 是 | 下周计划 |
+| report.coordination | text | 否 | 需协调事项 |
+| report.tags | string | 否 | 周报标签 |
+| report.status | enum | 是 | 周报状态（draft/submitted） |
 
 ## 六、权限汇总
 | 页面/对象 | member | admin |

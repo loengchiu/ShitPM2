@@ -118,4 +118,7 @@ vNext 不再为 prototype 阶段生成 metadata。
 | stage-prep.py | legacy compatibility：新主流程不默认调用 | 仅旧项目兼容诊断 |
 | design-confirmation.py | vNext：Design 确认标记读写 | 无 legacy 对应 |
 
-幻觉检测和语义一致性判断由 review skill 的 LLM 逐项 checklist 完成，不依赖脚本。
+幻觉检测和语义一致性判断责任划分：
+- **首次生成阶段**：PRD、Prototype 生成 Skill 必须在正式写入前完成与确认版 Design 的语义对照，覆盖核心对象、角色、状态、关键动作、流程、权限、模块和跨系统边界。这是生成责任，不是 Review 责任。
+- **Review 阶段**：Review 作为第二意见独立挑战一致性，不承担首次生成的计划内补全。
+- **确定性辅助**：`prd-consistency-check.py` 负责明确可解析的标题、角色、对象、状态、关键动作和明显冲突的机械检查，不替代模型语义判断。
