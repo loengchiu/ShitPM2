@@ -34,10 +34,9 @@ description: "原型阶段——把确认版 design.md 的页面行为表达成�
 ### 准入条件
 
 1. `output/design/design.md` 存在
-2. Design 确认标记有效：运行 `python $BUNDLE/scripts/python/design-confirmation.py --project-root . check`
+2. Design 确认标记有效：运行 `python $BUNDLE/scripts/python/artifact-guard.py --project-root . check-input --stage prototype`
    - 退出码 0 → 哈希一致，可继续
-   - 退出码 2 → design.md 已修改，旧确认失效。**拒绝继续**，提示用户重新确认
-   - 退出码 3 → 无确认记录。**拒绝继续**，提示用户先确认 Design
+   - 非 0 → design.md 未确认或已修改。**拒绝继续**，提示用户重新确认
 
 如 Design 未确认或哈希不一致，停下告知用户：
 > Design 未确认或已修改。请由用户明确确认当前 Design 后再生成 Prototype。
@@ -130,6 +129,9 @@ description: "原型阶段——把确认版 design.md 的页面行为表达成�
 | 2 | Vue 控制台无报错 | 检查控制台输出 | 排查变量丢失问题 |
 | 3 | 字段与 design.md 一致 | 对照 design 字段定义表 | 删除幻觉字段，从 design.md 重新提取 |
 | 4 | 关键语义已表达 | 对照 design 权限/状态/规则 | 补充缺失的语义表达 |
+
+确定性检查命令：`python $BUNDLE/scripts/python/prototype-consistency-check.py --project-root .`
+通过后运行 `python $BUNDLE/scripts/python/artifact-guard.py --project-root . record --stage prototype` 登记来源哈希。来源记录写入 `.workflow/provenance/prototype.json`；Design 或 Prototype 后续变化时，运行 `artifact-guard.py check --stage prototype` 必须报告陈旧或一致性失败。
 
 ## 产物
 

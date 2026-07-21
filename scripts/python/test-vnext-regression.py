@@ -81,6 +81,85 @@ def confirm_design(fixture: Path) -> tuple[int, str]:
     return code, err
 
 
+def test_scenario_F1_enum_and_state_drift():
+    fixture = make_new_fixture_dir()
+    try:
+        design = """## 页面清单
+| 页面 | 说明 |
+| --- | --- |
+| 首页 | 首页 |
+
+## 字段定义
+| 字段 | 类型 | 必填 | 枚举值 / 规则 | 说明 |
+| --- | --- | --- | --- | --- |
+| 状态 | string | 是 | draft, published | 状态 |
+
+## 规则与状态定义
+### 任务状态机
+| 状态 | 含义 | 操作人 | 触发动作 | 下一状态 | 限制条件 |
+| --- | --- | --- | --- | --- | --- |
+| draft | 草稿 | member | 发布 | published | — |
+| published | 已发布 | member | — | — | — |
+"""
+        prd = design.replace("draft, published | 状态", "draft, published, archived | 状态").replace(
+            "| published | 已发布 | member | — | — | — |", "| published | 已发布 | member | — | — | — |\n| archived | 已归档 | member | — | — | — |"
+        )
+        write_fixture(fixture, "output/design/design.md", design)
+        write_fixture(fixture, "output/prd/prd.md", prd)
+        code, out, err = run_script("prd-consistency-check.py", "--project-root", str(fixture))
+        if code != 1 or not out:
+            return False, f"应报告漂移，exit={code}, stderr={err}"
+        enums = out.get("classification", {}).get("deterministic_conflicts", {}).get("field_enums", [])
+        states = out.get("states", {}).get("hallucinated", [])
+        if not enums or "archived" not in states:
+            return False, f"枚举/状态漂移未被捕获: enums={enums}, states={states}"
+        return True, ""
+    finally:
+        shutil.rmtree(fixture, ignore_errors=True)
+
+
+def test_scenario_F2_F3_F4_downstream_guards():
+    fixture = make_new_fixture_dir()
+    try:
+        design = """## 页面清单
+| 页面 | 说明 |
+| --- | --- |
+| 首页 | 首页 |
+## 字段定义
+| 字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| 用户名 | string | 是 | 用户名 |
+## 规则与状态定义
+### 任务状态机
+| 状态 | 含义 | 操作人 | 触发动作 | 下一状态 | 限制条件 |
+| --- | --- | --- | --- | --- | --- |
+| draft | 草稿 | member | 发布 | published | — |
+| published | 已发布 | member | — | — | — |
+"""
+        write_fixture(fixture, "output/design/design.md", design)
+        write_fixture(fixture, "output/prd/prd.md", "## 页面说明\n### 首页\n首页内容\n\n" + design)
+        write_fixture(fixture, "output/prototype/index.html", "<html><body>首页 用户名 draft published</body></html>")
+        code, _, _ = run_script("artifact-guard.py", "--project-root", str(fixture), "check-input", "--stage", "prd")
+        if code == 0:
+            return False, "未确认 Design 不应通过 check-input"
+        code, _, err = run_script("design-confirmation.py", "--project-root", str(fixture), "confirm")
+        if code != 0:
+            return False, f"确认失败: {err}"
+        code, record_out, err = run_script("artifact-guard.py", "--project-root", str(fixture), "record", "--stage", "prd")
+        if code != 0:
+            return False, f"PRD provenance 登记失败: out={record_out}, stderr={err}"
+        write_fixture(fixture, "output/design/design.md", design + "\n补充说明")
+        code, out, _ = run_script("artifact-guard.py", "--project-root", str(fixture), "check", "--stage", "prd")
+        if code == 0 or not out or out.get("reason") != "source_hash_mismatch":
+            return False, f"Design 修改后未判陈旧: {out}"
+        code, out, _ = run_script("prototype-consistency-check.py", "--project-root", str(fixture))
+        if code != 0 or not out or out.get("summary", {}).get("total_missing") != 0:
+            return False, f"Prototype 一致性检查异常: {out}"
+        return True, ""
+    finally:
+        shutil.rmtree(fixture, ignore_errors=True)
+
+
 # ── Fixture 模板 ─────────────────────────────────────────────
 
 DESIGN_MD_TEMPLATE = """\
@@ -1378,6 +1457,8 @@ SCENARIOS = [
     ("AD8", "review-precheck 无 design.md", test_scenario_AD8),
     ("AD9", "PRD 含 Mermaid 不误识别", test_scenario_AD9),
     ("AD10", "PRD 旧模板 page-N 识别", test_scenario_AD10),
+    ("F1", "PRD 枚举和状态值级漂移", test_scenario_F1_enum_and_state_drift),
+    ("F2-F4", "下游 provenance、门禁和 Prototype 检查", test_scenario_F2_F3_F4_downstream_guards),
 ]
 
 

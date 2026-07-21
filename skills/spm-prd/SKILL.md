@@ -36,10 +36,9 @@ description: "PRD 阶段——把确认版 design.md 展开成研发可评审的
 ### 准入条件
 
 1. `output/design/design.md` 存在
-2. Design 确认标记有效：运行 `python $BUNDLE/scripts/python/design-confirmation.py --project-root . check`
+2. Design 确认标记有效：运行 `python $BUNDLE/scripts/python/artifact-guard.py --project-root . check-input --stage prd`
    - 退出码 0 → 哈希一致，可继续
-   - 退出码 2 → design.md 已修改，旧确认失效。**拒绝继续**，提示用户重新确认
-   - 退出码 3 → 无确认记录。**拒绝继续**，提示用户先确认 Design
+   - 非 0 → design.md 未确认或已修改。**拒绝继续**，提示用户重新确认
 
 如 Design 未确认或哈希不一致，停下告知用户：
 > Design 未确认或已修改。请由用户明确确认当前 Design 后再生成 PRD。
@@ -85,7 +84,9 @@ vNext：取消分页流水线、逐页 Checkpoint、page-fields 索引等能力�
 2. 完成首次写入前的语义对照
 3. 按 PRD 模板组织内容，逐模块/页面生成详细需求说明
 4. 大型设计（>10 页或 >50 字段）可分批生成，每批生成后立即自检字段对齐
-5. 全量生成后运行 `prd-style-lint.py` 和 `prd-consistency-check.py` 自检
+5. 全量生成后运行 `prd-style-lint.py` 和 `prd-consistency-check.py` 自检；通过后运行 `python $BUNDLE/scripts/python/artifact-guard.py --project-root . record --stage prd` 登记来源哈希
+
+`artifact-guard.py record` 是 PRD 正式交付的写入后边界。它会把 Design SHA-256、PRD SHA-256 写入 `.workflow/provenance/prd.json`；Design 重确认或 PRD 被直接修改后，`artifact-guard.py check --stage prd` 会报告陈旧。
 
 ## 写作规则
 

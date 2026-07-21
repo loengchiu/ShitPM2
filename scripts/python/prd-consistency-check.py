@@ -129,7 +129,7 @@ def extract_prd_fields(headings: list, tables: list, content: str) -> list:
 
     PRD 字段表格式：| 字段 | 类型 | 必填 | 说明 |（4 列，轻量格式）
 
-    返回 [{"name": str, "type": str, "required": bool}, ...]
+    返回 [{"name": str, "type": str, "required": bool, "enum_values": list}, ...]
     """
     candidate_ranges = _find_multiple_section_ranges(
         headings, ["详细需求说明", "数据字典", "字段定义", "字段清单"]
@@ -148,6 +148,8 @@ def extract_prd_fields(headings: list, tables: list, content: str) -> list:
             name_idx = next((i for i, h in enumerate(headers) if "字段" in h), 0)
             type_idx = next((i for i, h in enumerate(headers) if "类型" in h), 1)
             required_idx = next((i for i, h in enumerate(headers) if "必填" in h), None)
+            enum_idx = next((i for i, h in enumerate(headers)
+                             if any(token in h for token in ("枚举", "枚举值", "规则"))), None)
             for row in table["rows"]:
                 if not row or not row[0] or row[0] in ("---", "字段"):
                     continue
@@ -159,7 +161,13 @@ def extract_prd_fields(headings: list, tables: list, content: str) -> list:
                 if required_idx is not None and required_idx < len(row):
                     required_cell = row[required_idx].strip()
                     required = required_cell == "是" if required_cell in ("是", "否") else None
-                fields.append({"name": name, "type": field_type, "required": required})
+                enum_text = row[enum_idx].strip() if enum_idx is not None and enum_idx < len(row) else ""
+                fields.append({
+                    "name": name,
+                    "type": field_type,
+                    "required": required,
+                    "enum_values": _parse_enum_values(enum_text),
+                })
 
     # 策略 1: 在候选章节范围内提取
     if candidate_ranges:
@@ -740,17 +748,31 @@ def _normalize_type(type_str: str) -> str:
     return re.sub(r"\s+", "", type_str).lower()
 
 
+def _parse_enum_values(raw: str) -> list[str]:
+    """解析明确的枚举单元格；空值、占位符和自然语言规则不视为枚举。"""
+    if not raw:
+        return []
+    text = raw.strip().strip("`")
+    if text in ("—", "-", "无", "无枚举", "N/A", "NA"):
+        return []
+    if not re.search(r"[,，/、;；|\n]", text):
+        return []
+    values = re.split(r"[,，/、;；|\n]+", text)
+    return sorted({re.sub(r"^[-*●]\s*", "", v).strip(" `") for v in values if v.strip()})
+
+
 def compare_field_attributes(
     design_fields: list,
     prd_fields: list,
     design_title_to_id: dict,
     fuzzy_fn=None,
 ) -> list:
-    """对比 matched 字段的类型和必填属性
+    """对比 matched 字段的类型、必填和枚举属性
 
     返回 attribute_mismatch 列表：
     [{"name": str, "design_type": str, "prd_type": str,
-      "design_required": bool, "prd_required": bool}, ...]
+      "design_required": bool, "prd_required": bool,
+      "design_enum_values": list, "prd_enum_values": list}, ...]
     """
     design_attrs = {}
     for f in design_fields:
@@ -760,6 +782,7 @@ def compare_field_attributes(
         design_attrs[f["title"]] = {
             "type": attrs.get("数据类型", ""),
             "required": attrs.get("必填"),
+            "enum_values": _parse_enum_values(attrs.get("枚举值", "")),
         }
 
     mismatches = []
@@ -788,14 +811,21 @@ def compare_field_attributes(
             d_required is not None and p_required is not None
             and d_required != p_required
         )
+        d_enum = d_attrs["enum_values"]
+        p_enum = prd_field.get("enum_values", [])
+        enum_mismatch = bool(d_enum or p_enum) and d_enum != p_enum
 
-        if type_mismatch or required_mismatch:
+        if type_mismatch or required_mismatch or enum_mismatch:
             mismatches.append({
                 "name": prd_name,
                 "design_type": d_attrs["type"],
                 "prd_type": prd_field.get("type", ""),
                 "design_required": d_required,
                 "prd_required": p_required,
+                "design_enum_values": d_enum,
+                "prd_enum_values": p_enum,
+                "enum_missing": sorted(set(d_enum) - set(p_enum)),
+                "enum_hallucinated": sorted(set(p_enum) - set(d_enum)),
             })
 
     return mismatches
@@ -1001,6 +1031,10 @@ def main():
     field_result["attribute_mismatch"] = compare_field_attributes(
         design_fields, prd_fields, field_title_to_id, fuzzy_field_match,
     )
+    field_result["enum_mismatch"] = [
+        item for item in field_result["attribute_mismatch"]
+        if item.get("enum_missing") or item.get("enum_hallucinated")
+    ]
     page_result = compare_entities(
         [p["title"] for p in design_pages if isinstance(p, dict)],
         prd_pages, page_title_to_id, fuzzy_page_match,
@@ -1056,6 +1090,7 @@ def main():
         + len(perm_pair_result["hallucinated"])
         + len(role_result["hallucinated"])
         + len(module_result["hallucinated"])
+        + len(field_result["enum_mismatch"])
     )
     possible_omissions_count = (
         len(field_result["missing"])
@@ -1071,6 +1106,7 @@ def main():
     classification = {
         "deterministic_conflicts": {
             "fields": field_result["hallucinated"],
+            "field_enums": field_result["enum_mismatch"],
             "pages": page_result["hallucinated"],
             "states": state_result["hallucinated"],
             "permission_pages": perm_result["hallucinated"],
@@ -1098,7 +1134,7 @@ def main():
 
     # vNext 修复包 D：exit_reason 按严重程度优先级判定
     # 优先级：deterministic_conflict > possible_omission > needs_semantic_judgment > ok
-    if total_hallucinated > 0:
+    if total_hallucinated > 0 or field_result["enum_mismatch"]:
         exit_reason = "deterministic_conflict"
     elif total_missing > 0:
         exit_reason = "possible_omission"
