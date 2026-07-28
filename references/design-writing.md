@@ -22,6 +22,7 @@
 - [六、设计是唯一事实源](#六设计是唯一事实源)
 - [七、最终 Design 编排规则](#七最终-design-编排规则)
 
+<!-- context:design-writing-common-errors:start -->
 ## 常见错误
 
 | 级别 | 场景 | 识别信号 | 为什么错 | 首选修复 | 仍失败处理 |
@@ -40,6 +41,8 @@
 | 反模式 | 新增 align 未确认的范围 | 出现该做法 | 违反 align 确认边界 | 发现新范围时回退到 align 确认 | — |
 | 反模式 | 把原型表现层问题提升为业务事实 | 出现该做法 | 表现层反馈不应改变 design 业务定义 | 表现问题只改 prototype，语义问题才回写 design | — |
 
+<!-- context:design-writing-common-errors:end -->
+<!-- context:design-writing-structure:start -->
 ## 零、设计思维
 
 > 详细的设计方法论（页面拆分、模块组织、页面内部结构、字段放置、信息密度判断）见 `references/design-methodology.md`。本文件仅保留写法示例和对照说明。
@@ -70,6 +73,8 @@
 > ### page-1 我的周报列表
 > ### page-2 填写周报
 
+<!-- context:design-writing-structure:end -->
+<!-- context:design-card-fields-placement:start -->
 ## 三、字段定义写法
 
 字段定义表中的“字段”和“类型”必须使用中文：
@@ -124,6 +129,8 @@
 - 用户可见、可编辑、可筛选、页面动作直接依赖的字段，必须写进页面与字段落点
 - 只有纯内部字段才允许写进“非页面落点字段”
 
+<!-- context:design-card-fields-placement:end -->
+<!-- context:design-card-permissions:start -->
 ## 五、权限定义组织
 
 **好（先默认后例外）：**
@@ -143,6 +150,8 @@
 字段、权限、状态的完整定义都在 design 中保存。
 PRD 可以镜像这些内容用于交付，但不会独立改写语义。
 
+<!-- context:design-card-permissions:end -->
+<!-- context:design-writing-final:start -->
 ## 七、最终 Design 编排规则
 
 状态机的完整格式见 [状态定义格式规范](design-state-format.md)；业务流程密度和简单流程例外见 [业务流程密度规范](design-flow-format.md)。
@@ -152,3 +161,4 @@ PRD 可以镜像这些内容用于交付，但不会独立改写语义。
 - 只有适用内容才保留章节；没有事实时删除标题，不用“暂无”“不适用”制造空章节。
 - 同一事实只在最适合的位置完整定义，其他位置引用或简述；若同一事实出现冲突，修复事实源而不是重复解释。
 - “待确认”只能用于仍会改变方案的高影响问题，必须同时说明影响范围和当前保守表达。
+<!-- context:design-writing-final:end -->

@@ -78,16 +78,18 @@ MINIMAL_READ_SET = {
         "templates/align.md",
     ],
     "design": [
-        "output/align/align.md",  # 可选
-        "references/design-writing.md",
-        "references/design-state-format.md",
-        "templates/design.md",
+        "contracts/context-loading.manifest.json",
+        "scripts/python/context-pack.py",
+        "scripts/python/context-budget.py",
+        "output/align/align.md",  # 可选业务输入
     ],
     "prd": [
+        "contracts/context-loading.manifest.json",
+        "scripts/python/context-pack.py",
+        "scripts/python/context-budget.py",
+        "scripts/python/prototype-structure.py",
+        "contracts/subagent-context-contract.md",
         "output/design/design.md",
-        "references/prd-writing-rules.md",
-        "contracts/prd-writing.profile.json",
-        "templates/prd.md",
     ],
     "prototype": [
         "output/design/design.md",
@@ -99,8 +101,6 @@ MINIMAL_READ_SET = {
         "output/design/design.md",
         "contracts/review-checklist.md",
         "contracts/design-review-checklist.md",
-        "references/design-writing.md",
-        "references/design-state-format.md",
         "references/design-quality-rubric.md",
     ],
     "prd-review": [
@@ -442,7 +442,7 @@ def build_available_actions(
     return actions
 
 
-def resolve_bundle_resources() -> dict:
+def resolve_bundle_resources(bundle_root: Path | None = None) -> dict:
     """按 bundle root 解析 templates/references/contracts/schemas。
 
     bundle root 推断规则：
@@ -451,9 +451,12 @@ def resolve_bundle_resources() -> dict:
 
     返回 {bundle_root, templates, references, contracts, schemas, exists}
     """
-    script_path = Path(__file__).resolve()
-    # scripts/python/stage-context.py → scripts/python → scripts → bundle_root
-    bundle_root = script_path.parent.parent.parent
+    if bundle_root is None:
+        script_path = Path(__file__).resolve()
+        # scripts/python/stage-context.py → scripts/python → scripts → bundle_root
+        bundle_root = script_path.parent.parent.parent
+    else:
+        bundle_root = bundle_root.resolve()
     resources = {
         "bundle_root": str(bundle_root),
         "templates": str(bundle_root / "templates"),
@@ -469,7 +472,7 @@ def resolve_bundle_resources() -> dict:
     return resources
 
 
-def collect_context(project_root: Path, stdin_status: bool = False) -> dict:
+def collect_context(project_root: Path, stdin_status: bool = False, bundle_root: Path | None = None) -> dict:
     """ShitPM：无 status.json 时仍能正常输出，优先用 canonical 文件探测。"""
     status = load_status(project_root, stdin_status=stdin_status)
     canonical = probe_canonical_files(project_root)
@@ -487,7 +490,7 @@ def collect_context(project_root: Path, stdin_status: bool = False) -> dict:
     align_notes = load_align_notes(project_root)
 
     # 最小读取集合（参考用，不再构成硬门禁），优先解析 bundle 路径
-    bundle_resources = resolve_bundle_resources()
+    bundle_resources = resolve_bundle_resources(bundle_root)
     bundle_root = Path(bundle_resources["bundle_root"])
     read_set = MINIMAL_READ_SET.get(current_stage, [])
     resolved_read_set = {}
@@ -552,6 +555,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="ShitPM 轻量导航和上下文脚本")
     parser.add_argument("--project-root", required=True, help="项目根目录")
     parser.add_argument("--stdin-status", action="store_true", help="从 stdin 读取 status.json 内容")
+    parser.add_argument("--bundle-root", type=Path, help="ShitPM bundle 根目录，默认脚本所在 bundle")
     args = parser.parse_args()
 
     project_root = Path(args.project_root).resolve()
@@ -559,7 +563,7 @@ def main() -> int:
         print(f"错误: 项目根目录不存在: {project_root}", file=sys.stderr)
         return 1
 
-    result = collect_context(project_root, stdin_status=args.stdin_status)
+    result = collect_context(project_root, stdin_status=args.stdin_status, bundle_root=args.bundle_root)
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
 

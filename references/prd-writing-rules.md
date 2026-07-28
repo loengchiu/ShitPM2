@@ -32,6 +32,7 @@
 | 失败处理 | 字段属性被压缩进说明或丢失 | 字段表只有名称、类型、必填、说明，无法稳定识别长度、枚举、格式、默认值和来源 | Design 已确认事实无法确定性交付和检查 | 改为 7 列字段表，逐项承接 Design 属性 | 运行 prd-consistency-check.py 检查字段属性 |
 | 失败处理 | 系统内部字段未交付 | Design 非页面落点字段未出现在 PRD 字段表 | 研发只看 PRD 时无法识别关联、审计或计算字段的产品用途 | 保留字段并在说明写明“系统内部”及用途 | 运行 prd-consistency-check.py 检查字段覆盖 |
 
+<!-- context:prd-writing-structure:start -->
 ## 六、结构与写作硬规则
 
 以下规则原本直接写在 `spm-prd/SKILL.md` 中，现外置到本 reference；生成 PRD 时必须读取并执行，不能只依赖示例或模板注释。
@@ -88,6 +89,7 @@
 5. 一个动作内部按“业务判断与关键结果 → 关键字段/状态 → 默认展示规则 → 异常/边界”组织。排序、分页、默认加载和常规空状态不放在首句；没有特殊要求时不展开。
 6. 用场景条件引出规则，例如“手机号不合法时”“弱网环境下”“倒计时归零后”，不要用“界面元素 / 交互逻辑 / 异常处理”这类术语标签把正文机械切成小节。
 
+<!-- context:prd-writing-action:start -->
 ### 6.4 具体写作要求
 
 1. 所有数值直接写具体数字，例如“每页 20 条”“倒计时 60 秒”“保留前 3 后 4”，禁止使用占位表达。
@@ -107,6 +109,9 @@
 15. 跨系统场景写清事实源、同步方向、超时/失败/部分成功的业务结果、补偿入口和最终责任；不写 API、HTTP 状态码、队列或数据库方案。
 16. 性能、安全、审计、留存和兼容要求只承接 Design 已确认且实际适用的产品口径，并转成可观察、可验收表达。
 
+<!-- context:prd-writing-structure:end -->
+<!-- context:prd-writing-action:end -->
+<!-- context:prd-core-boundary:start -->
 ### 6.5 PRD 与 Design 的边界
 
 1. Design 是字段、权限、状态和流程完整定义的唯一事实源；PRD 负责将 Design 中已确认的事实展开为研发可评审的人读规格说明。
@@ -140,3 +145,4 @@
 
 - 禁用表达只读取 `contracts/prd-writing.profile.json` 的 `constraints.forbidden_expressions`。
 - 未被程序消费的历史 JSON 字段不作为隐含规则；人读规则以本文件和其明确引用的主题 reference 为准。
+<!-- context:prd-core-boundary:end -->

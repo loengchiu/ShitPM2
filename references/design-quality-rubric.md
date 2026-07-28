@@ -19,6 +19,7 @@
   - [6.2 独立 Review 判定](#62-独立-review-判定)
 - [7. Review 记录要求](#7-review-记录要求)
 
+<!-- context:design-verification-self-review-boundary:start -->
 ## 1. 定位与边界
 
 本文件是 ShitPM 在真实项目中检查 Design 成品质量的运行时标准，供 `spm-design` 的生成成品自审和 `spm-design-review` 的独立 Review 使用。
@@ -42,6 +43,7 @@ Design 的具体分析责任以 [Design 分析协议](design-analysis-protocol.m
 
 生成自审只使用本文件的质量维度、缺陷等级和完成条件，不执行 L0–L3 正式评分，不生成 Review 审查结论，也不输出单独的评分报告。简单模式只检查最小闭环，不为满足量表而生成无关章节；完整模式必须完成 ABC 分析责任，但 ABC 过程不作为最终目录或评分证据。
 
+<!-- context:design-verification-self-review-boundary:end -->
 ### 2.2 独立 Review 评分
 
 供 `spm-design-review` 在 Design 已生成后使用。
@@ -50,6 +52,7 @@ Review 者基于当前项目的输入基准和人读 Design 取证，按五个�
 
 Review 不修改 Design、不自动 Fix、不自动确认、不自动推进阶段。需要修复时，只输出问题、影响对象和是否需要上游同步，由用户决定后续动作。
 
+<!-- context:design-verification-self-review:start -->
 ## 3. 共同证据原则
 
 - 只依据当前项目可读取的输入基准、`design.md` 和允许读取的审计材料判断，不凭内部提示词、运行日志或 metadata 给成品加分；
@@ -139,6 +142,7 @@ L0–L3 只用于独立 Review 的维度评分。生成自审使用同一证据�
 3. 实际涉及状态、权限或集成时，相关内容不能省略；
 4. 不存在 P0 或未暴露的 P1。
 
+<!-- context:design-verification-self-review:end -->
 ### 6.2 独立 Review 判定
 
 - 每个维度分别给出 L0–L3 等级和对应证据，不能用总分抵消某一维度的 P0/P1 缺口；

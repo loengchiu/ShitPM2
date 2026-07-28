@@ -1,0 +1,499 @@
+{
+  "version": 1,
+  "description": "ShitPM Design / PRD 编译式上下文装载清单。规范性规则由显式 pack 和稳定章节标记选择，不使用相似度检索决定强制装载。",
+  "stages": {
+    "design": {
+      "passes": {
+        "analysis": [
+          "design-core",
+          "design-mode"
+        ],
+        "challenge": [
+          "design-core",
+          "design-mode",
+          "design-cards"
+        ],
+        "writing": [
+          "design-core",
+          "design-mode",
+          "design-cards",
+          "design-writing",
+          "design-output"
+        ],
+        "verification": [
+          "design-core",
+          "design-cards",
+          "design-verification"
+        ]
+      },
+      "packs": {
+        "design-core": {
+          "purpose": "阶段职责、事实源、停止条件和输出边界",
+          "sections": [
+            "design-analysis-core",
+            "design-analysis-boundary",
+            "design-methodology-boundary"
+          ]
+        },
+        "design-mode": {
+          "purpose": "当前模式的分析责任。必须通过 --mode 选择 simple 或 full",
+          "mode_sections": {
+            "simple": [
+              "design-mode-simple"
+            ],
+            "full": [
+              "design-mode-full",
+              "design-card-cross-layer"
+            ]
+          }
+        },
+        "design-cards": {
+          "purpose": "根据适用性判断装载的专项规则。通过 --card 或 --applicability-json 选择",
+          "card_sections": {
+            "flow": [
+              "design-card-flow"
+            ],
+            "state": [
+              "design-state-example",
+              "design-card-state",
+              "design-state-snapshot"
+            ],
+            "page-module": [
+              "design-card-page-module"
+            ],
+            "fields": [
+              "design-card-fields",
+              "design-card-fields-placement"
+            ],
+            "permissions": [
+              "design-card-permissions"
+            ],
+            "cross-system": [
+              "design-card-cross-layer"
+            ]
+          }
+        },
+        "design-writing": {
+          "purpose": "Design 成品组织和表达规则",
+          "sections": [
+            "design-writing-common-errors",
+            "design-writing-structure",
+            "design-writing-final"
+          ]
+        },
+        "design-output": {
+          "purpose": "Design 输出模板和审计记录模板",
+          "sections": [
+            "design-template",
+            "decision-notes-template"
+          ]
+        },
+        "design-verification": {
+          "purpose": "生成内成品审查标准，不包含独立 Review 评分和 verdict",
+          "sections": [
+            "design-verification-self-review-boundary",
+            "design-verification-self-review"
+          ]
+        },
+        "design-compatibility": {
+          "purpose": "旧项目 metadata 兼容规则，仅检测到旧 metadata 时显式装载",
+          "sections": [
+            "metadata-anchor-rules"
+          ]
+        }
+      }
+    },
+    "prd": {
+      "passes": {
+        "plan": [
+          "prd-core",
+          "prd-writing-structure"
+        ],
+        "module": [
+          "prd-core",
+          "prd-writing-structure",
+          "prd-writing-action",
+          "prd-examples",
+          "prd-cards"
+        ],
+        "integration": [
+          "prd-core",
+          "prd-writing-structure",
+          "prd-writing-action",
+          "prd-writing-glossary",
+          "prd-writing-versioning",
+          "prd-examples",
+          "prd-verification"
+        ],
+        "verification": [
+          "prd-core",
+          "prd-writing-structure",
+          "prd-writing-action",
+          "prd-verification"
+        ]
+      },
+      "packs": {
+        "prd-core": {
+          "purpose": "PRD 与 Design 的边界、交付约束和机读约束",
+          "sections": [
+            "prd-core-boundary"
+          ]
+        },
+        "prd-cards": {
+          "purpose": "按适用性装载 PRD 专项场景规则",
+          "card_sections": {
+            "scenes": [
+              "prd-verification-scenes"
+            ]
+          }
+        },
+        "prd-verification": {
+          "purpose": "PRD 生成内场景覆盖和交付检查",
+          "sections": [
+            "prd-verification-scenes"
+          ]
+        },
+        "prd-examples": {
+          "purpose": "按命中动作和写作难点选择的示例章节，不作为规范性规则",
+          "example_sections": {
+            "simple-action": [
+              "prd-example-simple-action"
+            ],
+            "complex-action": [
+              "prd-example-complex-action"
+            ],
+            "field-table": [
+              "prd-example-field-table"
+            ],
+            "page-fields": [
+              "prd-example-page-fields"
+            ],
+            "action-body": [
+              "prd-example-action-body"
+            ],
+            "page-layout": [
+              "prd-example-page-layout"
+            ],
+            "glossary": [
+              "prd-example-glossary"
+            ],
+            "small-module": [
+              "prd-example-small-module"
+            ],
+            "bad-action": [
+              "prd-example-bad-action"
+            ],
+            "flow": [
+              "prd-example-flow"
+            ]
+          }
+        },
+        "prd-writing-structure": {
+          "purpose": "PRD 结构、页面组织、字段表和状态机的组织规则，以及输出模板和机读约束",
+          "sections": [
+            "prd-writing-structure",
+            "prd-template",
+            "prd-profile"
+          ]
+        },
+        "prd-writing-action": {
+          "purpose": "PRD 动作正文和具体写作要求",
+          "sections": [
+            "prd-writing-action"
+          ]
+        },
+        "prd-writing-glossary": {
+          "purpose": "PRD 名词说明格式",
+          "sections": [
+            "prd-writing-glossary"
+          ]
+        },
+        "prd-writing-versioning": {
+          "purpose": "PRD 版本记录格式",
+          "sections": [
+            "prd-writing-versioning"
+          ]
+        }
+      }
+    }
+  },
+  "sections": {
+    "design-analysis-core": {
+      "stage": "design",
+      "source": "references/design-analysis-protocol.md",
+      "selector": "marker"
+    },
+    "design-mode-simple": {
+      "stage": "design",
+      "source": "references/design-analysis-protocol.md",
+      "selector": "marker"
+    },
+    "design-mode-full": {
+      "stage": "design",
+      "source": "references/design-analysis-protocol.md",
+      "selector": "marker"
+    },
+    "design-card-cross-layer": {
+      "stage": "design",
+      "source": "references/design-analysis-protocol.md",
+      "selector": "marker",
+      "shared": true,
+      "reuse_note": "完整模式的跨层一致性责任默认需要该规则，专项 cross-system 场景卡也需要同一规则；两个 pack 共享同一章节，装载结果按章节 ID 去重。"
+    },
+    "design-analysis-boundary": {
+      "stage": "design",
+      "source": "references/design-analysis-protocol.md",
+      "selector": "marker"
+    },
+    "design-card-page-module": {
+      "stage": "design",
+      "source": "references/design-methodology.md",
+      "selector": "marker"
+    },
+    "design-card-fields": {
+      "stage": "design",
+      "source": "references/design-methodology.md",
+      "selector": "marker"
+    },
+    "design-methodology-boundary": {
+      "stage": "design",
+      "source": "references/design-methodology.md",
+      "selector": "marker"
+    },
+    "design-writing-common-errors": {
+      "stage": "design",
+      "source": "references/design-writing.md",
+      "selector": "marker"
+    },
+    "design-writing-structure": {
+      "stage": "design",
+      "source": "references/design-writing.md",
+      "selector": "marker"
+    },
+    "design-card-fields-placement": {
+      "stage": "design",
+      "source": "references/design-writing.md",
+      "selector": "marker"
+    },
+    "design-card-permissions": {
+      "stage": "design",
+      "source": "references/design-writing.md",
+      "selector": "marker"
+    },
+    "design-writing-final": {
+      "stage": "design",
+      "source": "references/design-writing.md",
+      "selector": "marker"
+    },
+    "design-state-example": {
+      "stage": "design",
+      "source": "references/design-state-format.md",
+      "selector": "marker"
+    },
+    "design-card-state": {
+      "stage": "design",
+      "source": "references/design-state-format.md",
+      "selector": "marker"
+    },
+    "design-state-snapshot": {
+      "stage": "design",
+      "source": "references/design-state-format.md",
+      "selector": "marker"
+    },
+    "design-card-flow": {
+      "stage": "design",
+      "source": "references/design-flow-format.md",
+      "selector": "marker"
+    },
+    "design-verification-self-review-boundary": {
+      "stage": "design",
+      "source": "references/design-quality-rubric.md",
+      "selector": "marker"
+    },
+    "design-verification-self-review": {
+      "stage": "design",
+      "source": "references/design-quality-rubric.md",
+      "selector": "marker"
+    },
+    "design-template": {
+      "stage": "design",
+      "source": "templates/design.md",
+      "selector": "marker"
+    },
+    "decision-notes-template": {
+      "stage": "design",
+      "source": "templates/decision-notes.md",
+      "selector": "marker"
+    },
+    "metadata-anchor-rules": {
+      "stage": "design",
+      "source": "contracts/metadata-anchor-rules.md",
+      "selector": "whole"
+    },
+    "prd-core-boundary": {
+      "stage": "prd",
+      "source": "references/prd-writing-rules.md",
+      "selector": "marker"
+    },
+    "prd-writing-glossary": {
+      "stage": "prd",
+      "source": "references/prd-glossary-format.md",
+      "selector": "marker"
+    },
+    "prd-writing-versioning": {
+      "stage": "prd",
+      "source": "references/prd-versioning.md",
+      "selector": "marker"
+    },
+    "prd-verification-scenes": {
+      "stage": "prd",
+      "source": "references/prd-scene-checklist.md",
+      "selector": "marker",
+      "shared": true,
+      "reuse_note": "模块写作需要逐动作自检，生成内审查需要同一清单复核；两个 pass 共享同一章节，装载结果按章节 ID 去重。"
+    },
+    "prd-template": {
+      "stage": "prd",
+      "source": "templates/prd.md",
+      "selector": "marker"
+    },
+    "prd-example-simple-action": {
+      "stage": "prd",
+      "source": "references/prd-writing-examples.md",
+      "selector": "marker"
+    },
+    "prd-example-complex-action": {
+      "stage": "prd",
+      "source": "references/prd-writing-examples.md",
+      "selector": "marker"
+    },
+    "prd-example-field-table": {
+      "stage": "prd",
+      "source": "references/prd-writing-examples.md",
+      "selector": "marker"
+    },
+    "prd-example-page-fields": {
+      "stage": "prd",
+      "source": "references/prd-writing-examples.md",
+      "selector": "marker"
+    },
+    "prd-example-action-body": {
+      "stage": "prd",
+      "source": "references/prd-writing-examples.md",
+      "selector": "marker"
+    },
+    "prd-example-page-layout": {
+      "stage": "prd",
+      "source": "references/prd-writing-examples.md",
+      "selector": "marker"
+    },
+    "prd-example-glossary": {
+      "stage": "prd",
+      "source": "references/prd-writing-examples.md",
+      "selector": "marker"
+    },
+    "prd-example-small-module": {
+      "stage": "prd",
+      "source": "references/prd-writing-examples.md",
+      "selector": "marker"
+    },
+    "prd-example-bad-action": {
+      "stage": "prd",
+      "source": "references/prd-writing-examples.md",
+      "selector": "marker"
+    },
+    "prd-example-flow": {
+      "stage": "prd",
+      "source": "references/prd-writing-examples.md",
+      "selector": "marker"
+    },
+    "prd-profile": {
+      "stage": "prd",
+      "source": "contracts/prd-writing.profile.json",
+      "selector": "whole"
+    },
+    "prd-writing-structure": {
+      "stage": "prd",
+      "source": "references/prd-writing-rules.md",
+      "selector": "marker"
+    },
+    "prd-writing-action": {
+      "stage": "prd",
+      "source": "references/prd-writing-rules.md",
+      "selector": "marker"
+    }
+  },
+  "subagent_roles": {
+    "material-reader": {
+      "purpose": "只提取原始材料事实，不参与设计或写作决策",
+      "allowed": {
+        "design": {
+          "passes": [
+            "analysis"
+          ],
+          "packs": [
+            "design-core",
+            "design-mode"
+          ]
+        },
+        "prd": {
+          "passes": [
+            "plan"
+          ],
+          "packs": [
+            "prd-core",
+            "prd-writing-structure"
+          ]
+        }
+      }
+    },
+    "design-challenger": {
+      "purpose": "对 Design 分析和业务模型做独立挑战，不写最终产物",
+      "allowed": {
+        "design": {
+          "passes": [
+            "challenge"
+          ],
+          "packs": [
+            "design-core",
+            "design-mode",
+            "design-cards"
+          ]
+        }
+      }
+    },
+    "prd-module-writer": {
+      "purpose": "按 Design 已定义业务模块生成内部 PRD 草稿",
+      "allowed": {
+        "prd": {
+          "passes": [
+            "module"
+          ],
+          "packs": [
+            "prd-core",
+            "prd-writing-structure",
+            "prd-writing-action",
+            "prd-examples",
+            "prd-cards"
+          ]
+        }
+      }
+    },
+    "module-verifier": {
+      "purpose": "检查模块草稿遗漏、冲突和来源，不补写高影响事实",
+      "allowed": {
+        "prd": {
+          "passes": [
+            "verification"
+          ],
+          "packs": [
+            "prd-core",
+            "prd-writing-structure",
+            "prd-writing-action",
+            "prd-verification"
+          ]
+        }
+      }
+    }
+  }
+}

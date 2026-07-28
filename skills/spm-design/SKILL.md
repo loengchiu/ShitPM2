@@ -27,21 +27,59 @@ description: "设计阶段——ShitPM：同时承担 产品定义 和唯一 Des
 - 影响下游的未决事实必须在 `design.md` 中显式标记“待确认”，不能只写在 决策记录 中。
 - Align 只是可选输入参考；没有 Align、没有 `status.json` 的空项目也必须能直接进入 Design。
 
-## 输入事实源
+## 运行时上下文装载
 
-按以下顺序读取；缺少必要模板或无法读取资源时停止并报告：
+规范性规则不再按文件列表全文装载，而由 `$BUNDLE/contracts/context-loading.manifest.json` 编译为分阶段上下文包。规则原文仍是唯一权威来源，运行包只用于当前执行、校验和审计。
+执行前可用 `context-budget.py` 对当前运行包和业务输入做保守体量检查；该检查默认只报告，不替主 Agent 选择模式或模块。需要确定性拒绝超限时，显式传入 `--max-tokens <n> --fail-on-budget`。
 
-1. `.workflow/status.json`（如存在）
-2. `output/align/align.md`（如存在，仅作为输入参考）
-3. 用户原始需求和背景材料
-4. `$BUNDLE/templates/design.md`
-5. `$BUNDLE/references/design-writing.md`
-6. `$BUNDLE/references/design-methodology.md`
-7. `$BUNDLE/references/design-state-format.md`
-8. `$BUNDLE/references/design-flow-format.md`
-9. `$BUNDLE/references/design-analysis-protocol.md`
-10. `$BUNDLE/references/design-quality-rubric.md`
-11. `$BUNDLE/contracts/metadata-anchor-rules.md`（仅旧项目兼容需要时）
+### D0：预检与分析包
+
+先读取项目状态、`output/align/align.md`（如存在）、用户原始需求和现有 `output/design/design.md`，再按用户选择生成分析包：
+
+```text
+python $BUNDLE/scripts/python/context-pack.py --bundle-root $BUNDLE --project-root . --stage design --mode <simple|full> --pass analysis
+```
+先用同一选择执行一次预算预检（默认只报告，不设未经用户确认的硬上限）：
+
+```text
+python $BUNDLE/scripts/python/context-budget.py --bundle-root $BUNDLE --project-root . --stage design --mode <simple|full> --pass analysis --json
+```
+
+未指定模式时仍只询问一次；不能用装载器或文件数量替用户选择模式。分析包只包含 `Core` 和当前 `Mode`，不包含写作规则、示例和成品质量标准。
+
+### D1：适用性与专项卡
+
+在分析包中逐项判断流程、状态、页面/模块、字段、权限、跨系统等场景是否适用，创建仅用于运行时的 `.workflow/runtime/context/design/applicability.json`。状态只能是 `applicable`、`not_applicable` 或 `unknown`；`unknown` 按保守策略装载对应场景卡。然后生成挑战包：
+
+```text
+python $BUNDLE/scripts/python/context-pack.py --bundle-root $BUNDLE --project-root . --stage design --mode <simple|full> --pass challenge --applicability-json .workflow/runtime/context/design/applicability.json
+```
+
+缺少适用性键、manifest、来源文件或章节标记时停止，不凭模型记忆补规则。
+
+### D2-D4：写作与生成内审查包
+
+写作和成品审查使用新的干净上下文，不携带完整历史对话。写作包只加载分析/挑战交接结果、适用场景卡、写作规则、模板和决策记录模板：
+
+```text
+python $BUNDLE/scripts/python/context-pack.py --bundle-root $BUNDLE --project-root . --stage design --mode <simple|full> --pass writing --applicability-json .workflow/runtime/context/design/applicability.json
+```
+
+生成内成品审查重新建立上下文，只加载 Design 草稿、原始证据、适用场景卡和生成自审标准：
+
+```text
+python $BUNDLE/scripts/python/context-pack.py --bundle-root $BUNDLE --project-root . --stage design --mode <simple|full> --pass verification --applicability-json .workflow/runtime/context/design/applicability.json
+```
+
+旧项目检测到 metadata 时，额外显式装载 `design-compatibility`，不得默认读取。
+
+### 输入事实边界
+
+`.workflow/runtime/context/` 下的 `run.json`、pack、适用性和交接文件只用于执行、导航、校验和审计；不得写入 Design、不得参与 confirmation、不得成为 PRD 或 Prototype 的事实源。最终产品只读取用户材料、可验证证据和确认后的 `output/design/design.md`。
+
+## Sub-agent 边界
+
+默认不启用 Sub-agent。需要独立材料阅读或完整模式挑战时，必须遵守 `$BUNDLE/contracts/subagent-context-contract.md`：Sub-agent 只能输出带来源的事实、缺陷和证据，不能定义共享业务模型、直接修改最终 Design、输出正式 Review verdict 或替代用户确认；主 Agent 负责最终裁决和写入。
 
 ## 生成质量门槛
 
@@ -79,20 +117,17 @@ description: "设计阶段——ShitPM：同时承担 产品定义 和唯一 Des
 - 页面清单、字段定义、页面与字段落点和非页面落点例外均使用结构化表格，优先保证可机读，再润色人读表达。
 - 列表默认行为、文件、导入导出、批量、重复提交、并发冲突和跨系统失败只在实际存在时展开；写产品结果和验收口径，不写 API、HTTP 状态码、数据库、锁、队列或加密算法。
 - 产品级性能、安全、审计、留存和兼容要求只在会影响方案或验收时写入，并给出可观察口径；不得用“性能良好”“安全可靠”等空话替代。
-- 具体写法、正反例和推导方法必须读取 `$BUNDLE/references/design-writing.md` 与 `$BUNDLE/references/design-methodology.md`，不要凭记忆替代。
+- 具体写法、正反例和推导方法必须通过 `writing` 或适用场景卡装载，不要凭记忆替代；规范性规则不得由相似度检索决定是否装载。
 
 ## 执行流程
 
 1. 判断是首次生成还是修改已有 Design；现有 `design.md` 是当前事实基线。
-2. 读取 `design-analysis-protocol.md`，整理已确认事实、可直接推导结论、来源冲突和高影响待确认项。
-3. 按用户选择执行对应模式：
-   - 简单模式：完成目标、范围、主路径、关键规则、必要状态/权限、功能/数据、异常和验收；只按需展开状态、权限、集成和现状影响。
-   - 完整模式：完成 A 需求理解、B 业务建模、B3 业务模型一致性挑战、C 系统需求和跨层挑战。
-4. 内部执行四段职责：**分析 → 挑战 → 写作 → 成品审查**。对每个关键动作核对“角色/前置 → 对象与字段变化 → 成功/失败结果 → 状态与副作用 → 恢复路径 → 验收”，并按场景核对唯一性、生命周期、时间、文件/导入导出、批量、重复/并发和跨系统责任。挑战发现的缺口必须回到分析结论修正，或在 `design.md` 标记“待确认”；不能把已知高影响问题推给 Review、PRD 或 Prototype。
-5. 按模板和写作规范生成或局部修改 `output/design/design.md`。最终按业务闭环组织，不按 A/B/C 过程写目录，不写 metadata、调试字段、内部路径或 AI 运行痕迹。
-6. 同时按 `$BUNDLE/templates/decision-notes.md` 写入 `output/design/decision-notes.md`，记录设计决策、偏离、权衡、待确认；无内容写“无”。决策记录 只用于审计，不是下游事实输入，也不参与 confirmation 判断。
-7. 运行适用的确定性检查。检查器失败、解析失败或发现可证明结构错误时先修复，不推给 Review；本 Skill 不自动执行 Review，也不自动确认 Design。
-8. 创建或更新 `.workflow/status.json`：`current_stage=design`，`artifacts.design=output/design/design.md`；不自动创建或更新 Design confirmation。
+2. 通过 `analysis` 包完成共同输入整理和模式责任；简单模式完成最小闭环，完整模式完成 A、B、B3、C 和跨层挑战。
+3. 通过适用性文件选择专项卡；挑战必须在首次写入前完成。完整模式可由独立 Challenger 提供缺陷和证据，但主 Agent 负责统一业务模型和最终裁决。
+4. 通过 `writing` 包生成或局部修改 `output/design/design.md`，同时生成 `output/design/decision-notes.md`。最终按业务闭环组织，不按 A/B/C 过程写目录，不写 metadata、调试字段、内部路径或 AI 运行痕迹。
+5. 通过 `verification` 包在新的干净上下文中完成生成内成品审查；发现可修复问题回到写作，发现高影响未决事实则写入 Design 的“待确认”或停止请求用户决定。
+6. 运行适用的确定性检查。检查器失败、解析失败或发现可证明结构错误时先修复，不推给 Review；本 Skill 不自动执行 Review，也不自动确认 Design。
+7. 创建或更新 `.workflow/status.json`：`current_stage=design`，`artifacts.design=output/design/design.md`；不自动创建或更新 Design confirmation。
 
 ## 模式输出差异
 

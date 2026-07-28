@@ -43,21 +43,56 @@ python $BUNDLE/scripts/python/design-confirmation.py --project-root . confirm
 
 不要求以下前置条件：Design metadata、page-fields、Prototype、Design Review 通过。
 
-## 输入事实源
+## 运行时上下文装载
 
-按以下顺序读取：
+规范性规则由 `$BUNDLE/contracts/context-loading.manifest.json` 编译为分阶段上下文包，不再默认全文读取所有 PRD 规则和示例。`output/design/design.md` 仍是唯一产品事实源；运行包只用于当前执行、校验和审计。
+执行前可用 `context-budget.py` 对规划包、模块输入和 Design 做保守体量检查；该检查默认只报告，不替主 Agent 拆分模块。需要确定性拒绝超限时，显式传入 `--max-tokens <n> --fail-on-budget`。
 
-1. `.workflow/status.json`（如存在，仅用于导航和兼容）。
-2. `output/design/design.md`：唯一产品事实源。
-3. `$BUNDLE/templates/prd.md`：章节骨架。
-4. `$BUNDLE/references/prd-writing-rules.md`：完整写作规则和结构规则。满足示例加载条件时，再读取 `$BUNDLE/references/prd-writing-examples.md`；示例文件只提供正反例。
-5. `$BUNDLE/contracts/prd-writing.profile.json`：机读写作约束。
-6. `$BUNDLE/references/prd-glossary-format.md`：名词说明规则。
-7. `$BUNDLE/references/prd-versioning.md`：版本记录规则。
-8. `$BUNDLE/references/prd-scene-checklist.md`：场景覆盖自检。
-9. `output/prototype/`（如存在，仅用于发现冲突；与 Design 冲突时以 Design 为准并报告）。
+### P0-P1：确认门与全局规划
 
-不得读取 `.workflow/metadata/design/` 作为产品事实，也不得读取 `output/design/decision-notes.md` 作为事实输入。
+先运行 Design confirmation 检查，并读取完整 `output/design/design.md`。随后生成全局规划包：
+
+```text
+python $BUNDLE/scripts/python/context-pack.py --bundle-root $BUNDLE --project-root . --stage prd --pass plan
+```
+先用同一选择执行一次预算预检（默认只报告，不设未经用户确认的硬上限）：
+
+```text
+python $BUNDLE/scripts/python/context-budget.py --bundle-root $BUNDLE --project-root . --stage prd --pass plan --input output/design/design.md --json
+```
+
+规划包包含 PRD 边界、结构、名词、版本和模板；不包含示例，也不包含按场景展开的专项检查。Prototype 不作为事实源；如存在，先用确定性脚本提取页面、路由、动作和可见字段等结构线索：
+
+```text
+python $BUNDLE/scripts/python/prototype-structure.py --project-root . --input output/prototype/index.html --output .workflow/runtime/context/prd/prototype-structure.json
+```
+
+只有结构线索显示疑似冲突时，才定向读取对应 HTML 片段。
+
+### P2：模块写作与示例按章节加载
+
+大型 PRD 仅在业务模块边界清晰且单次写作会明显增加上下文负担时按模块生成内部草稿；“10 页或 50 个字段”仅是经验参考，不是硬门槛。小型 PRD 由主 Agent 一次完成。先建立适用性文件，再按模块生成专项包：
+
+```text
+python $BUNDLE/scripts/python/context-pack.py --bundle-root $BUNDLE --project-root . --stage prd --pass module --card <scene-key> --example <example-key>
+```
+
+`--example` 只选择命中的示例章节，例如 `complex-action`、`action-body`、`field-table`；不为“保险”加载 `prd-writing-examples.md` 全文。模块草稿只能写入 `.workflow/runtime/context/prd/handoff/`，不能直接覆盖 `output/prd/prd.md`，共享角色、状态、字段和规则由主 Agent 统一维护。
+
+### P3-P4：全局整合与生成内审查
+
+主 Agent 读取各模块交接结果、完整 Design 和全局不变量，统一处理跨模块承接、字段归宿、状态/权限一致性、版本记录和决策记录。整合和生成内审查使用新的干净上下文：
+
+```text
+python $BUNDLE/scripts/python/context-pack.py --bundle-root $BUNDLE --project-root . --stage prd --pass integration --card <scene-key>
+python $BUNDLE/scripts/python/context-pack.py --bundle-root $BUNDLE --project-root . --stage prd --pass verification
+```
+
+规则来源缺失、章节标记不完整、示例命中条件无法说明或交接结果缺少来源时停止，不凭模型记忆继续。不得读取 `.workflow/metadata/design/` 作为产品事实，也不得读取 `output/design/decision-notes.md` 作为事实输入。
+
+## Sub-agent 边界
+
+默认不启用 Sub-agent。大型 PRD 且模块边界清晰时，才可按业务模块产生内部草稿或模块检查结果，并遵守 `$BUNDLE/contracts/subagent-context-contract.md`。共享角色、状态、权限、字段和跨模块规则只能由主 Agent 统一维护；Sub-agent 不得直接覆盖 `output/prd/prd.md`。
 
 ## 首次写入前的语义对照
 
@@ -76,14 +111,15 @@ python $BUNDLE/scripts/python/design-confirmation.py --project-root . confirm
 
 ## 生成策略
 
-1. 通读 `output/design/design.md`，建立整体认知。
-2. 完成首次写入前的语义对照。
-3. 完整读取并执行 `$BUNDLE/references/prd-writing-rules.md`、名词说明、版本记录、场景检查清单和配置文件；只有正在生成高复杂动作、规则无法直接决定组织方式、自检命中失败模式或用户要求对照示例时，才读取 `$BUNDLE/references/prd-writing-examples.md`。不得只依赖模板注释或模型记忆。
-4. 按 `$BUNDLE/templates/prd.md`，依模块、页面和动作生成 `output/prd/prd.md`。
-5. 每个关键动作按场景展开前置条件、可操作状态、输入与校验、对象/字段变化、成功/失败反馈、状态及副作用、重复执行结果、恢复路径和下一责任人；不存在的场景跳过。
-6. 每个 Design 字段都必须进入 PRD 字段表，并归属于页面展示、页面输入、查询筛选、动作依赖或系统内部字段；内部字段不要求虚构页面落点，但必须保留业务来源和用途。
-7. 大型 Design（超过 10 页或 50 个字段）可以分批生成；每批完成后立即自检字段和语义对齐，最后再做全量检查。
-8. 不使用分页流水线、逐页 Checkpoint、page-fields 索引等能力补偿型机制。
+1. 通读 `output/design/design.md`，建立整体认知；Design 是唯一产品事实源。
+2. 通过 `plan` 包完成全局承接规划和首次写入前的语义对照。
+3. 通过 `module` 包按 Design 已定义的业务模块边界写作；只在命中具体复杂动作或写作难点时加载对应示例章节，不把示例当规范性规则。module pass 是受边界约束的内部草稿流程，不按页面、字段或任意篇幅切片。
+4. 通过 `integration` 包由主 Agent 完成全局整合，再通过 `verification` 包完成生成内成品审查。
+5. 按模板和写作规则生成 `output/prd/prd.md`。
+6. 每个关键动作按场景展开前置条件、可操作状态、输入与校验、对象/字段变化、成功/失败反馈、状态及副作用、重复执行结果、恢复路径和下一责任人；不存在的场景跳过。
+7. 每个 Design 字段都必须进入 PRD 字段表，并归属于页面展示、页面输入、查询筛选、动作依赖或系统内部字段；内部字段不要求虚构页面落点，但必须保留业务来源和用途。
+8. 大型 PRD 可以在业务模块边界清晰且单次写作会明显增加上下文负担时分批生成；“10 页或 50 个字段”仅是经验参考，不是硬门槛。每批完成后立即自检字段和语义对齐，最后再做全量检查。
+9. 不使用分页流水线、逐页 Checkpoint、page-fields 索引等能力补偿型机制；module pass 只能按 Design 业务模块边界拆分。
 
 ## 过程审计与检查顺序
 

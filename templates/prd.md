@@ -1,3 +1,4 @@
+<!-- context:prd-template:start -->
 # PRD 正文
 
 > 版本：v1.0
@@ -108,3 +109,4 @@ flowchart LR
 ## 6. 验收标准汇总
 
 ## 7. 风险与待确认
+<!-- context:prd-template:end -->

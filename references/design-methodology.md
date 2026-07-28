@@ -4,6 +4,7 @@
 > Design 自身承担人读产物质量责任和用户确认责任，不依赖固定长步骤、固定问答、Review 前置或 metadata 必须生成。
 > 模型可自主决定分析顺序和内部推理方式，本文件只提供方法论指引。
 
+<!-- context:design-card-page-module:start -->
 ## 用户意图分析
 
 从需求材料（可选 align.md、用户原始描述、业务资料）中提取所有用户角色，列出每个角色的核心任务：
@@ -33,6 +34,8 @@
 - 是 → 模块合理
 - 否 → 按业务域重组
 
+<!-- context:design-card-page-module:end -->
+<!-- context:design-card-fields:start -->
 ## 字段放置预判
 
 对每个页面，先确定页面主任务，再按操作流排列字段区域：
@@ -49,6 +52,9 @@
 
 信息密度为"重"的页面，必须在页面清单的"主要功能"列注明分区策略。
 
+<!-- context:design-card-fields:end -->
+<!-- context:design-methodology-boundary:start -->
 ## 与分析协议和质量标准的关系
 
 本文件提供通用设计方法；模式责任、ABC 分析、B3 挑战、跨层挑战和质量分级以 `references/design-analysis-protocol.md`、`references/design-quality-rubric.md` 为准。方法论不得把 ABC 变成最终 Design 目录，也不得以 Review 或 metadata 替代首次 Design 责任。
+<!-- context:design-methodology-boundary:end -->

@@ -1,6 +1,8 @@
 # ShitPM references / templates / contracts 内容优化计划（执行基线）
 
 > 本文件是本轮执行基线。目标是让每条规则只有一个权威来源，并让 Skill 按任务条件读取资源；不追求“一件事一个文件”，也不讨论 Skill 自带 references 或文件归属问题，统一使用 Plugin 根目录资源。
+> **运行时装载策略替代说明（2026-07-28）**：本文件继续作为规则职责、来源归属和资源内容优化基线；其中关于 `spm-design` / `spm-prd` 全文或文件级读取的运行时策略，已由 `docs/plans/2026-07-28-context-loading-architecture-design.md` 及 `contracts/context-loading.manifest.json` 替代。后续执行以分层上下文包、稳定章节标记和生成内干净上下文为准，不修改 V2 产品事实基线。
+
 
 ## 一、职责边界
 
@@ -88,9 +90,9 @@ Design 六文件不继续按章节拆分：
 | `spm-fix` | Fix propagation contract | 按传播对象读取对应上游/下游资源 |
 | `spm-start` | Start action matrix、Start report template | 无 |
 
-迁移阶段先让 PRD rules 与 examples 同时可读，行为对照通过后再启用 examples 条件加载；最终默认上下文不包含无关 examples 或 shell。
+本文件的文件级读取表仅用于说明权威职责，不再规定运行时全文装载。运行时由 `context-loading.manifest.json` 选择稳定章节；PRD 示例默认按章节条件加载，不全文加载。
 
-`stage-context.py` 同步维护新的 PRD 最小集合、Prototype 最小集合和三个 Review 的公共/专项集合，并删除旧 `prd-writing.md` 路径。所有新路径可解析且无旧消费者后，删除旧文件；不保留兼容别名。
+`stage-context.py` 仅提供阶段导航；Design / PRD 的实际规则装载由 `context-pack.py` 负责。所有新路径可解析且无旧消费者后，删除旧文件；不保留兼容别名。
 
 ## 六、验证与边界
 

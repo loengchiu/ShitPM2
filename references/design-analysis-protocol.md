@@ -17,6 +17,7 @@
 - [7. 四段职责与写作边界](#7-四段职责与写作边界)
 - [8. 输出与确认边界](#8-输出与确认边界)
 
+<!-- context:design-analysis-core:start -->
 ## 1. 目的与边界
 
 本协议定义 `spm-design` 在生成或修改 `output/design/design.md` 前必须承担的分析责任。它服务于两种用户可选择的模式：**简单模式**和**完整模式**。
@@ -55,6 +56,8 @@
 
 用户选择后继续；未获得选择时停止正式写入，不替用户判断。
 
+<!-- context:design-analysis-core:end -->
+<!-- context:design-mode-simple:start -->
 ## 4. 简单模式协议
 
 简单模式的目标是用最少结构完成可评审的业务闭环。必须回答：
@@ -80,6 +83,8 @@
 
 简单模式不得为了形式完整生成无关干系人地图、虚构用户旅程、空的非功能章节、空状态机或与本次变更无关的完整系统重写。
 
+<!-- context:design-mode-simple:end -->
+<!-- context:design-mode-full:start -->
 ## 5. 完整模式协议：ABC
 
 完整模式在正式写作前依次完成 A、B、C 三类责任，并对每类结论执行挑战。每项只保留适用结论、对方案有影响的结论或“不适用”的理由。
@@ -158,6 +163,8 @@ B 的完成标准：流程、对象、状态、规则、角色和数据能互相
 
 C 的完成标准：每个关键业务动作都有系统能力、数据、权限、反馈和验收承接；每个系统能力都能追溯到业务目标或约束。
 
+<!-- context:design-mode-full:end -->
+<!-- context:design-card-cross-layer:start -->
 ## 6. 跨层挑战矩阵
 
 完整模式必须逐项检查；简单模式只检查需求实际涉及的项。
@@ -182,6 +189,8 @@ C 的完成标准：每个关键业务动作都有系统能力、数据、权限
 
 挑战结论必须修正正式 Design，或在正文显式写成待确认；不输出矩阵过程本身。
 
+<!-- context:design-card-cross-layer:end -->
+<!-- context:design-analysis-boundary:start -->
 ## 7. 四段职责与写作边界
 
 内部执行分为四段：
@@ -201,3 +210,4 @@ C 的完成标准：每个关键业务动作都有系统能力、数据、权限
 - `output/design/decision-notes.md`：只记录设计决策、偏离、权衡、待确认，用于审计。
 
 不会自动执行 Review、不会自动写确认标记、不会把分析中间结果写入 Design 之外的产品事实文件。用户确认后，下游才可读取确认版 Design。
+<!-- context:design-analysis-boundary:end -->
