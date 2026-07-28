@@ -39,9 +39,9 @@
 
 ---
 
-## vNext 流程长什么样
+## ShitPM 流程长什么样
 
-不再是"8 步线性走完"。vNext 是一棵以 Design 为根的树：用户从可用动作里按需挑，AI 不会强制推下一步。
+不再是"8 步线性走完"。ShitPM 是一棵以 Design 为根的树：用户从可用动作里按需挑，AI 不会强制推下一步。
 
 ```
                     [Align]  ← 可选，目标/范围/边界整理
@@ -119,7 +119,7 @@
 
 ### 示例 3：AI 写的 PRD 不像流水账（首次生成责任 + 自检）
 
-vNext 把"首次生成责任"压在生成 Skill 自己身上。AI 写 PRD 时不会先甩一版流水账给你看，而是在**首次正式写入前**完成：
+ShitPM 把"首次生成责任"压在生成 Skill 自己身上。AI 写 PRD 时不会先甩一版流水账给你看，而是在**首次正式写入前**完成：
 
 1. **语义对照**：列出 Design 里的模块、页面、字段、状态、权限清单，逐项对照确认 PRD 表达不超出 Design 范围
 2. **风格自检**：运行 `prd-style-lint.py` 扫"点击按钮→填写表单→提交"这种动作流水账写法
@@ -219,7 +219,7 @@ AI 会扫描 `output/` 下已有产物，列出当前所有可用动作和 Desig
 - 手上有一堆零散需求，需要快速整理成可评审文档的产品经理
 - 想用 AI 帮忙写 PRD，但试过几次发现 AI 写的东西"看着像那么回事，实际没法用"的团队
 - 一份需求要出设计文档 + PRD + 原型，希望这三样东西保持一致的项目组
-- 只想要 PRD 不想要原型、或只想要原型不想要 PRD 的项目（vNext 支持只生成其中一个）
+- 只想要 PRD 不想要原型、或只想要原型不想要 PRD 的项目（ShitPM 支持只生成其中一个）
 
 **不太适合：**
 - 需求已经非常清晰、只需要做微调的项目（直接改文档可能更快）
@@ -281,7 +281,7 @@ PRD 和 Prototype 都是 Design 的直接下游，互不为前置：
 
 ### 不再依赖 metadata 和 stage-prep.py
 
-vNext 主流程**不依赖** metadata、`status.json`、`stage-prep.py`：
+ShitPM 主流程**不依赖** metadata、`status.json`、`stage-prep.py`：
 
 - 新项目无需生成 metadata
 - PRD 和 Prototype 直接读 `design.md`，不读 `.workflow/metadata/design/`

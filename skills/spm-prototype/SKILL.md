@@ -1,6 +1,6 @@
 ---
 name: spm-prototype
-description: "原型阶段——把确认版 design.md 的页面行为表达成可看、可讨论的原型。vNext：直接读取确认版 Design，不依赖 PRD、Design metadata、page-fields、分页流水线或逐页字段计数。保留 HTML + Vue + Tailwind + daisyUI + 本地 lib 架构。反馈先归类再修改，表现问题只改 prototype，语义问题先回写 design。"
+description: "原型阶段——把确认版 design.md 的页面行为表达成可看、可讨论的原型。ShitPM：直接读取确认版 Design，不依赖 PRD、Design metadata、page-fields、分页流水线或逐页字段计数。保留 HTML + Vue + Tailwind + daisyUI + 本地 lib 架构。反馈先归类再修改，表现问题只改 prototype，语义问题先回写 design。"
 ---
 
 ## 路径解析
@@ -20,7 +20,7 @@ description: "原型阶段——把确认版 design.md 的页面行为表达成�
 
 建议必须是实际运行输出，不只是背景说明。
 
-## vNext 职责定位
+## ShitPM 职责定位
 
 - **直接读取**确认版 `output/design/design.md`
 - **不依赖** PRD、Design metadata、page-fields、分页流水线或逐页字段计数
@@ -110,7 +110,7 @@ description: "原型阶段——把确认版 design.md 的页面行为表达成�
 5. 页面名称默认放在主体区顶部的页签条中表达；页签支持关闭按钮，不再另起一块大页头重复写页面标题
 6. 模板中的查询工具条、卡片容器、留白区域只用于示意内容层级，不代表所有页面都必须有查询条件或工具栏
 
-### 关键语义表达要求（vNext 强化）
+### 关键语义表达要求（ShitPM 强化）
 
 1. 关键角色权限必须表达：不同角色看到的页面/按钮/字段差异按 design 权限定义呈现
 2. 状态必须表达：有状态机的实体，列表/详情/按钮可用性按 design 状态机呈现
@@ -211,7 +211,7 @@ description: "原型阶段——把确认版 design.md 的页面行为表达成�
 | 8 | 使用外部 CDN | file:// 协议下加载失败 | 使用本地 `output/prototype/lib/`，每次生成后确保资源完整 |
 | 9 | 不验证直接交付 | 可能存在渲染空白、控制台报错等问题 | 每次修改后执行生成后自检 |
 | 10 | 依赖 PRD 存在 | Prototype 不依赖 PRD | 直接读 Design；PRD 仅作辅助参考 |
-| 11 | 依赖 Design metadata/page-fields | vNext 取消这些能力补偿机制 | 直接读 design.md 人读事实源 |
+| 11 | 依赖 Design metadata/page-fields | ShitPM 取消这些能力补偿机制 | 直接读 design.md 人读事实源 |
 | 12 | 引入 Design 未授权的高影响行为 | 违反 Design 是唯一事实源 | 高影响意见先回写 Design |
 | 13 | 使用 `cp -r` 等 Unix 专属命令 | 跨平台兼容性 | 描述目标结果（`output/prototype/lib/` 必须包含所需文件），由实际工具执行 |
 | 14 | 不要求模型输出思维过程 | 只输出结论、产物、决策和待确认项 | — |

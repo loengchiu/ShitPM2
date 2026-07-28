@@ -1,6 +1,6 @@
 ---
 name: spm-prd
-description: "PRD 阶段——把确认版 design.md 展开成研发可评审的人读规格说明。vNext：直接读取确认版 output/design/design.md，不依赖 Design metadata、page-fields、分页流水线、逐页 Checkpoint 或 Review 前置。保留现有 PRD 模板、页面组织、写作风格和写作要求。PRD 不得独立改写 design 语义。"
+description: "PRD 阶段——把确认版 design.md 展开成研发可评审的人读规格说明。ShitPM：直接读取确认版 output/design/design.md，不依赖 Design metadata、page-fields、分页流水线、逐页 Checkpoint 或 Review 前置。保留现有 PRD 模板、页面组织、写作风格和写作要求。PRD 不得独立改写 design 语义。"
 ---
 
 ## 路径解析
@@ -20,7 +20,7 @@ description: "PRD 阶段——把确认版 design.md 展开成研发可评审的
 
 建议必须是实际运行输出，不只是背景说明。
 
-## vNext 职责定位
+## ShitPM 职责定位
 
 - **直接读取**确认版 `output/design/design.md` 作为唯一产品事实基线
 - **不依赖** Design metadata、page-fields、分页流水线、逐页 Checkpoint 或 Review 前置
@@ -78,7 +78,7 @@ description: "PRD 阶段——把确认版 design.md 展开成研发可评审的
 
 ## 生成策略
 
-vNext：取消分页流水线、逐页 Checkpoint、page-fields 索引等能力补偿型机制。
+ShitPM：取消分页流水线、逐页 Checkpoint、page-fields 索引等能力补偿型机制。
 
 1. 通读 `output/design/design.md`，建立整体认知
 2. 完成首次写入前的语义对照
@@ -191,7 +191,7 @@ vNext：取消分页流水线、逐页 Checkpoint、page-fields 索引等能力�
 
 ## decision-notes.md（必须生成）
 
-vNext：spm-prd 必须同时生成 `output/prd/decision-notes.md`，记录相对于上游基准（Design）的四类决策：
+ShitPM：spm-prd 必须同时生成 `output/prd/decision-notes.md`，记录相对于上游基准（Design）的四类决策：
 
 - **设计决策**：Design 未覆盖但 PRD 必须做的选择
 - **偏离**：未按 Design 执行的地方及理由

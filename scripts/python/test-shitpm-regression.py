@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""test-vnext-regression.py — vNext 回归测试套件
+"""test-shitpm-regression.py — ShitPM 回归测试套件
 
-覆盖 vNext 修复包 G 要求的 9 个核心场景（A-I）、7 个补充场景（J-P）和 10 个对抗性场景（AD1-AD10），
+覆盖 ShitPM 修复包 G 要求的 9 个核心场景（A-I）、7 个补充场景（J-P）和 10 个对抗性场景（AD1-AD10），
 共 26 个场景，作为统一回归入口。
 
 补充场景 J-P 覆盖验收反馈要求的真实流程：
@@ -21,7 +21,7 @@
 - prd-consistency-check.py
 
 用法：
-  python test-vnext-regression.py
+  python test-shitpm-regression.py
 """
 
 import json
@@ -70,7 +70,7 @@ def run_script(script_name: str, *args) -> tuple[int, dict | None, str]:
 
 def make_new_fixture_dir() -> Path:
     """创建临时目录用于测试 fixture。"""
-    return Path(tempfile.mkdtemp(prefix="vnext-test-"))
+    return Path(tempfile.mkdtemp(prefix="shitpm-test-"))
 
 
 def confirm_design(fixture: Path) -> tuple[int, str]:
@@ -802,7 +802,7 @@ def test_scenario_L():
         )
         if code != 0:
             return False, f"步骤1 stage-context 退出码 {code}，stderr: {err}"
-        # 空项目默认阶段为 "align"（vNext 起始阶段，align 可选但 stage-context 用 align 作默认）
+        # 空项目默认阶段为 "align"（ShitPM 起始阶段，align 可选但 stage-context 用 align 作默认）
         if out.get("actual_stage") not in ("align", "empty"):
             return False, f"步骤1 actual_stage 应为 align 或 empty，实际 {out.get('actual_stage')}"
         actions = {a["action"]: a for a in out.get("available_actions", [])}
@@ -841,7 +841,7 @@ def test_scenario_L():
             return False, "步骤3 spm-prd 应可用（Design 已确认）"
 
         # 步骤 4：写 prd.md（只有 PRD，无 Prototype）
-        # vNext：双下游并列，只完成一项时 actual_stage 仍为 "design"
+        # ShitPM：双下游并列，只完成一项时 actual_stage 仍为 "design"
         write_fixture(fixture, "output/prd/prd.md", PRD_MD_TEMPLATE)
         code, out, err = run_script(
             "stage-context.py", "--project-root", str(fixture)
@@ -1463,7 +1463,7 @@ SCENARIOS = [
 
 
 def main() -> int:
-    print("vNext 回归测试开始")
+    print("ShitPM 回归测试开始")
     print()
 
     passed = 0

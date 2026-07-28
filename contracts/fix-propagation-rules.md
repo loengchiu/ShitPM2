@@ -1,7 +1,7 @@
 # 同步修复传播规则
 
 > 本文件是 fix skill 的执行依据。
-> vNext：Design 是唯一事实源；高影响 Fix 必须回写 Design 并使旧确认失效；下游冲突按 Design 修正下游。
+> ShitPM：Design 是唯一事实源；高影响 Fix 必须回写 Design 并使旧确认失效；下游冲突按 Design 修正下游。
 
 ## 一、最小判断清单
 
@@ -49,7 +49,7 @@
 
 ## 二、传播方向
 
-vNext 强制时序：**修改事实源 → 旧确认失效 → 用户审阅并重新确认 Design → 用户显式触发下游重新生成**。Design 是唯一事实源，PRD 和 Prototype 是 Design 的两个独立下游分支。不存在默认的 Design → PRD → Prototype 链路。Fix 阶段只修复事实源层，下游重新生成由用户重新确认 Design 后显式触发 spm-prd / spm-prototype，不自动同步。
+ShitPM 强制时序：**修改事实源 → 旧确认失效 → 用户审阅并重新确认 Design → 用户显式触发下游重新生成**。Design 是唯一事实源，PRD 和 Prototype 是 Design 的两个独立下游分支。不存在默认的 Design → PRD → Prototype 链路。Fix 阶段只修复事实源层，下游重新生成由用户重新确认 Design 后显式触发 spm-prd / spm-prototype，不自动同步。
 
 | 修改发起层 | 事实源 | Fix 阶段传播方向 | 下游处理（用户重新确认后由用户显式触发） | 是否触发 Design 确认失效 |
 |-----------|--------|----------------|---------------------------------------|----------------------|
@@ -78,7 +78,7 @@ vNext 强制时序：**修改事实源 → 旧确认失效 → 用户审阅并�
 
 ## 四、Design 确认失效与重新确认流程
 
-vNext：用户确认版 design.md 是唯一产品事实基线。强制时序：**修改事实源 → 旧确认失效 → 用户审阅并重新确认 Design → 用户显式触发下游重新生成**。
+ShitPM：用户确认版 design.md 是唯一产品事实基线。强制时序：**修改事实源 → 旧确认失效 → 用户审阅并重新确认 Design → 用户显式触发下游重新生成**。
 
 1. **修改 design.md 时**：
    - 不需要手动删除 `.workflow/confirmations/design.json`

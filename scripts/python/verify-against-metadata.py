@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""verify-against-metadata.py -- metadata 结构完整性校验（vNext: legacy compatibility）
+"""verify-against-metadata.py -- metadata 结构完整性校验（ShitPM: legacy compatibility）
 
-vNext 状态：此脚本标记为 legacy compatibility。
+ShitPM 状态：此脚本标记为 legacy compatibility。
 - 新主流程不再要求通过此脚本校验。
-- vNext 主流程直接基于人读稿工作，不依赖 metadata。
+- ShitPM 主流程直接基于人读稿工作，不依赖 metadata。
 - 旧项目仍可显式调用此脚本校验已有 metadata，用于兼容诊断。
 - 校验结果仅作为参考，不作为新流程的硬门禁或产物质量证明。
 

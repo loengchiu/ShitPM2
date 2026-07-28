@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""review-precheck.py — reviewer 开始前的确定性预检查（vNext: 文件存在性与基础结构检查）
+"""review-precheck.py — reviewer 开始前的确定性预检查（ShitPM: 文件存在性与基础结构检查）
 
-vNext 职责：
+ShitPM 职责：
 1. 检查人读稿文件存在性、可读性和基础结构（核心章节作为 finding，不阻塞）。
 2. can_start_review 只基于 artifact 文件可读性，不基于章节完整性或 metadata。
 3. 不要求 metadata 存在。metadata 检查仅在旧项目存在 metadata 时作为参考，记入 warnings。
-4. vNext 主流程不生成 metadata，因此 metadata 检查不再是硬阻塞。
+4. ShitPM 主流程不生成 metadata，因此 metadata 检查不再是硬阻塞。
 5. 章节缺失、结构不足、质量问题作为 Review finding 返回，不阻止 Review 开始。
 
-vNext 中 can_start_review 只在文件不存在/不可读/无法解析时为 false；
+ShitPM 中 can_start_review 只在文件不存在/不可读/无法解析时为 false；
 block_review 字段为其反向布尔，供维护者明确语义。
 
 它不是：最终 review 结论、人读摘要、第二份 reviewer 报告。
@@ -46,7 +46,7 @@ SECTION_ALIASES = {
         "页面与字段落点": ["页面与字段落点", "页面数据落点", "字段落点", "页面字段映射", "页面字段落点"],
         "规则与状态定义": ["规则与状态定义", "规则定义", "状态定义", "状态流转", "状态机", "业务规则与状态"],
         "权限定义": ["权限定义", "角色权限", "权限矩阵", "权限", "权限规则", "权限清单"],
-        # vNext: Product Definition 新章节别名映射（不加入 CORE_SECTIONS，仅作 informational 检查）
+        # ShitPM: Product Definition 新章节别名映射（不加入 CORE_SECTIONS，仅作 informational 检查）
         "产品目标": ["产品目标", "目标和成功标准", "目标与成功标准"],
         "非目标": ["非目标", "out of scope"],
         "目标用户": ["目标用户", "用户角色", "关键用户"],
@@ -244,7 +244,7 @@ def check_core_sections(project_root: Path, stage: str, stdin_content: str = Non
 def check_design_product_definition_sections(project_root: Path, stdin_content: str = None) -> list:
     """检查 Design Product Definition 新增章节（informational，不阻塞 Review）
 
-    vNext 修复包 D：Product Definition + Design Baseline 双承载后的新增章节，
+    ShitPM 修复包 D：Product Definition + Design Baseline 双承载后的新增章节，
     只检查存在性并输出到 deterministic_checks，不进 blocking_issues 也不进 warnings。
     """
     pd_sections = [
@@ -507,12 +507,12 @@ def run_prd_style_lint(project_root: Path, content: str = None) -> list:
     except Exception as e:
         return [f"lint 执行异常: {e}"]
 def main():
-    parser = argparse.ArgumentParser(description="review 确定性预检查（vNext: 文件存在性与基础结构检查）")
+    parser = argparse.ArgumentParser(description="review 确定性预检查（ShitPM: 文件存在性与基础结构检查）")
     parser.add_argument("--stage", required=True, choices=VALID_STAGES, help="被 review 的阶段")
     parser.add_argument("--project-root", type=Path, default=Path.cwd(), help="项目根目录")
     parser.add_argument("--stdin-artifact", action="store_true", help="从 stdin 读取人读稿内容（需通过管道或重定向传入）")
     parser.add_argument("--artifact-file", type=Path, default=None, help="直接指定人读稿文件路径，避免 stdin 管道依赖")
-    parser.add_argument("--no-metadata", action="store_true", help="(vNext: deprecated，metadata 检查默认不阻塞)")
+    parser.add_argument("--no-metadata", action="store_true", help="(ShitPM: deprecated，metadata 检查默认不阻塞)")
     args = parser.parse_args()
 
     project_root = args.project_root.resolve()
@@ -522,7 +522,7 @@ def main():
     blocking_issues = []
     warnings = []
 
-    # vNext: 优先用 --artifact-file 明确路径；其次 --stdin-artifact；最后从默认产物路径读
+    # ShitPM: 优先用 --artifact-file 明确路径；其次 --stdin-artifact；最后从默认产物路径读
     stdin_content = None
     if args.artifact_file is not None:
         artifact_path = args.artifact_file
@@ -546,32 +546,32 @@ def main():
     deterministic_checks.extend(section_checks)
     for sc in section_checks:
         if not sc["passed"]:
-            # vNext: 章节缺失是 Review finding，不阻塞 Review 开始
+            # ShitPM: 章节缺失是 Review finding，不阻塞 Review 开始
             warnings.append(f"[core_section] {sc['detail']}")
         elif sc.get("found_via_alias"):
             # 通过别名匹配上：假阳性风险，记入 warning 供 reviewer 人审确认
             warnings.append(f"章节通过别名匹配（请人审确认）：{sc.get('canonical')} → {sc.get('detail')}")
 
-    # vNext: Design stage 额外检查 Product Definition 新增章节（informational，不进 blocking/warnings）
+    # ShitPM: Design stage 额外检查 Product Definition 新增章节（informational，不进 blocking/warnings）
     if stage == "design":
         pd_checks = check_design_product_definition_sections(project_root, stdin_content)
         deterministic_checks.extend(pd_checks)
 
-    # vNext: metadata 检查改为可选——只在旧项目存在 metadata 目录时作为参考
+    # ShitPM: metadata 检查改为可选——只在旧项目存在 metadata 目录时作为参考
     metadata_dir = project_root / ".workflow" / "metadata" / stage
     if metadata_dir.exists():
         metadata_checks = check_metadata_complete(project_root, stage)
         deterministic_checks.extend(metadata_checks)
         for mc in metadata_checks:
             if not mc["passed"]:
-                # vNext: metadata 问题记入 warnings，不阻塞 review
+                # ShitPM: metadata 问题记入 warnings，不阻塞 review
                 warnings.append(f"[legacy metadata] {mc['detail']}")
 
         if stage == "design":
             coverage_check = check_design_page_field_coverage(project_root)
             deterministic_checks.append(coverage_check)
             if not coverage_check["passed"]:
-                # vNext: 字段覆盖问题记入 warnings，不阻塞 review
+                # ShitPM: 字段覆盖问题记入 warnings，不阻塞 review
                 warnings.append(f"[legacy metadata] {coverage_check['detail']}")
 
     if stage == "prd":
@@ -587,16 +587,16 @@ def main():
         entity_cov = check_prd_entity_coverage(project_root, stdin_content)
         deterministic_checks.append(entity_cov)
         if not entity_cov["passed"]:
-            # vNext: 实体覆盖问题记入 warnings，不阻塞 review（PRD review 仍可执行）
+            # ShitPM: 实体覆盖问题记入 warnings，不阻塞 review（PRD review 仍可执行）
             warnings.append(f"[prd_entity_coverage] {entity_cov['detail']}")
 
-    # vNext: can_start_review 只基于 artifact 文件可读性，不基于章节完整性或 metadata
+    # ShitPM: can_start_review 只基于 artifact 文件可读性，不基于章节完整性或 metadata
     can_start_review = len(blocking_issues) == 0
     # block_review 为 can_start_review 的反向布尔，供维护者明确这是阻塞字段
     block_review = not can_start_review
 
     if blocking_issues:
-        # vNext: blocking_issues 只剩 artifact 不存在/不可读，所以推荐补产物而非补结构
+        # ShitPM: blocking_issues 只剩 artifact 不存在/不可读，所以推荐补产物而非补结构
         recommended_focus = "先回上游补产物（文件不存在或不可读）"
     elif warnings:
         recommended_focus = "正文写法与一致性"

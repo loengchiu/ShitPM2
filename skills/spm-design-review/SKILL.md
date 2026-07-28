@@ -1,6 +1,6 @@
 ---
 name: spm-design-review
-description: "设计 review——vNext：按需独立挑战，判断 design 基线质量。不要求 metadata，不要求先通过其他 Review，不自动修改产物，不自动推进阶段，不承担计划内补全。结论区分确定性问题、产品风险和待用户决策问题。不代写 design 正文。"
+description: "设计 review——ShitPM：按需独立挑战，判断 design 基线质量。不要求 metadata，不要求先通过其他 Review，不自动修改产物，不自动推进阶段，不承担计划内补全。结论区分确定性问题、产品风险和待用户决策问题。不代写 design 正文。"
 ---
 
 ## 路径解析
@@ -20,7 +20,7 @@ description: "设计 review——vNext：按需独立挑战，判断 design 基�
 
 建议必须是实际运行输出，不只是背景说明。
 
-## vNext 职责定位
+## ShitPM 职责定位
 
 - **独立调用**：可随时调用，不要求先通过其他 Review
 - **不要求 metadata**：即使无 metadata 也可执行
@@ -56,7 +56,7 @@ python $BUNDLE/scripts/python/review-precheck.py --project-root . --stage design
 - 文件确实不存在或不可读 → 停止，输出阻塞项
 - 文件存在且可读但脚本误报 → 继续执行 Review，在 warnings 中记录
 
-**vNext 不要求**：
+**ShitPM 不要求**：
 - metadata 存在
 - page-fields.json 存在
 - 其他 Review 通过
@@ -76,7 +76,7 @@ python $BUNDLE/scripts/python/review-precheck.py --project-root . --stage design
    - rollback_target_illegal：回退/驳回的"下一状态"必须在正向可达路径上，回退到从未经历的状态即 P1
    - transition_ambiguity：同一"触发动作 + 操作人"组合在不同状态下指向冲突的"下一状态"，P2 提示人审是否有业务理由
 
-   vNext：脚本无 states.json 时降级为基于 design.md 解析；解析失败时跳过结构层检查，仅人审业务层。
+   ShitPM：脚本无 states.json 时降级为基于 design.md 解析；解析失败时跳过结构层检查，仅人审业务层。
 
 4. **业务层（人审，逐张状态机表检查）**：
    - 合法出路全覆盖：从业务语义看当前状态所有合法操作（推进/撤回/退回/驳回/取消），少一种即 P1
@@ -90,14 +90,14 @@ python $BUNDLE/scripts/python/review-precheck.py --project-root . --stage design
 6. 模块/页面/字段能在 align.md 或用户原始需求中找到来源（不新增未确认范围）
 7. 关键表格结构性检查
 
-### C. 高影响缺口暴露审查（vNext 强化）
+### C. 高影响缺口暴露审查（ShitPM 强化）
 
 8. 业务流程、角色权限、数据范围、状态转换、模块边界、跨系统责任、异常路径和方案权衡是否存在静默缺口
 9. 是否存在"推迟给下游"的高影响问题
 10. 是否存在未经用户确认的高影响假设
 11. **影响下游的未决事实是否在 design.md 中可见**（不能只藏在 decision-notes.md 中）
 
-### D. 结论分类（vNext 新增）
+### D. 结论分类（ShitPM 新增）
 
 输出 verdict 时必须区分：
 - **确定性问题**：结构性缺失、密度不达标、明显幻觉等可判定的问题
@@ -125,7 +125,7 @@ issue_layer：`{"structure":N,"content":N,"consistency":N}`，三个整数必填
 
 输出 verdict 后停止等用户确认，不自动推进。
 
-**vNext 不再生成 metadata**：
+**ShitPM 不再生成 metadata**：
 - 不运行 stage-prep.py
 - 不写 metadata_generated 字段（或写 false）
 - 不更新 status.json 中 metadata_paths

@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""state-machine-check.py — 状态机闭环结构层校验（vNext: 按需检查）
+"""state-machine-check.py — 状态机闭环结构层校验（ShitPM: 按需检查）
 
-vNext 状态：此脚本保留为按需检查，不作为所有生成任务的硬门禁。
+ShitPM 状态：此脚本保留为按需检查，不作为所有生成任务的硬门禁。
 - 新主流程不默认调用此脚本。
 - Review skill 可显式调用此脚本做结构层校验。
-- vNext：无 states.json 时降级为基于 design.md 解析（调用 stage-prep.py 的解析函数）。
+- ShitPM：无 states.json 时降级为基于 design.md 解析（调用 stage-prep.py 的解析函数）。
 - 解析失败时跳过结构层检查，仅由 LLM 人审业务层。
 
-职责：读 .workflow/metadata/design/states.json（vNext: 或直接从 design.md 解析），按 entity 分组，
+职责：读 .workflow/metadata/design/states.json（ShitPM: 或直接从 design.md 解析），按 entity 分组，
 对每个实体的状态机做结构层 4 条图论校验（design-state-format.md 闭环要求的结构层部分）。
 业务层 4 条（合法出路全覆盖/二次流转闭环/操作人匹配角色/状态语义自洽）仍由 LLM 审查。
 
@@ -33,7 +33,7 @@ ROLLBACK_KEYWORDS = ("退回", "驳回", "撤回")
 
 
 def _load_states_from_design_md(project_root: Path):
-    """vNext: 无 states.json 时，从 design.md 直接解析状态机
+    """ShitPM: 无 states.json 时，从 design.md 直接解析状态机
 
     复用 stage-prep.py 的 generate_design_metadata 函数（标记为 legacy 但解析逻辑仍可复用）。
     返回 (states_list, error_message)；成功时 error_message 为 None。
@@ -227,7 +227,7 @@ def _forward_reachable(initial, state_map, global_transitions=None):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="状态机闭环结构层校验（vNext: 按需检查）")
+    parser = argparse.ArgumentParser(description="状态机闭环结构层校验（ShitPM: 按需检查）")
     parser.add_argument("--project-root", default=".")
     parser.add_argument(
         "--source",
@@ -245,7 +245,7 @@ def main():
     source = None
     errors = []
 
-    # vNext: Design 是唯一事实源，默认从 design.md 解析
+    # ShitPM: Design 是唯一事实源，默认从 design.md 解析
     # 仅当 --source=states-json 或 design.md 不存在时才读 states.json
     use_design_first = args.source in ("auto", "design")
     use_states_json = args.source in ("auto", "states-json")

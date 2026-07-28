@@ -1,6 +1,6 @@
 ---
 name: spm-prototype-review
-description: "原型 review——vNext：按需独立挑战，判断原型质量。不要求 metadata，不要求先通过其他 Review，不自动修改产物，不自动推进阶段，不承担计划内补全。结论区分确定性问题、产品风险和待用户决策问题。不代写原型代码。"
+description: "原型 review——ShitPM：按需独立挑战，判断原型质量。不要求 metadata，不要求先通过其他 Review，不自动修改产物，不自动推进阶段，不承担计划内补全。结论区分确定性问题、产品风险和待用户决策问题。不代写原型代码。"
 ---
 
 ## 路径解析
@@ -20,7 +20,7 @@ description: "原型 review——vNext：按需独立挑战，判断原型质量
 
 建议必须是实际运行输出，不只是背景说明。
 
-## vNext 职责定位
+## ShitPM 职责定位
 
 - **独立调用**：可随时调用，不要求先通过其他 Review
 - **不要求 metadata**：即使无 metadata 也可执行
@@ -55,7 +55,7 @@ python $BUNDLE/scripts/python/review-precheck.py --project-root . --stage protot
 - 文件确实不存在或不可读 → 停止，输出阻塞项
 - 文件存在且可读但脚本误报 → 继续执行 Review，在 warnings 中记录
 
-**vNext 不要求**：
+**ShitPM 不要求**：
 - metadata 存在
 - pages.json 存在
 - 其他 Review 通过
@@ -63,7 +63,7 @@ python $BUNDLE/scripts/python/review-precheck.py --project-root . --stage protot
 
 ## 质量审查
 
-1. **页面覆盖 checklist（vNext：直接读 design.md 页面清单）**：
+1. **页面覆盖 checklist（ShitPM：直接读 design.md 页面清单）**：
 
    读取 `output/design/design.md` 中"页面清单"章节，提取 design 定义的全部页面。
 
@@ -78,7 +78,7 @@ python $BUNDLE/scripts/python/review-precheck.py --project-root . --stage protot
 2. 状态表达覆盖核心状态
 3. 交互主路径覆盖
 4. 权限表现覆盖
-5. **Design 未授权高影响行为检查（vNext 强化）**：
+5. **Design 未授权高影响行为检查（ShitPM 强化）**：
 
    逐项审查 Prototype 是否引入了 Design 未授权的高影响行为：
    - 新增页面/状态/权限分支未在 design.md 中出现 → P0
@@ -90,7 +90,7 @@ python $BUNDLE/scripts/python/review-precheck.py --project-root . --stage protot
    - PRD 表达与 Design 冲突而 Prototype 未以 Design 为准 → P1
    - Prototype 应以 Design 为准（不以 PRD 为准）；冲突需在 Review finding 中报告
 
-7. **结论分类（vNext 新增）**
+7. **结论分类（ShitPM 新增）**
 
    输出 verdict 时必须区分：
    - **确定性问题**：页面缺失、状态表达不闭环、明显幻觉、Design 未授权高影响行为等可判定的问题
@@ -118,7 +118,7 @@ issue_layer：`{"structure":N,"content":N,"consistency":N}`。
 
 输出 verdict 后停止等用户确认。
 
-**vNext 不再生成 metadata**：
+**ShitPM 不再生成 metadata**：
 - 不运行 stage-prep.py
 - 不写 metadata_generated 字段（或写 false）
 - 不更新 status.json 中 metadata_paths

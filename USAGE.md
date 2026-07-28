@@ -1,6 +1,6 @@
 # ShitPM 使用说明
 
-ShitPM 是运行在 AI 编程助手中的产品工作台。vNext 以确认版 `design.md` 为唯一产品事实基线，PRD 与 Prototype 是 Design 的并列下游，Review、Fix、Prototype Mark 按需调用，不再有固定八步门禁。
+ShitPM 是运行在 AI 编程助手中的产品工作台。ShitPM 以确认版 `design.md` 为唯一产品事实基线，PRD 与 Prototype 是 Design 的并列下游，Review、Fix、Prototype Mark 按需调用，不再有固定八步门禁。
 
 ## 1. 环境准备
 
@@ -63,16 +63,16 @@ python scripts/python/stage-context.py --project-root .
 | `design_confirmation` | Design 确认状态，含 `confirmed`、`reason`、`confirmed_at` 等 |
 | `bundle_resources` | bundle root 及 templates/references/contracts/schemas 路径与存在性 |
 | `status_source` | `loaded` / `missing` / `corrupted`，表示 `status.json` 读取情况 |
-| `next_recommended` | 始终为 `null`，vNext 不再线性推进，由用户从 `available_actions` 选择 |
+| `next_recommended` | 始终为 `null`，ShitPM 不再线性推进，由用户从 `available_actions` 选择 |
 
 说明：
 
 - 无 `status.json` 时脚本仍能正常输出，`status_source` 标记为 `missing`
 - canonical 文件探测（`output/align/align.md`、`output/design/design.md`、`output/prd/prd.md`、`output/prototype/index.html`）优先于 `status.json` 中的 artifacts 镜像
 - `status.json` 损坏时输出稳定错误信息，不抛出 traceback，`status_source` 标记为 `corrupted`
-- `next_recommended` 不再给出"下一步建议"，vNext 把选择权交给用户
+- `next_recommended` 不再给出"下一步建议"，ShitPM 把选择权交给用户
 
-## 4. vNext 流程总览
+## 4. ShitPM 流程总览
 
 ```text
 可选：spm-align（需求整理）
@@ -276,7 +276,7 @@ python scripts/python/design-confirmation.py --project-root . show
 | `prd-consistency-check.py` | PRD 与 Design 确定性对比，输出 `hallucinated` / `missing` / `attribute_mismatch`；`--allow-no-prd` 支持 Prototype-only 项目 |
 | `prd-style-lint.py` | PRD 风格检查（坏味道、流水账、模糊表述等） |
 | `state-machine-check.py` | 状态机闭环检查，按需调用 |
-| `stage-prep.py` | legacy：仅旧项目兼容诊断，vNext 主流程不依赖 |
+| `stage-prep.py` | legacy：仅旧项目兼容诊断，ShitPM 主流程不依赖 |
 | `verify-against-metadata.py` | legacy：仅旧项目 metadata 结构校验 |
 | `shitpm-host.py install/verify/remove` | 安装、验证、卸载宿主映射 |
 
@@ -311,7 +311,7 @@ python scripts/python/state-machine-check.py --project-root .
 不会。Review 是 finding 不是门禁，不自动阻断后续工作，也不替用户决定是否继续。
 
 **Q: 旧项目有 metadata 怎么办？**
-不影响 vNext 主流程。canonical 文件探测优先于 `status.json` 的 artifacts 镜像，metadata 不再构成硬门禁。`stage-prep.py` 和 `verify-against-metadata.py` 仅作为 legacy 兼容诊断保留。
+不影响 ShitPM 主流程。canonical 文件探测优先于 `status.json` 的 artifacts 镜像，metadata 不再构成硬门禁。`stage-prep.py` 和 `verify-against-metadata.py` 仅作为 legacy 兼容诊断保留。
 
 **Q: `stage-context.py` 报 `status_source: corrupted` 怎么办？**
 `status.json` JSON 损坏。脚本仍会基于 canonical 文件输出可用动作，但建议修复或删除 `.workflow/status.json` 后由后续流程重建。
@@ -319,9 +319,9 @@ python scripts/python/state-machine-check.py --project-root .
 **Q: `design-confirmation.py check` 返回 `hash_mismatch` 怎么办？**
 `design.md` 在上次确认后被修改。需要重新运行 `confirm` 命令重新确认当前版本，下游动作才会恢复可用。
 
-## 10. 验收标准（vNext）
+## 10. 验收标准（ShitPM）
 
-vNext 主流程应满足：
+ShitPM 主流程应满足：
 
 1. `stage-context.py` 输出 `available_actions`，PRD、Prototype 在 Design 确认后可用
 2. Design 修改后旧确认自动失效，`design-confirmation.py check` 返回 `hash_mismatch`

@@ -1,6 +1,6 @@
 ---
 name: spm-design
-description: "设计阶段——vNext：同时承担 Product Definition 和唯一 Design 基线。用于用户说开始设计、做设计、进入设计时。首次生成必须尽量完成业务流程、角色权限、数据范围、状态转换、模块边界、跨系统责任、异常路径和方案权衡。高影响问题不能推迟给 PRD、Prototype 或 Review。Design 是唯一事实源。"
+description: "设计阶段——ShitPM：同时承担 Product Definition 和唯一 Design 基线。用于用户说开始设计、做设计、进入设计时。首次生成必须尽量完成业务流程、角色权限、数据范围、状态转换、模块边界、跨系统责任、异常路径和方案权衡。高影响问题不能推迟给 PRD、Prototype 或 Review。Design 是唯一事实源。"
 ---
 
 ## 路径解析
@@ -14,7 +14,7 @@ description: "设计阶段——vNext：同时承担 Product Definition 和唯�
 
 流程开始时输出模型等级和推理深度建议（直接复用 PRD §6.3 推荐矩阵）：
 
-- **默认使用深度推理模型**：Design 是 vNext 最重要的深度推理模块，承载 Product Definition 全部高影响判断
+- **默认使用深度推理模型**：Design 是 ShitPM 最重要的深度推理模块，承载 Product Definition 全部高影响判断
 - **可使用轻量模型的条件**：业务和关系确实简单、输入完整且不需要方案权衡
 - **无法判断复杂度时**：使用深度推理模型，优先保护首次产物质量
 
@@ -22,7 +22,7 @@ description: "设计阶段——vNext：同时承担 Product Definition 和唯�
 
 ## 职责定位
 
-vNext：spm-design 同时承担 **Product Definition** 和 **Design 基线**。
+ShitPM：spm-design 同时承担 **Product Definition** 和 **Design 基线**。
 
 - 首次生成必须尽量完成：业务流程、角色权限、数据范围、状态转换、模块边界、跨系统责任、异常路径、方案权衡
 - 高影响问题不能推迟给 PRD、Prototype 或 Review
@@ -158,13 +158,13 @@ PRD 可为交付目的镜像这些内容，但不得独立改写语义。
 
 ### 稳定 ID 规则（legacy）
 
-1. vNext 新项目不要求生成稳定 ID
+1. ShitPM 新项目不要求生成稳定 ID
 2. 旧项目保留的 metadata 仅用于兼容诊断，不构成 Design 质量证明
 3. design.md 正文不得出现稳定 ID
 
 ## decision-notes.md（必须生成）
 
-vNext：spm-design 必须同时生成 `output/design/decision-notes.md`，记录相对于**实际输入基准**（align.md 或用户原始需求）的四类决策：
+ShitPM：spm-design 必须同时生成 `output/design/decision-notes.md`，记录相对于**实际输入基准**（align.md 或用户原始需求）的四类决策：
 
 - **设计决策**：上游未覆盖但必须做的选择
 - **偏离**：未按上游执行的地方及理由
@@ -214,7 +214,7 @@ Product Definition（产品定义）章节：
 
 - `current_stage`：更新为 `"design"`
 - `artifacts.design`：指向 `output/design/design.md`
-- `next_recommended`：可省略或设为 `null`（vNext 不再线性推进）
+- `next_recommended`：可省略或设为 `null`（ShitPM 不再线性推进）
 
 ### 确认标记（不自动写）
 

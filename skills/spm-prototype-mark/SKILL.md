@@ -1,6 +1,6 @@
 ---
 name: spm-prototype-mark
-description: "原型标注——vNext：为已生成的原型添加悬浮导航栏、关键点标记和内容备注弹窗。用于用户说开始标注、原型标注、prototype mark 时，复制原型到 prototypemark 目录并注入标注系统，AI 根据 design 和（可选）PRD 自动生成初始备注。不进入 review 链路，不修改原始原型，不成为产品事实源，高影响意见交由 Fix 回写 Design。"
+description: "原型标注——ShitPM：为已生成的原型添加悬浮导航栏、关键点标记和内容备注弹窗。用于用户说开始标注、原型标注、prototype mark 时，复制原型到 prototypemark 目录并注入标注系统，AI 根据 design 和（可选）PRD 自动生成初始备注。不进入 review 链路，不修改原始原型，不成为产品事实源，高影响意见交由 Fix 回写 Design。"
 ---
 
 ## 路径解析
@@ -19,13 +19,13 @@ description: "原型标注——vNext：为已生成的原型添加悬浮导航�
 
 建议必须是实际运行输出，不只是背景说明。
 
-## vNext 职责定位
+## ShitPM 职责定位
 
 - **不修改原始 Prototype**：只操作 `output/prototypemark/` 副本
 - **不成为产品事实源**：标注内容只是 PRD/Design 内容的展示载体，不是新事实源；**不承诺脱离源文件后仍是权威规格**
 - **可以展示必要上下文，但必须标明来源**：浮窗内容需标注"内容来源：design.md"或"内容来源：prd.md"，脱离源文件后不构成权威规格
 - **高影响意见交由 Fix 回写 Design**：标注过程中发现的高影响问题（缺失模块、错误状态等）不直接修改 Prototype 或 Design，而是按"高影响反馈结构化输出约定"输出意见清单，提示用户通过 spm-fix 回写 Design
-- **PRD 可选**：vNext 中 Prototype 可独立于 PRD 生成，标注也可在无 PRD 时基于 design.md 生成
+- **PRD 可选**：ShitPM 中 Prototype 可独立于 PRD 生成，标注也可在无 PRD 时基于 design.md 生成
 - **不进入 review 链路**：不生成 metadata、不触发 review
 
 # 任务判定
@@ -46,7 +46,7 @@ description: "原型标注——vNext：为已生成的原型添加悬浮导航�
 | PRD | `output/prd/prd.md` | 否 | 退化为基于 `output/design/design.md` 生成备注 |
 | Design | `output/design/design.md` | 是 | 停下，告知需先完成 spm-design 并确认 |
 
-**vNext PRD 缺失时的退化策略**：
+**ShitPM PRD 缺失时的退化策略**：
 - 读取 `output/design/design.md` 中字段定义、状态机、权限规则章节
 - 浮窗内容直接引用 design.md 对应章节描述
 - 在浮窗顶部标注"内容来源：design.md（PRD 未生成）"
@@ -59,7 +59,7 @@ description: "原型标注——vNext：为已生成的原型添加悬浮导航�
 
 ## 步骤 3：模块化需求聚合
 
-读取 `output/prd/prd.md`（vNext：PRD 缺失时退化为读取 `output/design/design.md` 中对应模块章节），以模块化聚合整合需求点：
+读取 `output/prd/prd.md`（ShitPM：PRD 缺失时退化为读取 `output/design/design.md` 中对应模块章节），以模块化聚合整合需求点：
 
 - **组件归一化**：同一组件/模块只标一个角标。将属于同一功能区域的需求整合至一个编号内。
   - 示例：列表行的编辑/删除/查看/权限控制 → 一个角标，挂在操作栏标题。
@@ -255,9 +255,9 @@ Vue/React 可直接调用此接口触发角标重渲染。DOM 变更的自动监
    - 新增项 → 按既定规范生成新角标，编号连续递增。
    - 修改项 → 仅替换 `__PM_ANNOTATIONS` 中对应编号的 Markdown 内容，不改角标位置（除非组件位置变化）。
    - 删除项 → 移除对应 `data-pm-mark` 属性、角标 DOM 和 `__PM_ANNOTATIONS` 条目。
-4. **高影响意见处理（vNext 新增）**：标注过程中发现的高影响问题（缺失模块、错误状态、权限漏洞等）→ 不直接修改 Prototype 或 Design，而是按"高影响反馈结构化输出约定"在标注报告末尾列出"高影响意见清单"，建议用户通过 spm-fix 回写 Design。
+4. **高影响意见处理（ShitPM 新增）**：标注过程中发现的高影响问题（缺失模块、错误状态、权限漏洞等）→ 不直接修改 Prototype 或 Design，而是按"高影响反馈结构化输出约定"在标注报告末尾列出"高影响意见清单"，建议用户通过 spm-fix 回写 Design。
 
-## 高影响反馈结构化输出约定（vNext 新增）
+## 高影响反馈结构化输出约定（ShitPM 新增）
 
 标注过程中发现的高影响问题必须有明确、可被 spm-fix 使用的结构化输出。每条意见包含以下字段：
 
@@ -285,9 +285,9 @@ Vue/React 可直接调用此接口触发角标重渲染。DOM 变更的自动监
 - **不生成页面级角标时不标**。非必要不加页面级标记。
 - **角标一律 `position: fixed` + `document.body` 挂载**。禁止 `position: absolute`，禁止插入目标元素内部。
 - **`__PM_ANNOTATIONS` 的 content 字段必须用单引号包裹**。禁止双引号。
-- **不成为产品事实源（vNext）**。标注内容只是 PRD/Design 内容的展示载体，不构成新事实源；不承诺脱离源文件后仍是权威规格。
+- **不成为产品事实源（ShitPM）**。标注内容只是 PRD/Design 内容的展示载体，不构成新事实源；不承诺脱离源文件后仍是权威规格。
 - **展示必要上下文必须标明来源**：浮窗内容需标注"内容来源：design.md"或"内容来源：prd.md"。
-- **高影响意见交由 Fix 回写 Design（vNext）**。不直接修改 Prototype 或 Design，按"高影响反馈结构化输出约定"输出意见清单。
+- **高影响意见交由 Fix 回写 Design（ShitPM）**。不直接修改 Prototype 或 Design，按"高影响反馈结构化输出约定"输出意见清单。
 - **不使用 `cp -r` 等 Unix 专属命令**：目录复制操作描述目标结果，由实际工具跨平台执行。
 - **不硬编码特定 Agent 工具协议**：用通用编辑工具描述代替。
 
@@ -307,4 +307,4 @@ Vue/React 可直接调用此接口触发角标重渲染。DOM 变更的自动监
 - [ ] **数据格式**：`__PM_ANNOTATIONS` 的 content 字段是否使用单引号包裹？
 - [ ] **框架集成**：是否暴露了 `window.__pmRenderMarks()` 全局接口？
 - [ ] **来源标注**：浮窗内容是否标注了"内容来源：design.md"或"内容来源：prd.md"？
-- [ ] **高影响意见清单**：是否在报告末尾按结构化输出约定列出待用户决策的高影响意见（vNext）？每条意见是否包含归属层、改什么、改成什么、影响范围、来源、建议处理六字段？
+- [ ] **高影响意见清单**：是否在报告末尾按结构化输出约定列出待用户决策的高影响意见（ShitPM）？每条意见是否包含归属层、改什么、改成什么、影响范围、来源、建议处理六字段？

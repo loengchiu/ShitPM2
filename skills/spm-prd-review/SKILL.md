@@ -1,6 +1,6 @@
 ---
 name: spm-prd-review
-description: "PRD review——vNext：按需独立挑战，判断 PRD 正文质量。不要求 metadata，不要求先通过其他 Review，不自动修改产物，不自动推进阶段，不承担计划内补全。结论区分确定性问题、产品风险和待用户决策问题。不代写 PRD 正文。"
+description: "PRD review——ShitPM：按需独立挑战，判断 PRD 正文质量。不要求 metadata，不要求先通过其他 Review，不自动修改产物，不自动推进阶段，不承担计划内补全。结论区分确定性问题、产品风险和待用户决策问题。不代写 PRD 正文。"
 ---
 
 ## 路径解析
@@ -20,7 +20,7 @@ description: "PRD review——vNext：按需独立挑战，判断 PRD 正文质�
 
 建议必须是实际运行输出，不只是背景说明。
 
-## vNext 职责定位
+## ShitPM 职责定位
 
 - **独立调用**：可随时调用，不要求先通过其他 Review
 - **不要求 metadata**：即使无 metadata 也可执行
@@ -58,7 +58,7 @@ python $BUNDLE/scripts/python/review-precheck.py --project-root . --stage prd --
 文风检查：运行 `python $BUNDLE/scripts/python/prd-style-lint.py output/prd/prd.md`。
 检查 prd.md 无稳定 ID 泄漏。
 
-**vNext 不要求**：
+**ShitPM 不要求**：
 - metadata 存在
 - page-fields.json 存在
 - 其他 Review 通过
@@ -69,7 +69,7 @@ python $BUNDLE/scripts/python/review-precheck.py --project-root . --stage prd --
 2. **三层覆盖**：界面元素与展示规则/交互逻辑与状态流转/异常处理与边界
 3. **一致性（脚本兜底 + LLM 语义增强）**：
 
-   运行确定性结构对比（vNext：直接读取人读 design.md 与 prd.md，不依赖 metadata）：
+   运行确定性结构对比（ShitPM：直接读取人读 design.md 与 prd.md，不依赖 metadata）：
    ```bash
    python $BUNDLE/scripts/python/prd-consistency-check.py --project-root .
    ```
@@ -87,7 +87,7 @@ python $BUNDLE/scripts/python/review-precheck.py --project-root . --stage prd --
 
 4. **结构**：每个小模块末尾含字段定义、状态机归位内容；大模块开头含权限规则归位；状态机按核心业务对象组织，含状态集合/迁移/触发动作和限制条件；权限规则含页面级/按钮级权限
 
-5. **Design 未授权高影响事实检查（vNext 强化）**：
+5. **Design 未授权高影响事实检查（ShitPM 强化）**：
 
    逐项审查 PRD 是否引入了 Design 未授权的高影响产品事实：
    - 新增模块/页面/字段/状态/权限规则未在 design.md 中出现 → P0
@@ -99,7 +99,7 @@ python $BUNDLE/scripts/python/review-precheck.py --project-root . --stage prd --
    - Prototype 表达与 Design 冲突而 PRD 未报告 → P1
    - PRD 应以 Design 为准，并在 decision-notes.md 中报告冲突（如 PRD 生成时已报告则不重复报）
 
-7. **结论分类（vNext 新增）**
+7. **结论分类（ShitPM 新增）**
 
    输出 verdict 时必须区分：
    - **确定性问题**：结构性缺失、密度不达标、明显幻觉、Design 未授权高影响事实等可判定的问题
@@ -127,7 +127,7 @@ issue_layer：`{"structure":N,"content":N,"consistency":N}`。
 
 输出 verdict 后停止等用户确认，不自动推进。
 
-**vNext 不再生成 metadata**：
+**ShitPM 不再生成 metadata**：
 - 不运行 stage-prep.py
 - 不写 metadata_generated 字段（或写 false）
 - 不更新 status.json 中 metadata_paths

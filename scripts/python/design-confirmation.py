@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """design-confirmation.py — Design 确认标记读写工具
 
-vNext：用户对当前 design.md 的最小确认机制。
+ShitPM：用户对当前 design.md 的最小确认机制。
 - 不复制产品事实
 - 不扩展为新的业务阶段
 - 只记录确认对象、SHA-256 哈希和确认时间

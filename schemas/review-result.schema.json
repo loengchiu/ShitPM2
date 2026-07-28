@@ -52,7 +52,7 @@
     "next_recommended": {
       "type": ["string", "null"],
       "enum": ["align", "design", "design-review", "prd", "prd-review", "prototype", "prototype-review", "fix", "done", null],
-      "description": "下一步建议（vNext 可选，不再线性推进；不输出或输出 null 均合法）"
+      "description": "下一步建议（ShitPM 可选，不再线性推进；不输出或输出 null 均合法）"
     },
     "reviewed_at": {
       "type": "string",

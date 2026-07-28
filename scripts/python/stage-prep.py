@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""stage-prep.py — 机读镜像生成脚本（vNext: legacy compatibility）
+"""stage-prep.py — 机读镜像生成脚本（ShitPM: legacy compatibility）
 
-vNext 状态：此脚本标记为 legacy compatibility。
+ShitPM 状态：此脚本标记为 legacy compatibility。
 - 新主流程不再默认调用此脚本生成 metadata。
-- vNext 主流程直接基于人读稿（design.md/prd.md/prototype）工作，不依赖 metadata。
+- ShitPM 主流程直接基于人读稿（design.md/prd.md/prototype）工作，不依赖 metadata。
 - 旧项目仍可显式调用此脚本生成或刷新 metadata，用于兼容诊断。
 - 生成的 metadata 仅作为参考，不作为新流程的硬门禁或产物质量证明。
 - generate_design_metadata 函数仍可被其他脚本（如 prd-consistency-check.py）复用以从 design.md 提取实体。
@@ -13,7 +13,7 @@ vNext 状态：此脚本标记为 legacy compatibility。
 
 用法：python stage-prep.py --stage design [--project-root <path>] [--dry-run]
 
-vNext: CLI 仅暴露 design 阶段；prd/prototype 的 metadata 生成能力保留为内部函数，
+ShitPM: CLI 仅暴露 design 阶段；prd/prototype 的 metadata 生成能力保留为内部函数，
 不再经 CLI 调用（新主流程不依赖 metadata）。
 
 结构说明（按职责分组，便于维护时定位）：
@@ -466,7 +466,7 @@ def _extract_states_from_content(content: str, stage: str, counter: dict) -> lis
       2. 提交后进入 `submitted`
       3. 撤回后从 `submitted` 回到 `draft`
 
-    vNext 修复：补全 entity/transitions/is_terminal 字段，并解析"状态迁移"编号列表，
+    ShitPM 修复：补全 entity/transitions/is_terminal 字段，并解析"状态迁移"编号列表，
     使 state-machine-check.py 能正确判断闭环（之前只提取状态名，不提取迁移，导致全部被判为"无出路"）。
     ID 分配与此函数内联，与 _extract_states_from_tables 对称。
     不再提取 h3 标题（"状态集合"/"状态迁移" 是容器标题不是状态）。
@@ -1005,8 +1005,8 @@ def update_status(stage: str, project_root: Path, dry_run: bool = False):
     }
     base_next = next_map.get(stage, stage)
 
-    # vNext 契约：next_recommended 始终为 null（USAGE.md / status.schema.json 声明）。
-    # legacy stage-prep 不再写入非 null 值，避免与 vNext 契约矛盾；
+    # ShitPM 契约：next_recommended 始终为 null（USAGE.md / status.schema.json 声明）。
+    # legacy stage-prep 不再写入非 null 值，避免与 ShitPM 契约矛盾；
     # 线性推进由用户从 stage-context.py 的 available_actions 自行选择。
     # 保留 base_next 计算仅用于潜在的诊断输出，不写入 status。
     _ = base_next  # noqa: F841（保留计算结果供调试，不写入 status）

@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "DesignMetadata",
-  "description": "design 阶段机读镜像的公共结构定义（文档性契约：当前无脚本强制校验此文件；vNext 主流程不依赖 metadata，仅作为机读镜像结构约定供维护者参考）",
+  "description": "design 阶段机读镜像的公共结构定义（文档性契约：当前无脚本强制校验此文件；ShitPM 主流程不依赖 metadata，仅作为机读镜像结构约定供维护者参考）",
   "type": "object",
   "required": ["schema_version", "stage", "artifact_path", "generated_at", "entity_count", "relation_count"],
   "properties": {

@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""stage-context.py — vNext 轻量导航和上下文脚本
+"""stage-context.py — ShitPM 轻量导航和上下文脚本
 
 职责：
 - 优先探测 canonical 文件：output/align/align.md、output/design/design.md、output/prd/prd.md、output/prototype/
 - 检查 Design 确认标记（.workflow/confirmations/design.json）的哈希是否仍然有效
 - 输出 available_actions 列表（PRD 与 Prototype 是 Design 的两个独立下游）
-- 输出每个动作的模型等级和推理深度建议（来自批准稿 vNext PRD §6）
+- 输出每个动作的模型等级和推理深度建议（来自批准稿 ShitPM PRD §6）
 - status.json 只作为兼容镜像，不得覆盖真实文件判断
 - 无 status.json 时仍能正常输出上下文和可用动作
 - 不生成 metadata，不修改产物
@@ -26,7 +26,7 @@ VALID_STAGES = ["align", "design", "design-review", "prd", "prd-review", "protot
 DESIGN_ARTIFACT = "output/design/design.md"
 CONFIRMATION_FILE = ".workflow/confirmations/design.json"
 
-# canonical 文件相对路径（vNext：真实文件判断优先于 status.artifacts 镜像）
+# canonical 文件相对路径（ShitPM：真实文件判断优先于 status.artifacts 镜像）
 CANONICAL_FILES = {
     "align": "output/align/align.md",
     "design": "output/design/design.md",
@@ -35,7 +35,7 @@ CANONICAL_FILES = {
 }
 
 
-# 模型等级建议（来自 vNext PRD §6.2-6.3）
+# 模型等级建议（来自 ShitPM PRD §6.2-6.3）
 # 不发明新等级，只复用批准稿矩阵
 MODEL_TIER_LIGHT = "轻量模型"
 MODEL_TIER_DEEP = "深度推理模型"
@@ -56,7 +56,7 @@ REASONING_DEPTH = {
     "confirm-design": "无需模型。",
 }
 
-# 各动作默认模型等级建议（vNext PRD §6.3）
+# 各动作默认模型等级建议（ShitPM PRD §6.3）
 DEFAULT_MODEL_TIER = {
     "spm-align": "视任务而定（探索型用深度推理模型，整理型可用轻量模型）",
     "spm-design": MODEL_TIER_DEEP,
@@ -117,7 +117,7 @@ MINIMAL_READ_SET = {
 def load_status(project_root: Path, stdin_status: bool = False) -> dict | None:
     """读取 status.json。返回 dict 或 None。
 
-    vNext：JSON 损坏时输出稳定错误而非崩溃；调用方按 __corrupted__ 标记处理。
+    ShitPM：JSON 损坏时输出稳定错误而非崩溃；调用方按 __corrupted__ 标记处理。
     """
     if stdin_status:
         try:
@@ -147,7 +147,7 @@ def load_align_notes(project_root: Path) -> dict | None:
 
 
 def probe_canonical_files(project_root: Path) -> dict:
-    """vNext：优先探测 canonical 文件，结果覆盖 status.artifacts 镜像。
+    """ShitPM：优先探测 canonical 文件，结果覆盖 status.artifacts 镜像。
 
     返回 {align: bool, design: bool, prd: bool, prototype: bool}
     """
@@ -168,7 +168,7 @@ def _compute_sha256(path: Path) -> str | None:
 
 
 def load_design_confirmation(project_root: Path) -> dict | None:
-    """读取确认标记。vNext：JSON 损坏时返回稳定错误标记。"""
+    """读取确认标记。ShitPM：JSON 损坏时返回稳定错误标记。"""
     path = project_root / CONFIRMATION_FILE
     if not path.exists():
         return None
@@ -182,7 +182,7 @@ def load_design_confirmation(project_root: Path) -> dict | None:
 def _validate_confirmation_payload(payload: dict) -> list[str]:
     """对确认标记做必要字段校验，返回问题列表（空列表表示通过）。
 
-    vNext：确认 Schema 进入执行路径，不依赖可选 jsonschema 库。
+    ShitPM：确认 Schema 进入执行路径，不依赖可选 jsonschema 库。
     """
     problems: list[str] = []
     if not isinstance(payload, dict):
@@ -213,7 +213,7 @@ def _validate_confirmation_payload(payload: dict) -> list[str]:
 def design_confirmation_status(project_root: Path) -> dict:
     """检查 Design 确认状态。返回 {confirmed, reason, current_sha256, confirmed_sha256, confirmed_at, problems}
 
-    vNext：JSON 损坏或字段不合法时输出稳定错误，不抛 traceback。
+    ShitPM：JSON 损坏或字段不合法时输出稳定错误，不抛 traceback。
     """
     design_path = project_root / DESIGN_ARTIFACT
     confirmation = load_design_confirmation(project_root)
@@ -277,7 +277,7 @@ def design_confirmation_status(project_root: Path) -> dict:
 def determine_actual_stage(canonical: dict) -> str:
     """根据 canonical 文件存在情况给出历史兼容的实际阶段标识。
 
-    vNext 不再线性推进，此字段仅用于兼容旧逻辑读取。
+    ShitPM 不再线性推进，此字段仅用于兼容旧逻辑读取。
     """
     has_align = canonical.get("align", False)
     has_design = canonical.get("design", False)
@@ -294,7 +294,7 @@ def determine_actual_stage(canonical: dict) -> str:
 
 
 def recommend_model_for_action(action: str) -> dict:
-    """输出每个动作的模型等级和推理深度建议（来自 vNext PRD §6.2-6.3）。"""
+    """输出每个动作的模型等级和推理深度建议（来自 ShitPM PRD §6.2-6.3）。"""
     return {
         "model_tier": DEFAULT_MODEL_TIER.get(action, "—"),
         "reasoning_depth": REASONING_DEPTH.get(action, "—"),
@@ -308,7 +308,7 @@ def build_available_actions(
 ) -> list[dict]:
     """构建 available_actions 列表：每个动作是否可用 + 原因 + 模型建议。
 
-    vNext：优先用 canonical 文件探测结果，不依赖 status.artifacts 镜像。
+    ShitPM：优先用 canonical 文件探测结果，不依赖 status.artifacts 镜像。
     """
     has_align = canonical.get("align", False)
     has_design = canonical.get("design", False)
@@ -466,7 +466,7 @@ def resolve_bundle_resources() -> dict:
 
 
 def collect_context(project_root: Path, stdin_status: bool = False) -> dict:
-    """vNext：无 status.json 时仍能正常输出，优先用 canonical 文件探测。"""
+    """ShitPM：无 status.json 时仍能正常输出，优先用 canonical 文件探测。"""
     status = load_status(project_root, stdin_status=stdin_status)
     canonical = probe_canonical_files(project_root)
     design_conf = design_confirmation_status(project_root)
@@ -498,12 +498,12 @@ def collect_context(project_root: Path, stdin_status: bool = False) -> dict:
             "path": str(full_path),
         }
 
-    # vNext：不再线性推进，next_recommended 始终为 null，由用户从 available_actions 自行选择
+    # ShitPM：不再线性推进，next_recommended 始终为 null，由用户从 available_actions 自行选择
     next_recommended = None
 
     # status.artifacts 作为兼容镜像保留输出，但不参与决策
     status_artifacts = status_dict.get("artifacts", {})
-    # vNext：合并 canonical 探测结果到 artifacts_mirror，供 Skill 参考
+    # ShitPM：合并 canonical 探测结果到 artifacts_mirror，供 Skill 参考
     artifacts_mirror = {
         "status_registered": status_artifacts,
         "canonical_detected": {k: CANONICAL_FILES[k] for k, v in canonical.items() if v},
@@ -518,16 +518,16 @@ def collect_context(project_root: Path, stdin_status: bool = False) -> dict:
         "metadata_paths": status_dict.get("metadata_paths", {}),
         "latest_reviews": status_dict.get("latest_reviews", {}),
         "align_notes": align_notes if align_notes else {},
-        # vNext 字段
+        # ShitPM 字段
         "design_confirmation": design_conf,
         "available_actions": available_actions,
         "next_recommended": next_recommended,
         "minimal_read_set": resolved_read_set,
         "bundle_resources": bundle_resources,
         "gate": {
-            "can_proceed": True,  # vNext 不再由本脚本阻塞，由各 Skill 自行判断
+            "can_proceed": True,  # ShitPM 不再由本脚本阻塞，由各 Skill 自行判断
             "blocking_issues": [],
-            "note": "vNext 不再使用线性门禁；请参考 available_actions 判断可用动作。",
+            "note": "ShitPM 不再使用线性门禁；请参考 available_actions 判断可用动作。",
         },
     }
 
@@ -545,7 +545,7 @@ def collect_context(project_root: Path, stdin_status: bool = False) -> dict:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="vNext 轻量导航和上下文脚本")
+    parser = argparse.ArgumentParser(description="ShitPM 轻量导航和上下文脚本")
     parser.add_argument("--project-root", required=True, help="项目根目录")
     parser.add_argument("--stdin-status", action="store_true", help="从 stdin 读取 status.json 内容")
     args = parser.parse_args()

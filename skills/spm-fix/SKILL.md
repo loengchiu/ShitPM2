@@ -1,6 +1,6 @@
 ---
 name: spm-fix
-description: "同步修复——vNext：把变更影响沿链路传播到当前真相。用于用户说同步修复、fix、修复传播、回写上游、一致性修复时，或 review 结论建议回上游修复、跨阶段一致性需要同步时。按 fix-propagation-rules.md 的传播矩阵逐层覆盖，不整篇重写，不自动推进阶段，不自动确认 Design，不自动生成所有下游。"
+description: "同步修复——ShitPM：把变更影响沿链路传播到当前真相。用于用户说同步修复、fix、修复传播、回写上游、一致性修复时，或 review 结论建议回上游修复、跨阶段一致性需要同步时。按 fix-propagation-rules.md 的传播矩阵逐层覆盖，不整篇重写，不自动推进阶段，不自动确认 Design，不自动生成所有下游。"
 ---
 
 ## 路径解析
@@ -20,7 +20,7 @@ description: "同步修复——vNext：把变更影响沿链路传播到当前�
 
 建议必须是实际运行输出，不只是背景说明。
 
-## vNext 职责定位
+## ShitPM 职责定位
 
 - **Design 是唯一高影响产品事实源**：高影响 Fix 必须回写 Design
 - **按实际存在的下游分支修复**：不要求 PRD 和 Prototype 同时存在
@@ -59,22 +59,22 @@ description: "同步修复——vNext：把变更影响沿链路传播到当前�
 
 | 类别 | 判断标准 | 归属层 | 事实源文件 | 是否触发 Design 确认失效 |
 |------|---------|--------|-----------|----------------------|
-| 目标/范围/建设方式 | 涉及一期做什么、不做什么 | 设计层 | `output/design/design.md`（vNext：Design 是唯一事实源，目标/范围纳入 Design） | 是 |
+| 目标/范围/建设方式 | 涉及一期做什么、不做什么 | 设计层 | `output/design/design.md`（ShitPM：Design 是唯一事实源，目标/范围纳入 Design） | 是 |
 | 模块/页面/字段/规则 | 涉及数据结构或业务规则定义 | 设计层 | `output/design/design.md` | 是 |
 | 流程/状态/权限 | 涉及状态机、权限矩阵、审批流 | 设计层 | `output/design/design.md` | 是 |
 | 跨系统责任/异常路径 | 涉及系统边界或异常处理 | 设计层 | `output/design/design.md` | 是 |
 | 表现层布局/样式/视觉 | 仅涉及 UI 呈现，不涉及语义 | 原型层 | `output/prototype/index.html`（及 `pages/` 目录，若存在） | 否 |
 | 文案/措辞/格式 | 纯文字修改不涉及语义 | PRD 或 Prototype 对应层 | `output/prd/prd.md` 或 `output/prototype/` | 否 |
 
-**vNext 事实源原则**：Align 是可选输入参考，不是事实源。目标/范围/建设方式的事实源是 `output/design/design.md`，对齐稿 `output/align/align.md`（若存在）仅作为 Design 的输入参考。修改目标/范围必须回写 Design，不通过 Align 反向定源。
+**ShitPM 事实源原则**：Align 是可选输入参考，不是事实源。目标/范围/建设方式的事实源是 `output/design/design.md`，对齐稿 `output/align/align.md`（若存在）仅作为 Design 的输入参考。修改目标/范围必须回写 Design，不通过 Align 反向定源。
 
-**vNext 高影响判定原则**：无法判断影响范围时，按高影响变化处理，归入设计层。
+**ShitPM 高影响判定原则**：无法判断影响范围时，按高影响变化处理，归入设计层。
 
 若修改指令同时涉及多层（如"新增字段并在页面展示"），必须拆分为多步逐层修复，不混在一层改。
 
 ### 步骤 3：读取传播矩阵，确定影响范围
 
-读取 `contracts/fix-propagation-rules.md`，按传播矩阵列出所有受影响的产物文件。**vNext 时序：Fix 阶段只修复事实源层，下游重新生成由用户重新确认 Design 后显式触发 spm-prd / spm-prototype，不自动同步**。
+读取 `contracts/fix-propagation-rules.md`，按传播矩阵列出所有受影响的产物文件。**ShitPM 时序：Fix 阶段只修复事实源层，下游重新生成由用户重新确认 Design 后显式触发 spm-prd / spm-prototype，不自动同步**。
 
 | 修改层 | Fix 阶段必须更新（事实源层） | 下游处理（用户重新确认后由用户显式触发） | 触发 Design 确认失效 |
 |--------|------------------------|---------------------------------------|--------------------|
@@ -97,7 +97,7 @@ description: "同步修复——vNext：把变更影响沿链路传播到当前�
 
 ### 步骤 4：修复事实源层（仅事实源，不修改下游）
 
-vNext 强制时序：**修改事实源 → 旧确认失效 → 用户审阅并重新确认 Design → 用户显式触发下游重新生成**。Fix 阶段只负责修复事实源层，**不直接修改下游 PRD 或 Prototype**。
+ShitPM 强制时序：**修改事实源 → 旧确认失效 → 用户审阅并重新确认 Design → 用户显式触发下游重新生成**。Fix 阶段只负责修复事实源层，**不直接修改下游 PRD 或 Prototype**。
 
 修复动作：
 
@@ -117,7 +117,7 @@ vNext 强制时序：**修改事实源 → 旧确认失效 → 用户审阅并�
 
 完成事实源层修复后，输出修改摘要（改了哪些段落、改了什么），进入步骤 5。
 
-### 步骤 5：Design 确认失效处理（vNext 强制时序，必须先于下游修改）
+### 步骤 5：Design 确认失效处理（ShitPM 强制时序，必须先于下游修改）
 
 若步骤 4 修改了 `output/design/design.md`（设计层或对齐层波及 design）：
 
@@ -138,7 +138,7 @@ vNext 强制时序：**修改事实源 → 旧确认失效 → 用户审阅并�
 
 若步骤 4 仅修改了 PRD 或 Prototype（纯格式/措辞/排版/视觉表达修复），不触发 Design 确认失效，继续步骤 6。
 
-### 步骤 6：一致性校验（vNext：基于人读稿，不依赖 metadata）
+### 步骤 6：一致性校验（ShitPM：基于人读稿，不依赖 metadata）
 
 仅当步骤 4 修改了 PRD（纯文案/措辞修复场景，PRD 是事实源）时运行：
 
@@ -153,7 +153,7 @@ python $BUNDLE/scripts/python/prd-consistency-check.py --project-root .
 - 调用 `/spm-prototype-review` 获取独立挑战
 - 调用 `/spm-design-review` 验证 Design 修改
 
-vNext 不再运行 `verify-against-metadata.py`（标记为 legacy）。若旧项目存在 metadata 且用户希望执行 legacy 一致性校验，可显式调用：
+ShitPM 不再运行 `verify-against-metadata.py`（标记为 legacy）。若旧项目存在 metadata 且用户希望执行 legacy 一致性校验，可显式调用：
 
 ```bash
 python $BUNDLE/scripts/python/verify-against-metadata.py --stage design --project-root .
@@ -202,7 +202,7 @@ python $BUNDLE/scripts/python/verify-against-metadata.py --stage design --projec
 9. Design 修改后必须告知用户重新确认，不自动调用 confirm
 10. **Fix 阶段不修改下游 PRD 或 Prototype**——下游重新生成由用户重新确认 Design 后显式触发 spm-prd / spm-prototype（走完整首次生成责任流程）
 11. 无法判断影响范围时，按高影响变化处理
-12. 不运行 stage-prep.py 生成 metadata（vNext 不再默认生成 metadata）
+12. 不运行 stage-prep.py 生成 metadata（ShitPM 不再默认生成 metadata）
 13. **按实际存在的下游分支提示用户**——不要求 PRD 和 Prototype 同时存在；用户重新确认后按需触发其中之一或两者
 14. **仅在步骤 4 修改了 PRD（纯文案/措辞修复场景）时运行 PRD consistency checker**；Prototype-only 项目必须有合法验证路径
 15. 修改 design.md 后必须使旧确认失效（哈希自动不一致），并提示用户重新确认
@@ -229,4 +229,4 @@ python $BUNDLE/scripts/python/verify-against-metadata.py --stage design --projec
 | 14 | 在 PRD 不存在时仍运行 prd-consistency-check.py | 脚本会因找不到 prd.md 报错 | 仅在步骤 4 修改了 PRD 时运行；Prototype-only 项目用其他验证路径 |
 | 15 | 硬编码 Agent 专属工具名或 Unix 专属命令 | 跨 Agent / 跨平台兼容性 | 用通用工具描述，由实际执行工具完成 |
 | 16 | 要求模型输出思维过程 | 只输出结论、产物、决策和待确认项 | — |
-| 17 | 把 Align 作为目标/范围的事实源 | 违反 vNext "Design 是唯一事实源"原则 | 目标/范围事实源是 design.md；align.md 仅作为输入参考 |
+| 17 | 把 Align 作为目标/范围的事实源 | 违反 ShitPM "Design 是唯一事实源"原则 | 目标/范围事实源是 design.md；align.md 仅作为输入参考 |

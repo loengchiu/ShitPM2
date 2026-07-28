@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""prd-consistency-check.py — PRD 与 design 确定性结构对比（vNext: 直接读人读稿，多模板兼容）
+"""prd-consistency-check.py — PRD 与 design 确定性结构对比（ShitPM: 直接读人读稿，多模板兼容）
 
-vNext 变更：
+ShitPM 变更：
 - 不再依赖 .workflow/metadata/design/ 下的 metadata 文件。
 - 直接读取 output/design/design.md 和 output/prd/prd.md，从人读稿中提取实体做集合对比。
 - 复用 stage-prep.py 的 generate_design_metadata 函数从 design.md 提取实体（不写入 metadata 文件）。
@@ -17,7 +17,7 @@ vNext 变更：
 用法：
   python prd-consistency-check.py --project-root .
 
-vNext 修复包 D 增强：
+ShitPM 修复包 D 增强：
 - 输出分类区分确定性冲突、可能遗漏、需模型语义判断，便于调用方（如 Fix）按严重程度处理。
 - 支持 --allow-no-prd 参数：Prototype-only 项目无 PRD 时返回 skipped，退出码 0，不阻塞 Fix。
 - 字段属性差异（attribute_mismatch）不再视为硬错误，需 LLM 语义判断。
@@ -42,7 +42,7 @@ from shared_md import (
     strip_heading_number,
 )
 
-# PRD 章节别名（用于章节定位，但 vNext 主要采用全文扫描策略，章节定位仅作辅助）
+# PRD 章节别名（用于章节定位，但 ShitPM 主要采用全文扫描策略，章节定位仅作辅助）
 SECTION_ALIASES = {
     "详细需求说明": ["详细需求说明", "详细需求", "需求说明", "详细需求规格", "需求详细说明"],
     "数据字典": ["数据字典", "字段定义", "字段清单", "字段列表", "数据项定义"],
@@ -122,7 +122,7 @@ def _lines_in_ranges(content: str, ranges: list) -> str:
 def extract_prd_fields(headings: list, tables: list, content: str) -> list:
     """从 PRD 提取字段（含属性）
 
-    vNext 多模板兼容策略：
+    ShitPM 多模板兼容策略：
     - 候选章节：详细需求说明、数据字典、字段定义、字段清单
     - 在候选章节范围内的表头含"字段"和"类型"的表视为字段定义表
     - 如候选章节都未找到，降级为全文扫描所有表头含"字段"和"类型"的表
@@ -183,14 +183,14 @@ def extract_prd_fields(headings: list, tables: list, content: str) -> list:
 def extract_prd_pages(content: str, headings: list) -> list:
     """从 PRD 提取页面名
 
-    vNext 多模板兼容策略，识别以下格式：
+    ShitPM 多模板兼容策略，识别以下格式：
     1. 新编号体系粗体块：`**N.N.N 页面名**` 或 `**N.N.N.N 页面名**`
     2. 旧模板格式：`### page-N 页面名`（如 `### page-1 我的周报列表`）
     3. 中编号格式：`### N.N 页面名`（如 `### 3.1 我的周报列表`）
     4. 在"页面说明"章节内的 `### 页面名` 标题（无编号）
 
     跳过大模块（##）和容器章节标题。
-    vNext 修复：候选章节不再包含"详细需求说明"，避免把详细需求下的子模块标题误识别为页面。
+    ShitPM 修复：候选章节不再包含"详细需求说明"，避免把详细需求下的子模块标题误识别为页面。
     """
     blacklist = {
         "业务流程", "核心业务流程", "状态变化", "状态流转",
@@ -301,11 +301,11 @@ def _strip_code_blocks(text: str) -> str:
 def extract_prd_states(content: str, headings: list, tables: list) -> list:
     """从 PRD 提取状态名
 
-    vNext 多模板兼容策略：
+    ShitPM 多模板兼容策略：
     - 候选章节：详细需求说明、状态机、状态定义、状态流转
     - 在候选章节范围内查找箭头文本和状态机表格
     - 如候选章节都未找到，降级为全文扫描
-    - vNext 修复：先排除 fenced code block，避免 Mermaid 图语法（A[草稿] -->、|审批通过| C[已通过]）被误识别为状态
+    - ShitPM 修复：先排除 fenced code block，避免 Mermaid 图语法（A[草稿] -->、|审批通过| C[已通过]）被误识别为状态
 
     支持格式：
     1. 箭头文本：state1 → state2 或 state1 -> state2
@@ -332,7 +332,7 @@ def extract_prd_states(content: str, headings: list, tables: list) -> list:
             seen.add(name)
             states.append(name)
 
-    # vNext 修复：先排除代码块再扫描
+    # ShitPM 修复：先排除代码块再扫描
     content_clean = _strip_code_blocks(content)
 
     # 策略 1: 在候选章节范围内查找
@@ -402,8 +402,8 @@ def extract_prd_states(content: str, headings: list, tables: list) -> list:
 def extract_prd_permission_pages(headings: list, tables: list, content: str) -> list:
     """从 PRD 提取权限页面名
 
-    vNext 多模板兼容策略：
-    - 候选章节：权限汇总、权限定义、权限规则（vNext 修复：移除"详细需求说明"，避免子模块标题误判为权限页面）
+    ShitPM 多模板兼容策略：
+    - 候选章节：权限汇总、权限定义、权限规则（ShitPM 修复：移除"详细需求说明"，避免子模块标题误判为权限页面）
     - 策略 1：在权限章节范围内的 `### N.N xxx` 大模块标题
     - 策略 2：在权限汇总章节内的表格第一列提取页面名（旧模板格式）
     - 策略 3：候选章节未找到，降级为全文扫描权限表
@@ -466,7 +466,7 @@ def extract_prd_permission_pages(headings: list, tables: list, content: str) -> 
     return pages
 
 
-# ── 权限角色对提取（vNext 增强：覆盖角色级一致性） ────────────
+# ── 权限角色对提取（ShitPM 增强：覆盖角色级一致性） ────────────
 
 # 权限章节关键词（与 stage-prep.py _PERM_SECTION_KEYWORDS 保持一致并扩展）
 _PERM_SECTION_KEYWORDS_EXTENDED = (
@@ -546,7 +546,7 @@ def extract_prd_permission_role_pairs(headings: list, tables: list, content: str
     """从 PRD 提取权限 (page, role) 二元组
 
     支持两种格式：
-    - 表格格式：表头是角色名列表，第一列是模块/操作对象名（vNext PRD 模板）
+    - 表格格式：表头是角色名列表，第一列是模块/操作对象名（ShitPM PRD 模板）
     - 列表格式：### 页面名 + - role：action（与 design 权限格式一致）
 
     返回 [{"page": str, "role": str}, ...]
@@ -673,7 +673,7 @@ def compare_permission_role_pairs(
     }
 
 
-# ── 模块提取与对比（vNext 增强：覆盖模块职责一致性） ──────────
+# ── 模块提取与对比（ShitPM 增强：覆盖模块职责一致性） ──────────
 
 def extract_prd_modules(headings: list, content: str) -> list:
     """从 PRD 详细需求说明章节提取模块名
@@ -923,7 +923,7 @@ def compare_permission_pages(
 # ── 主入口 ────────────────────────────────────────────────────
 
 def _load_design_entities_from_md(project_root: Path):
-    """vNext: 从 output/design/design.md 直接提取实体（不依赖 metadata）
+    """ShitPM: 从 output/design/design.md 直接提取实体（不依赖 metadata）
 
     复用 stage-prep.py 的 generate_design_metadata 函数。
     返回 (design_data, error_message)；成功时 error_message 为 None。
@@ -945,7 +945,7 @@ def _load_design_entities_from_md(project_root: Path):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="PRD 与 design 确定性结构对比（vNext: 直接读人读稿，多模板兼容）")
+    parser = argparse.ArgumentParser(description="PRD 与 design 确定性结构对比（ShitPM: 直接读人读稿，多模板兼容）")
     parser.add_argument("--project-root", type=Path, default=Path.cwd(), help="项目根目录")
     parser.add_argument(
         "--allow-no-prd",
@@ -957,8 +957,8 @@ def main():
 
     project_root = args.project_root.resolve()
 
-    # vNext: 直接读 prd.md（兼容 stdin 模式以保留旧调用方式）
-    # vNext 修复：stdin 为空时回退读取默认 prd.md，而非直接报错（CI/重定向环境稳定性）
+    # ShitPM: 直接读 prd.md（兼容 stdin 模式以保留旧调用方式）
+    # ShitPM 修复：stdin 为空时回退读取默认 prd.md，而非直接报错（CI/重定向环境稳定性）
     prd_path = project_root / "output" / "prd" / "prd.md"
     content = None
     if not sys.stdin.isatty():
@@ -967,7 +967,7 @@ def main():
             content = stdin_content
     if content is None:
         if not prd_path.exists():
-            # vNext 修复包 D：--allow-no-prd 时 Prototype-only 项目跳过检查，退出码 0，不阻塞 Fix
+            # ShitPM 修复包 D：--allow-no-prd 时 Prototype-only 项目跳过检查，退出码 0，不阻塞 Fix
             if args.allow_no_prd:
                 print(json.dumps({
                     "skipped": True,
@@ -981,7 +981,7 @@ def main():
         with open(prd_path, encoding="utf-8") as f:
             content = f.read()
 
-    # vNext: 从 design.md 直接提取实体（不依赖 metadata）
+    # ShitPM: 从 design.md 直接提取实体（不依赖 metadata）
     design_data, err = _load_design_entities_from_md(project_root)
     if design_data is None:
         print(json.dumps({"error": err or "无法加载 design 实体"}, ensure_ascii=False))
@@ -992,7 +992,7 @@ def main():
     design_states = design_data.get("states", []) or []
     design_permissions = design_data.get("permissions", []) or []
     design_modules_raw = design_data.get("modules", []) or []
-    # vNext：design 中标记为"非页面落点字段"的内部/审计字段，不应在 PRD 字段表中重复要求
+    # ShitPM：design 中标记为"非页面落点字段"的内部/审计字段，不应在 PRD 字段表中重复要求
     design_non_page_fields = design_data.get("non_page_fields", []) or []
 
     headings = parse_headings(content)
@@ -1009,7 +1009,7 @@ def main():
     prd_states = extract_prd_states(content, headings, tables)
     prd_perm_pages = extract_prd_permission_pages(headings, tables, content)
 
-    # vNext：构建"非页面落点字段"排除集（按 design_field 稳定 ID 匹配）
+    # ShitPM：构建"非页面落点字段"排除集（按 design_field 稳定 ID 匹配）
     # 这些字段在 design 中已明确标注为内部/审计/不展示，PRD 字段表无需重复要求
     excluded_field_ids = {
         entry.get("design_field")
@@ -1045,17 +1045,17 @@ def main():
     )
     perm_result = compare_permission_pages(design_permissions, prd_perm_pages)
 
-    # vNext 增强：权限角色对对比（覆盖角色级一致性，检测 PRD 中 design 没有的角色-页面组合）
+    # ShitPM 增强：权限角色对对比（覆盖角色级一致性，检测 PRD 中 design 没有的角色-页面组合）
     prd_perm_pairs = extract_prd_permission_role_pairs(headings, tables, content)
     perm_pair_result = compare_permission_role_pairs(design_permissions, prd_perm_pairs)
 
-    # vNext 增强：角色集合对比（检测 PRD 中 design 没有的角色，如"超级管理员"幻觉角色）
+    # ShitPM 增强：角色集合对比（检测 PRD 中 design 没有的角色，如"超级管理员"幻觉角色）
     design_roles = sorted({p["role"] for p in design_permissions if isinstance(p, dict) and p.get("role")})
     prd_roles = extract_prd_roles(headings, tables, content)
     role_title_to_id = {r: r for r in design_roles}
     role_result = compare_entities(design_roles, prd_roles, role_title_to_id, None)
 
-    # vNext 增强：模块集合对比（覆盖模块职责一致性）
+    # ShitPM 增强：模块集合对比（覆盖模块职责一致性）
     # 过滤只保留以"模块"结尾的标题，避免从 design 标题推断时误识别非模块标题
     design_modules = [m["title"] for m in design_modules_raw if isinstance(m, dict) and "title" in m and isinstance(m["title"], str) and m["title"].endswith("模块")]
     prd_modules = extract_prd_modules(headings, content)
@@ -1081,7 +1081,7 @@ def main():
     )
     total_attribute_mismatch = len(field_result["attribute_mismatch"])
 
-    # vNext 修复包 D：问题分类（确定性冲突 / 可能遗漏 / 需模型语义判断）
+    # ShitPM 修复包 D：问题分类（确定性冲突 / 可能遗漏 / 需模型语义判断）
     deterministic_conflicts_count = (
         len(field_result["hallucinated"])
         + len(page_result["hallucinated"])
@@ -1132,7 +1132,7 @@ def main():
         },
     }
 
-    # vNext 修复包 D：exit_reason 按严重程度优先级判定
+    # ShitPM 修复包 D：exit_reason 按严重程度优先级判定
     # 优先级：deterministic_conflict > possible_omission > needs_semantic_judgment > ok
     if total_hallucinated > 0 or field_result["enum_mismatch"]:
         exit_reason = "deterministic_conflict"
@@ -1178,7 +1178,7 @@ def main():
 
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
-    # vNext 修复包 D：退出码语义
+    # ShitPM 修复包 D：退出码语义
     # - 0: 无任何问题（exit_reason == "ok"）
     # - 1: 存在确定性冲突 / 可能遗漏 / 属性不一致（调用方按 exit_reason 处理）
     # - 2: 致命错误（design.md 不存在、JSON 损坏等，已在前面 sys.exit(2) 处理）

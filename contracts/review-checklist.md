@@ -1,7 +1,7 @@
 # Review 检查项清单
 
 > 本文件是 reviewer skill 的执行依据，不是 writer 的写作指导。
-> vNext：Review 是按需独立挑战，不构成生成前置门禁，不要求 metadata，不要求先通过其他 Review。
+> ShitPM：Review 是按需独立挑战，不构成生成前置门禁，不要求 metadata，不要求先通过其他 Review。
 
 ## 失败模式速查表
 
@@ -19,22 +19,22 @@
 
 | # | 反模式 | 为什么不要做 | 替代做法 |
 |---|---|---|---|
-| 1 | **把 precheck 当门禁** | vNext：precheck 仅在目标文件不存在/不可读/无法解析时阻止执行；章节缺失、内容不足是 Review finding，不是阻塞 | 缺章节、结构不足应作为 Review 结论输出，不阻止 Review 开始 |
+| 1 | **把 precheck 当门禁** | ShitPM：precheck 仅在目标文件不存在/不可读/无法解析时阻止执行；章节缺失、内容不足是 Review finding，不是阻塞 | 缺章节、结构不足应作为 Review 结论输出，不阻止 Review 开始 |
 | 2 | **把 reviewer 写成 writer** | reviewer 职责是判断质量，不是代写正文 | 只输出 verdict + issues，不输出修改后的文档 |
 | 3 | **用建议代替 verdict** | 建议关注不阻塞下游，PM 可能忽略 | 正式 verdict 只用三档：通过 / 有问题需修改 / 阻塞 |
 | 4 | **只查结构不查语义** | 章节完整不等于内容正确 | 结构检查用 precheck，语义检查用人审，两者缺一不可 |
 | 5 | **一次性输出全部检查项** | PM 看不完，重点被淹没 | 先输出 P0/P1，P2 可选输出 |
 | 6 | **review 通过后自动推进阶段** | 违反 review 不自动推进原则 | 通过后输出建议，由 PM 手动触发下一步 |
 | 7 | **忽略 alias 假阳性** | 章节名用别名时 precheck 可能误报缺失 | 检查 alias_missed_count，>0 时人工确认 |
-| 8 | **把 metadata 当成 Review 前置** | vNext 不要求 metadata 存在 | 即使无 metadata 也可执行 Review，结构完整性由 precheck 判断 |
+| 8 | **把 metadata 当成 Review 前置** | ShitPM 不要求 metadata 存在 | 即使无 metadata 也可执行 Review，结构完整性由 precheck 判断 |
 | 9 | **把下游内容提升为事实源** | Design 是唯一事实源 | 下游冲突按 Design 修正下游，或经 Fix 回写 Design |
 | 10 | **承担计划内补全** | Review 是独立挑战，不补生成 | 计划内缺口由对应生成 Skill 负责；Review 只输出问题 |
-| 11 | **把一致性校验当门禁** | vNext：一致性校验是 Review finding，不是阻塞门禁 | 一致性问题作为 verdict 依据，不阻止 Review 进行 |
+| 11 | **把一致性校验当门禁** | ShitPM：一致性校验是 Review finding，不是阻塞门禁 | 一致性问题作为 verdict 依据，不阻止 Review 进行 |
 
 ## CHECKPOINT - review 开始前
 
 运行 review-precheck.py --project-root <path> --stage <stage> 查看 blocking_issues。
-vNext：precheck 仅在目标文件不存在、不可读或完全无法解析时阻止 Review；章节缺失、结构不足、metadata 缺失和正文质量问题应作为 Review finding 返回，不阻止 Review 开始。
+ShitPM：precheck 仅在目标文件不存在、不可读或完全无法解析时阻止 Review；章节缺失、结构不足、metadata 缺失和正文质量问题应作为 Review finding 返回，不阻止 Review 开始。
 Review 不要求 metadata 存在，不要求先通过其他 Review。
 
 ## CHECKPOINT - review 结束前
@@ -44,7 +44,7 @@ Review 不要求 metadata 存在，不要求先通过其他 Review。
 2. 是否需要回上游 -> 输出 needs_upstream_sync: true + affected_objects
 3. 是否区分了确定性问题、产品风险和待用户决策问题
 
-> vNext：`next_recommended` 可选输出，不再线性推进；reviewer 可不填或填 null，PM 根据 `available_actions` 自行决定下一步。
+> ShitPM：`next_recommended` 可选输出，不再线性推进；reviewer 可不填或填 null，PM 根据 `available_actions` 自行决定下一步。
 
 ---
 
@@ -79,9 +79,9 @@ Review 不要求 metadata 存在，不要求先通过其他 Review。
 14. 状态定义是否包含流转速览 + 状态明细表（进入/退出条件）+ 逐条迁移规则（触发角色、前置条件、是否可逆）
 15. 涉及多角色或 3+ 步骤的业务流程是否按阶段展开，关键分支是否写具体判断条件，异常路径是否覆盖
 
-### Phase B：高影响缺口暴露（vNext 强化）
+### Phase B：高影响缺口暴露（ShitPM 强化）
 
-> vNext：spm-design 同时承担 Product Definition，高影响缺口必须在 Design 阶段暴露，不能推迟给 PRD、Prototype 或 Review。
+> ShitPM：spm-design 同时承担 Product Definition，高影响缺口必须在 Design 阶段暴露，不能推迟给 PRD、Prototype 或 Review。
 
 16. 业务流程、角色权限、数据范围、状态转换、模块边界、跨系统责任、异常路径和方案权衡是否存在静默缺口
 17. 是否存在“推迟给下游”的高影响问题（应明确暴露并请求用户确认）
@@ -144,7 +144,7 @@ Review 不要求 metadata 存在，不要求先通过其他 Review。
 
 ### 一致性检查（直接基于人读 Design 与人读 PRD）
 
-> vNext：一致性检查直接读取人读 design.md 和 prd.md，不依赖 metadata。
+> ShitPM：一致性检查直接读取人读 design.md 和 prd.md，不依赖 metadata。
 
 34. PRD 字段列表与 design.md 字段定义是否一致
 35. PRD 权限口径与 design.md 权限定义是否一致
@@ -181,7 +181,7 @@ Review 不要求 metadata 存在，不要求先通过其他 Review。
 55. 业务流程是否按阶段展开、关键分支是否写具体判断条件和字段值、异常路径是否覆盖降级策略
 56. 存在跨页面流转或状态变更的模块，是否在详细需求说明中用自然语言明确说明了流转边界和关键结果
 
-### Design 未授权高影响事实检查（vNext 新增）
+### Design 未授权高影响事实检查（ShitPM 新增）
 
 57. PRD 是否引入了 Design 未授权的高影响产品事实（字段、状态、权限、流程、模块边界）
 58. Design 未决的高影响问题是否被 PRD 静默拍板

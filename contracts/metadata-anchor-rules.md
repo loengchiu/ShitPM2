@@ -1,7 +1,7 @@
 # Metadata 规则（legacy compatibility）
 
-> **vNext 状态：legacy compatibility**
-> 本文件描述的 metadata 机制在 vNext 主流程中不再作为事实索引或硬门禁。
+> **ShitPM 状态：legacy compatibility**
+> 本文件描述的 metadata 机制在 ShitPM 主流程中不再作为事实索引或硬门禁。
 > 新项目无需生成 metadata，仍可正常生成、Review、Fix、Start。
 > 旧项目保留的 metadata 文件可被读取、诊断和逐步迁移，但不构成当前产物质量证明。
 >
@@ -33,8 +33,8 @@
 | 4 | **把下游实体塞回上游关系** | 违反关系独立建模原则 | 关系用 REL- 前缀独立 ID |
 | 5 | **跳过 read_existing_entities()** | 新运行会重排已有 ID | 每次生成前先读取已有 ID 映射 |
 | 6 | **metadata 文件留空不报错** | 空文件可能是提取失败，不是真没内容 | 检查 METADATA_EMPTY_OK 白名单 |
-| 7 | **把 metadata 当成新项目硬门禁** | vNext 新项目不要求 metadata | 新项目可直接生成 Design/PRD/Prototype，无需 metadata |
-| 8 | **把 metadata 当成产物质量证明** | vNext 旧 metadata 仅用于兼容诊断 | 以确认版 Design 为唯一事实基线 |
+| 7 | **把 metadata 当成新项目硬门禁** | ShitPM 新项目不要求 metadata | 新项目可直接生成 Design/PRD/Prototype，无需 metadata |
+| 8 | **把 metadata 当成产物质量证明** | ShitPM 旧 metadata 仅用于兼容诊断 | 以确认版 Design 为唯一事实基线 |
 
 
 ## 一、稳定 ID 前缀规范（legacy）
@@ -78,7 +78,7 @@
 
 ## 四、metadata 文件清单（legacy）
 
-> 以下文件清单仅在旧项目或显式运行 legacy 脚本时存在。vNext 新项目不会生成这些文件。
+> 以下文件清单仅在旧项目或显式运行 legacy 脚本时存在。ShitPM 新项目不会生成这些文件。
 
 ### align 阶段（2 个文件，legacy）
 
@@ -100,23 +100,23 @@
 
 ### PRD 阶段（已移除）
 
-vNext 不再为 PRD 阶段生成 metadata。
+ShitPM 不再为 PRD 阶段生成 metadata。
 
 ### prototype 阶段（已移除）
 
-vNext 不再为 prototype 阶段生成 metadata。
+ShitPM 不再为 prototype 阶段生成 metadata。
 
-## 五、校验职责划分（vNext 调整后）
+## 五、校验职责划分（ShitPM 调整后）
 
-| 脚本 | vNext 职责 | legacy 行为 |
+| 脚本 | ShitPM 职责 | legacy 行为 |
 |------|------|---------|
 | verify-against-metadata.py | legacy compatibility：仅在旧项目存在 metadata 时按需执行 | schema 校验 + ID 唯一性校验 |
-| prd-consistency-check.py | vNext：直接读取人读 Design 和人读 PRD，检查明确可解析的标题、角色、对象、状态、关键动作和明显冲突 | 不依赖 Design metadata |
-| review-precheck.py | vNext：文件存在性、可读性和基础结构检查 | 不决定是否允许 Review |
-| prd-style-lint.py | vNext：PRD 模板、文风和格式 | 不变 |
-| state-machine-check.py | vNext：按需检查，不作为所有生成任务的硬门禁 | 无 metadata 时降级 |
+| prd-consistency-check.py | ShitPM：直接读取人读 Design 和人读 PRD，检查明确可解析的标题、角色、对象、状态、关键动作和明显冲突 | 不依赖 Design metadata |
+| review-precheck.py | ShitPM：文件存在性、可读性和基础结构检查 | 不决定是否允许 Review |
+| prd-style-lint.py | ShitPM：PRD 模板、文风和格式 | 不变 |
+| state-machine-check.py | ShitPM：按需检查，不作为所有生成任务的硬门禁 | 无 metadata 时降级 |
 | stage-prep.py | legacy compatibility：新主流程不默认调用 | 仅旧项目兼容诊断 |
-| design-confirmation.py | vNext：Design 确认标记读写 | 无 legacy 对应 |
+| design-confirmation.py | ShitPM：Design 确认标记读写 | 无 legacy 对应 |
 
 幻觉检测和语义一致性判断责任划分：
 - **首次生成阶段**：PRD、Prototype 生成 Skill 必须在正式写入前完成与确认版 Design 的语义对照，覆盖核心对象、角色、状态、关键动作、流程、权限、模块和跨系统边界。这是生成责任，不是 Review 责任。

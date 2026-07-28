@@ -1,14 +1,14 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Status",
-  "description": "ShitPM 工作流状态文件（持久化于 .workflow/status.json）。vNext 起不再把 current_stage 当成唯一流程真相，PRD 和 Prototype 是 Design 的两个独立下游。available_actions 和 design_confirmation 等运行时计算结果由 stage-context.py 实时输出，不持久化到此文件。本 schema 为文档性契约：当前无脚本对 .workflow/status.json 做强制 schema 校验（stage-context.py 读取时仅做必要字段判断，不加载本文件），仅作为 status.json 的结构约定。",
+  "description": "ShitPM 工作流状态文件（持久化于 .workflow/status.json）。ShitPM 起不再把 current_stage 当成唯一流程真相，PRD 和 Prototype 是 Design 的两个独立下游。available_actions 和 design_confirmation 等运行时计算结果由 stage-context.py 实时输出，不持久化到此文件。本 schema 为文档性契约：当前无脚本对 .workflow/status.json 做强制 schema 校验（stage-context.py 读取时仅做必要字段判断，不加载本文件），仅作为 status.json 的结构约定。",
   "type": "object",
   "required": ["current_stage", "artifacts"],
   "properties": {
     "current_stage": {
       "type": "string",
       "enum": ["align", "design", "design-review", "prd", "prd-review", "prototype", "prototype-review", "fix", "done"],
-      "description": "历史字段，仅用于兼容读取。vNext 流程不再线性，以 stage-context.py 的 available_actions 输出和 .workflow/confirmations/design.json 为准。"
+      "description": "历史字段，仅用于兼容读取。ShitPM 流程不再线性，以 stage-context.py 的 available_actions 输出和 .workflow/confirmations/design.json 为准。"
     },
     "artifacts": {
       "type": "object",
@@ -23,7 +23,7 @@
     },
     "metadata_paths": {
       "type": "object",
-      "description": "历史字段：旧 metadata 目录路径。vNext 主流程不依赖，仅用于兼容诊断。",
+      "description": "历史字段：旧 metadata 目录路径。ShitPM 主流程不依赖，仅用于兼容诊断。",
       "properties": {
         "design": { "type": ["string", "null"] },
         "prd": { "type": ["string", "null"] },
@@ -33,7 +33,7 @@
     },
     "latest_reviews": {
       "type": "object",
-      "description": "历史字段：最近一次 review 结果摘要。Review 在 vNext 为按需调用，旧记录不构成产物质量证明。",
+      "description": "历史字段：最近一次 review 结果摘要。Review 在 ShitPM 为按需调用，旧记录不构成产物质量证明。",
       "properties": {
         "design": { "$ref": "#/$defs/review_summary" },
         "prd": { "$ref": "#/$defs/review_summary" },
@@ -45,7 +45,7 @@
     "next_recommended": {
       "type": ["string", "null"],
       "enum": ["align", "design", "design-review", "prd", "prd-review", "prototype", "prototype-review", "fix", "done", null],
-      "description": "历史字段：旧线性流程下一步建议。vNext stage-context.py 始终输出 null，由用户从 available_actions 自行选择。"
+      "description": "历史字段：旧线性流程下一步建议。ShitPM stage-context.py 始终输出 null，由用户从 available_actions 自行选择。"
     }
   },
   "additionalProperties": false,

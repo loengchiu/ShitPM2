@@ -6,9 +6,9 @@
 - 对外产物不得出现 AI 痕迹、内部路径、metadata 字段或调试字段。
 - 写作与产物规则优先描述目标状态；只有门禁、安全、越界、防幻觉才优先用禁止式写法
 
-## 2. vNext 产品契约
+## 2. ShitPM 产品契约
 
-本仓库的 ShitPM 产品契约以 `output/shitpm-vnext-prd.md` 和 `output/shitpm-vnext-implementation-design.md` 为批准基线。所有 Skill、脚本、Schema、模板、契约、文档必须遵守：
+本仓库的 ShitPM 产品契约以 `output/shitpm-v2-prd.md` 和 `output/shitpm-v2-implementation-design.md` 为批准基线。所有 Skill、脚本、Schema、模板、契约、文档必须遵守：
 
 1. **Align 可选**：`spm-align` 是可选需求整理模块。空项目、无 Align 也能直接进入 `spm-design`。
 2. **Design 双重职责**：`spm-design` 同时承担 Product Definition 和 Design Baseline，不新增 `spm-define` 阶段。
@@ -76,12 +76,6 @@
  ```
 
  Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
-
-## 7. 执行环境
-
-- 执行 PowerShell 命令时固定使用 PowerShell 7：`C:\Users\guduj\AppData\Local\Microsoft\WindowsApps\Microsoft.PowerShell_8wekyb3d8bbwe\pwsh.exe`。
-- 执行 Bash 命令时固定使用 Git Bash：`C:\Program Files\Git\bin\bash.exe`。
-- 不依赖裸命令 `pwsh` 或 `bash` 的 PATH 解析，避免命中错误的应用别名或 WSL 入口。
 
 ## 过程审计
 
