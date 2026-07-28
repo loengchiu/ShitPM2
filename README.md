@@ -78,6 +78,13 @@
 | Fix 双分支 | 高影响修改回写 Design 并使旧确认失效；纯表现层修改可以只改对应下游 |
 | 模型等级建议 | 每个动作开始前 AI 会建议用哪种模型（轻量/深度推理）和推理深度 |
 
+**Design 有两种模式，由你选：** `spm-design` 不替你决定用哪种。
+
+- **简单模式**：只完成最小业务闭环——目标、范围、主路径、关键规则、必要状态/权限、功能/数据、异常和验收，不生成无关空章节、干系人地图或虚构状态机。适合需求清楚、范围小的项目。
+- **完整模式**：在简单模式之上，额外承担完整分析——需求理解、业务建模（含业务模型一致性挑战）、系统需求与跨层一致性挑战。适合复杂业务或需要拿去严肃评审的项目。
+
+> 需求理解、业务建模、系统需求这三层分析是 Design 生成时的**内部分析责任**，不是最终 `design.md` 的目录。无论哪种模式，你拿到的都是一份按业务闭环组织、适合人读的设计文档；中间分析过程不写进产物。
+
 **每次启动后**，AI 会列出当前所有可用动作（`available_actions`），每个动作附带模型等级建议，你挑哪个就跑哪个。
 
 ---
@@ -91,8 +98,8 @@
 你的操作：
 
 1. **启动：** 对 AI 说"启动辅助器"。AI 扫描项目状态，列出可用动作（Align、Design），并给出模型建议（比如 Design 建议深度推理模型）
-2. **跳过 Align 直接 Design：** 需求已经够清楚，对 AI 说"开始设计"。AI 通读你给的背景，完成 Design → PRD/Prototype 的语义对照和自检后写入 `output/design/design.md`，同时生成 `decision-notes.md`
-3. **确认 Design：** 你看完设计没问题，运行 `python scripts/python/design-confirmation.py --project-root . confirm` 写入确认
+2. **跳过 Align 直接 Design：** 需求已经够清楚，对 AI 说"开始设计"。如果没指定模式，AI 会问一次"本次用简单模式还是完整模式"——报修系统涉及多角色、派单状态流转和权限，建议选**完整模式**。选定后 AI 通读背景，完成 Design → PRD/Prototype 的语义对照和自检后写入 `output/design/design.md`，同时生成 `decision-notes.md`（记录设计决策、偏离、权衡、待确认，仅作审计）
+3. **确认 Design：** 你看完设计没问题，直接对 AI 说"确认 Design"（或"这个 design 没问题了"）。AI 执行 `confirm-design` 动作，底层运行 `python scripts/python/design-confirmation.py --project-root . confirm` 写入确认。喜欢终端的话也可以自己手敲这条命令。
 4. **并列生成 PRD 和 Prototype：**
    - 对 AI 说"开始写 PRD"——AI 校验 Design 确认有效，按 Design 展开成研发可评审的需求文档
    - 对 AI 说"开始原型"——AI 同样直接读 Design，生成可在浏览器打开的 HTML 原型
@@ -184,7 +191,7 @@ AI 会扫描 `output/` 下已有产物，列出当前所有可用动作和 Desig
 每完成一个动作，AI 会刷新可用动作列表。你只需要：
 
 - **跟 AI 聊你的需求**（Align 阶段，可选）
-- **看 AI 生成的 Design，确认没问题就跑 confirm 命令**
+- **看 AI 生成的 Design，确认没问题就对它说"确认 Design"**
 - **从 PRD 和 Prototype 里挑你想先生成的**（任意顺序、可只选其一）
 - **想要第二意见就调用 Review**（按需，不是必须）
 - **改了字段/权限/状态就让 AI 同步修复**（Fix 双分支传播）
@@ -201,8 +208,8 @@ AI 会扫描 `output/` 下已有产物，列出当前所有可用动作和 Desig
 |------|-----------|
 | "启动辅助器" | 扫描当前状态，列出所有可用动作和模型建议 |
 | "开始对齐" | 多轮对话整理目标/范围/边界（可选，可跳过） |
-| "开始设计" | 生成 Design 基线和 decision-notes，**不自动确认** |
-| "确认 Design" | 你自己跑 `design-confirmation.py confirm` 写入确认 |
+| "开始设计" | 生成 Design 基线和 decision-notes；先选简单/完整模式（未指定会问一次），**不自动确认** |
+| "确认 Design" | 对 AI 说"确认 Design"即可，AI 执行 confirm 动作写入确认（也可自己手敲 `design-confirmation.py confirm`） |
 | "设计 review" | 独立挑战 Design 质量，输出问题清单（不自动改） |
 | "开始写 PRD" | 校验 Design 确认有效后，按 Design 展开成 PRD |
 | "PRD review" | 独立挑战 PRD 质量（不自动改） |
@@ -258,6 +265,20 @@ PRD 和 Prototype 都是 Design 的直接下游，互不为前置：
 - Prototype 不会先做一个错页面给你看再让你指出哪里错了
 - 自检脚本（`prd-style-lint.py`、`prd-consistency-check.py`）在写入前就跑过
 
+### V2 的 Design 质量标准
+
+V2 把"Design 质量"作为首要目标，而不只是"能跑通流程"。完整模式产出的 `design.md` 要覆盖需求理解、业务建模、系统需求三层完整分析。
+
+评审时按五个维度分别评级（L0 失效 → L3 完整可交付），总分不能抵消单个维度的严重缺口：
+
+- **覆盖度**：适用事实、边界、异常、验收是否都到位；
+- **关系解释**：关键对象、角色、状态、权限、数据之间是否互相解释、没有断链；
+- **待确认暴露**：高影响未决事项是否显式标在 `design.md`，没有静默拍板或藏进 决策记录；
+- **产品闭环**：是否形成了端到端可评审的业务闭环；
+- **事实纪律**：没有引入 Design 未授权的高影响事实，没有用内部机制（稳定 ID、缓存、Worker）污染产物。
+
+质量门槛和分级细则见 `references/design-quality-rubric.md`；生成前的分析责任协议见 `references/design-analysis-protocol.md`。
+
 ### 模型等级建议
 
 每个动作开始前，AI 会基于任务复杂度给出模型建议：
@@ -288,7 +309,7 @@ ShitPM 主流程**不依赖** metadata、`status.json`、`stage-prep.py`：
 - Review 不要求 metadata 存在也能执行
 - 旧项目保留的 metadata 仅用于兼容诊断，不构成质量证明
 
-`stage-prep.py`、`verify-against-metadata.py` 等脚本标记为 legacy，仅供旧项目参考使用，不作为新流程硬门禁。
+`stage-prep.py`、`verify-against-metadata.py` 等脚本标记为旧版兼容，仅供旧项目兼容参考，不作为新流程硬门禁。
 
 ---
 

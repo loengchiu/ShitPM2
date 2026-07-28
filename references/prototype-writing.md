@@ -3,35 +3,46 @@
 > 本文件是原型阶段的示例和对照说明。
 > 硬规则在 `skills/spm-prototype/SKILL.md`。
 
-## 失败模式速查表
 
-| 场景 | 触发条件 | 一线修复 | 仍失败兜底 |
-|---|---|---|---|
-| 原型只有一个 HTML 无法维护 | 页面过多全塞在一个文件 | 按模块拆分 HTML 文件 | 若文件超过 5000 行，必须拆分 |
-| 原型重新定义业务规则 | HTML 中包含独立于 design 的业务规则 | 检查原型中的业务规则是否与 design 一致 | 若不一致，回退到 fix 流程 |
-| 原型拆分不当 | 按技术层拆而不是按业务模块 | 一个子系统一个 HTML 文件，index.html 做入口 | 若模块间有共享组件，提取到公共 JS |
-| 表现问题被当成语义问题 | UI 布局问题被误判为业务错误 | 先归类：表现问题 vs 语义问题 | 表现问题只改 prototype，语义问题才回写 design |
-| 未归类就开始修改 | 读完 feedback 后直接改 | 必须先输出归类结果，再开始修改 | 若无法归类，停在澄清，不直接改 |
-| 原型依赖 lib/ 缺失 | `lib/` 目录下 vue/tailwind/daisyui 缺失 | 提示用户运行 `python scripts/python/download-prototype-libs.py` | 停下，不凭记忆生成 |
-| 状态表达不完整 | 只有默认状态，缺异常/空/加载状态 | 按 design 状态定义逐个补入原型 | 若状态过多，先补核心状态，其余在 output/prototype/decision-notes.md 中记录待补，不在原型中残留 [TODO] |
-| 页面渲染空白 | createShellApp 选项合并错误 / lib 缺失 | 1) 检查四件套[^四件套] lib 引用 2) 按 references 第七章模板重写 shell | 回滚到上一可工作版本 |
-| 页面无样式 | HTML 缺 Tailwind/daisyUI 引用 | 给全部 HTML 补齐本地 lib/ 四件套[^四件套]引用 | —— |
 
-## 反例黑名单（不要做的事）
 
-| # | 反模式 | 为什么不要做 | 替代做法 |
-|---|---|---|---|
-| 1 | **把所有页面塞进一个 HTML** | 无法维护，打开很慢 | 按模块拆分，用 index.html 做入口 |
-| 2 | **原型独立定义业务规则** | 与 design 不一致，造成混乱 | 原型只做展示，业务规则以 design 为准 |
-| 3 | **跳过归类直接修改** | 表现问题和语义问题的传播路径完全不同 | 必须先归类再修改 |
-| 4 | **表现问题回写 design** | 表现层反馈不应改变 design 业务定义 | 表现问题只改 prototype |
-| 5 | **使用外部 CDN** | file:// 协议下加载失败 | 使用本地 lib/ 目录四件套[^四件套] |
-| 6 | **使用 Element Plus 组件（`el-xxx`）** | 已废弃，改用 daisyUI | 用 daisyUI 组件类（`btn`/`table`/`card` 等） |
-| 7 | **自造 createShellApp 框架** | 选项合并易出 bug（曾导致全部页面空白） | 复用 references 第七章模板 |
-| 8 | **把页面 extraData 展开到 shell 的 data()** | Vue 选项被当响应式数据，挂载报错 | 页面用独立组件 + `<component :is>` |
+## 目录
 
----
+- [常见错误](#常见错误)
+- [一、原型定位](#一原型定位)
+- [二、通用后台基座](#二通用后台基座)
+- [三、daisyUI 组件使用约定](#三daisyui-组件使用约定)
+- [四、页面落位方式](#四页面落位方式)
+- [五、原型输入](#五原型输入)
+- [六、反馈输入边界](#六反馈输入边界)
+- [七、视觉细节规则（零成本打磨）](#七视觉细节规则零成本打磨)
+  - [1. 文本换行](#1-文本换行)
+  - [2. 同心圆角](#2-同心圆角)
+  - [3. 数字对齐](#3-数字对齐)
+  - [4. 字体平滑](#4-字体平滑)
+  - [5. 阴影代边框](#5-阴影代边框)
 
+## 常见错误
+
+| 级别 | 场景 | 识别信号 | 为什么错 | 首选修复 | 仍失败处理 |
+|---|---|---|---|---|---|
+| 失败处理 | 原型只有一个 HTML 无法维护 | 页面过多全塞在一个文件 | 命中该场景说明当前产物未满足对应要求 | 按模块拆分 HTML 文件 | 若文件超过 5000 行，必须拆分 |
+| 失败处理 | 原型重新定义业务规则 | HTML 中包含独立于 design 的业务规则 | 命中该场景说明当前产物未满足对应要求 | 检查原型中的业务规则是否与 design 一致 | 若不一致，回退到 fix 流程 |
+| 失败处理 | 原型拆分不当 | 按技术层拆而不是按业务模块 | 命中该场景说明当前产物未满足对应要求 | 一个子系统一个 HTML 文件，index.html 做入口 | 若模块间有共享组件，提取到公共 JS |
+| 失败处理 | 表现问题被当成语义问题 | UI 布局问题被误判为业务错误 | 命中该场景说明当前产物未满足对应要求 | 先归类：表现问题 vs 语义问题 | 表现问题只改 prototype，语义问题才回写 design |
+| 失败处理 | 未归类就开始修改 | 读完 feedback 后直接改 | 命中该场景说明当前产物未满足对应要求 | 必须先输出归类结果，再开始修改 | 若无法归类，停在澄清，不直接改 |
+| 失败处理 | 原型依赖 lib/ 缺失 | `lib/` 目录下 vue/tailwind/daisyui 缺失 | 命中该场景说明当前产物未满足对应要求 | 提示用户运行 `python scripts/python/download-prototype-libs.py` | 停下，不凭记忆生成 |
+| 失败处理 | 状态表达不完整 | 只有默认状态，缺异常/空/加载状态 | 命中该场景说明当前产物未满足对应要求 | 按 design 状态定义逐个补入原型 | 若状态过多，先补核心状态，其余在 output/prototype/decision-notes.md 中记录待补，不在原型中残留 [TODO] |
+| 失败处理 | 页面渲染空白 | createShellApp 选项合并错误 / lib 缺失 | 命中该场景说明当前产物未满足对应要求 | 1) 检查四件套[^四件套] lib 引用 2) 按 references 第七章模板重写 shell | 回滚到上一可工作版本 |
+| 失败处理 | 页面无样式 | HTML 缺 Tailwind/daisyUI 引用 | 命中该场景说明当前产物未满足对应要求 | 给全部 HTML 补齐本地 lib/ 四件套[^四件套]引用 | —— |
+| 反模式 | 把所有页面塞进一个 HTML | 出现该做法 | 无法维护，打开很慢 | 按模块拆分，用 index.html 做入口 | — |
+| 反模式 | 原型独立定义业务规则 | 出现该做法 | 与 design 不一致，造成混乱 | 原型只做展示，业务规则以 design 为准 | — |
+| 反模式 | 跳过归类直接修改 | 出现该做法 | 表现问题和语义问题的传播路径完全不同 | 必须先归类再修改 | — |
+| 反模式 | 表现问题回写 design | 出现该做法 | 表现层反馈不应改变 design 业务定义 | 表现问题只改 prototype | — |
+| 反模式 | 使用外部 CDN | 出现该做法 | file:// 协议下加载失败 | 使用本地 lib/ 目录四件套[^四件套] | — |
+| 反模式 | 使用 Element Plus 组件（`el-xxx`） | 出现该做法 | 已废弃，改用 daisyUI | 用 daisyUI 组件类（`btn`/`table`/`card` 等） | — |
+| 反模式 | 自造 createShellApp 框架 | 出现该做法 | 选项合并易出 bug（曾导致全部页面空白） | 复用 references 第七章模板 | — |
+| 反模式 | 把页面 extraData 展开到 shell 的 data() | 出现该做法 | Vue 选项被当响应式数据，挂载报错 | 页面用独立组件 + `<component :is>` | — |
 
 ## 一、原型定位
 
@@ -132,215 +143,23 @@ daisyUI 5 是 CSS-only 库，无 JS 依赖。交互态（modal/dropdown 开关�
 
 ## 五、原型输入
 
+确认版 Design 是 Prototype 的唯一产品事实源。PRD 仅可选用于发现表达差异或冲突，不是 Prototype 生成前置；冲突时以 Design 为准。
+
+
 1. 必须读取 design.md
 2. 如 prd.md 已存在，还需读取：详细需求说明（含字段定义表、状态机表、权限规则）
 3. 如存在反馈，读取 `output/prototype/prototype-feedback.md`
 
-## 六、反馈处理
+## 六、反馈输入边界
 
-prototype-feedback.md 的反馈必须先归类：
-- 表现问题：只改 prototype
-- 语义问题：先回写 design，再同步
+反馈分类、停止条件和语义变更传播由 `skills/spm-prototype/SKILL.md` 与 `contracts/fix-propagation-rules.md` 负责；本文件只保留原型生成和表现层写法。
 
-生成的 `output/prototype/` 必须自包含：`lib/` 使用相对路径引用，所有资源可直接打开离线浏览。后续 spm-prototype-mark 阶段会整体复制该目录到 `output/prototypemark/`，相对路径保证复制后仍可用。
 
-## 七、多页面 shell 写法模板（重要）
 
-> 🔴 历史教训：曾经自造 `createShellApp`，把页面传入的 `extraData` 直接展开到 `data()` 返回对象里，导致 Vue 选项（data/methods/computed）被当作响应式数据属性，页面挂载时报 `Cannot read properties of undefined`，全部空白。
->
-> 本节给出正确模板，必须复用，不得自造 shell 框架。
 
-### 核心原则
 
-1. **shell 定义路由 + 渲染容器**，不持有页面业务数据
-2. **每个页面是一个独立的 Vue 组件对象**（`{ template, data() {...}, methods: {...} }`）
-3. 通过 `<component :is="currentPage">` 动态渲染当前页
-4. **禁止**把页面传入的 Vue 选项展开到 shell 的 `data()` 里
 
-### 正确实现模板（单文件版本，多页可拆分）
-
-```html
-<!DOCTYPE html>
-<html lang="zh-CN" data-theme="light">
-<head>
-  <meta charset="UTF-8" />
-  <link href="lib/daisyui-themes.css" rel="stylesheet" />
-  <link href="lib/daisyui.css" rel="stylesheet" />
-  <script src="lib/tailwind.js"></script>
-  <script src="lib/vue.global.prod.js"></script>
-</head>
-<body>
-  <div id="app">
-    <!-- 顶栏 / 导航省略，参考 templates/prototype.html -->
-
-    <!-- 主体区：动态渲染当前页组件 -->
-    <main>
-      <component :is="currentPageComponent"></component>
-    </main>
-  </div>
-
-  <script>
-    // 1. 定义每个页面为独立组件对象
-    const PageList = {
-      template: `
-        <div class="p-6">
-          <h2 class="text-lg font-medium mb-4">周报列表</h2>
-          <table class="table">
-            <thead><tr><th>标题</th><th>状态</th></tr></thead>
-            <tbody>
-              <tr v-for="item in list" :key="item.id">
-                <td>{{ item.title }}</td>
-                <td><span class="badge" :class="item.status === 'submitted' ? 'badge-primary' : 'badge-ghost'">{{ item.status }}</span></td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      `,
-      data() {
-        return { list: [{ id: 1, title: '第 1 周', status: 'submitted' }] };
-      }
-    };
-
-    const PageEdit = {
-      template: `
-        <div class="p-6">
-          <h2 class="text-lg font-medium mb-4">填写周报</h2>
-          <form class="form-control gap-3 max-w-xl">
-            <label class="label"><span class="label-text">标题</span></label>
-            <input class="input input-bordered" v-model="form.title" />
-            <label class="label"><span class="label-text">内容</span></label>
-            <textarea class="textarea textarea-bordered" rows="6" v-model="form.content"></textarea>
-            <button class="btn btn-primary" @click="submit">提交</button>
-          </form>
-        </div>
-      `,
-      data() {
-        return { form: { title: '', content: '' } };
-      },
-      methods: {
-        submit() { alert('提交: ' + this.form.title); }
-      }
-    };
-
-    // 2. shell 只管路由 + 当前页
-    const App = {
-      data() {
-        return {
-          currentPage: 'PageList',
-          pages: {
-            'PageList': { label: '周报列表', component: PageList },
-            'PageEdit': { label: '填写周报', component: PageEdit }
-          }
-        };
-      },
-      computed: {
-        currentPageComponent() {
-          return this.pages[this.currentPage].component;
-        }
-      },
-      methods: {
-        go(pageKey) {
-          this.currentPage = pageKey;
-        }
-      },
-      template: `
-        <div>
-          <aside>
-            <ul>
-              <li v-for="(p, key) in pages" :key="key" @click="go(key)">{{ p.label }}</li>
-            </ul>
-          </aside>
-          <main><component :is="currentPageComponent"></component></main>
-        </div>
-      `
-    };
-
-    Vue.createApp(App).mount('#app');
-  </script>
-</body>
-</html>
-```
-
-### 多文件拆分版本
-
-页面较多时，把每个页面组件抽到独立 JS 文件：
-
-```
-output/prototype/
-  index.html         # shell + 路由
-  pages/
-    page-list.js     # window.SPM_PAGES.PageList = { template, data, methods }
-    page-edit.js
-```
-
-index.html 引入顺序：
-
-```html
-<script src="lib/vue.global.prod.js"></script>
-<script src="pages/page-list.js"></script>
-<script src="pages/page-edit.js"></script>
-<script>
-  const App = {
-    data() {
-      return {
-        currentPage: 'PageList',
-        pages: {
-          'PageList': { label: '周报列表', component: window.SPM_PAGES.PageList },
-          'PageEdit': { label: '填写周报', component: window.SPM_PAGES.PageEdit }
-        }
-      };
-    },
-    // ... 其余同上
-  };
-  Vue.createApp(App).mount('#app');
-</script>
-```
-
-page-list.js 内容：
-
-```javascript
-window.SPM_PAGES = window.SPM_PAGES || {};
-window.SPM_PAGES.PageList = {
-  template: `...`,
-  data() { return { ... }; },
-  methods: { ... }
-};
-```
-
-### 禁止的反模式
-
-```javascript
-// ❌ 错误 1：把页面 extraData 展开到 shell 的 data() 里
-function createShellApp(pages) {
-  const mergedData = {};
-  pages.forEach(p => Object.assign(mergedData, p.extraData)); // extraData 含 data/methods 会被当响应式属性
-  Vue.createApp({ data() { return mergedData; } }).mount('#app');
-}
-
-// ❌ 错误 2：在 shell 中混用页面级 data 和方法
-const App = {
-  data() {
-    return {
-      currentPage: 'list',
-      // 下面这些是 PageList 的数据，错误地塞到 shell 里
-      list: [],
-      searchKeyword: ''
-    };
-  },
-  methods: {
-    // 下面这些是 PageList 的方法
-    fetchList() { ... },
-    handleSearch() { ... }
-  }
-};
-
-// ❌ 错误 3：自造 createShellApp 函数封装上述反模式
-// 任何叫 createShellApp 的函数都必须按本节模板的"独立组件 + <component :is>"方式实现
-```
-
----
-
-## 八、视觉细节规则（零成本打磨）
+## 七、视觉细节规则（零成本打磨）
 
 > 目标：用一行 CSS 或一个 Tailwind 类，把原型从"能用"提到"像样"。零构建成本，纯 CSS，不引入动画。
 > 模板 `<style>` 已内置第 1/3/4 条；第 2 条通过 daisyUI 组件类间接落地（模板已定义 `--rounded-*` 变量）；第 5 条通过 Tailwind 类落地

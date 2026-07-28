@@ -5,7 +5,7 @@ description: "Prototype Review——独立审查原型页面覆盖、Design 一�
 
 ## 路径与资源
 
-使用当前项目根目录读取 `output/design/`、`output/prototype/` 和 `.workflow/`；使用 `$BUNDLE/contracts/`、`$BUNDLE/schemas/`、`$BUNDLE/scripts/python/` 和 contract 指定的 references。
+使用当前项目根目录读取 `output/design/`、`output/prototype/` 和 `.workflow/`；使用 `$BUNDLE/contracts/`、`$BUNDLE/schemas/`、`$BUNDLE/scripts/python/` 和契约指定的 references。
 
 流程开始时输出模型建议：需要发现业务、权限、状态、跨页面或高影响交互风险时使用深度推理模型；只做页面存在性、结构和明确格式检查时可用轻量模型或脚本；无法判断时使用深度推理模型。
 
@@ -26,24 +26,24 @@ description: "Prototype Review——独立审查原型页面覆盖、Design 一�
 python $BUNDLE/scripts/python/review-precheck.py --project-root . --stage prototype --artifact-file output/prototype/index.html
 ```
 
-输出位于 `.workflow/runtime/prototype/review-precheck.json`。只有目标文件不存在、不可读或无法解析时停止；缺页面、内容不足、冲突、质量问题和 metadata 缺失继续作为 finding。脚本误报 `can_start_review=false` 时人工核对文件可读性，可读则继续并记录 warning。
+输出位于 `.workflow/runtime/prototype/review-precheck.json`。只有目标文件不存在、不可读或无法解析时停止；缺页面、内容不足、冲突、质量问题和 metadata 缺失继续作为审查问题。脚本误报 `can_start_review=false` 时人工核对文件可读性，可读则继续并记录警告。
 3. 运行：
 
 ```text
 python $BUNDLE/scripts/python/prototype-consistency-check.py --project-root .
 ```
 
-需要时运行 `artifact-guard.py check --stage prototype` 检查来源陈旧性；脚本问题作为 finding，不把一致性检查当作 Review 启动门禁。
-4. 读取 `$BUNDLE/contracts/review-checklist.md` 的 Prototype Review 部分和 `$BUNDLE/references/prototype-writing.md`；从 Design 的“页面清单”提取全部页面，逐项输出 `存在 / 缺失 / 幻觉`，并审查字段、状态、主路径、权限、操作限制、异常反馈和 Design 未授权高影响行为。
+需要时运行 `artifact-guard.py check --stage prototype` 检查来源陈旧性；脚本问题作为审查问题，不把一致性检查当作 Review 启动门禁。
+4. 读取 `$BUNDLE/contracts/review-checklist.md`、`$BUNDLE/contracts/prototype-review-checklist.md` 和 `$BUNDLE/references/prototype-writing.md`；发现多页面 shell、路由或空白页问题时再读取 `$BUNDLE/references/prototype-shell.md`；从 Design 的“页面清单”提取全部页面，逐项输出 `存在 / 缺失 / 幻觉`，并审查字段、状态、主路径、权限、操作限制、异常反馈和 Design 未授权高影响行为。
 5. 按 `$BUNDLE/schemas/review-result.schema.json` 输出：
    - 机读：`.workflow/reviews/prototype-review-N.json`
    - 人读：`.workflow/reviews/prototype-review-N.md`
-   - 必须包含逐页面 checklist、verdict、issues、issue_layer、affected_objects、needs_upstream_sync、reviewed_at；P2 记录但不计入 verdict。
-6. 输出 verdict 后停止，不修改任何原型文件。
+   - 必须包含逐页面检查项、`verdict`、`issues`、`issue_layer`、`affected_objects`、`needs_upstream_sync`、`reviewed_at`；P2 记录但不计入 `verdict`。
+6. 输出审查结论后停止，不修改任何原型文件。
 
 ## 判定与失败处理
 
-- 共享 contract 的统一门槛：零 P0/P1 为“通过”；零 P0 且 1 个 P1 为“有问题需修改”；存在 P0 或至少 2 个 P1 为“阻塞”。页面幻觉、Design 未授权高影响行为和主路径不可用按 contract 处理。
-- Design 的“待确认”事实不得在 Prototype 中静默拍板；需要回上游时只设置 `needs_upstream_sync` 并报告 affected objects。
-- 输入缺失、不可读或无法解析时硬阻塞并报告具体路径；脚本或 contract 缺失时报告错误，不伪装为通过。
+- 共享契约的统一门槛：零 P0/P1 为“通过”；零 P0 且 1 个 P1 为“有问题需修改”；存在 P0 或至少 2 个 P1 为“阻塞”。页面幻觉、Design 未授权高影响行为和主路径不可用按契约处理。
+- Design 的“待确认”事实不得在 Prototype 中静默拍板；需要回上游时只设置 `needs_upstream_sync` 并报告受影响对象。
+- 输入缺失、不可读或无法解析时硬阻塞并报告具体路径；脚本或契约缺失时报告错误，不伪装为通过。
 - 不运行 `stage-prep.py`，不生成 metadata，不自动调用 Fix。

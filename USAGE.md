@@ -36,7 +36,7 @@ python scripts/python/shitpm-host.py remove --host <host>
 |------|------|
 | `spm-start` | 状态与导航，列出可用动作和模型建议 |
 | `spm-align` | 可选需求整理 |
-| `spm-design` | Product Definition 与 Design 基线生成 |
+| `spm-design` | 产品定义 与 Design 基线生成 |
 | `spm-prd` | PRD 生成（基于确认版 Design） |
 | `spm-prototype` | Prototype 生成（基于确认版 Design） |
 | `spm-fix` | 变更同步传播 |
@@ -52,6 +52,8 @@ python scripts/python/shitpm-host.py remove --host <host>
 ```powershell
 python scripts/python/stage-context.py --project-root .
 ```
+
+`spm-start` 是只读导航：它按 `$BUNDLE/contracts/start-action-matrix.md` 判定可用动作，并依 `$BUNDLE/templates/start-report.md` 输出项目状态、产物清单、最近 Review、可用动作与每个动作的建议模型等级。**不给唯一下一步**，选择权交给你。
 
 输出关键字段：
 
@@ -77,7 +79,7 @@ python scripts/python/stage-context.py --project-root .
 ```text
 可选：spm-align（需求整理）
         ↓
-spm-design（Product Definition + Design 基线）
+spm-design（产品定义 + Design 基线）
         ↓
 用户明确确认 design.md
         ├───────────────┐
@@ -107,7 +109,7 @@ spm-prototype-mark
 关键原则：
 
 - Align 可选，空项目可直接进入 Design
-- Design 同时承担 Product Definition 与 Design Baseline，是主链路唯一人工确认点
+- Design 同时承担 产品定义 与 Design 基线，是主链路唯一人工确认点
 - 用户确认后的 `design.md` 是 PRD 和 Prototype 的唯一产品事实基线
 - PRD 与 Prototype 并列，可以任意顺序、单独生成
 - Review 是按需独立挑战，不构成门禁，不自动阻塞下一步
@@ -143,6 +145,14 @@ spm-prototype-mark
 
 - `output/design/design.md` — 设计基线
 - `output/design/decision-notes.md` — 过程审计（设计决策、偏离、权衡、待确认）
+
+模式选择（必须由用户决定，Skill 不自动判断）：
+
+- **简单模式**：完成最小业务闭环——目标、范围、主路径、关键规则、必要状态/权限、功能/数据、异常和验收；不生成无关空章节、完整 ABC 中间分析或虚构状态机。
+- **完整模式**：在简单模式基础上承担三层分析责任——需求理解、业务建模（含业务模型一致性挑战）、系统需求与跨层一致性挑战。这三层是**内部分析责任**，其结论必须影响最终事实、待确认项或验收，但分析过程本身不写进 `design.md` 目录。
+- 用户已明确模式则直接采用；未明确则只询问一次，未获得选择前不正式写入 Design。
+
+生成前分析协议见 `$BUNDLE/references/design-analysis-protocol.md`；冻结后质量分级见 `$BUNDLE/references/design-quality-rubric.md`（五维度 L0–L3 评级，覆盖需求理解、业务建模、系统需求三层）。
 
 首次生成责任：
 
@@ -215,6 +225,8 @@ python scripts/python/design-confirmation.py --project-root . show
 
 不要求 PRD 存在；Prototype-only 是合法状态。
 
+Prototype Mark 收集的高影响反馈按 `$BUNDLE/templates/prototype-feedback-classification.md` 区分为**表现问题**（可直接改 Prototype）与**语义问题**（缺失/偏离 Design 事实，交给 `spm-fix` 或回到 Design 处理，不在原型阶段自行拍板）。
+
 ## 6. 按需动作
 
 ### 6.1 Review
@@ -224,7 +236,7 @@ python scripts/python/design-confirmation.py --project-root . show
 - 简单项目可以不调用 Review
 - Review 不修改原始产物、不自动推进阶段、不自动确认 Design
 - Review 结论区分确定性缺陷、产品风险、需用户决策的问题
-- precheck 只在目标文件不存在、不可读或完全无法解析时阻止执行；缺章节、内容不足、冲突和质量问题作为 finding 返回，不用 `can_start_review=false` 阻止
+- 预检查只在目标文件不存在、不可读或完全无法解析时阻止执行；缺章节、内容不足、冲突和质量问题作为审查问题返回，不用 `can_start_review=false` 阻止
 - 深度业务 Review 使用深度推理模型；结构和明确规则核对可使用轻量模型或脚本
 
 ### 6.2 Fix
@@ -272,12 +284,14 @@ python scripts/python/design-confirmation.py --project-root . show
 | `design-confirmation.py confirm` | 写入 Design 确认记录（sha256 + 时间戳） |
 | `design-confirmation.py check` | 检查当前 `design.md` 是否仍与已确认版本一致 |
 | `design-confirmation.py show` | 查看当前确认记录 |
-| `review-precheck.py` | Review 前置检查：文件可读性、章节 finding；缺章节不阻止 Review |
+| `review-precheck.py` | Review 前置检查：文件可读性、章节审查问题；缺章节不阻止 Review |
 | `prd-consistency-check.py` | PRD 与 Design 确定性对比，输出 `hallucinated` / `missing` / `attribute_mismatch`；`--allow-no-prd` 支持 Prototype-only 项目 |
 | `prd-style-lint.py` | PRD 风格检查（坏味道、流水账、模糊表述等） |
 | `state-machine-check.py` | 状态机闭环检查，按需调用 |
-| `stage-prep.py` | legacy：仅旧项目兼容诊断，ShitPM 主流程不依赖 |
-| `verify-against-metadata.py` | legacy：仅旧项目 metadata 结构校验 |
+| `design-analysis-protocol.md` | spm-design 生成前的分析责任协议（双模式、ABC 内部责任边界） |
+| `design-quality-rubric.md` | Design 冻结后的质量分级标准（五维度 L0–L3，覆盖需求理解、业务建模、系统需求三层） |
+| `stage-prep.py` | 旧版兼容：仅旧项目兼容诊断，ShitPM 主流程不依赖 |
+| `verify-against-metadata.py` | 旧版兼容：仅旧项目 metadata 结构校验 |
 | `shitpm-host.py install/verify/remove` | 安装、验证、卸载宿主映射 |
 
 典型用法：
@@ -308,10 +322,10 @@ python scripts/python/state-machine-check.py --project-root .
 可以。Design 确认后直接调用 `spm-prototype`，PRD 不存在不影响 Prototype 生成。
 
 **Q: Review 不通过会阻塞下一步吗？**
-不会。Review 是 finding 不是门禁，不自动阻断后续工作，也不替用户决定是否继续。
+不会。Review 是审查问题而不是门禁，不自动阻断后续工作，也不替用户决定是否继续。
 
 **Q: 旧项目有 metadata 怎么办？**
-不影响 ShitPM 主流程。canonical 文件探测优先于 `status.json` 的 artifacts 镜像，metadata 不再构成硬门禁。`stage-prep.py` 和 `verify-against-metadata.py` 仅作为 legacy 兼容诊断保留。
+不影响 ShitPM 主流程。canonical 文件探测优先于 `status.json` 的 artifacts 镜像，metadata 不再构成硬门禁。`stage-prep.py` 和 `verify-against-metadata.py` 仅作为旧版兼容诊断保留。
 
 **Q: `stage-context.py` 报 `status_source: corrupted` 怎么办？**
 `status.json` JSON 损坏。脚本仍会基于 canonical 文件输出可用动作，但建议修复或删除 `.workflow/status.json` 后由后续流程重建。
@@ -326,7 +340,7 @@ ShitPM 主流程应满足：
 1. `stage-context.py` 输出 `available_actions`，PRD、Prototype 在 Design 确认后可用
 2. Design 修改后旧确认自动失效，`design-confirmation.py check` 返回 `hash_mismatch`
 3. PRD、Prototype 可独立生成，任意顺序
-4. Review 不再因章节缺失被 precheck 阻止，缺章节作为 finding 返回
+4. Review 不再因章节缺失被预检查阻止，缺章节作为审查问题返回
 5. 无 `status.json` 时 `stage-context.py` 仍能正常输出
 6. Prototype-only 项目调用 `prd-consistency-check.py --allow-no-prd` 不阻塞 Fix
 7. 安装后 `verify` 通过，10 个 Skill 映射就位

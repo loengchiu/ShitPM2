@@ -85,7 +85,7 @@ MINIMAL_READ_SET = {
     ],
     "prd": [
         "output/design/design.md",
-        "references/prd-writing.md",
+        "references/prd-writing-rules.md",
         "contracts/prd-writing.profile.json",
         "templates/prd.md",
     ],
@@ -98,18 +98,22 @@ MINIMAL_READ_SET = {
     "design-review": [
         "output/design/design.md",
         "contracts/review-checklist.md",
+        "contracts/design-review-checklist.md",
         "references/design-writing.md",
         "references/design-state-format.md",
+        "references/design-quality-rubric.md",
     ],
     "prd-review": [
         "output/design/design.md",
         "output/prd/prd.md",
         "contracts/review-checklist.md",
+        "contracts/prd-review-checklist.md",
     ],
     "prototype-review": [
         "output/design/design.md",
         "output/prototype/index.html",
         "contracts/review-checklist.md",
+        "contracts/prototype-review-checklist.md",
     ],
 }
 

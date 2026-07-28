@@ -2,15 +2,6 @@
   "profile_name": "prd-writing-v1",
   "description": "PRD 写作轻量硬约束摘要",
   "constraints": {
-    "granularity": {
-      "page_body_min_paragraphs": 3,
-      "require_three_layer_coverage": true,
-      "three_layers": ["界面元素与展示规则", "交互逻辑与状态流转", "异常处理与边界场景"]
-    },
-    "table_usage": {
-      "allowed_for": ["字段定义表", "状态机表", "权限规则", "天然映射关系"],
-      "forbidden_for": ["页面正文主体", "动作描述"]
-    },
     "forbidden_expressions": [
       "**页面目标：**",
       "**关键动作：**",
@@ -32,15 +23,6 @@
       "方便用户",
       "避免用户",
       "符合操作"
-    ],
-    "required_sections": ["名词说明", "详细需求说明"],
-    "field_definition_columns": ["字段", "类型", "必填", "说明"],
-    "bold_usage": "少用加粗，仅用于真正需要强调的少量内容",
-    "numbering": {
-      "chapter": "## N. ...",
-      "section": "### N.N ...",
-      "subsection": "#### N.N.N ...",
-      "page_block": "**N.N.N / N.N.N.N 页面名**"
-    }
+    ]
   }
 }

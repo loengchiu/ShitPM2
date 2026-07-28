@@ -1,6 +1,6 @@
 ---
 name: spm-design
-description: "设计阶段——ShitPM：同时承担 Product Definition 和唯一 Design 基线。用于用户说开始设计、做设计或进入设计时。首次生成必须完成业务流程、角色权限、数据范围、状态转换、模块边界、跨系统责任、异常路径和方案权衡；高影响问题不能推迟给 PRD、Prototype 或 Review。"
+description: "设计阶段——ShitPM：同时承担 产品定义 和唯一 Design 基线。用于用户说开始设计、做设计或进入设计时。首次生成必须完成业务流程、角色权限、数据范围、状态转换、模块边界、跨系统责任、异常路径和方案权衡；高影响问题不能推迟给 PRD、Prototype 或 Review。"
 ---
 
 ## 路径与资源
@@ -20,11 +20,11 @@ description: "设计阶段——ShitPM：同时承担 Product Definition 和唯�
 
 ## 职责与事实源
 
-`spm-design` 同时承担 **Product Definition** 和 **Design Baseline**。
+`spm-design` 同时承担 **产品定义** 和 **Design 基线**。
 
 - Design 是唯一产品事实源；用户确认后的 `output/design/design.md` 是 PRD 和 Prototype 的共同基线。
 - 首次生成承担完整责任，不把高影响问题推迟给 PRD、Prototype 或 Review。
-- 影响下游的未决事实必须在 `design.md` 中显式标记“待确认”，不能只写在 decision notes 中。
+- 影响下游的未决事实必须在 `design.md` 中显式标记“待确认”，不能只写在 决策记录 中。
 - Align 只是可选输入参考；没有 Align、没有 `status.json` 的空项目也必须能直接进入 Design。
 
 ## 输入事实源
@@ -47,7 +47,7 @@ description: "设计阶段——ShitPM：同时承担 Product Definition 和唯�
 
 以下内容必须在 Design 中完成或明确标记“待确认”。章节顺序可以调整，但不能省略事实责任。
 
-### Product Definition（6 类）
+### 产品定义（6 类）
 
 - 产品目标与非目标。
 - 目标用户与使用场景。
@@ -56,7 +56,7 @@ description: "设计阶段——ShitPM：同时承担 Product Definition 和唯�
 - 系统边界与跨系统责任。
 - 高影响待确认：影响下游的未决事实必须在 `design.md` 可见。
 
-### Design Baseline（7 类）
+### Design 基线（7 类）
 
 - 角色定义。
 - 模块定义。
@@ -86,7 +86,7 @@ description: "设计阶段——ShitPM：同时承担 Product Definition 和唯�
    - 完整模式：完成 A 需求理解、B 业务建模、B3 业务模型一致性挑战、C 系统需求和跨层挑战。
 4. 内部执行四段职责：**分析 → 挑战 → 写作 → 成品审查**。挑战发现的缺口必须回到分析结论修正，或在 `design.md` 标记“待确认”；不能把已知高影响问题推给 Review、PRD 或 Prototype。
 5. 按模板和写作规范生成或局部修改 `output/design/design.md`。最终按业务闭环组织，不按 A/B/C 过程写目录，不写 metadata、调试字段、内部路径或 AI 运行痕迹。
-6. 同时按 `$BUNDLE/templates/decision-notes.md` 写入 `output/design/decision-notes.md`，记录设计决策、偏离、权衡、待确认；无内容写“无”。decision notes 只用于审计，不是下游事实输入，也不参与 confirmation 判断。
+6. 同时按 `$BUNDLE/templates/decision-notes.md` 写入 `output/design/decision-notes.md`，记录设计决策、偏离、权衡、待确认；无内容写“无”。决策记录 只用于审计，不是下游事实输入，也不参与 confirmation 判断。
 7. 运行适用的确定性检查。检查器失败、解析失败或发现可证明结构错误时先修复，不推给 Review；本 Skill 不自动执行 Review，也不自动确认 Design。
 8. 创建或更新 `.workflow/status.json`：`current_stage=design`，`artifacts.design=output/design/design.md`；不自动创建或更新 Design confirmation。
 
@@ -100,7 +100,7 @@ description: "设计阶段——ShitPM：同时承担 Product Definition 和唯�
 
 写入：
 
-- `output/design/design.md`：包含 Design Baseline 7 类和 Product Definition 6 类。
+- `output/design/design.md`：包含 Design 基线 7 类和 产品定义 6 类。
 - `output/design/decision-notes.md`：四类审计记录。
 - `.workflow/status.json`：导航状态和产物路径。
 
@@ -112,18 +112,18 @@ python $BUNDLE/scripts/python/design-confirmation.py --project-root . confirm
 
 满足以下条件才报告完成：
 
-1. Design Baseline 7 类和 Product Definition 6 类均存在，或明确标记了真实待确认项。
+1. Design 基线 7 类和 产品定义 6 类均存在，或明确标记了真实待确认项。
 2. 产品目标、非目标、用户、核心流程、数据范围、系统边界和高影响待确认没有静默缺口。
 3. 页面清单、字段定义和页面与字段落点互相对齐。
 4. `decision-notes.md` 已生成，确定性检查已完成。
 
 ## 失败与禁止事项
 
-- 高影响问题无法判断：在 `design.md` 标记“待确认”，在 decision notes 记录原因；不能推迟给下游。
+- 高影响问题无法判断：在 `design.md` 标记“待确认”，在 决策记录 记录原因；不能推迟给下游。
 - 状态机检查失败：先修复 Design，不把问题交给 Review。
 - 参考文件缺失：报告路径；仅在明确允许降级时跳过，不能凭记忆生成完整规则。
 - 不写研发级页面正文、不写高保真视觉表达、不执行 Review、不自动推进阶段。
 - 不重新定义已确认范围，不静默合并新材料，不把 Prototype 表现问题提升为业务事实。
 - 不自动写 confirmation、不要求 Align 存在、不要求 metadata、不要求 Review 先通过、不要求模型输出思维过程。
 
-legacy metadata 规则只按 `$BUNDLE/contracts/metadata-anchor-rules.md` 读取；新主流程不生成 metadata，Design 正文不得出现稳定 ID。
+旧版 metadata 规则只按 `$BUNDLE/contracts/metadata-anchor-rules.md` 读取；新主流程不生成 metadata，Design 正文不得出现稳定 ID。
