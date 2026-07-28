@@ -1428,6 +1428,125 @@ def test_scenario_AD10():
         shutil.rmtree(fixture, ignore_errors=True)
 
 
+def test_scenario_G5_state_machine_fail_closed():
+    """坏 Design 含状态孤岛时，状态检查和确认都必须失败关闭。"""
+    fixture = make_new_fixture_dir()
+    try:
+        design = """# 坏 Design
+
+## 规则与状态定义
+### 任务状态机
+| 状态 | 含义 | 操作人 | 触发动作 | 下一状态 | 限制条件 |
+| --- | --- | --- | --- | --- | --- |
+| 草稿 | 草稿 | 成员 | 提交 | 已提交 | — |
+| 孤岛 | 无来源状态 | 成员 | — | — | — |
+| 已提交 | 已提交 | — | — | — | — |
+"""
+        write_fixture(fixture, "output/design/design.md", design)
+        code, out, err = run_script("state-machine-check.py", "--project-root", str(fixture), "--source", "design")
+        if code != 1 or not out:
+            return False, f"状态孤岛应失败关闭，exit={code}, stdout={out}, stderr={err}"
+        if out.get("summary", {}).get("P1", 0) < 1:
+            return False, f"应报告 P1，实际 {out}"
+        ccode, _, cerr = run_script("design-confirmation.py", "--project-root", str(fixture), "confirm")
+        if ccode == 0 or "确定性检查未通过" not in cerr:
+            return False, f"坏 Design 不应确认，exit={ccode}, stderr={cerr}"
+        if (fixture / ".workflow" / "confirmations" / "design.json").exists():
+            return False, "失败确认不应写入 confirmation.json"
+        return True, ""
+    finally:
+        shutil.rmtree(fixture, ignore_errors=True)
+
+
+def test_scenario_G6_explicit_no_state_machine():
+    """明确声明无状态机或不发生状态变化的 Design 不应被误杀。"""
+    declarations = ("无状态机", "本设计无状态变更", "该对象不发生状态变化")
+    for declaration in declarations:
+        fixture = make_new_fixture_dir()
+        try:
+            design = f"""# 查询设计
+
+## 规则与状态定义
+
+资产查询只读展示，明确声明：{declaration}。
+"""
+            write_fixture(fixture, "output/design/design.md", design)
+            ccode, _, cerr = run_script("design-confirmation.py", "--project-root", str(fixture), "confirm")
+            if ccode != 0:
+                return False, f"无状态 Design 应可确认，声明={declaration}，exit={ccode}, stderr={cerr}"
+            code, out, err = run_script("state-machine-check.py", "--project-root", str(fixture), "--source", "design")
+            if code != 0 or not out.get("no_state_machine_declared"):
+                return False, f"无状态声明未被识别，声明={declaration}，exit={code}, out={out}, stderr={err}"
+        finally:
+            shutil.rmtree(fixture, ignore_errors=True)
+
+    comment_fixture = make_new_fixture_dir()
+    try:
+        design = """# 查询设计
+
+## 规则与状态定义
+
+<!-- 无状态机是模板指令，不是业务声明。 -->
+"""
+        write_fixture(comment_fixture, "output/design/design.md", design)
+        code, out, err = run_script(
+            "state-machine-check.py", "--project-root", str(comment_fixture), "--source", "design"
+        )
+        if code != 1 or out.get("violations", [{}])[0].get("rule") != "state_machine_not_declared":
+            return False, f"模板注释不应被当成声明，exit={code}, out={out}, stderr={err}"
+    finally:
+        shutil.rmtree(comment_fixture, ignore_errors=True)
+
+    return True, ""
+
+
+def test_scenario_G7_state_parser_failure():
+    """Design 编码/解析失败时，确认不能把失败当作通过。"""
+    fixture = make_new_fixture_dir()
+    design_path = fixture / "output" / "design" / "design.md"
+    try:
+        design_path.parent.mkdir(parents=True, exist_ok=True)
+        design_path.write_bytes(b"# Design\n\xff\xfe\n")
+        code, out, err = run_script("state-machine-check.py", "--project-root", str(fixture), "--source", "design")
+        if code != 1 or not out or "解析" not in out.get("error", ""):
+            return False, f"解析失败应失败关闭，exit={code}, out={out}, stderr={err}"
+        ccode, _, cerr = run_script("design-confirmation.py", "--project-root", str(fixture), "confirm")
+        if ccode == 0 or "确定性检查" not in cerr:
+            return False, f"解析失败不应确认，exit={ccode}, stderr={cerr}"
+        return True, ""
+    finally:
+        shutil.rmtree(fixture, ignore_errors=True)
+
+
+def test_scenario_G8_confirmation_bypass_blocked():
+    """即使预先伪造正确哈希，check 也必须重新执行确定性门禁。"""
+    fixture = make_new_fixture_dir()
+    try:
+        design = """# 坏 Design
+
+## 规则与状态定义
+### 任务状态机
+| 状态 | 含义 | 操作人 | 触发动作 | 下一状态 | 限制条件 |
+| --- | --- | --- | --- | --- | --- |
+| 草稿 | 草稿 | 成员 | 提交 | 已提交 | — |
+| 孤岛 | 无来源状态 | 成员 | — | — | — |
+| 已提交 | 已提交 | — | — | — | — |
+"""
+        design_path = write_fixture(fixture, "output/design/design.md", design)
+        digest = __import__("hashlib").sha256(design_path.read_bytes()).hexdigest()
+        write_fixture(fixture, ".workflow/confirmations/design.json", json.dumps({
+            "artifact": "output/design/design.md",
+            "content_sha256": digest,
+            "confirmed_at": "2026-07-28T00:00:00+08:00",
+        }, ensure_ascii=False))
+        code, out, err = run_script("design-confirmation.py", "--project-root", str(fixture), "check")
+        if code != 1 or "deterministic_gate_failed" not in err:
+            return False, f"伪造哈希不应绕过门禁，exit={code}, stdout={out}, stderr={err}"
+        return True, ""
+    finally:
+        shutil.rmtree(fixture, ignore_errors=True)
+
+
 # ── 主入口 ───────────────────────────────────────────────────
 
 SCENARIOS = [
@@ -1459,6 +1578,10 @@ SCENARIOS = [
     ("AD10", "PRD 旧模板 page-N 识别", test_scenario_AD10),
     ("F1", "PRD 枚举和状态值级漂移", test_scenario_F1_enum_and_state_drift),
     ("F2-F4", "下游 provenance、门禁和 Prototype 检查", test_scenario_F2_F3_F4_downstream_guards),
+    ("G5", "坏 Design 状态检查失败关闭", test_scenario_G5_state_machine_fail_closed),
+    ("G6", "明确无状态机声明可通过", test_scenario_G6_explicit_no_state_machine),
+    ("G7", "状态解析失败不能确认", test_scenario_G7_state_parser_failure),
+    ("G8", "伪造哈希不能绕过确认门禁", test_scenario_G8_confirmation_bypass_blocked),
 ]
 
 

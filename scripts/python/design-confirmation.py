@@ -31,6 +31,7 @@ import argparse
 import datetime
 import hashlib
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -114,6 +115,44 @@ def _validate_payload(payload: dict) -> list[str]:
     return problems
 
 
+def run_deterministic_gate(root: Path) -> tuple[bool, dict | None, str | None]:
+    """确认前执行确定性安全网；缺失、崩溃、不可解析或 P1 均失败关闭。"""
+    checker = Path(__file__).with_name("state-machine-check.py")
+    if not checker.exists():
+        return False, None, f"确定性检查器不存在: {checker}"
+    try:
+        proc = subprocess.run(
+            [sys.executable, str(checker), "--project-root", str(root), "--source", "design"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            stdin=subprocess.DEVNULL,
+            timeout=30,
+        )
+    except (OSError, subprocess.SubprocessError) as e:
+        return False, None, f"确定性检查器执行失败: {e}"
+
+    stdout = proc.stdout.strip()
+    if not stdout:
+        detail = proc.stderr.strip() or "检查器没有输出"
+        return False, None, f"确定性检查器输出为空: {detail}"
+    try:
+        report = json.loads(stdout)
+    except json.JSONDecodeError as e:
+        return False, None, f"确定性检查器输出无法解析为 JSON: {e}"
+    if not isinstance(report, dict):
+        return False, None, "确定性检查器输出必须是 JSON 对象"
+
+    summary = report.get("summary") or {}
+    p1 = summary.get("P1", 0)
+    if not isinstance(p1, int):
+        return False, report, "确定性检查器的 P1 汇总不是整数"
+    if proc.returncode != 0 or report.get("ok") is False or p1 > 0:
+        detail = report.get("error") or report.get("violations") or proc.stderr.strip() or "检查器报告失败"
+        return False, report, f"确定性检查未通过: {detail}"
+    return True, report, None
+
+
 def save_confirmation(root: Path, payload: dict) -> None:
     path = _confirmation_path(root)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -129,6 +168,16 @@ def cmd_confirm(root: Path, by: str | None, note: str | None) -> int:
         print(json.dumps({"ok": False, "error": str(e)}, ensure_ascii=False), file=sys.stderr)
         return 1
 
+    gate_ok, gate_report, gate_error = run_deterministic_gate(root)
+    if not gate_ok:
+        print(json.dumps({
+            "ok": False,
+            "error": gate_error,
+            "deterministic_gate": gate_report,
+            "hint": "请修复可证明的 Design 结构错误，或明确声明无状态机后再确认。",
+        }, ensure_ascii=False, indent=2), file=sys.stderr)
+        return 1
+
     payload = {
         "artifact": DESIGN_ARTIFACT,
         "content_sha256": digest,
@@ -140,7 +189,7 @@ def cmd_confirm(root: Path, by: str | None, note: str | None) -> int:
         payload["note"] = note
 
     save_confirmation(root, payload)
-    print(json.dumps({"ok": True, "confirmation": payload}, ensure_ascii=False, indent=2))
+    print(json.dumps({"ok": True, "confirmation": payload, "deterministic_gate": gate_report}, ensure_ascii=False, indent=2))
     return 0
 
 
@@ -177,6 +226,17 @@ def cmd_check(root: Path) -> int:
         }, ensure_ascii=False, indent=2))
         return 1
 
+    gate_ok, gate_report, gate_error = run_deterministic_gate(root)
+    if not gate_ok:
+        print(json.dumps({
+            "ok": False,
+            "confirmed": False,
+            "reason": "deterministic_gate_failed",
+            "error": gate_error,
+            "deterministic_gate": gate_report,
+        }, ensure_ascii=False, indent=2), file=sys.stderr)
+        return 1
+
     try:
         current_digest = compute_sha256(design)
     except FileNotFoundError as e:
@@ -193,6 +253,7 @@ def cmd_check(root: Path) -> int:
         "current_sha256": current_digest,
         "confirmed_sha256": stored_digest,
         "confirmed_at": confirmation.get("confirmed_at"),
+        "deterministic_gate": gate_report,
     }
     if match:
         result["reason"] = "hash_match"

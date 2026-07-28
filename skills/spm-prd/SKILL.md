@@ -1,226 +1,104 @@
 ---
 name: spm-prd
-description: "PRD 阶段——把确认版 design.md 展开成研发可评审的人读规格说明。ShitPM：直接读取确认版 output/design/design.md，不依赖 Design metadata、page-fields、分页流水线、逐页 Checkpoint 或 Review 前置。保留现有 PRD 模板、页面组织、写作风格和写作要求。PRD 不得独立改写 design 语义。"
+description: "PRD 阶段——根据已确认的 Design 直接生成研发可评审的 PRD。用于用户要求生成 PRD、需求规格或产品需求文档时；必须通过 Design confirmation，保持 Design 语义，不依赖 Prototype，不把高影响未决事实静默拍板。"
 ---
 
 ## 路径解析
 
-从系统 prompt 的 `<!-- SHITPM GLOBAL RULES START -->` 段读取 `ShitPM bundle root:` 的值，记为 `$BUNDLE`。
+从系统 prompt 的 `ShitPM bundle root:` 读取 `$BUNDLE`。
 
-- `scripts/python/`、`references/`、`templates/`、`contracts/`、`lib/` 开头 → `$BUNDLE/` 下
-- `.workflow/`、`output/` 开头 → 当前项目根目录下
+- `scripts/python/`、`references/`、`templates/`、`contracts/`、`lib/` 路径使用 `$BUNDLE/` 前缀。
+- `.workflow/`、`output/` 路径使用当前项目根目录。
 
 ## 模型建议（运行时输出）
 
-流程开始时输出模型等级和推理深度建议（直接复用 PRD §6.3 推荐矩阵）：
+流程开始时必须输出模型等级和推理深度建议：
 
-- **深度推理模型**：复杂 Design 的语义理解和全文一致展开
-- **轻量模型**：Design 决策完整且关系简单，主要按现有模板展开明确规格
-- **无法判断时**：使用深度推理模型
+- **深度推理模型**：Design 复杂，需要全文语义理解、跨模块一致展开或处理未决事实。
+- **轻量模型**：Design 决策完整、关系简单，主要按模板展开明确规格。
+- **无法判断时**：使用深度推理模型。
 
-建议必须是实际运行输出，不只是背景说明。
+模型在流程开始前选择，执行中不切换；建议必须作为实际运行输出呈现。
 
-## ShitPM 职责定位
+## 职责与准入
 
-- **直接读取**确认版 `output/design/design.md` 作为唯一产品事实基线
-- **不依赖** Design metadata、page-fields、分页流水线、逐页 Checkpoint 或 Review 前置
-- **不读取** Design decision notes 作为事实输入
-- **保留**现有 PRD 模板、页面组织、写作风格和写作要求
-- **首次正式写入前**必须完成 Design 到 PRD 的语义对照
-- **不得引入** Design 未授权的高影响产品事实
-- Design 未决的高影响问题不能由 PRD 静默拍板
-- **必须同时生成** `output/prd/decision-notes.md`（四类分节，基准是 Design）
+`spm-prd` 是 Design 的直接下游，不依赖 Prototype，也不读取 Design 的 decision notes 作为产品事实。
 
-## 前置检查
+准入条件：
 
-### 准入条件
+1. `output/design/design.md` 存在且可读。
+2. Design confirmation 有效。运行：
 
-1. `output/design/design.md` 存在
-2. Design 确认标记有效：运行 `python $BUNDLE/scripts/python/artifact-guard.py --project-root . check-input --stage prd`
-   - 退出码 0 → 哈希一致，可继续
-   - 非 0 → design.md 未确认或已修改。**拒绝继续**，提示用户重新确认
+   ```text
+   python $BUNDLE/scripts/python/design-confirmation.py --project-root . check
+   ```
 
-如 Design 未确认或哈希不一致，停下告知用户：
-> Design 未确认或已修改。请由用户明确确认当前 Design 后再生成 PRD。
-> 确认方式：运行 `python $BUNDLE/scripts/python/design-confirmation.py --project-root . confirm`
+3. Design 中的高影响待确认事实已经在正文中可见，PRD 不得自行拍板。
 
-**不要求**：
-- Design metadata 存在
-- page-fields.json 存在
-- Design Review 通过
-- Prototype 存在
+检查非成功时停止，不生成或覆盖 PRD，提示用户先确认或重新确认 Design：
+
+```text
+python $BUNDLE/scripts/python/design-confirmation.py --project-root . confirm
+```
+
+不要求以下前置条件：Design metadata、page-fields、Prototype、Design Review 通过。
 
 ## 输入事实源
 
-读取以下文件：
+按以下顺序读取：
 
-1. `.workflow/status.json`（如存在）
-2. `output/design/design.md`（人读事实源，唯一产品事实基线）
-3. `$BUNDLE/templates/prd.md`（章节骨架与注释引导）
-4. `$BUNDLE/references/prd-writing.md`（正反例对照、复杂度分级）
-5. `$BUNDLE/references/prd-writing.profile.json`（机读硬约束）
-6. `$BUNDLE/references/prd-glossary-format.md`（名词说明写法）
-7. `$BUNDLE/references/prd-versioning.md`（版本记录维护规则）
-8. `$BUNDLE/references/prd-scene-checklist.md`（场景覆盖自检清单）
-9. `output/prototype/`（如存在，仅作为表现和页面辅助参考；与 Design 冲突时忽略并报告）
+1. `.workflow/status.json`（如存在，仅用于导航和兼容）。
+2. `output/design/design.md`：唯一产品事实源。
+3. `$BUNDLE/templates/prd.md`：章节骨架。
+4. `$BUNDLE/references/prd-writing.md`：完整写作规则、结构规则和正反例。
+5. `$BUNDLE/contracts/prd-writing.profile.json`：机读写作约束。
+6. `$BUNDLE/references/prd-glossary-format.md`：名词说明规则。
+7. `$BUNDLE/references/prd-versioning.md`：版本记录规则。
+8. `$BUNDLE/references/prd-scene-checklist.md`：场景覆盖自检。
+9. `output/prototype/`（如存在，仅用于发现冲突；与 Design 冲突时以 Design 为准并报告）。
 
-字段定义、页面落点、权限矩阵、状态机从 design.md 原文读取。**不读取** `.workflow/metadata/design/` 下的任何文件，**不读取** `output/design/decision-notes.md` 作为事实输入。
+不得读取 `.workflow/metadata/design/` 作为产品事实，也不得读取 `output/design/decision-notes.md` 作为事实输入。
 
 ## 首次写入前的语义对照
 
-正式写入 prd.md 前必须完成 Design → PRD 的语义对照（输出对照结果，不要求思维过程）：
+正式写入 `output/prd/prd.md` 前必须完成 Design → PRD 语义对照，并输出对照结论：
 
-- 列出 design 中的模块、页面、字段、状态、权限清单
-- 核心对象、角色、状态、关键动作、流程、权限、模块和跨系统边界逐项对照，确认 PRD 表达不超出 Design 范围
-- 标记 Design 中"待确认"项，PRD 不得静默拍板
-- 标记 Design 未授权但 PRD 可能需要的高影响事实，必须暴露在 `output/prd/decision-notes.md` 中
-- 已有 Prototype 与 Design 冲突时，以 Design 为准并在 decision-notes.md 中报告冲突
+- 从 Design 列出模块、页面、字段、状态、权限和关键流程。
+- 逐项核对角色、核心对象、关键动作、流程、权限、状态、异常、模块边界和跨系统责任，确认 PRD 不超出 Design 范围。
+- 标记 Design 中的待确认项，PRD 不得静默拍板。
+- 对 Design 未授权但 PRD 可能需要的高影响事实，写入 `output/prd/decision-notes.md` 的“待确认”。
+- 发现已有 Prototype 与 Design 冲突时，以 Design 为准，并写入 decision notes。
 
 ## 生成策略
 
-ShitPM：取消分页流水线、逐页 Checkpoint、page-fields 索引等能力补偿型机制。
+1. 通读 `output/design/design.md`，建立整体认知。
+2. 完成首次写入前的语义对照。
+3. 完整读取并执行 `$BUNDLE/references/prd-writing.md`、glossary、versioning、scene checklist、profile；不得只依赖模板注释或模型记忆。
+4. 按 `$BUNDLE/templates/prd.md`，依模块、页面和动作生成 `output/prd/prd.md`。
+5. 大型 Design（超过 10 页或 50 个字段）可以分批生成；每批完成后立即自检字段和语义对齐，最后再做全量检查。
+6. 不使用分页流水线、逐页 Checkpoint、page-fields 索引等能力补偿型机制。
 
-1. 通读 `output/design/design.md`，建立整体认知
-2. 完成首次写入前的语义对照
-3. 按 PRD 模板组织内容，逐模块/页面生成详细需求说明
-4. 大型设计（>10 页或 >50 字段）可分批生成，每批生成后立即自检字段对齐
-5. 全量生成后运行 `prd-style-lint.py` 和 `prd-consistency-check.py` 自检；通过后运行 `python $BUNDLE/scripts/python/artifact-guard.py --project-root . record --stage prd` 登记来源哈希
+## 过程审计与检查顺序
 
-`artifact-guard.py record` 是 PRD 正式交付的写入后边界。它会把 Design SHA-256、PRD SHA-256 写入 `.workflow/provenance/prd.json`；Design 重确认或 PRD 被直接修改后，`artifact-guard.py check --stage prd` 会报告陈旧。
+按 `$BUNDLE/templates/decision-notes.md` 生成 `output/prd/decision-notes.md`，基准是 Design，按“设计决策、偏离、权衡、待确认”四类记录；无内容写“无”。decision notes 只用于审计，不参与 Design confirmation，也不是下游事实输入。
 
-## 写作规则
+PRD 正式交付前严格按以下顺序运行：
 
-### 标题与编号
+1. `python $BUNDLE/scripts/python/prd-style-lint.py output/prd/prd.md`
+2. `python $BUNDLE/scripts/python/prd-consistency-check.py --project-root .`
+3. 两项通过后，运行 `python $BUNDLE/scripts/python/artifact-guard.py --project-root . record --stage prd` 登记 Design 和 PRD 来源哈希。
+4. 运行 `python $BUNDLE/scripts/python/artifact-guard.py --project-root . check --stage prd` 复核产物未陈旧。
 
-1. Markdown 标题层级最多 3 级：`##` 章、`###` 节（大模块）、`####` 小节（子模块）
-2. 数字编号体系：`1.` → `1.1` → `1.1.1` → `1.1.1.1`，下一级就增一位，不区分章/节/小节符号差异
-3. 到第 4 位之后不再加数字，统一用 `·` 承载更深层级：`·` 表示动作及同层并列项，动作内子分组用 `-`；动作顺序由页面内位置体现
-4. 页面名用粗体块带编号，编号位数随所属层级递进：单子模块大模块为 `**N.N.N 页面名**`，多子模块大模块为 `**N.N.N.N 页面名**`；不再用 `####` 标题
-5. 导出 docx 时按 Markdown 标题层级映射样式，不靠后处理猜层级
+确定性检查失败时先修复或报告，不能输出“通过”；不能为了消除检查缺口而在 PRD 中发明 Design 没有的事实。
 
-### 页面组织
+## 输出与状态
 
-1. 按模块 → 小模块 → 页面 → 动作组织；模块顺序与 design 模块定义一致，模块内页面顺序与 design 页面清单一致
-2. 模块和小模块开头各用 1-2 句说明职责和涉及页面；大模块额外说明小模块间的衔接关系（如"底稿复核通过后自动生成审计问题，进入下一小模块"）
-3. 大模块开头（模块职责段落之后、第一个小模块之前）写模块级权限规则：默认权限 + 例外字段权限。进模块先建立权限认知，不在每个动作重复默认可见角色
-4. **小模块识别与分层**：
-   - 小模块 = 大模块内围绕同一业务对象或同一管理域的页面集合
-   - **三维度判断**（满足任意一个"差异性明显"就分，不要求硬阈值）：
-     - 业务对象独立性：各页面服务的是不同的业务实体/业务环节吗？（如审计准备的实施方案/审计通知书/进点会记录/审计承诺书/资料清单是 5 个完全不同的业务环节 → 分）
-     - 功能点差异性：各页面的功能操作是否完全不同？（如审计单位首页做任务分发，被审单位首页做任务接收，功能完全不同 → 分）
-     - 角色差异性：各页面服务的角色是否不同？（如审计单位首页 vs 被审单位首页，服务角色不同 → 分）
-   - **不分层**：所有页面围绕同一业务对象、功能操作相似、服务角色相同（如审计计划 7 页面都围绕"年度计划"单一业务对象；周报 2 页面）
-   - 识别方法：先看 design 页面清单，按上述三维度逐页对比；再看 design 状态机章节，独立状态机数量作为业务对象独立性的辅助判断
-   - 只有 1 个小模块的大模块直接展开职责、流程图、页面，不强行分层；多个小模块时按 `#### N.N.N 小模块名` 分层
-5. 小模块职责段落后补充"状态含义"：列出该小模块涉及实体的状态枚举与含义（如"草稿：编制人新建后的初始状态，可编辑、删除"）；状态流转由流程驱动时，在该段落统一说明"所有用户对状态字段只读"，不在每个动作重复
-6. 状态含义后补充流程图（mermaid）；无跨页面流转、无状态变更的小模块不补图，用 1-2 句自然语言说明流转；纯展示、纯配置管理或无业务状态变更的小模块同样不补图
-7. 页面内按用户动作组织，动词短语直接作为动作名（如"查询入库记录""发起入库申请"）
-8. 页面开头可用一段交代页面区域组成和职责，但正文按用户动作组织，不按 UI 区域盘点（如"筛选区""列表区"）
-9. 不允许出现 design 页面清单中不存在的模块、页面、区域或功能点
-10. 不同动作分开写，形成清晰的阅读节奏；整页连续自然段不覆盖多个动作
-11. 列表、表单、详情中的字段描述只写当前动作真正需要读者理解的字段集合、展示方式和关键规则；不把字段定义表完整字段、design 完整字段定义原样搬进页面正文，也不把表单字段原样平移成列表展示列
-12. 动作下如需交代页面区块或信息分组，且区块较多或存在子分组时用列表拆开；区块很少且内容很短时直接用自然句写，不强行拆列表
-13. 小模块最后一个页面之后写该小模块涉及实体的字段定义表（格式 `| 字段 | 类型 | 必填 | 说明 |`，长度/默认值/枚举值/格式/业务来源在影响实现时写入"说明"）。一个实体跨多个小模块时，归位到主要使用该实体的小模块
-14. 小模块字段定义之后写该小模块涉及实体的状态机表（格式 `| 状态 | 含义 | 操作人 | 触发动作 | 下一状态 | 限制条件 |`）。无状态机的小模块省略
+写入：
 
-### 写作风格
+- `output/prd/prd.md`：按模板生成的人读 PRD。
+- `output/prd/decision-notes.md`：相对于 Design 的审计记录。
 
-1. 按操作顺序写成产品规格说明，语言自然但克制，信息密度高；主链路写清步骤、关键分支单列、状态变化落到结果；少讲原因多写规则（展示字段、可点条件、状态变化、失败提示、边界限制）
-2. 每个动作覆盖：触发条件、操作过程、操作结果、异常处理，但不套用固定四段格式
-3. 短句优先：一句一层规则，不写成背景说明
-4. 少用加粗，层级通过标题、编号、段落和列表表达
-5. 一个动作内部按"业务判断与关键结果 → 关键字段/状态 → 默认展示规则 → 异常/边界"组织；排序、分页、默认加载、常规空状态不放在首句，无特殊要求不展开
-6. 用场景条件引出规则（如"手机号不合法时""弱网环境下""倒计时归零后"），不用"界面元素/交互逻辑/异常处理"这类术语标签分小节；正反例对照见 `$BUNDLE/references/prd-writing.md` 2.3 节
-
-### 写作要求
-
-1. 具体数值写死：所有数值直接写具体数字（"每页 20 条""倒计时 60 秒""保留前 3 后 4"），禁止占位
-2. UI 文案（提示、按钮、空状态）直接写在描述中用双引号标明，不单独列文案表；动态展示需说明数据来自系统计算、接口返回、关联带出或用户输入
-3. 超长文本必须交代处理方式：长名称/备注/说明/渠道信息等场景，写清截断、换行、滚动、悬停查看全文中的一种或多种
-4. 标题下内容连续完整，不补空栏目，不写只有标题没有实质内容的占位段；正文用完整段落，不用伪缩进字符、空格模拟首行缩进或空行制造视觉层级
-5. 表格只用于映射关系：字段定义、状态映射、权限规则、枚举定义用表格（字段/状态机放小模块末尾、权限规则放大模块开头）；区域说明、操作说明用自然语言或列表
-6. 混用三种表达，按场景选择：自然段（承接说明）、数字编号列表（有先后顺序、状态推进、处理链路）、`·` 并列列表（同层并列的展示项、校验项、限制项、异常项、动作）；具体编号符号见"标题与编号"
-7. 页面或模块开头的自然段只承担语境交代；进入动作后，不用大段自然段替代规格本身
-8. `## 4. 业务流程` 仅承担整体业务流转和全局视图，优先用自然语言写整体流程，必要时配一张整体流程图；不展开页面级详细流转、按钮操作和模块内部状态细节
-9. 禁用模板腔和模糊表述，完整禁用清单见 `$BUNDLE/references/prd-writing.profile.json` 的 `forbidden_expressions`
-10. **默认角色可见性不写**：按钮和动作的默认可见角色在大模块开头的权限规则区统一列示，详细需求正文不重复；只在有特殊限制时写明（如"仅编制人可见"、"仅项目主审可见"、"仅项目组长/主审可见"）
-11. **衔接角色在动作正文内说清**：动作触发后下一步由谁衔接操作，直接写在动作结果之后（如"下一步由项目组长/主审在详情页进行初审操作"、"被审单位反馈后状态自动变为'征求完毕'"），不单独列表
-
-### 边界
-
-1. `design` 是字段、权限、状态完整定义的唯一事实源；`PRD` 的职责是把 `design` 中已确认的事实展开成研发可评审的人读规格说明
-2. `PRD` 不得独立新增 `design` 中不存在的字段、权限、状态定义，不得改写 `design` 已确认事实的语义
-3. 字段定义和状态机按小模块归位到小模块末尾，权限规则放大模块开头，是 design 事实源的交付镜像，不是新的事实源
-4. 名词说明是 design 已确认术语的 glossary 视图，不新增定义
-5. 版本记录是 PRD 修订历史的留痕区，不承担内容事实
-6. **Design 未授权的高影响产品事实不得引入**（字段、状态、权限、流程、模块边界）
-7. **Design 未决的高影响问题不能由 PRD 静默拍板**——必须暴露在 `output/prd/decision-notes.md` 中
-8. **已有 Prototype 与 Design 冲突时以 Design 为准**，并在 decision-notes.md 中报告冲突
-
-## 名词说明
-
-名词说明章节位置、收录范围、数据来源、写作格式和正反例对照详见 `$BUNDLE/references/prd-glossary-format.md`。
-
-核心硬约束：
-- 固定为第二章，位于"文档概述"之后、"范围"之前
-- 术语来源单一事实源是 `output/design/design.md`，不新增定义
-- 表格列：`| 术语 | 类别 | 定义 |`，按角色→业务→流程→概念分组
-- 一句话定义，不超过 50 字；不写来源，不解释命名，只说"是什么"
-
-## 版本记录
-
-版本记录的维护模式、触发指令、总结逻辑、版本号递增和字段填写规则详见 `$BUNDLE/references/prd-versioning.md`。
-
-核心硬约束：
-- 首次生成只有 v1.0 一行，后续修订不自动追加
-- 用户主动触发"总结本次修订"等指令时才追加新版本
-- 小修订递增小数位（v1.0→v1.1），大修订递增大数位（v1.0→v2.0）
-- 修订说明按维度归纳，不写技术细节，单格内一句话
-
-## 表格格式
-
-**字段定义**：`| 字段 | 类型 | 必填 | 说明 |`（按实体分组，长度/默认值/枚举值/格式/业务来源在影响实现时写入"说明"）
-
-**状态机**：`| 状态 | 含义 | 操作人 | 触发动作 | 下一状态 | 限制条件 |`（6 列齐全）
-
-**权限规则**：列表形式，先写默认权限，再写例外字段权限
-
-## 场景覆盖自检
-
-每个动作写完后按 `$BUNDLE/references/prd-scene-checklist.md` 检查 7 类场景：数据展示、按钮与操作、表单与输入、列表与加载、弹窗、异常与降级、边界。不存在的场景跳过，未覆盖的必须补充。
-
-## decision-notes.md（必须生成）
-
-ShitPM：spm-prd 必须同时生成 `output/prd/decision-notes.md`，记录相对于上游基准（Design）的四类决策：
-
-- **设计决策**：Design 未覆盖但 PRD 必须做的选择
-- **偏离**：未按 Design 执行的地方及理由
-- **权衡**：考虑过但未采用的方案及原因
-- **待确认**：需要用户定夺的问题（含 Design 中已标"待确认"但 PRD 无法推进的项；含 Prototype 与 Design 冲突的报告）
-
-每条列表项写决策+原因，无内容写"无"。
-
-**decision-notes.md 只用于审计，不是下游事实输入**。
-
-## 输出要求
-
-### 人读产物
-
-写入 `output/prd/prd.md`，按 `$BUNDLE/templates/prd.md` 骨架组织。
-
-核心章节必须全部存在：名词说明、详细需求说明（含每个小模块末尾的字段/状态机归位 + 大模块开头的权限规则归位）。
-
-文档头部必须包含版本记录表，首次生成时只有 v1.0 一行；后续维护规则见上文"版本记录"小节。
-
-权限口径：权限规则归位到大模块开头，默认写页面级、按钮级权限；字段权限例外写入详细需求说明对应动作，不强制单列字段级权限矩阵。
-
-辅助章节可选：文档概述、范围、业务流程；验收标准汇总（仅形成真实验收约束时出现）；风险与待确认（仅存在真实风险或待确认项时出现）。
-
-### decision-notes.md
-
-写入 `output/prd/decision-notes.md`，四类分节，基准是 Design。
-
-### 状态更新
+PRD 必须包含版本记录表、名词说明和详细需求说明；每个小模块末尾归位字段定义表及适用的状态机表，大模块开头归位权限规则。文档概述、范围、业务流程、验收标准汇总、风险与待确认等辅助章节，只在存在真实内容时保留，不用空标题占位。具体结构和写法以 references、template、profile 为准。
 
 更新 `.workflow/status.json`：
 
@@ -228,40 +106,21 @@ ShitPM：spm-prd 必须同时生成 `output/prd/decision-notes.md`，记录相�
 - `artifacts.prd`：`"output/prd/prd.md"`
 - `next_recommended`：可省略或设为 `null`
 
-## 完成报告
+完成报告至少说明 PRD 已生成、decision notes 已写入，并提示可调用 `/spm-prd-review`；不自动推进 Prototype，不自动修改 Design confirmation。
 
-输出完成后告知用户：
-- PRD 已生成
-- 可调用 `/spm-prd-review` 获取独立挑战
-- 已有 Prototype 与 Design 冲突时（如有）已在 decision-notes.md 中报告
+## 失败与停止
 
-## 失败模式
+- `design.md` 不存在或不可读：停止，提示先完成 Design。
+- Design confirmation 失败：停止，不生成或覆盖 PRD。
+- 模板、reference 或 profile 缺失：报告具体路径并停止，不凭记忆生成完整 PRD。
+- Design 语义无法对照：停止并暴露冲突，不静默改写。
+- Design 待确认项被 PRD 结论化：移入 decision notes 的“待确认”；仍无法推进时停止并请求用户决定。
+- lint、consistency 或 artifact guard 失败：先修复或报告，不输出“通过”。
 
-| 场景 | 触发条件 | 一线修复 | 仍失败兜底 |
-|------|---------|---------|-----------|
-| Design 未确认 | design-confirmation.py check 返回非 0 退出码 | 停下告知用户先确认 Design | — |
-| design.md 不存在 | output/design/design.md 不存在 | 停下，需要先完成设计阶段 | —— |
-| prd-style-lint.py 报 P0 | lint 检查发现严重格式问题 | 按 lint 输出逐条修正 | 修正后重新运行 lint 直到通过 |
-| 幻觉自检发现幻觉项 | consistency-check 报告 hallucinated 非空 | 删除幻觉字段/页面，从 design.md 重新提取 | 重新自检直到 checklist 无幻觉 |
-| 模板文件不存在 | templates/prd.md 不存在 | 使用内置最小模板 | 停下告知用户安装模板 |
-| 参考文件不存在 | references/prd-writing.md 不存在 | 跳过参考，按硬规则生成 | —— |
-| Design 待确认项被静默拍板 | 语义对照发现 PRD 自行结论化 | 暴露到 decision-notes.md，标"待确认" | 停下让用户确认 |
-| Prototype 与 Design 冲突 | 已有 Prototype 与 Design 表达不一致 | 以 Design 为准，在 decision-notes.md 中报告 | — |
+## 不做的事
 
-## 不要做什么
-
-1. 不重新定义范围
-2. 不脑补 design 没确认的页面和字段
-3. 不写成表格稿、动作流水账或标签式正文
-4. 不把自己变成字段、权限、状态的第二事实源
-5. 不执行 review（建议 `/spm-prd-review`）
-6. 不自动推进到下一阶段
-7. 不依赖 Design metadata、page-fields、分页流水线、逐页 Checkpoint
-8. 不依赖 Prototype 存在；已有 Prototype 仅作辅助参考
-9. 不依赖 Design Review 通过
-10. 不引入 Design 未授权的高影响产品事实
-11. 不把 Design 未决的高影响问题静默拍板
-12. 不读取 Design decision notes 作为事实输入
-13. 幻觉自检：脚本报告的 missing/hallucinated 项逐条列出；LLM 补充检查（规则覆盖、字段属性一致性）必须逐项列出
-14. 不使用不存在的 Read 伪命令（如 `Read $BUNDLE/...`），文件读取用实际可用的工具
-15. 不要求模型输出思维过程，只输出结论、产物、决策和待确认项
+- 不重新定义范围，不脑补 Design 没确认的页面、字段、权限、状态、流程或模块边界。
+- 不把 PRD 变成字段、权限、状态的第二事实源。
+- 不执行 Review，不自动修复 Review 问题，不自动推进阶段。
+- 不依赖 Prototype 存在；不以 Prototype 覆盖 Design。
+- 不要求输出思维过程，只输出结论、产物、决策和待确认项。

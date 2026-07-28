@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-"""state-machine-check.py — 状态机闭环结构层校验（ShitPM: 按需检查）
+"""state-machine-check.py — 状态机闭环结构层校验
 
-ShitPM 状态：此脚本保留为按需检查，不作为所有生成任务的硬门禁。
-- 新主流程不默认调用此脚本。
-- Review skill 可显式调用此脚本做结构层校验。
-- ShitPM：无 states.json 时降级为基于 design.md 解析（调用 stage-prep.py 的解析函数）。
-- 解析失败时跳过结构层检查，仅由 LLM 人审业务层。
+此脚本仍可由 Review 显式调用，但在 Design 确认时作为确定性安全网使用：
+- Design 是唯一事实源，优先从 design.md 解析；
+- 有状态机但解析失败、结构错误或 P1 时失败关闭；
+- 无状态对象必须在 Design 正文明确声明“无状态机”或“无状态流转”；
+- 没有状态数据且没有明确声明时不能降级为通过。
 
-职责：读 .workflow/metadata/design/states.json（ShitPM: 或直接从 design.md 解析），按 entity 分组，
-对每个实体的状态机做结构层 4 条图论校验（design-state-format.md 闭环要求的结构层部分）。
-业务层 4 条（合法出路全覆盖/二次流转闭环/操作人匹配角色/状态语义自洽）仍由 LLM 审查。
+职责：读 .workflow/metadata/design/states.json（ShitPM: 或直接从 design.md 解析），按 entity 分组。
+空状态集合先经过“明确无状态声明”门禁；有状态机时，再执行结构层 4 条图论校验
+（design-state-format.md 闭环要求的结构层部分）。业务层 4 条（合法出路全覆盖/二次流转闭环/操作人匹配角色/状态语义自洽）仍由 LLM 审查。
 
 4 条结构层校验：
 1. non_terminal_must_have_exit：非终态至少一条正向迁移，不悬空
@@ -25,11 +25,27 @@ import argparse
 import importlib.util
 import json
 import os
+import re
 import sys
 from collections import defaultdict, deque
 from pathlib import Path
 
 ROLLBACK_KEYWORDS = ("退回", "驳回", "撤回")
+_NO_STATE_DECLARATION_RE = re.compile(
+    r"无状态机|无状态流转|无状态变更|无状态变化|"
+    r"不发生状态变化|不发生状态流转|不存在状态流转|不存在状态迁移"
+)
+
+
+def _design_declares_no_state_machine(design_path: Path) -> bool:
+    """只有 Design 正文明确声明对象不发生状态机流转时，空状态集合才可通过。"""
+    try:
+        content = design_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return False
+    # 模板注释是写作指令，不应被当成 Design 的业务声明。
+    content = re.sub(r"<!--.*?-->", "", content, flags=re.DOTALL)
+    return bool(_NO_STATE_DECLARATION_RE.search(content))
 
 
 def _load_states_from_design_md(project_root: Path):
@@ -227,7 +243,7 @@ def _forward_reachable(initial, state_map, global_transitions=None):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="状态机闭环结构层校验（ShitPM: 按需检查）")
+    parser = argparse.ArgumentParser(description="状态机闭环结构层校验（Design 确认安全网）")
     parser.add_argument("--project-root", default=".")
     parser.add_argument(
         "--source",
@@ -271,13 +287,32 @@ def main():
         return 1
 
     if not states:
+        declared_no_state = source == "design.md" and _design_declares_no_state_machine(design_path)
+        if not declared_no_state:
+            result = {
+                "ok": False,
+                "stage": "design",
+                "source": source,
+                "entity_count": 0,
+                "violations": [{
+                    "rule": "state_machine_not_declared",
+                    "severity": "P1",
+                    "detail": "未解析到状态机，且 Design 未明确声明对象无状态机/无状态流转或不发生状态变化；不能跳过结构检查。",
+                }],
+                "summary": {"total": 1, "P1": 1, "P2": 0},
+                "error": "空状态集合未声明为无状态 Design",
+            }
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+            return 1
         print(json.dumps({
+            "ok": True,
             "stage": "design",
             "source": source,
             "entity_count": 0,
             "violations": [],
             "summary": {"total": 0, "P1": 0, "P2": 0},
-            "note": "未找到状态机数据，跳过结构层校验",
+            "no_state_machine_declared": True,
+            "note": "Design 已明确声明无状态机，跳过状态机结构校验",
         }, ensure_ascii=False, indent=2))
         return 0
 
@@ -285,6 +320,7 @@ def main():
     p1 = sum(1 for x in violations if x["severity"] == "P1")
     p2 = sum(1 for x in violations if x["severity"] == "P2")
     result = {
+        "ok": p1 == 0,
         "stage": "design",
         "source": source,
         "entity_count": len(set(s.get("entity") for s in states if isinstance(s, dict))),

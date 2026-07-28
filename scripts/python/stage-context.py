@@ -86,7 +86,7 @@ MINIMAL_READ_SET = {
     "prd": [
         "output/design/design.md",
         "references/prd-writing.md",
-        "references/prd-writing.profile.json",
+        "contracts/prd-writing.profile.json",
         "templates/prd.md",
     ],
     "prototype": [

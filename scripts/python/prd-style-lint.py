@@ -35,9 +35,9 @@ class Issue:
     suggestion: str
 
 
-# 占位符/空话词与标签式正文：以 references/prd-writing.profile.json 的 forbidden_expressions 为单一事实源
+# 占位符/空话词与标签式正文：以 contracts/prd-writing.profile.json 的 forbidden_expressions 为单一事实源
 # 加载失败时降级为内置兜底列表，保证脚本可独立运行
-_PROFILE_PATH = Path(__file__).resolve().parent.parent.parent / "references" / "prd-writing.profile.json"
+_PROFILE_PATH = Path(__file__).resolve().parent.parent.parent / "contracts" / "prd-writing.profile.json"
 _PROFILE = load_json(_PROFILE_PATH) or {}
 _PROFILE_FORBIDDEN = _PROFILE.get("constraints", {}).get("forbidden_expressions", [])
 

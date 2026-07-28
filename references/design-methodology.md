@@ -48,3 +48,7 @@
 - 字段 >15，或有多个子表 → 用卡片分区、折叠面板、或分步骤 Tab
 
 信息密度为"重"的页面，必须在页面清单的"主要功能"列注明分区策略。
+
+## 与分析协议和质量标准的关系
+
+本文件提供通用设计方法；模式责任、ABC 分析、B3 挑战、跨层挑战和质量分级以 `references/design-analysis-protocol.md`、`references/design-quality-rubric.md` 为准。方法论不得把 ABC 变成最终 Design 目录，也不得以 Review 或 metadata 替代首次 Design 责任。

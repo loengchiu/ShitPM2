@@ -1,0 +1,36 @@
+ShitPM 回归测试开始
+
+[A] 复杂业务 - Design 首次生成责任 PASS
+[B] 简单业务 - Design 双下游并列 PASS
+[C] Prototype-only - 无 PRD 一致性检查 PASS
+[D] status.json 损坏 - canonical 探测接管 PASS
+[E] status.json 缺失 - 仍可输出上下文 PASS
+[F] Design 修改后哈希不一致 PASS
+[G] PRD 引入 design 未定义字段 PASS
+[H] design-confirmation 三态 PASS
+[I] review-precheck 三 stage 语义 PASS
+[J] Design-only 流程（无下游产物） PASS
+[K] 下游冲突 Design 获胜（权限角色幻觉） PASS
+[L] 无 metadata 完整工作流 PASS
+[M] 旧项目兼容（有 metadata 目录） PASS
+[N] Fix 时序 - 修改 design 后下游阻断 PASS
+[O] Fix 时序 - 重新确认后下游恢复 PASS
+[P] Fix 时序 - PRD 纯文案修改不触发 Design 失效 PASS
+[AD1] confirmation.json 损坏 PASS
+[AD2] confirmation.json artifact 错误 PASS
+[AD3] confirmation.json 缺 confirmed_at PASS
+[AD4] status.json current_stage 非法 PASS
+[AD5] status.json artifacts 空但 design 存在 PASS
+[AD6] PRD 不存在且未传 --allow-no-prd PASS
+[AD7] design.md 不存在调用 prd-check PASS
+[AD8] review-precheck 无 design.md PASS
+[AD9] PRD 含 Mermaid 不误识别 PASS
+[AD10] PRD 旧模板 page-N 识别 PASS
+[F1] PRD 枚举和状态值级漂移 PASS
+[F2-F4] 下游 provenance、门禁和 Prototype 检查 PASS
+[G5] 坏 Design 状态检查失败关闭 PASS
+[G6] 明确无状态机声明可通过 PASS
+[G7] 状态解析失败不能确认 PASS
+[G8] 伪造哈希不能绕过确认门禁 PASS
+
+汇总：32 通过，0 失败

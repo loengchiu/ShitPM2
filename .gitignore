@@ -34,6 +34,9 @@ __pycache__/
 refactor-guide-anti-hallucination.md
 
 # === 临时文件 ===
+# Codex/脚本运行时临时目录
+.tmp/
+.tmp-validator-empty/
 _tmp_*.md
 _verify_changes.py
 # 防幻觉测试中间产物（test-anti-hallucination.py 生成）

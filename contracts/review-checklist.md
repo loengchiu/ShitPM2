@@ -204,3 +204,47 @@ Review 不要求 metadata 存在，不要求先通过其他 Review。
 - **设计视角**：能否直接画原型（页面结构是否清楚、交互反馈是否明确）
 
 上游事实源缺失不得脑补，标记 `[待确认]` 或回退上游。
+
+## 三、Prototype Review 检查项
+
+> Prototype Review 直接读取确认版 `output/design/design.md` 的页面清单和产品事实，不把 PRD 当作事实源；PRD 存在时只用于发现冲突。
+
+### 页面覆盖
+
+1. 从 Design 的“页面清单”提取全部页面，逐项对照 Prototype HTML：`存在 / 缺失 / 幻觉`。
+2. Prototype 中出现但 Design 未定义的页面属于幻觉；缺失页面属于覆盖缺口。页面缺失率超过 50% 时升级为 P0。
+3. Review 输出必须包含逐页面覆盖结果，不能只给总体结论。
+
+### 质量与一致性
+
+4. 核心状态、交互主路径、角色权限和操作限制均有可观察表达。
+5. Design 未授权的页面、状态、权限分支、业务规则、流程、模块边界或跨系统责任属于高影响问题；不得由 Review 自行修复。
+6. Design 中的“待确认”事实不得在 Prototype 中静默拍板。
+7. Prototype 与 Design 冲突时以 Design 为准；若存在 PRD，Prototype 也不得以 PRD 覆盖 Design。
+8. 页面行为、异常路径和关键反馈应能支撑讨论；表现层不足与语义冲突分别归类。
+
+## 四、统一判定与输出契约
+
+### Verdict 门槛
+
+- **通过**：零 P0、零 P1。
+- **有问题需修改**：零 P0，且有 1 个 P1。
+- **阻塞**：存在 P0 或至少 2 个 P1。
+- P2 写入 `issues`，但不计入 verdict；P0 优先停止展开低优先级 P2。
+
+### 结果结构
+
+`issue_layer` 必须包含 `structure`、`content`、`consistency` 三个整数；每条 finding 至少包含 `id`、`severity`、`description`，可附 `location` 和 `suggestion`。机读结果按 `$BUNDLE/schemas/review-result.schema.json` 组织：
+
+- `.workflow/reviews/design-review-N.json`
+- `.workflow/reviews/prd-review-N.json`
+- `.workflow/reviews/prototype-review-N.json`
+
+人读结果与机读结果同编号，写入对应 `.md` 文件，包含 verdict、主要问题、三类问题分类、`needs_upstream_sync`、`affected_objects` 和下一步建议。
+
+### 共同禁止事项
+
+- 不运行 `stage-prep.py` 生成 metadata，不把 metadata 当 Review 前置。
+- 不自动调用 `spm-fix`，只输出 `needs_upstream_sync` 建议。
+- 不自动推进阶段，不把 Review 通过当成 Design confirmation。
+- 输入缺失、不可读或无法解析才硬阻塞；章节缺失、内容不足、一致性问题和质量问题必须作为 finding 返回。
