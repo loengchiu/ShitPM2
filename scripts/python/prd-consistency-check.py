@@ -7,7 +7,7 @@ ShitPM 变更：
 - 复用 stage-prep.py 的 generate_design_metadata 函数从 design.md 提取实体（不写入 metadata 文件）。
 - 多模板兼容：支持新归位模板（字段/状态/权限归位到 §5 详细需求说明）和旧模板（数据字典/状态机/权限汇总独立章节 + `### page-N 页面名`）。
 - 只做确定性提取和集合对比，不做语义判断。
-- 语义判断（规则覆盖、字段类型/必填一致性）由 review skill 的 LLM 完成。
+- 可靠结构事实（字段属性、内部字段交付、明确权限允许/禁止反转）由脚本检查；复杂业务语义仍由 Review 判断。
 
 退出码：
 - 0: 通过（无 missing、无 hallucinated、无 attribute_mismatch），或 skipped（Prototype-only + --allow-no-prd）
@@ -20,7 +20,7 @@ ShitPM 变更：
 ShitPM 修复包 D 增强：
 - 输出分类区分确定性冲突、可能遗漏、需模型语义判断，便于调用方（如 Fix）按严重程度处理。
 - 支持 --allow-no-prd 参数：Prototype-only 项目无 PRD 时返回 skipped，退出码 0，不阻塞 Fix。
-- 字段属性差异（attribute_mismatch）不再视为硬错误，需 LLM 语义判断。
+- 字段类型差异保留给语义判断；必填、长度、默认值、枚举、格式、业务来源及内部字段交付的明确差异视为确定性问题。
 """
 
 import argparse
@@ -120,22 +120,34 @@ def _lines_in_ranges(content: str, ranges: list) -> str:
 # ── PRD 实体提取（多模板兼容） ─────────────────────────────────
 
 def extract_prd_fields(headings: list, tables: list, content: str) -> list:
-    """从 PRD 提取字段（含属性）
+    """从 PRD 提取字段及可确定比较的属性。
 
-    ShitPM 多模板兼容策略：
-    - 候选章节：详细需求说明、数据字典、字段定义、字段清单
-    - 在候选章节范围内的表头含"字段"和"类型"的表视为字段定义表
-    - 如候选章节都未找到，降级为全文扫描所有表头含"字段"和"类型"的表
-
-    PRD 字段表格式：| 字段 | 类型 | 必填 | 说明 |（4 列，轻量格式）
-
-    返回 [{"name": str, "type": str, "required": bool, "enum_values": list}, ...]
+    支持 7 列交付格式、Design 9 列镜像格式和历史 4/5 列格式。历史格式中的
+    属性只从独立列或带标签的“取值约束/规则/说明”中兼容提取，避免用整段包含关系掩盖缺失。
     """
     candidate_ranges = _find_multiple_section_ranges(
         headings, ["详细需求说明", "数据字典", "字段定义", "字段清单"]
     )
-
     fields = []
+
+    def _idx(headers, tokens, exclude=()):
+        for i, header in enumerate(headers):
+            if any(token in header for token in tokens) and not any(token in header for token in exclude):
+                return i
+        return None
+
+    def _cell(row, idx):
+        return row[idx].strip() if idx is not None and idx < len(row) else ""
+
+    def _labeled_value(raw, labels):
+        if not raw:
+            return ""
+        label_pattern = "|".join(re.escape(label) for label in labels)
+        match = re.search(
+            rf"(?:{label_pattern})\s*(?:[：:]|≤|≥|<=|>=|<|>)\s*([^；;\n]+)",
+            raw,
+        )
+        return match.group(1).strip() if match else ""
 
     def _extract_from_tables(table_list):
         for table in table_list:
@@ -145,38 +157,69 @@ def extract_prd_fields(headings: list, tables: list, content: str) -> list:
             header_text = "|".join(headers)
             if "字段" not in header_text or "类型" not in header_text:
                 continue
-            name_idx = next((i for i, h in enumerate(headers) if "字段" in h), 0)
-            type_idx = next((i for i, h in enumerate(headers) if "类型" in h), 1)
-            required_idx = next((i for i, h in enumerate(headers) if "必填" in h), None)
-            enum_idx = next((i for i, h in enumerate(headers)
-                             if any(token in h for token in ("枚举", "枚举值", "规则"))), None)
+            name_idx = _idx(headers, ("字段",), ("字段权限",))
+            type_idx = _idx(headers, ("类型",))
+            if name_idx is None or type_idx is None:
+                continue
+            required_idx = _idx(headers, ("必填",))
+            constraint_idx = _idx(headers, ("取值约束", "约束", "规则", "枚举"))
+            length_idx = _idx(headers, ("长度",))
+            default_idx = _idx(headers, ("默认值", "默认"))
+            format_idx = _idx(headers, ("格式",))
+            source_idx = _idx(headers, ("业务来源", "来源"))
+            description_idx = _idx(headers, ("说明", "含义", "用途"))
+
             for row in table["rows"]:
-                if not row or not row[0] or row[0] in ("---", "字段"):
+                if not row:
                     continue
-                name = row[name_idx].strip() if name_idx < len(row) else ""
-                if not name:
+                name = _cell(row, name_idx)
+                if not name or name in ("---", "字段"):
                     continue
-                field_type = row[type_idx].strip() if type_idx < len(row) else ""
                 required = None
-                if required_idx is not None and required_idx < len(row):
-                    required_cell = row[required_idx].strip()
-                    required = required_cell == "是" if required_cell in ("是", "否") else None
-                enum_text = row[enum_idx].strip() if enum_idx is not None and enum_idx < len(row) else ""
+                required_cell = _cell(row, required_idx)
+                if required_cell in ("是", "否"):
+                    required = required_cell == "是"
+                field_type = _cell(row, type_idx)
+                constraint_text = _cell(row, constraint_idx)
+                description = _cell(row, description_idx)
+                length = _cell(row, length_idx)
+                if not length:
+                    length = _labeled_value(constraint_text, ("最大长度", "长度", "字符数"))
+                field_format = _cell(row, format_idx)
+                if not field_format:
+                    field_format = _labeled_value(constraint_text, ("格式",))
+                default = _cell(row, default_idx)
+                if default_idx is None:
+                    default = _labeled_value(constraint_text, ("默认值", "默认")) or _labeled_value(description, ("默认值", "默认"))
+                source = _cell(row, source_idx)
+                if source_idx is None:
+                    source = _labeled_value(constraint_text, ("业务来源", "来源")) or _labeled_value(description, ("业务来源", "来源"))
+                combined_text = "；".join(v for v in (
+                    constraint_text, length, field_format, default, source, description,
+                ) if v)
+                enum_values = []
+                if "enum" in field_type.lower() or "枚举" in field_type:
+                    enum_values = _parse_enum_values(constraint_text)
+                    if not enum_values:
+                        enum_values = _parse_enum_values(description)
                 fields.append({
                     "name": name,
                     "type": field_type,
                     "required": required,
-                    "enum_values": _parse_enum_values(enum_text),
+                    "constraints": constraint_text,
+                    "length": length,
+                    "default": default,
+                    "format": field_format,
+                    "source": source,
+                    "description": description,
+                    "combined_text": combined_text,
+                    "enum_values": enum_values,
                 })
 
-    # 策略 1: 在候选章节范围内提取
     if candidate_ranges:
         _extract_from_tables(_tables_in_ranges(tables, candidate_ranges))
-
-    # 策略 2: 候选章节未找到，降级为全文扫描
     if not fields:
         _extract_from_tables(tables)
-
     return fields
 
 
@@ -504,7 +547,7 @@ def _extract_perm_pairs_from_table(table: dict, pairs: list, seen: set) -> None:
                     key = (page_name, role_clean)
                     if key not in seen:
                         seen.add(key)
-                        pairs.append({"page": page_name, "role": role_clean})
+                        pairs.append({"page": page_name, "role": role_clean, "action": cell.strip()})
 
 
 def _extract_perm_pairs_from_list(content: str, pairs: list, seen: set) -> None:
@@ -539,7 +582,7 @@ def _extract_perm_pairs_from_list(content: str, pairs: list, seen: set) -> None:
             key = (current_page, role)
             if key not in seen:
                 seen.add(key)
-                pairs.append({"page": current_page, "role": role})
+                pairs.append({"page": current_page, "role": role, "action": match.group(2).strip()})
 
 
 def extract_prd_permission_role_pairs(headings: list, tables: list, content: str) -> list:
@@ -549,7 +592,7 @@ def extract_prd_permission_role_pairs(headings: list, tables: list, content: str
     - 表格格式：表头是角色名列表，第一列是模块/操作对象名（ShitPM PRD 模板）
     - 列表格式：### 页面名 + - role：action（与 design 权限格式一致）
 
-    返回 [{"page": str, "role": str}, ...]
+    返回 [{"page": str, "role": str, "action": str}, ...]
     """
     pairs = []
     seen = set()
@@ -742,23 +785,53 @@ def compare_modules(design_modules: list, prd_modules: list) -> dict:
 # ── 字段属性对比 ──────────────────────────────────────────────
 
 def _normalize_type(type_str: str) -> str:
-    """归一化类型字符串以便比较：去空格、转小写"""
+    """归一化类型字符串以便比较：去空格、转小写。"""
     if not type_str:
         return ""
     return re.sub(r"\s+", "", type_str).lower()
 
 
+def _normalize_scalar(value) -> str:
+    """归一化可直接比较的字段属性；占位符视为空。"""
+    if value is None:
+        return ""
+    text = str(value).strip().strip("`")
+    if text in ("", "—", "-", "无", "不适用", "N/A", "NA", "null", "None"):
+        return ""
+    return re.sub(r"[\s，,；;。]+", "", text).lower()
+
+
 def _parse_enum_values(raw: str) -> list[str]:
-    """解析明确的枚举单元格；空值、占位符和自然语言规则不视为枚举。"""
+    """解析明确枚举值；兼容“状态（draft/submitted）”这类旧说明写法。"""
     if not raw:
         return []
     text = raw.strip().strip("`")
     if text in ("—", "-", "无", "无枚举", "N/A", "NA"):
         return []
+    labeled = re.search(r"(?:枚举(?:值)?|取值)\s*[：:]\s*([^；;\n]+)", text)
+    if labeled:
+        text = labeled.group(1)
+    else:
+        parenthesized = re.findall(r"[（(]([^（）()]+)[）)]", text)
+        if parenthesized:
+            delimited = [part for part in parenthesized if re.search(r"[,，/、;；|\n]", part)]
+            if len(delimited) == 1:
+                text = delimited[0]
     if not re.search(r"[,，/、;；|\n]", text):
         return []
     values = re.split(r"[,，/、;；|\n]+", text)
-    return sorted({re.sub(r"^[-*●]\s*", "", v).strip(" `") for v in values if v.strip()})
+    return sorted({
+        re.sub(r"^[-*●]\s*", "", value).strip(" `（）()")
+        for value in values if value.strip(" `（）()")
+    })
+
+
+def _attribute_present_in_prd(design_value, prd_value) -> bool:
+    """只比较独立列或已解析的标签值，避免被其他属性中的同词误判为已交付。"""
+    design_norm = _normalize_scalar(design_value)
+    if not design_norm:
+        return True
+    return _normalize_scalar(prd_value) == design_norm
 
 
 def compare_field_attributes(
@@ -767,27 +840,28 @@ def compare_field_attributes(
     design_title_to_id: dict,
     fuzzy_fn=None,
 ) -> list:
-    """对比 matched 字段的类型、必填和枚举属性
+    """对比 matched 字段的可确定属性。
 
-    返回 attribute_mismatch 列表：
-    [{"name": str, "design_type": str, "prd_type": str,
-      "design_required": bool, "prd_required": bool,
-      "design_enum_values": list, "prd_enum_values": list}, ...]
+    type 仍可能存在等价别名，单独标记为需语义判断；其余明确属性缺失或差异
+    均可由结构化字段表可靠证明。
     """
     design_attrs = {}
-    for f in design_fields:
-        if not isinstance(f, dict) or "title" not in f:
+    for field in design_fields:
+        if not isinstance(field, dict) or "title" not in field:
             continue
-        attrs = f.get("attributes", {})
-        design_attrs[f["title"]] = {
+        attrs = field.get("attributes", {})
+        design_attrs[field["title"]] = {
             "type": attrs.get("数据类型", ""),
             "required": attrs.get("必填"),
+            "length": attrs.get("长度", ""),
+            "default": attrs.get("默认值", ""),
             "enum_values": _parse_enum_values(attrs.get("枚举值", "")),
+            "format": attrs.get("格式", ""),
+            "source": attrs.get("业务来源", ""),
         }
 
     mismatches = []
     matched_pairs = set()
-
     for prd_field in prd_fields:
         if not isinstance(prd_field, dict) or "name" not in prd_field:
             continue
@@ -800,35 +874,133 @@ def compare_field_attributes(
             continue
         matched_pairs.add(pair_key)
 
-        d_attrs = design_attrs[matched_design]
-        d_type = _normalize_type(d_attrs["type"])
+        design = design_attrs[matched_design]
+        mismatch_kinds = []
+        d_type = _normalize_type(design["type"])
         p_type = _normalize_type(prd_field.get("type", ""))
-        d_required = d_attrs["required"]
+        if d_type and p_type and d_type != p_type:
+            mismatch_kinds.append("type")
+
+        d_required = design["required"]
         p_required = prd_field.get("required")
+        if d_required is not None and p_required is not None and d_required != p_required:
+            mismatch_kinds.append("required")
+        elif d_required is not None and p_required is None:
+            mismatch_kinds.append("required_missing")
 
-        type_mismatch = d_type != p_type and d_type and p_type
-        required_mismatch = (
-            d_required is not None and p_required is not None
-            and d_required != p_required
-        )
-        d_enum = d_attrs["enum_values"]
+        for key in ("length", "default", "format", "source"):
+            if not _attribute_present_in_prd(design[key], prd_field.get(key, "")):
+                mismatch_kinds.append(key)
+
+        d_enum = design["enum_values"]
         p_enum = prd_field.get("enum_values", [])
-        enum_mismatch = bool(d_enum or p_enum) and d_enum != p_enum
+        if d_enum != p_enum and (d_enum or p_enum):
+            mismatch_kinds.append("enum")
 
-        if type_mismatch or required_mismatch or enum_mismatch:
+        if mismatch_kinds:
+            deterministic_kinds = [kind for kind in mismatch_kinds if kind != "type"]
             mismatches.append({
                 "name": prd_name,
-                "design_type": d_attrs["type"],
+                "mismatch_kinds": mismatch_kinds,
+                "deterministic": bool(deterministic_kinds),
+                "design_type": design["type"],
                 "prd_type": prd_field.get("type", ""),
                 "design_required": d_required,
                 "prd_required": p_required,
+                "design_length": design["length"],
+                "prd_length": prd_field.get("length", ""),
+                "design_default": design["default"],
+                "prd_default": prd_field.get("default", ""),
                 "design_enum_values": d_enum,
                 "prd_enum_values": p_enum,
+                "design_format": design["format"],
+                "prd_format": prd_field.get("format", ""),
+                "design_source": design["source"],
+                "prd_source": prd_field.get("source", ""),
                 "enum_missing": sorted(set(d_enum) - set(p_enum)),
                 "enum_hallucinated": sorted(set(p_enum) - set(d_enum)),
             })
-
     return mismatches
+
+
+def compare_internal_field_delivery(
+    design_non_page_fields: list,
+    prd_fields: list,
+    design_title_to_id: dict,
+    fuzzy_fn=None,
+) -> list:
+    """检查 Design 非页面字段是否在 PRD 中保留并说明内部用途。"""
+    issues = []
+    for entry in design_non_page_fields:
+        if not isinstance(entry, dict) or not entry.get("field_title"):
+            continue
+        title = entry["field_title"]
+        matched = None
+        for prd_field in prd_fields:
+            name = prd_field.get("name", "") if isinstance(prd_field, dict) else ""
+            if name == title or _try_match(name, {title: design_title_to_id.get(title, title)}, fuzzy_fn) == title:
+                matched = prd_field
+                break
+        if matched is None:
+            issues.append({"name": title, "issue": "missing"})
+            continue
+        description = matched.get("description", "")
+        if not re.search(r"内部|审计|关联|计算|历史|留痕|不在页面|不展示", description):
+            issues.append({
+                "name": title,
+                "issue": "internal_usage_missing",
+                "prd_description": description,
+                "design_reason": entry.get("reason", ""),
+            })
+    return issues
+
+
+def _permission_polarity(action: str) -> str | None:
+    """只识别明确、单一的允许或禁止口径，混合权限返回 None。"""
+    text = re.sub(r"\s+", "", action or "")
+    if not text:
+        return None
+    action_words = r"查看|编辑|新建|创建|提交|撤回|删除|导出|导入|使用|操作|填写|审批|分配"
+    deny_pattern = rf"无权限|无权(?:{action_words})?|不可(?:{action_words})?|不能(?:{action_words})?|禁止(?:{action_words})?|不允许(?:{action_words})?|默认不(?:{action_words})?|不参与(?:{action_words})?"
+    has_deny = bool(re.search(deny_pattern, text))
+    remaining = re.sub(deny_pattern, "", text)
+    has_allow = bool(re.search(rf"允许|有权限|(?:可|可以|能够|有权)?(?:{action_words})", remaining))
+    if has_deny and not has_allow:
+        return "deny"
+    if has_allow and not has_deny:
+        return "allow"
+    return None
+
+
+def compare_permission_polarity(design_perms: list, prd_perm_pairs: list) -> list:
+    """检查相同页面和角色下可可靠证明的明确允许/禁止反转。"""
+    inversions = []
+    for design in design_perms:
+        if not isinstance(design, dict):
+            continue
+        d_page, d_role = design.get("page"), design.get("role")
+        d_polarity = _permission_polarity(design.get("action", ""))
+        if not d_page or not d_role or d_polarity is None:
+            continue
+        for prd in prd_perm_pairs:
+            if not isinstance(prd, dict) or prd.get("role") != d_role:
+                continue
+            p_page = prd.get("page", "")
+            page_matches = p_page == d_page or bool(fuzzy_page_match(p_page, {d_page: d_page}))
+            if not page_matches:
+                continue
+            p_polarity = _permission_polarity(prd.get("action", ""))
+            if p_polarity and p_polarity != d_polarity:
+                inversions.append({
+                    "page": d_page,
+                    "role": d_role,
+                    "design_action": design.get("action", ""),
+                    "prd_action": prd.get("action", ""),
+                    "design_polarity": d_polarity,
+                    "prd_polarity": p_polarity,
+                })
+            break
+    return inversions
 
 
 # ── 集合对比 ──────────────────────────────────────────────────
@@ -992,7 +1164,7 @@ def main():
     design_states = design_data.get("states", []) or []
     design_permissions = design_data.get("permissions", []) or []
     design_modules_raw = design_data.get("modules", []) or []
-    # ShitPM：design 中标记为"非页面落点字段"的内部/审计字段，不应在 PRD 字段表中重复要求
+    # ShitPM：读取 Design 中标记为“非页面落点字段”的内部/审计字段，用于验证 PRD 是否完整交付
     design_non_page_fields = design_data.get("non_page_fields", []) or []
 
     headings = parse_headings(content)
@@ -1009,22 +1181,13 @@ def main():
     prd_states = extract_prd_states(content, headings, tables)
     prd_perm_pages = extract_prd_permission_pages(headings, tables, content)
 
-    # ShitPM：构建"非页面落点字段"排除集（按 design_field 稳定 ID 匹配）
-    # 这些字段在 design 中已明确标注为内部/审计/不展示，PRD 字段表无需重复要求
-    excluded_field_ids = {
-        entry.get("design_field")
-        for entry in design_non_page_fields
-        if isinstance(entry, dict) and entry.get("design_field")
-    }
-    visible_design_fields = [
-        f for f in design_fields
-        if isinstance(f, dict) and f.get("id") not in excluded_field_ids
-    ]
+    # PRD 是研发交付物：Design 的页面字段和非页面内部字段都必须出现。
+    # 非页面字段无需虚构页面落点，但必须在字段表保留来源和内部用途。
 
     # 集合对比（字段用名称列表做集合对比）
     prd_field_names = [f["name"] for f in prd_fields if isinstance(f, dict) and "name" in f]
     field_result = compare_entities(
-        [f["title"] for f in visible_design_fields if isinstance(f, dict)],
+        [f["title"] for f in design_fields if isinstance(f, dict)],
         prd_field_names, field_title_to_id, fuzzy_field_match,
     )
     # 字段属性对比（类型 + 必填）
@@ -1035,6 +1198,12 @@ def main():
         item for item in field_result["attribute_mismatch"]
         if item.get("enum_missing") or item.get("enum_hallucinated")
     ]
+    field_result["deterministic_attribute_mismatch"] = [
+        item for item in field_result["attribute_mismatch"] if item.get("deterministic")
+    ]
+    field_result["internal_field_issues"] = compare_internal_field_delivery(
+        design_non_page_fields, prd_fields, field_title_to_id, fuzzy_field_match,
+    )
     page_result = compare_entities(
         [p["title"] for p in design_pages if isinstance(p, dict)],
         prd_pages, page_title_to_id, fuzzy_page_match,
@@ -1048,6 +1217,7 @@ def main():
     # ShitPM 增强：权限角色对对比（覆盖角色级一致性，检测 PRD 中 design 没有的角色-页面组合）
     prd_perm_pairs = extract_prd_permission_role_pairs(headings, tables, content)
     perm_pair_result = compare_permission_role_pairs(design_permissions, prd_perm_pairs)
+    permission_inversions = compare_permission_polarity(design_permissions, prd_perm_pairs)
 
     # ShitPM 增强：角色集合对比（检测 PRD 中 design 没有的角色，如"超级管理员"幻觉角色）
     design_roles = sorted({p["role"] for p in design_permissions if isinstance(p, dict) and p.get("role")})
@@ -1080,6 +1250,9 @@ def main():
         + len(module_result["hallucinated"])
     )
     total_attribute_mismatch = len(field_result["attribute_mismatch"])
+    total_deterministic_attribute_mismatch = len(field_result["deterministic_attribute_mismatch"])
+    total_internal_field_issues = len(field_result["internal_field_issues"])
+    total_permission_inversions = len(permission_inversions)
 
     # ShitPM 修复包 D：问题分类（确定性冲突 / 可能遗漏 / 需模型语义判断）
     deterministic_conflicts_count = (
@@ -1090,7 +1263,9 @@ def main():
         + len(perm_pair_result["hallucinated"])
         + len(role_result["hallucinated"])
         + len(module_result["hallucinated"])
-        + len(field_result["enum_mismatch"])
+        + total_deterministic_attribute_mismatch
+        + total_internal_field_issues
+        + total_permission_inversions
     )
     possible_omissions_count = (
         len(field_result["missing"])
@@ -1101,12 +1276,18 @@ def main():
         + len(role_result["missing"])
         + len(module_result["missing"])
     )
-    needs_semantic_judgment_count = len(field_result["attribute_mismatch"])
+    needs_semantic_judgment_items = [
+        item for item in field_result["attribute_mismatch"] if not item.get("deterministic")
+    ]
+    needs_semantic_judgment_count = len(needs_semantic_judgment_items)
 
     classification = {
         "deterministic_conflicts": {
             "fields": field_result["hallucinated"],
             "field_enums": field_result["enum_mismatch"],
+            "field_attributes": field_result["deterministic_attribute_mismatch"],
+            "internal_fields": field_result["internal_field_issues"],
+            "permission_inversions": permission_inversions,
             "pages": page_result["hallucinated"],
             "states": state_result["hallucinated"],
             "permission_pages": perm_result["hallucinated"],
@@ -1126,15 +1307,18 @@ def main():
             "count": possible_omissions_count,
         },
         "needs_semantic_judgment": {
-            "attribute_mismatches": field_result["attribute_mismatch"],
+            "attribute_mismatches": needs_semantic_judgment_items,
             "count": needs_semantic_judgment_count,
-            "hint": "字段属性差异需 LLM 判断是否为业务合理变体，不作为确定性错误。",
+            "hint": "仅字段类型等价性仍需语义判断；明确属性缺失和差异已归入确定性冲突。",
         },
     }
 
     # ShitPM 修复包 D：exit_reason 按严重程度优先级判定
     # 优先级：deterministic_conflict > possible_omission > needs_semantic_judgment > ok
-    if total_hallucinated > 0 or field_result["enum_mismatch"]:
+    if (total_hallucinated > 0 or field_result["enum_mismatch"]
+            or total_deterministic_attribute_mismatch > 0
+            or total_internal_field_issues > 0
+            or total_permission_inversions > 0):
         exit_reason = "deterministic_conflict"
     elif total_missing > 0:
         exit_reason = "possible_omission"
@@ -1162,6 +1346,7 @@ def main():
         "states": state_result,
         "permissions": perm_result,
         "permission_role_pairs": perm_pair_result,
+        "permission_inversions": permission_inversions,
         "roles": role_result,
         "modules": module_result,
         "classification": classification,
@@ -1169,6 +1354,9 @@ def main():
             "total_missing": total_missing,
             "total_hallucinated": total_hallucinated,
             "total_attribute_mismatch": total_attribute_mismatch,
+            "total_deterministic_attribute_mismatch": total_deterministic_attribute_mismatch,
+            "total_internal_field_issues": total_internal_field_issues,
+            "total_permission_inversions": total_permission_inversions,
             "has_hallucination": total_hallucinated > 0,
             "has_missing": total_missing > 0,
             "has_attribute_mismatch": total_attribute_mismatch > 0,

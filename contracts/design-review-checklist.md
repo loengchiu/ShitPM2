@@ -30,3 +30,8 @@
 | 22. 旧版非页面字段覆盖合理（按需） | 非页面字段比例异常或例外原因缺失 | [metadata 兼容契约](metadata-anchor-rules.md) | P2 | `consistency` / 旧版兼容问题 |
 | 23. 旧版稳定 ID 兼容检查（按需） | 旧 metadata 存在时 ID 前缀/生成关系错误，或正文泄漏稳定 ID | [metadata 兼容契约](metadata-anchor-rules.md) | P2 | `consistency` / 旧版兼容问题 |
 | 24. 事实、推导和待确认可区分 | 评审无法判断哪些是输入事实、设计推导或仍需用户决策 | [Design 质量标准](../references/design-quality-rubric.md) | P1 | `content` / 审查问题 |
+| 25. 关键动作产品结果闭环 | 动作缺前置条件、影响对象/字段、成功/失败结果、状态副作用、后续责任或恢复路径 | [Design 分析协议](../references/design-analysis-protocol.md)；[Design 质量标准](../references/design-quality-rubric.md) | P1 | `content` / 动作位置 |
+| 26. 数据生命周期可判定（按需） | 删除、作废、归档、恢复或历史记录存在，但当前数据、历史和关联数据结果不明确 | [Design 分析协议](../references/design-analysis-protocol.md) | P1 | `content` / 对象或规则位置 |
+| 27. 唯一性、时间和并发边界可判定（按需） | 唯一性冲突、周期/时区、重复提交或并发更新存在多个合法解释 | [Design 分析协议](../references/design-analysis-protocol.md) | P1 | `content` / 规则或动作位置 |
+| 28. 文件、导入导出和批量结果完整（按需） | 场景存在但缺范围、格式/大小/数量、上限、部分失败或结果反馈 | [Design 分析协议](../references/design-analysis-protocol.md) | P1 | `content` / 对应闭环位置 |
+| 29. 跨系统和产品级质量约束可验收（按需） | 缺事实源、同步方向、失败/部分成功结果、补偿、最终责任，或性能/安全/审计/兼容约束无法验收 | [Design 分析协议](../references/design-analysis-protocol.md)；[Design 质量标准](../references/design-quality-rubric.md) | P1 | `content` / 集成或验收位置 |

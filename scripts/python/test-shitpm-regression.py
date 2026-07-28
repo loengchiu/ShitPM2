@@ -1547,6 +1547,192 @@ def test_scenario_G8_confirmation_bypass_blocked():
         shutil.rmtree(fixture, ignore_errors=True)
 
 
+def test_scenario_H1_field_delivery_guards():
+    """字段属性、内部字段缺失和内部用途必须被确定性检查捕获。"""
+    fixture = make_new_fixture_dir()
+    try:
+        design = """# Design
+
+## 字段定义
+
+| 字段 | 类型 | 长度 | 必填 | 默认值 | 枚举值 | 格式 | 业务来源 | 说明 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| task.status | enum | 16 | 是 | draft | draft、done | 枚举 | 系统生成 | 状态 |
+| task.owner_id | string | 64 | 是 | 当前登录人 ID | — | UUID | 系统生成 | 创建人内部标识 |
+
+## 页面与字段落点
+
+### 非页面落点字段
+
+| 字段 | 原因 |
+| --- | --- |
+| task.owner_id | 内部关联字段，不在页面展示 |
+"""
+        incomplete_prd = """# PRD
+
+## 名词说明
+
+- 任务：工作单元
+
+## 字段定义
+
+| 字段 | 类型 | 必填 | 取值约束 | 默认值 | 业务来源 | 说明 |
+| --- | --- | --- | --- | --- | --- | --- |
+| task.status | enum | 是 | 枚举：draft、done | — | — | 状态 |
+| task.owner_id | string | 是 | 长度：64；格式：UUID | 当前登录人 ID | 系统生成 | 创建人标识 |
+"""
+        write_fixture(fixture, "output/design/design.md", design)
+        write_fixture(fixture, "output/prd/prd.md", incomplete_prd)
+        code, out, err = run_script("prd-consistency-check.py", "--project-root", str(fixture))
+        if code != 1 or not out:
+            return False, f"字段属性缺失应失败，exit={code}, stderr={err}"
+        mismatches = {
+            item.get("name"): set(item.get("mismatch_kinds", []))
+            for item in out.get("fields", {}).get("deterministic_attribute_mismatch", [])
+        }
+        expected = {"length", "default", "format", "source"}
+        if not expected.issubset(mismatches.get("task.status", set())):
+            return False, f"task.status 属性缺失未完整捕获: {mismatches}"
+        internal = out.get("fields", {}).get("internal_field_issues", [])
+        if not any(item.get("name") == "task.owner_id" and item.get("issue") == "internal_usage_missing" for item in internal):
+            return False, f"内部字段用途缺失未捕获: {internal}"
+
+        missing_internal_prd = incomplete_prd.replace(
+            "| task.owner_id | string | 是 | 长度：64；格式：UUID | 当前登录人 ID | 系统生成 | 创建人标识 |\n",
+            "",
+        )
+        write_fixture(fixture, "output/prd/prd.md", missing_internal_prd)
+        code, out, err = run_script("prd-consistency-check.py", "--project-root", str(fixture))
+        internal = (out or {}).get("fields", {}).get("internal_field_issues", [])
+        if code != 1 or not any(item.get("name") == "task.owner_id" and item.get("issue") == "missing" for item in internal):
+            return False, f"内部字段整体缺失未捕获: exit={code}, internal={internal}, stderr={err}"
+        return True, ""
+    finally:
+        shutil.rmtree(fixture, ignore_errors=True)
+
+
+def test_scenario_H2_complete_field_delivery_passes():
+    """7 列 PRD 完整承接 9 列 Design 字段属性时应通过。"""
+    fixture = make_new_fixture_dir()
+    try:
+        design = """# Design
+
+## 字段定义
+
+| 字段 | 类型 | 长度 | 必填 | 默认值 | 枚举值 | 格式 | 业务来源 | 说明 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| task.status | enum | 16 | 是 | draft | draft、done | 枚举 | 系统生成 | 状态 |
+| task.owner_id | string | 64 | 是 | 当前登录人 ID | — | UUID | 系统生成 | 创建人内部标识 |
+
+## 页面与字段落点
+
+### 非页面落点字段
+
+| 字段 | 原因 |
+| --- | --- |
+| task.owner_id | 内部关联字段，不在页面展示 |
+"""
+        prd = """# PRD
+
+## 名词说明
+
+- 任务：工作单元
+
+## 字段定义
+
+| 字段 | 类型 | 必填 | 取值约束 | 默认值 | 业务来源 | 说明 |
+| --- | --- | --- | --- | --- | --- | --- |
+| task.status | enum | 是 | 长度：16；枚举：draft、done；格式：枚举 | draft | 系统生成 | 状态 |
+| task.owner_id | string | 是 | 长度：64；格式：UUID | 当前登录人 ID | 系统生成 | 内部关联标识，不在页面展示 |
+"""
+        write_fixture(fixture, "output/design/design.md", design)
+        write_fixture(fixture, "output/prd/prd.md", prd)
+        code, out, err = run_script("prd-consistency-check.py", "--project-root", str(fixture))
+        if code != 0 or not out or out.get("exit_reason") != "ok":
+            return False, f"完整字段承接应通过，exit={code}, out={out}, stderr={err}"
+        return True, ""
+    finally:
+        shutil.rmtree(fixture, ignore_errors=True)
+
+
+def test_scenario_H3_permission_polarity_guards():
+    """明确权限反转应失败，混合权限表达不应被机械误判。"""
+    fixture = make_new_fixture_dir()
+    try:
+        design = """# Design
+
+## 权限定义
+
+### 团队汇总
+
+- `member`：无权限
+"""
+        prd = """# PRD
+
+## 权限汇总
+
+| 页面/对象 | member |
+| --- | --- |
+| 团队汇总 | 查看团队汇总 |
+"""
+        write_fixture(fixture, "output/design/design.md", design)
+        write_fixture(fixture, "output/prd/prd.md", prd)
+        code, out, err = run_script("prd-consistency-check.py", "--project-root", str(fixture))
+        inversions = (out or {}).get("permission_inversions", [])
+        if code != 1 or not any(item.get("page") == "团队汇总" and item.get("role") == "member" for item in inversions):
+            return False, f"明确权限反转未捕获: exit={code}, inversions={inversions}, stderr={err}"
+
+        mixed_design = design.replace("无权限", "可查看，不可编辑")
+        mixed_prd = prd.replace("查看团队汇总", "不可查看，可编辑")
+        write_fixture(fixture, "output/design/design.md", mixed_design)
+        write_fixture(fixture, "output/prd/prd.md", mixed_prd)
+        code, out, err = run_script("prd-consistency-check.py", "--project-root", str(fixture))
+        inversions = (out or {}).get("permission_inversions", [])
+        if inversions:
+            return False, f"混合权限不应机械判断为反转: {inversions}"
+        return True, ""
+    finally:
+        shutil.rmtree(fixture, ignore_errors=True)
+
+
+def test_scenario_H4_field_table_style_lint():
+    """旧 4 列字段表触发 STYLE010，7 列字段表不触发。"""
+    fixture = make_new_fixture_dir()
+    try:
+        old_prd = """# PRD
+
+## 名词说明
+
+- 任务：工作单元
+
+## 字段定义
+
+| 字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| task.name | string | 是 | 任务名称 |
+"""
+        path = write_fixture(fixture, "prd.md", old_prd)
+        code, out, err = run_script("prd-style-lint.py", str(path), "--format", "json")
+        codes = {item.get("code") for item in (out or {}).get("issues", [])}
+        if code != 1 or "STYLE010" not in codes:
+            return False, f"旧字段表应触发 STYLE010: exit={code}, codes={codes}, stderr={err}"
+
+        new_prd = old_prd.replace(
+            "| 字段 | 类型 | 必填 | 说明 |\n| --- | --- | --- | --- |\n| task.name | string | 是 | 任务名称 |",
+            "| 字段 | 类型 | 必填 | 取值约束 | 默认值 | 业务来源 | 说明 |\n| --- | --- | --- | --- | --- | --- | --- |\n| task.name | string | 是 | 长度：100；格式：文本 | — | 用户填写 | 任务名称 |",
+        )
+        path = write_fixture(fixture, "prd.md", new_prd)
+        code, out, err = run_script("prd-style-lint.py", str(path), "--format", "json")
+        codes = {item.get("code") for item in (out or {}).get("issues", [])}
+        if "STYLE010" in codes:
+            return False, f"7 列字段表不应触发 STYLE010: codes={codes}"
+        if code != 0:
+            return False, f"完整字段表 lint 应通过: exit={code}, out={out}, stderr={err}"
+        return True, ""
+    finally:
+        shutil.rmtree(fixture, ignore_errors=True)
+
+
 # ── 主入口 ───────────────────────────────────────────────────
 
 SCENARIOS = [
@@ -1582,6 +1768,10 @@ SCENARIOS = [
     ("G6", "明确无状态机声明可通过", test_scenario_G6_explicit_no_state_machine),
     ("G7", "状态解析失败不能确认", test_scenario_G7_state_parser_failure),
     ("G8", "伪造哈希不能绕过确认门禁", test_scenario_G8_confirmation_bypass_blocked),
+    ("H1", "字段属性与内部字段交付防丢失", test_scenario_H1_field_delivery_guards),
+    ("H2", "完整字段属性承接可通过", test_scenario_H2_complete_field_delivery_passes),
+    ("H3", "明确权限反转与混合权限边界", test_scenario_H3_permission_polarity_guards),
+    ("H4", "PRD 字段表 7 列结构检查", test_scenario_H4_field_table_style_lint),
 ]
 
 

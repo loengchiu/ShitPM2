@@ -84,3 +84,11 @@
 | 48. 表达问题留在 PRD | 只是措辞、结构、格式或覆盖不足，不改变 Design 事实 | [PRD 写作规则](../references/prd-writing-rules.md) | P2 | `content` / 具体位置 |
 | 49. 上游问题回退 Design | Design 缺失或错误导致 PRD 无法保持语义时，PRD 不自行补事实 | [同步修复传播规则](fix-propagation-rules.md) | P1 | `consistency` / needs_upstream_sync |
 | 50. Review 不承担计划内补全 | Review 结果直接代写 PRD 或把生成责任推给 Review | [Review 公共执行契约](review-checklist.md)；[PRD 写作规则](../references/prd-writing-rules.md) | P2 | `content` / 审查问题 |
+| 51. 字段全部属性完整承接 | PRD 字段表缺 Design 已确认的长度、枚举、格式、范围/精度、默认值、业务来源或说明 | `prd-consistency-check.py`；[PRD 写作规则](../references/prd-writing-rules.md) | P1 | `consistency` / 字段位置 |
+| 52. 系统内部字段仍可交付 | Design 非页面落点字段在 PRD 缺失，或未说明系统内部用途 | `prd-consistency-check.py`；[PRD 写作规则](../references/prd-writing-rules.md) | P1 | `consistency` / 字段位置 |
+| 53. 动作条件、结果与副作用完整 | 关键动作缺前置状态、对象/字段变化、成功/失败结果、状态副作用、恢复路径或下一责任人 | [场景检查清单](../references/prd-scene-checklist.md) | P1 | `content` / 动作位置 |
+| 54. 数据生命周期可执行（按需） | 删除、作废、归档、恢复或历史存在，但 PRD 未写当前数据、关联数据和可见性结果 | [场景检查清单](../references/prd-scene-checklist.md) | P1 | `content` / 对应动作 |
+| 55. 查询、文件、导入导出和批量口径完整（按需） | 场景存在但缺默认范围/排序/分页、格式/大小/数量、权限、上限、部分失败或结果反馈 | [场景检查清单](../references/prd-scene-checklist.md) | P1 | `content` / 对应动作 |
+| 56. 重复、并发和过期数据结果明确（按需） | 重复提交、多窗口编辑、数据过期或状态冲突时，用户结果和有效数据不明确 | [场景检查清单](../references/prd-scene-checklist.md) | P1 | `content` / 对应动作 |
+| 57. 跨系统失败和最终责任完整（按需） | 缺事实源、同步方向、失败/部分成功状态、补偿入口、可重试范围或最终责任 | [场景检查清单](../references/prd-scene-checklist.md) | P1 | `content` / 集成位置 |
+| 58. 产品级质量约束可验收（按需） | Design 已确认的性能、安全、审计、留存或兼容要求在 PRD 丢失或不可验收 | [PRD 写作规则](../references/prd-writing-rules.md)；[场景检查清单](../references/prd-scene-checklist.md) | P1 | `consistency` / 验收位置 |

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """prd-style-lint.py — PRD 文风 lint 脚本
 
-职责：检查 PRD 正文中可机械识别的 9 类问题。
+职责：检查 PRD 正文中可机械识别的 10 类问题。
 不做业务语义判断，不做全文重写。
 
 用法：python prd-style-lint.py <prd_file_path> [--format text|json] [--output <path>]
@@ -16,6 +16,7 @@
   STYLE007 - AI 痕迹
   STYLE008 - 占位符
   STYLE009 - 名词说明章节缺失
+  STYLE010 - 字段表交付结构不完整
 """
 
 import json
@@ -358,6 +359,34 @@ def check_glossary_section(lines: list) -> list:
     return issues
 
 
+def check_field_table_schema(lines: list) -> list:
+    """STYLE010: 字段定义表必须使用 7 列研发交付结构。"""
+    issues = []
+    required_headers = ("字段", "类型", "必填", "取值约束", "默认值", "业务来源", "说明")
+
+    for index, line in enumerate(lines):
+        stripped = line.strip()
+        if not stripped.startswith("|") or index + 1 >= len(lines):
+            continue
+        separator = lines[index + 1].strip()
+        if not re.match(r"^\|(?:\s*:?-{3,}:?\s*\|)+$", separator):
+            continue
+        headers = [cell.strip() for cell in stripped.strip("|").split("|")]
+        header_text = "|".join(headers)
+        if "字段" not in header_text or "类型" not in header_text:
+            continue
+        missing = [header for header in required_headers if not any(header in cell for cell in headers)]
+        if missing:
+            issues.append(Issue(
+                code="STYLE010",
+                severity="error",
+                line=index + 1,
+                message=f"字段表缺少研发交付列：{'、'.join(missing)}",
+                suggestion="字段表统一使用：字段、类型、必填、取值约束、默认值、业务来源、说明",
+            ))
+    return issues
+
+
 ALL_CHECKS = [
     check_label_style,
     check_action_list,
@@ -368,6 +397,7 @@ ALL_CHECKS = [
     check_ai_traces,
     check_placeholders,
     check_glossary_section,
+    check_field_table_schema,
 ]
 
 
@@ -415,7 +445,7 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="PRD 文风 lint 脚本：检查 PRD 正文中可机械识别的 9 类问题。",
+        description="PRD 文风 lint 脚本：检查 PRD 正文中可机械识别的 10 类问题。",
     )
     parser.add_argument("prd_file", help="PRD 文件路径")
     parser.add_argument("--format", choices=["text", "json"], default="text", help="输出格式（默认 text）")
