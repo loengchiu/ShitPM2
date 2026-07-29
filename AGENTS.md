@@ -1,3 +1,9 @@
+# ShitPM 仓库开发规则
+
+本文件仅用于维护 ShitPM 仓库本身，不属于 ShitPM 用户项目的运行时规则。
+安装脚本不会将本文件加载到用户项目上下文。
+用户运行时行为以 `skills/`、`contracts/`、`references/`、`schemas/` 和 `templates/` 为准。
+
 ## 1. 语言原则
 
 - 默认使用简体中文。
@@ -8,7 +14,7 @@
 
 ## 2. ShitPM 产品契约
 
-本仓库当前产品契约以 `output/shitpm-v2-prd.md` 和 `output/shitpm-v2-implementation-design.md` 为批准基线。旧 V2 review、旧实施指令和历史讨论仅作为审计材料，不得覆盖当前基线。
+本仓库当前产品契约以仓库内现行的 `skills/`、`contracts/`、`references/`、`schemas/` 和 `templates/` 定义为准；历史讨论和已归档材料仅作为审计材料，不得覆盖当前契约。
 
 所有 Skill、脚本、模板、契约和文档必须遵守：
 

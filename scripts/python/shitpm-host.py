@@ -233,8 +233,6 @@ def write_global_rules(host: str) -> None:
     block = '\n'.join([
         START_MARKER,
         f'ShitPM bundle root: {bundle_root}',
-        f'If `.workflow/status.json` exists, read {bundle_root}/AGENTS.md.',
-        f'If `.workflow/status.json` doesn\'t exist but user runs `spm-start`, read it too.',
         END_MARKER,
     ])
     if host == 'claude-code':
@@ -244,10 +242,11 @@ def write_global_rules(host: str) -> None:
         upsert_block(host_base(host) / 'AGENTS.md', block)
         return
     if host == 'trae-cn':
-        content = '---\nalwaysApply: true\n---\n' + '\n'.join([
+        content = '\n'.join([
+            '---',
+            'alwaysApply: true',
+            '---',
             f'ShitPM bundle root: {bundle_root}',
-            f'If `.workflow/status.json` exists, read {bundle_root}/AGENTS.md.',
-            f'If `.workflow/status.json` doesn\'t exist but user runs `spm-start`, read it too.',
         ])
         write_text(host_base(host) / 'rules' / 'shitpm-global.md', content)
         return
@@ -273,10 +272,9 @@ def verify_global_rules(host: str) -> None:
     content = read_text(target)
     if 'ShitPM bundle root:' not in content and 'ShitPM 插件' not in content:
         raise RuntimeError(f'global rules missing ShitPM block: {target}')
-    # 验证时统一用 POSIX 路径，与 write_global_rules 的写入格式保持一致
-    # （write_global_rules 用 .as_posix() 写入正斜杠路径，str() 在 Windows 上是反斜杠会导致误报）
-    bundle_ref_posix = (host_bundle(host) / 'AGENTS.md').as_posix()
-    bundle_ref_native = str(host_bundle(host) / 'AGENTS.md')
+    # 验证时统一兼容 POSIX 和 Windows 路径，与 write_global_rules 的写入格式保持一致。
+    bundle_ref_posix = host_bundle(host).as_posix()
+    bundle_ref_native = str(host_bundle(host))
     if bundle_ref_posix not in content and bundle_ref_native not in content:
         raise RuntimeError(f'global rules missing bundle ref: {target}')
 
