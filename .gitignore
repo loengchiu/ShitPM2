@@ -1,57 +1,25 @@
-# === 工作流运行产物 ===
-# 以下文件由 stage-prep.py / stage-context.py / review-precheck.py 等脚本
-# 从人读产物（output/）自动生成。不纳入版本控制的原因：
-# 1. 可从人读产物确定性重建（运行 stage-prep.py --stage <stage>）
-# 2. 避免人读产物与机读镜像的合并冲突
-# 3. 单人/单分支工作流下，当前真相在磁盘上即可
-# 如需团队协作，考虑改为跟踪这些文件或引入 CI 重建步骤
-# 机读元数据（由 stage-prep.py 从 output 自动生成，含子目录）
-.workflow/metadata/**/*.json
-# 运行时上下文（如 stage-context.py / review-precheck.py 运行快照，含子目录）
-.workflow/runtime/**/*.json
-# 人读审查结果（由 review 流程生成）
-.workflow/reviews/*.json
-.workflow/reviews/*.md
-# 人读产物（design.md / prd.md / index.html 等）
+# 工作流运行产物
+.workflow/
 output/*
-# 归档目录（旧项目归档存放在此）
 .archive/
 
-# === 例外：保留 status.json（工作流状态中枢） ===
-!.workflow/status.json
-
-# === Python 缓存 ===
+# Python 缓存
 __pycache__/
 *.pyc
 *.pyo
 
-# === Claude Code 本地配置 ===
+# 宿主工具本地配置
 .claude/
+.codex/
+.trae-cn/
+.trae/
+.workbuddy/
 
-# === 内部规划文档 ===
-01-新辅助器实现总规约.md
-02-测试与验收.md
-refactor-guide-anti-hallucination.md
-
-# === 临时文件 ===
-# Codex/脚本运行时临时目录
+# 临时文件
 .tmp/
 .tmp-validator-empty/
 _tmp_*.md
 _verify_changes.py
-# 防幻觉测试中间产物（test-anti-hallucination.py 生成）
-test-fixture/output/prd/prd-hallucination.md
 
-# === AI 助手本地工作区 ===
-.workbuddy/
-.codex/
-.trae-cn/
-.trae/
-
-# === 测试/开发遗留产物 ===
+# 本地开发遗留产物
 test-prototype-mark.html
-test-fixture/output/prd/prd-module-5.4.md
-
-# === 内部评估报告 ===
-shitpm-plugin-evaluation-v3.md
-skills-evaluation-report-v2.md
