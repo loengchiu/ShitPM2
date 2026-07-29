@@ -1,0 +1,14 @@
+{
+  "schema_version": "design-rule-pack/v1",
+  "content_hash": "5de45c9000765749138f29a3ed8aa56b99fccdef085fff59cf6668711a24c24d",
+  "selection": {
+    "stage": "writing",
+    "mode": "full",
+    "pass": "writing"
+  },
+  "sources": {
+    "contracts/design-orchestration-contract.md": "b0048a501713ebfd763058cc578f46dedf1d22909911e8966ea74e52cd36588f",
+    "skills/spm-design/SKILL.md": "f98dedd2e4cc95ecda3d81ca9d8a9b647283824ec5df987739cc8119c7f8f1d2",
+    "skills/spm-align/SKILL.md": "1d82eaa473bd21a54f64ddb7528ddcf64f258891a87a0073039a9d3b06e16a1b"
+  }
+}

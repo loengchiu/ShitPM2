@@ -1,0 +1,27 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Design Orchestration Action v2",
+  "type": "object",
+  "required": ["action_id", "task_id", "type", "role", "objective", "mode", "task_kind", "depends_on", "batch_key", "input_files", "input_hashes", "rule_pack_ref", "expected_outputs", "output_schema", "completion_check", "forbidden_inputs", "allowed_evidence_ranges"],
+  "properties": {
+    "action_id": {"type": "string", "minLength": 1},
+    "task_id": {"type": "string", "minLength": 1},
+    "type": {"enum": ["run_isolated_agent", "run_command", "ask_user", "report_completed"]},
+    "role": {"type": "string", "minLength": 1},
+    "objective": {"type": "string", "minLength": 1},
+    "mode": {"enum": ["simple", "full"]},
+    "task_kind": {"type": "string", "minLength": 1},
+    "depends_on": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "batch_key": {"type": "string", "minLength": 1},
+    "input_files": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "input_hashes": {"type": "object"},
+    "rule_pack_ref": {"type": "object", "required": ["content_hash", "cache_path"]},
+    "expected_outputs": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "output_schema": {"type": "object"},
+    "completion_check": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+    "forbidden_inputs": {"type": "array", "items": {"type": "string"}},
+    "allowed_evidence_ranges": {"type": "array"},
+    "fork_context": {"type": "boolean"},
+    "max_attempts": {"type": "integer", "minimum": 1}
+  }
+}

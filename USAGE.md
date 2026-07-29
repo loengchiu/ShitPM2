@@ -47,13 +47,13 @@ python scripts/python/shitpm-host.py remove --host <host>
 
 ## 3. 启动与状态查询
 
-每次开始工作前查询当前可用动作：
+每次开始工作前查询项目状态和当前就绪动作：
 
 ```powershell
 python scripts/python/stage-context.py --project-root .
 ```
 
-`spm-start` 是只读导航：它按 `$BUNDLE/contracts/start-action-matrix.md` 判定可用动作，并依 `$BUNDLE/templates/start-report.md` 输出项目状态、产物清单、最近 Review、可用动作与每个动作的建议模型等级。**不给唯一下一步**，选择权交给你。
+`spm-start` 是只读导航：它输出项目状态、产物清单、最近 Review 和当前 `ready_actions[]`。它不把依赖图压成唯一下一步；用户可以看到所有已满足依赖的动作，编排器负责判断动作是否真的就绪。
 
 输出关键字段：
 
@@ -61,44 +61,49 @@ python scripts/python/stage-context.py --project-root .
 |------|------|
 | `current_stage` | 历史兼容字段，从 `status.json` 读取，缺失时回退到 `actual_stage` |
 | `actual_stage` | 基于 canonical 文件探测得出的实际阶段 |
-| `available_actions` | 当前可用的动作列表，每项含 `available`、`reason`、`model_tier`、`reasoning_depth` |
+| `ready_actions[]` | 当前所有已满足依赖、可以执行的动作；每项至少包含动作标识、依赖、原因、输入范围、预期输出和模型建议 |
 | `design_confirmation` | Design 确认状态，含 `confirmed`、`reason`、`confirmed_at` 等 |
 | `bundle_resources` | bundle root 及 templates/references/contracts/schemas 路径与存在性 |
 | `status_source` | `loaded` / `missing` / `corrupted`，表示 `status.json` 读取情况 |
-| `next_recommended` | 始终为 `null`，ShitPM 不再线性推进，由用户从 `available_actions` 选择 |
 
 说明：
 
-- 无 `status.json` 时脚本仍能正常输出，`status_source` 标记为 `missing`
-- canonical 文件探测（`output/align/align.md`、`output/design/design.md`、`output/prd/prd.md`、`output/prototype/index.html`）优先于 `status.json` 中的 artifacts 镜像
-- `status.json` 损坏时输出稳定错误信息，不抛出 traceback，`status_source` 标记为 `corrupted`
-- `next_recommended` 不再给出"下一步建议"，ShitPM 把选择权交给用户
+- 无 `status.json` 时仍应能基于 canonical 文件和有效产物输出就绪动作；
+- 同一批无硬依赖的动作可以并行；
+- 动作失败只使受影响动作及其下游重新就绪，不重跑仍然有效的上游；
+- `ready_actions[]` 是执行导航，不是产品事实；运行状态、动作卡、缓存和内部分析不得写入 Design 正文。
 
 ## 4. ShitPM 流程总览
 
 ```text
 可选：spm-align（需求整理）
         ↓
-spm-design（产品定义 + Design 基线）
-        ↓
-用户明确确认 design.md
+材料准备/复用
         ├───────────────┐
-        ↓               ↓
-      spm-prd       spm-prototype
-  研发规格表达       页面与交互表达
+        ▼               ▼
+     简单模式         完整模式
+        │               │
+  最小闭环分析       A → B → C
+        │               │
+  写作与生成内自审   设计写作与生成内自审
+        └───────┬───────┘
+                ▼
+      页面 → 区块 → 字段/操作
+                ↓
+        用户明确确认 design.md
+          ├───────────────┐
+          ▼               ▼
+       spm-prd       spm-prototype
 
-按需辅助：
-spm-design-review / spm-prd-review / spm-prototype-review
-spm-fix
-spm-prototype-mark
+按需辅助：spm-design-review / spm-prd-review / spm-prototype-review / spm-fix / spm-prototype-mark
 ```
 
 | 动作 | 可用条件 | 默认模型等级 |
 |------|----------|--------------|
-| `spm-align` | 始终可用，可跳过 | 视任务而定（探索型用深度推理模型，整理型可用轻量模型） |
-| `spm-design` | 始终可用 | 深度推理模型 |
+| `spm-align` | 始终可用，可跳过 | 视任务而定 |
+| `spm-design` | 始终可用；用户必须选择简单模式或完整模式 | 无法判断时使用深度推理模型 |
 | `confirm-design` | `design.md` 存在 | 无需模型 |
-| `spm-prd` | `design.md` 存在且已确认 | 根据确认版 Design 判断（决策完整可用轻量模型） |
+| `spm-prd` | `design.md` 存在且已确认 | 根据确认版 Design 判断 |
 | `spm-prototype` | `design.md` 存在且已确认 | 根据交互和实现复杂度判断 |
 | `spm-design-review` | `design.md` 存在 | 深度推理模型 |
 | `spm-prd-review` | `prd.md` 存在 | 深度推理模型 |
@@ -108,12 +113,13 @@ spm-prototype-mark
 
 关键原则：
 
-- Align 可选，空项目可直接进入 Design
-- Design 同时承担 产品定义 与 Design 基线，是主链路唯一人工确认点
-- 用户确认后的 `design.md` 是 PRD 和 Prototype 的唯一产品事实基线
-- PRD 与 Prototype 并列，可以任意顺序、单独生成
-- Review 是按需独立挑战，不构成门禁，不自动阻塞下一步
-- 默认流程不依赖 metadata、`stage-prep.py` 或三个 Review 全部通过
+- Align 可选，空项目可直接进入 Design；
+- Design 同时承担产品定义与 Design 基线，是主链路唯一人工确认点；
+- 用户确认后的 `design.md` 是 PRD 和 Prototype 的唯一产品事实基线；
+- PRD 与 Prototype 并列，可以任意顺序、单独生成；
+- Review 是按需独立挑战，不构成门禁，不自动阻塞下游；
+- 默认流程不依赖 metadata、`stage-prep.py` 或三个 Review 全部通过；
+- Design 内部使用依赖图和 `ready_actions[]`，不使用固定三段式或唯一下一动作。
 
 ## 5. 核心流程
 
@@ -138,33 +144,45 @@ spm-prototype-mark
 
 输入：
 
-- 可选的 `align.md`
-- 用户原始需求、业务材料、补充说明
+- 可选的 `align.md`；
+- 用户原始需求、业务材料、补充说明；
+- 已准备且仍有效的材料事实资产；
+- 当前模式依赖图允许读取的专项基线和证据。
 
 产物：
 
-- `output/design/design.md` — 设计基线
-- `output/design/decision-notes.md` — 过程审计（设计决策、偏离、权衡、待确认）
+- `output/design/design.md` — 面向产品经理的产品方案设计；
+- `output/design/decision-notes.md` — 过程审计（设计决策、偏离、权衡、待确认）。
 
-模式选择（必须由用户决定，Skill 不自动判断）：
+模式选择必须由用户决定：
 
-- **简单模式**：完成最小业务闭环——目标、范围、主路径、关键规则、必要状态/权限、功能/数据、异常和验收；不生成无关空章节、完整 ABC 中间分析或虚构状态机。
-- **完整模式**：在简单模式基础上承担三层分析责任——需求理解、业务建模（含业务模型一致性挑战）、系统需求与跨层一致性挑战。这三层是**内部分析责任**，其结论必须影响最终事实、待确认项或验收，但分析过程本身不写进 `design.md` 目录。
+- **简单模式**：完成目标、范围、主路径、关键规则、必要状态/权限、实际功能/数据、页面/区块/字段/操作、异常和验收；不生成无关空章节、完整 ABC 中间分析或虚构状态机。
+- **完整模式**：在简单模式基础上，按依赖图完成 A 层需求理解、B 层业务建模与一致性挑战、C 层产品承接与跨层一致性挑战；这些是内部责任，最终只保留产品方案结论、风险和待确认，不把分析过程写入 `design.md`。
 - 用户已明确模式则直接采用；未明确则只询问一次，未获得选择前不正式写入 Design。
 
-生成前分析协议见 `$BUNDLE/references/design-analysis-protocol.md`；冻结后质量分级见 `$BUNDLE/references/design-quality-rubric.md`（五维度 L0–L3 评级，覆盖需求理解、业务建模、系统需求三层）。
+Design 内部依赖图：
+
+```text
+材料准备/复用
+  ├─ 简单：最小闭环分析 → 写作与生成内自审 → 确定性检查 → Design 索引
+  └─ 完整：A → B → C → 写作与生成内自审 → 三类成品检查并行 → 有限局部修复 → Design 索引
+```
+
+编排器每轮返回当前全部 `ready_actions[]`。同批无硬依赖动作可以并行；有效上游不因下游失败重跑；不固定模型调用次数，也不把 `ready_actions[]` 压成唯一下一动作。材料内容未变化时复用事实资产，不重复全文提取。
+
+最终 `design.md` 按产品经理理解顺序组织，正式页面定义使用：页面目的、适用角色、进入条件、数据范围、主要状态；页面下按区块定义目的；区块下按字段和操作定义固定属性。详细格式见 `$BUNDLE/templates/design.md` 和 `$BUNDLE/references/design-writing.md`。
+
+生成前分析协议见 `$BUNDLE/references/design-analysis-protocol.md`；冻结后质量分级见 `$BUNDLE/references/design-quality-rubric.md`。质量标准主要检查需求理解、业务建模、产品承接、跨层一致性和问题发现，不授权补写产品事实。
 
 首次生成责任：
 
-- 明确产品目标、范围、非目标和外部边界
-- 建立产品对象、模块和页面或交互载体
-- 形成端到端业务流程和关键分支
-- 设计角色职责、功能权限和数据权限
-- 设计核心状态、流转条件和结果
-- 处理跨模块、跨系统关系和共享实体归属
-- 识别关键异常、责任边界和不可逆行为
-- 比较主要可选方案并形成有理由的选择
-- 高影响待确认事项必须显式暴露，不能伪装成确定事实
+- 明确产品目标、范围、非目标和外部边界；
+- 形成端到端业务流程、对象、规则、状态和关键分支；
+- 设计角色职责、权限和数据范围；
+- 把业务方案落实到页面、区块、字段、操作和用户反馈；
+- 识别异常、恢复、不可逆行为和外部责任；
+- 比较主要方案并说明选择理由；
+- 高影响待确认事项显式暴露，不能伪装成确定事实。
 
 `decision-notes.md` 只用于过程审计，不作为下游事实输入。
 
@@ -289,7 +307,7 @@ Prototype Mark 收集的高影响反馈按 `$BUNDLE/templates/prototype-feedback
 | `prd-style-lint.py` | PRD 风格检查（坏味道、流水账、模糊表述等） |
 | `state-machine-check.py` | 状态机闭环检查，按需调用 |
 | `design-analysis-protocol.md` | spm-design 生成前的分析责任协议（双模式、ABC 内部责任边界） |
-| `design-quality-rubric.md` | Design 冻结后的质量分级标准（五维度 L0–L3，覆盖需求理解、业务建模、系统需求三层） |
+| `design-quality-rubric.md` | Design 成品质量分级标准（五维度 L0–L3，覆盖需求理解、业务建模、产品承接和跨层一致性） |
 | `stage-prep.py` | 旧版兼容：仅旧项目兼容诊断，ShitPM 主流程不依赖 |
 | `verify-against-metadata.py` | 旧版兼容：仅旧项目 metadata 结构校验 |
 | `shitpm-host.py install/verify/remove` | 安装、验证、卸载宿主映射 |
@@ -310,7 +328,7 @@ python scripts/python/state-machine-check.py --project-root .
 ## 9. 常见问题
 
 **Q: 没有 `status.json` 能用吗？**
-能。`stage-context.py` 优先探测 canonical 文件，`status_source` 标记为 `missing` 时仍正常输出可用动作。
+能。`stage-context.py` 优先探测 canonical 文件，`status_source` 标记为 `missing` 时仍正常输出 `ready_actions[]`。
 
 **Q: PRD 一定要先于 Prototype 吗？**
 不一定。两者并列，可以任意顺序、单独生成。Prototype-only 是合法状态。
@@ -337,7 +355,7 @@ python scripts/python/state-machine-check.py --project-root .
 
 ShitPM 主流程应满足：
 
-1. `stage-context.py` 输出 `available_actions`，PRD、Prototype 在 Design 确认后可用
+1. Design 编排输出 `ready_actions[]`；PRD、Prototype 在 Design 确认后可用
 2. Design 修改后旧确认自动失效，`design-confirmation.py check` 返回 `hash_mismatch`
 3. PRD、Prototype 可独立生成，任意顺序
 4. Review 不再因章节缺失被预检查阻止，缺章节作为审查问题返回

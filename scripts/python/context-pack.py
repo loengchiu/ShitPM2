@@ -5,8 +5,10 @@ import hashlib
 import json
 import re
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
+from token_estimate import estimate_tokens
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -176,22 +178,6 @@ def build_sections(bundle_root: Path, manifest: dict[str, Any], stage: str,
     return [read_section(bundle_root, section_id, sections[section_id]) for section_id in section_ids]
 
 
-def estimate_tokens(text: str) -> int:
-    """使用保守的中英文混合启发式估算 token，不替代目标模型 tokenizer。"""
-    cjk_count = sum(
-        1
-        for char in text
-        if (
-            '\u3400' <= char <= '\u4dbf'
-            or '\u4e00' <= char <= '\u9fff'
-            or '\uf900' <= char <= '\ufaff'
-            or '\u3040' <= char <= '\u30ff'
-            or '\uac00' <= char <= '\ud7af'
-        )
-    )
-    other_count = len(text) - cjk_count
-    return max(1, int(cjk_count * 0.6 + other_count * 0.25 + 0.999999)) if text else 0
-
 
 def render_pack(stage: str, pack_name: str, sections: list[dict[str, Any]]) -> str:
     lines = [
@@ -219,7 +205,8 @@ def write_run(project_root: Path, stage: str, mode: str | None, pass_name: str |
               section_data: list[dict[str, Any]], output_dir: Path,
               applicability: dict[str, str] | None, *, bundle_root: Path | None = None,
               manifest_hash: str | None = None, role: str | None = None,
-              budget: dict[str, Any] | None = None) -> dict[str, Any]:
+              budget: dict[str, Any] | None = None, duration_ms: int | None = None,
+              metrics_dir: Path | None = None) -> dict[str, Any]:
     bundle_root = (bundle_root or ROOT).resolve()
     if manifest_hash is None:
         manifest_hash = sha256_file(manifest_path(bundle_root))
@@ -261,10 +248,34 @@ def write_run(project_root: Path, stage: str, mode: str | None, pass_name: str |
         'manifest_path': MANIFEST_REL.as_posix(),
         'applicability': applicability or {},
         'budget': budget or {},
+        'duration_ms': duration_ms,
         'generated_at': datetime.now(timezone.utc).isoformat(),
     }
     output_dir.mkdir(parents=True, exist_ok=True)
     (output_dir / 'run.json').write_text(json.dumps(record, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+    if metrics_dir is not None:
+        metrics_dir.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
+        metric = {
+            'version': 1,
+            'stage': stage,
+            'mode': mode,
+            'pass': pass_name,
+            'role': role,
+            'status': 'completed',
+            'generated_at': record['generated_at'],
+            'duration_ms': duration_ms,
+            'tokens': record['tokens'],
+            'characters': characters,
+            'section_count': record['section_count'],
+            'source_file_count': record['source_file_count'],
+            'material_assets_available': all((project_root / '.workflow/runtime/materials' / name).is_file() for name in ('manifest.json', 'source-index.json')),
+            'raw_materials_in_pack': False,
+            'handoff_dir': str(project_root / '.workflow/runtime/context' / stage / 'handoff'),
+        }
+        (metrics_dir / f'{stamp}-{stage}-{pass_name or "explicit"}.json').write_text(
+            json.dumps(metric, ensure_ascii=False, indent=2) + '\n', encoding='utf-8'
+        )
     return record
 
 
@@ -371,6 +382,7 @@ def main() -> int:
         parser.error('--fail-on-budget 必须与 --max-tokens 一起使用')
     project_root = args.project_root.resolve()
     bundle_root = args.bundle_root.resolve()
+    started = time.perf_counter()
     try:
         manifest = load_manifest(bundle_root)
         if args.verify_run:
@@ -437,6 +449,8 @@ def main() -> int:
             selected_packs, pack_sections, section_data, output_dir, applicability,
             bundle_root=bundle_root, manifest_hash=sha256_file(manifest_path(bundle_root)), role=args.role,
             budget=budget,
+            duration_ms=round((time.perf_counter() - started) * 1000),
+            metrics_dir=project_root / '.workflow' / 'runtime' / 'metrics',
         )
         print(json.dumps(record, ensure_ascii=False, indent=2))
         return 0

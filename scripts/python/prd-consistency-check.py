@@ -43,6 +43,9 @@ from shared_md import (
 )
 
 # PRD 章节别名（用于章节定位，但 ShitPM 主要采用全文扫描策略，章节定位仅作辅助）
+NON_CONCRETE_STATE_NAMES = frozenset({"—", "-", "N/A", "任意状态", "状态"})
+
+
 SECTION_ALIASES = {
     "详细需求说明": ["详细需求说明", "详细需求", "需求说明", "详细需求规格", "需求详细说明"],
     "数据字典": ["数据字典", "字段定义", "字段清单", "字段列表", "数据项定义"],
@@ -204,6 +207,7 @@ def extract_prd_fields(headings: list, tables: list, content: str) -> list:
                         enum_values = _parse_enum_values(description)
                 fields.append({
                     "name": name,
+                    "line": table.get("line_offset"),
                     "type": field_type,
                     "required": required,
                     "constraints": constraint_text,
@@ -363,7 +367,7 @@ def extract_prd_states(content: str, headings: list, tables: list) -> list:
 
     def _add_state(name):
         name = name.strip().strip("`")
-        if not name or name in ("—", "-", "N/A", "任意状态", "状态"):
+        if not name or name in NON_CONCRETE_STATE_NAMES:
             return
         # 过滤 Mermaid 残留片段（如 A[草稿]、|审批通过|）
         if re.match(r'^[A-Z]\[', name) or name.startswith("|") or name.endswith("]"):
@@ -490,9 +494,8 @@ def extract_prd_permission_pages(headings: list, tables: list, content: str) -> 
             break
 
     # 策略 2: 在权限汇总章节内的表格第一列提取页面名（旧模板）
-    perm_ranges = _find_multiple_section_ranges(headings, ["权限汇总", "权限定义", "权限规则"])
-    if perm_ranges:
-        for table in _tables_in_ranges(tables, perm_ranges):
+    if candidate_ranges:
+        for table in _tables_in_ranges(tables, candidate_ranges):
             headers = table.get("headers", [])
             if not headers:
                 continue
@@ -1092,6 +1095,176 @@ def compare_permission_pages(
     }
 
 
+
+def _load_verified_design_index(project_root: Path):
+    """优先读取并校验 Design 索引；索引缺失时仅在内存中从 design.md 编译。"""
+    path = Path(__file__).with_name("design-index.py")
+    spec = importlib.util.spec_from_file_location("design_index", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    index, error, from_file = module.load_verified_index(project_root)
+    return module, index, error, from_file
+
+
+def _indexed_expected_entities(index: dict) -> list[dict]:
+    pages_by_id = {item.get("id"): item for item in index.get("pages", []) if isinstance(item, dict)}
+    blocks_by_id = {item.get("id"): item for item in index.get("blocks", []) if isinstance(item, dict)}
+    expected = []
+    for page in index.get("pages", []):
+        expected.append({"type": "page", "name": page.get("name"), "page_name": None, "block_name": None, "attributes": page.get("attributes", {})})
+        for block in page.get("blocks", []):
+            expected.append({"type": "block", "name": block.get("name"), "page_name": page.get("name"), "block_name": None, "attributes": block.get("attributes", {})})
+    for entity_type, key in (("field", "fields"), ("operation", "operations")):
+        for item in index.get(key, []):
+            page = pages_by_id.get(item.get("page_id"), {})
+            block = blocks_by_id.get(item.get("block_id"), {})
+            expected.append({
+                "type": entity_type,
+                "name": item.get("name"),
+                "page_name": page.get("name"),
+                "block_name": block.get("name"),
+                "attributes": item.get("attributes", {}),
+            })
+    return [item for item in expected if item.get("name")]
+
+
+def _indexed_entity_key(item: dict) -> tuple:
+    return (item.get("type"), item.get("page_name"), item.get("block_name"), item.get("name"))
+
+
+def _normalize_indexed_value(value) -> str:
+    if value is None:
+        return ""
+    value = str(value).strip().strip("`")
+    if value in {"", "—", "-", "无", "不适用", "N/A", "NA", "null", "None"}:
+        return ""
+    return re.sub(r"[\s，,；;。]+", "", value).lower()
+
+
+def _compare_indexed_structure(index: dict, content: str, index_module) -> dict:
+    expected = _indexed_expected_entities(index)
+    # 旧格式由 design-index.py 明确标记为 unsupported_format 时，交给 legacy
+    # 提取器处理；不能把 PRD 的旧格式实体当成“新增实体”报告为索引幻觉。
+    if not expected:
+        return {
+            "enabled": False,
+            "expected_count": 0,
+            "matched_count": 0,
+            "missing": [],
+            "hallucinated": [],
+            "attribute_mismatch": [],
+        }
+    actual_nodes = index_module.extract_document_entities(content)
+    flexible = False
+
+    if not actual_nodes:
+        headings = parse_headings(content)
+        tables = parse_tables_with_context(content, headings)
+        prd_pages = extract_prd_pages(content, headings)
+        prd_fields = extract_prd_fields(headings, tables, content)
+        page_markers = []
+        page_pattern = re.compile(r'^\*\*(?:\d+(?:\.\d+)+)\s+(.+?)\*\*\s*$')
+        for line_no, line in enumerate(content.splitlines(), 1):
+            match = page_pattern.match(line.strip())
+            if match:
+                page_markers.append((line_no, clean_page_title(match.group(1))))
+        page_markers.sort()
+
+        def page_for_line(line_no: int | None) -> str | None:
+            if not page_markers:
+                return prd_pages[0] if len(prd_pages) == 1 else None
+            selected = None
+            for marker_line, marker_name in page_markers:
+                if line_no is None or marker_line <= line_no:
+                    selected = marker_name
+                else:
+                    break
+            return selected
+
+        actual_nodes = [
+            {"type": "page", "name": name, "page_name": None, "block_name": None, "attributes": {}, "line": None}
+            for name in prd_pages
+        ]
+        for field in prd_fields:
+            attrs = {}
+            if field.get("source"):
+                attrs["source"] = field["source"]
+            if field.get("required") is not None:
+                attrs["required"] = "是" if field["required"] else "否"
+            actual_nodes.append({
+                "type": "field",
+                "name": field.get("name"),
+                "page_name": page_for_line(field.get("line")),
+                "block_name": None,
+                "attributes": attrs,
+                "line": field.get("line"),
+            })
+        operation_pattern = re.compile(r'^\s*[·•]\s*(?:\*\*)?([^：:]+?)(?:\*\*)?\s*$')
+        for line_no, line in enumerate(content.splitlines(), 1):
+            match = operation_pattern.match(line)
+            if match:
+                name = match.group(1).strip()
+                if name and name not in {"动作一", "动作二"}:
+                    actual_nodes.append({
+                        "type": "operation", "name": name,
+                        "page_name": page_for_line(line_no), "block_name": None,
+                        "attributes": {}, "line": line_no,
+                    })
+        flexible = bool(prd_pages or prd_fields)
+
+    def structure_key(item: dict, flexible_mode: bool = False) -> tuple:
+        if flexible_mode and item.get("type") in {"field", "operation"}:
+            return (item.get("type"), item.get("page_name"), item.get("name"))
+        return _indexed_entity_key(item)
+
+    expected_for_compare = [
+        item for item in expected
+        if not (flexible and item.get("type") == "block")
+    ]
+    expected_keys = {structure_key(item, flexible) for item in expected_for_compare}
+    actual_keys = {structure_key(item, flexible) for item in actual_nodes}
+    missing = [item for item in expected_for_compare if structure_key(item, flexible) not in actual_keys]
+    hallucinated = [
+        {"type": item.get("type"), "name": item.get("name"), "page_name": item.get("page_name"), "block_name": item.get("block_name"), "line": item.get("line")}
+        for item in actual_nodes if structure_key(item, flexible) not in expected_keys
+    ]
+    actual_by_key = {structure_key(item, flexible): item for item in actual_nodes}
+    attribute_mismatch = []
+    checks = {
+        "field": ("source", "required") if flexible else ("source", "required", "display_condition"),
+        "operation": () if flexible else ("success_result", "state_change"),
+    }
+    for item in expected_for_compare:
+        if item.get("type") not in checks:
+            continue
+        actual_item = actual_by_key.get(structure_key(item, flexible))
+        if actual_item is None:
+            continue
+        for attr in checks[item["type"]]:
+            expected_value = item.get("attributes", {}).get(attr)
+            if expected_value is None or _normalize_indexed_value(expected_value) == "":
+                continue
+            actual_value = actual_item.get("attributes", {}).get(attr)
+            if _normalize_indexed_value(actual_value) != _normalize_indexed_value(expected_value):
+                attribute_mismatch.append({
+                    "type": item["type"],
+                    "name": item["name"],
+                    "page_name": item.get("page_name"),
+                    "block_name": item.get("block_name"),
+                    "attribute": attr,
+                    "expected": expected_value,
+                    "actual": actual_value or "",
+                    "deterministic": True,
+                })
+    return {
+        "enabled": bool(expected),
+        "expected_count": len(expected_for_compare),
+        "matched_count": len(expected_keys & actual_keys),
+        "missing": missing,
+        "hallucinated": hallucinated,
+        "attribute_mismatch": attribute_mismatch,
+    }
+
 # ── 主入口 ────────────────────────────────────────────────────
 
 def _load_design_entities_from_md(project_root: Path):
@@ -1159,6 +1332,18 @@ def main():
         print(json.dumps({"error": err or "无法加载 design 实体"}, ensure_ascii=False))
         sys.exit(2)
 
+    # 阶段 9：优先读取与 design.md 哈希绑定的索引；缺失时只在内存中编译，绝不把索引当事实源。
+    try:
+        design_index_module, design_index, design_index_error, design_index_from_file = _load_verified_design_index(project_root)
+    except Exception as exc:
+        print(json.dumps({"error": f"Design 索引加载失败: {exc}"}, ensure_ascii=False))
+        sys.exit(2)
+    if design_index is None or design_index_error:
+        print(json.dumps({"error": design_index_error or "Design 索引解析失败"}, ensure_ascii=False))
+        sys.exit(2)
+    indexed_result = _compare_indexed_structure(design_index, content, design_index_module)
+    indexed_active = indexed_result["enabled"]
+
     design_fields = design_data.get("fields", []) or []
     design_pages = design_data.get("pages", []) or []
     design_states = design_data.get("states", []) or []
@@ -1184,32 +1369,47 @@ def main():
     # PRD 是研发交付物：Design 的页面字段和非页面内部字段都必须出现。
     # 非页面字段无需虚构页面落点，但必须在字段表保留来源和内部用途。
 
-    # 集合对比（字段用名称列表做集合对比）
-    prd_field_names = [f["name"] for f in prd_fields if isinstance(f, dict) and "name" in f]
-    field_result = compare_entities(
-        [f["title"] for f in design_fields if isinstance(f, dict)],
-        prd_field_names, field_title_to_id, fuzzy_field_match,
-    )
-    # 字段属性对比（类型 + 必填）
-    field_result["attribute_mismatch"] = compare_field_attributes(
-        design_fields, prd_fields, field_title_to_id, fuzzy_field_match,
-    )
-    field_result["enum_mismatch"] = [
-        item for item in field_result["attribute_mismatch"]
-        if item.get("enum_missing") or item.get("enum_hallucinated")
+    # 固定结构 Design 使用索引完成页面/字段覆盖和高影响属性检查；旧模板继续走 legacy 解析。
+    if indexed_active:
+        field_result = {
+            "missing": [], "hallucinated": [], "attribute_mismatch": [],
+            "enum_mismatch": [], "deterministic_attribute_mismatch": [], "internal_field_issues": [],
+        }
+        page_result = {"missing": [], "hallucinated": [], "matched_count": 0}
+    else:
+        prd_field_names = [f["name"] for f in prd_fields if isinstance(f, dict) and "name" in f]
+        field_result = compare_entities(
+            [f["title"] for f in design_fields if isinstance(f, dict)],
+            prd_field_names, field_title_to_id, fuzzy_field_match,
+        )
+        field_result["attribute_mismatch"] = compare_field_attributes(
+            design_fields, prd_fields, field_title_to_id, fuzzy_field_match,
+        )
+        field_result["enum_mismatch"] = [
+            item for item in field_result["attribute_mismatch"]
+            if item.get("enum_missing") or item.get("enum_hallucinated")
+        ]
+        field_result["deterministic_attribute_mismatch"] = [
+            item for item in field_result["attribute_mismatch"] if item.get("deterministic")
+        ]
+        field_result["internal_field_issues"] = compare_internal_field_delivery(
+            design_non_page_fields, prd_fields, field_title_to_id, fuzzy_field_match,
+        )
+        page_result = compare_entities(
+            [p["title"] for p in design_pages if isinstance(p, dict)],
+            prd_pages, page_title_to_id, fuzzy_page_match,
+        )
+
+    # “任意状态”等是状态机通配/占位行，不是需要在 PRD 中单独交付的具体状态。
+    # 保留 stage-prep 中的伪状态，供状态机完整性校验使用；这里只在 Design 与 PRD
+    # 的下游交付集合对比边界排除它们，避免 legacy 路径误报缺失。
+    design_deliverable_states = [
+        s["title"]
+        for s in design_states
+        if isinstance(s, dict) and s.get("title") not in NON_CONCRETE_STATE_NAMES
     ]
-    field_result["deterministic_attribute_mismatch"] = [
-        item for item in field_result["attribute_mismatch"] if item.get("deterministic")
-    ]
-    field_result["internal_field_issues"] = compare_internal_field_delivery(
-        design_non_page_fields, prd_fields, field_title_to_id, fuzzy_field_match,
-    )
-    page_result = compare_entities(
-        [p["title"] for p in design_pages if isinstance(p, dict)],
-        prd_pages, page_title_to_id, fuzzy_page_match,
-    )
     state_result = compare_entities(
-        [s["title"] for s in design_states if isinstance(s, dict)],
+        design_deliverable_states,
         prd_states, state_title_to_id, fuzzy_state_match,
     )
     perm_result = compare_permission_pages(design_permissions, prd_perm_pages)
@@ -1234,6 +1434,7 @@ def main():
     total_missing = (
         len(field_result["missing"])
         + len(page_result["missing"])
+        + len(indexed_result["missing"])
         + len(state_result["missing"])
         + len(perm_result["missing"])
         + len(perm_pair_result["missing"])
@@ -1243,14 +1444,21 @@ def main():
     total_hallucinated = (
         len(field_result["hallucinated"])
         + len(page_result["hallucinated"])
+        + len(indexed_result["hallucinated"])
         + len(state_result["hallucinated"])
         + len(perm_result["hallucinated"])
         + len(perm_pair_result["hallucinated"])
         + len(role_result["hallucinated"])
         + len(module_result["hallucinated"])
     )
-    total_attribute_mismatch = len(field_result["attribute_mismatch"])
-    total_deterministic_attribute_mismatch = len(field_result["deterministic_attribute_mismatch"])
+    # 索引属性比较是确定性的；旧模板属性比较可能留下需要语义判断的项目。
+    # 先拆分两类，再合计，避免在 indexed_active 分支重复累加同一批索引差异。
+    needs_semantic_judgment_items = [
+        item for item in field_result["attribute_mismatch"] if not item.get("deterministic")
+    ]
+    needs_semantic_judgment_count = len(needs_semantic_judgment_items)
+    total_deterministic_attribute_mismatch = len(field_result["deterministic_attribute_mismatch"]) + len(indexed_result["attribute_mismatch"])
+    total_attribute_mismatch = total_deterministic_attribute_mismatch + needs_semantic_judgment_count
     total_internal_field_issues = len(field_result["internal_field_issues"])
     total_permission_inversions = len(permission_inversions)
 
@@ -1258,6 +1466,7 @@ def main():
     deterministic_conflicts_count = (
         len(field_result["hallucinated"])
         + len(page_result["hallucinated"])
+        + len(indexed_result["hallucinated"])
         + len(state_result["hallucinated"])
         + len(perm_result["hallucinated"])
         + len(perm_pair_result["hallucinated"])
@@ -1270,17 +1479,13 @@ def main():
     possible_omissions_count = (
         len(field_result["missing"])
         + len(page_result["missing"])
+        + len(indexed_result["missing"])
         + len(state_result["missing"])
         + len(perm_result["missing"])
         + len(perm_pair_result["missing"])
         + len(role_result["missing"])
         + len(module_result["missing"])
     )
-    needs_semantic_judgment_items = [
-        item for item in field_result["attribute_mismatch"] if not item.get("deterministic")
-    ]
-    needs_semantic_judgment_count = len(needs_semantic_judgment_items)
-
     classification = {
         "deterministic_conflicts": {
             "fields": field_result["hallucinated"],
@@ -1294,6 +1499,7 @@ def main():
             "permission_role_pairs": perm_pair_result["hallucinated"],
             "roles": role_result["hallucinated"],
             "modules": module_result["hallucinated"],
+            "design_index": indexed_result["hallucinated"] + indexed_result["attribute_mismatch"],
             "count": deterministic_conflicts_count,
         },
         "possible_omissions": {
@@ -1304,6 +1510,7 @@ def main():
             "permission_role_pairs": perm_pair_result["missing"],
             "roles": role_result["missing"],
             "modules": module_result["missing"],
+            "design_index": indexed_result["missing"],
             "count": possible_omissions_count,
         },
         "needs_semantic_judgment": {
@@ -1349,6 +1556,12 @@ def main():
         "permission_inversions": permission_inversions,
         "roles": role_result,
         "modules": module_result,
+        "design_index": {
+            "used": True,
+            "from_file": design_index_from_file,
+            "path": ".workflow/runtime/context/design/index/design-index.json",
+            "structure": indexed_result,
+        },
         "classification": classification,
         "summary": {
             "total_missing": total_missing,

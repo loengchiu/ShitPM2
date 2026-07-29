@@ -2,23 +2,25 @@
 
 ## 目的
 
-本契约限制 Sub-agent 在 ShitPM Design / PRD 执行中的输入、输出和权限。Sub-agent 是可选的内部执行机制，不是产品完成证明，也不是首次生成的必需前置。
+本契约限制 Sub-agent 在 ShitPM Design / PRD 执行中的输入、输出和权限。Sub-agent 是内部隔离执行机制，不是产品完成证明；简单模式可以不启用，完整模式必须使用 Sub-agent 或等价的新会话隔离材料读取和挑战。
 
 ## 默认策略
 
 - 简单模式 Design 和小型 PRD 默认不启用 Sub-agent。
-- 只有输入材料多、独立挑战价值明确，或 PRD 规模已经使单次写作明显增加上下文负担且业务模块边界清晰时，才考虑启用。原先的“10 页或 50 个字段”仅可作为经验参考，不是硬门槛，也不替代主 Agent 对模块边界和上下文预算的判断。
+- 完整模式默认启用 Material Reader 和 Design Challenger，以避免主 Agent 上下文膨胀；简单模式和小型 PRD 仍可不启用。是否拆分 PRD 模块由上下文预算和业务模块边界决定，不使用固定页数或字段数作为硬门槛。
 - 主 Agent 始终持有最终产品事实、跨模块业务模型、来源冲突处理和最终写入权。
 
 ## 允许角色
 
 ### Material Reader
 
-输入只能是明确指定的一份或一组原始材料，以及事实提取要求。输出必须逐条带来源路径和可定位证据，分为已确认事实、来源冲突、缺失信息和不可直接推导项。不得做最终产品决策，不得把推测写成事实。
+输入只能是项目级 `source-index.json` 命中的明确材料片段、必要原始行范围和事实提取要求；不得接收完整历史对话。输出必须逐条带来源路径和可定位证据，分为已确认事实、来源冲突、缺失信息和不可直接推导项。不得做最终产品决策，不得把推测写成事实。
 
-### Design Challenger
+### Design Challenger（旧版兼容角色；v2 由模型审查动作承担）
 
-输入是原始证据、Design 草稿、适用场景卡和挑战要求。输出只能是缺陷、影响对象、证据位置、可否由已确认事实修正、是否需要用户确认和是否阻止写作。不得直接修改 Design，不得输出独立 Review 的正式评分或 verdict。
+v2 主链不再以 `design-model.json` 作为当前输入。对应的业务模型挑战由 `b6-model-review` 和 `c4-cross-layer-review` 承担，输入是已通过门禁的上游 A/B/C baseline、analysis 结果、适用场景卡、必要材料事实和动作卡声明的定点证据；输出分别进入 `b-baseline.json`、`business-conflicts.json`、`c-baseline.json`、`cross-layer-conflicts.json` 和 `design-brief.json`。具体输入文件、哈希和允许证据范围以动作卡为准，不得接收完整历史对话。输出只能是缺陷、影响对象、证据位置、可否由已确认事实修正、是否需要用户确认和是否阻止写作。不得直接修改 Design，不得输出独立 Review 的正式评分或 verdict。
+
+读取旧版兼容性交接包时，才使用 `design-model.json`、`design-challenge.json` 和项目级 `materials/facts.json`；旧版路径不代表 v2 主链输入。
 
 ### PRD Module Writer
 
@@ -45,6 +47,7 @@ Sub-agent 请求上下文包时必须同时通过 `context-pack.py --role <role>
 
 - 没有来源路径的输出拒绝采纳。
 - Sub-agent 之间结论冲突时，主 Agent 回到原始证据判断，不能用多数投票替代业务证据和用户确认。
-- Sub-agent 输出只能进入 `.workflow/runtime/context/<stage>/handoff/`，不得进入最终产品事实目录。
-- 最终写作必须重新以原始证据、确认版 Design 和适用规则为依据；交接文件不是事实源。
+- 材料事实提取结果进入 `.workflow/runtime/materials/facts.json`，必须绑定当前 `material_revision`；Design Challenger 等阶段交接仍只能进入 `.workflow/runtime/context/<stage>/handoff/`，不得进入最终产品事实目录。所有交接必须通过 `context-runtime-check.py` 的来源、版本和体量检查后才能被主 Agent 采纳。
+- 最终写作必须以项目级材料事实资产、必要的定点原始证据、确认版 Design 和适用规则为依据；运行交接文件不是产品事实源。
+- 交接体量上限只用于阻止隔离上下文膨胀，不代表产品完整性、字段数量或业务复杂度门槛。
 - Sub-agent 不能绕过确定性检查、confirmation 门或待确认边界。

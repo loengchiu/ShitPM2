@@ -81,6 +81,7 @@ MINIMAL_READ_SET = {
         "contracts/context-loading.manifest.json",
         "scripts/python/context-pack.py",
         "scripts/python/context-budget.py",
+        "scripts/python/context-runtime-check.py",
         "output/align/align.md",  # 可选业务输入
     ],
     "prd": [

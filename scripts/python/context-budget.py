@@ -5,6 +5,7 @@ import importlib.util
 import json
 import sys
 from pathlib import Path
+from token_estimate import estimate_tokens
 
 ROOT = Path(__file__).resolve().parents[2]
 PACK_SCRIPT = ROOT / 'scripts/python/context-pack.py'
@@ -18,22 +19,6 @@ def load_pack_module():
     spec.loader.exec_module(module)
     return module
 
-
-def estimate_tokens(text: str) -> int:
-    """使用保守的中英文混合启发式估算 token，不替代目标模型 tokenizer。"""
-    cjk_count = sum(
-        1
-        for char in text
-        if (
-            '\u3400' <= char <= '\u4dbf'
-            or '\u4e00' <= char <= '\u9fff'
-            or '\uf900' <= char <= '\ufaff'
-            or '\u3040' <= char <= '\u30ff'
-            or '\uac00' <= char <= '\ud7af'
-        )
-    )
-    other_count = len(text) - cjk_count
-    return max(1, int(cjk_count * 0.6 + other_count * 0.25 + 0.999999)) if text else 0
 
 
 def measure_files(project_root: Path, files: list[str]) -> dict:
