@@ -663,7 +663,36 @@ def _validate_schema(value: Any, schema: dict[str, Any], path: str = "$", root: 
                 error = _validate_schema(value[key], child_schema, f"{path}.{key}", root)
                 if error:
                     return error
+        for clause in schema.get("allOf", []):
+            if not isinstance(clause, dict):
+                continue
+            if_clause = clause.get("if")
+            then_clause = clause.get("then")
+            else_clause = clause.get("else")
+            if if_clause and (then_clause or else_clause):
+                match = _evaluate_if_clause(value, if_clause)
+                target = then_clause if match else else_clause
+                if target:
+                    for key in target.get("required", []):
+                        if key not in value:
+                            return f"{path} 缺少字段: {key}"
+                    for key, child_schema in target.get("properties", {}).items():
+                        if key in value and isinstance(child_schema, dict):
+                            error = _validate_schema(value[key], child_schema, f"{path}.{key}", root)
+                            if error:
+                                return error
     return None
+
+
+def _evaluate_if_clause(value: dict[str, Any], clause: dict[str, Any]) -> bool:
+    props = clause.get("properties", {})
+    for key, cond in props.items():
+        if key not in value:
+            return False
+        if isinstance(cond, dict) and "const" in cond:
+            if value[key] != cond["const"]:
+                return False
+    return True
 
 
 def validate_task_contract(action: dict[str, Any]) -> tuple[bool, str]:
@@ -734,6 +763,8 @@ def handle_accept(project_root: Path, action_id_value: str, result: str, error: 
                 action["action_id"] = action_id_value
         if not action:
             return {"accepted": False, "error": "action_id 不属于当前 ready_actions[]"}
+    if action.get("type") == "ask_user":
+        return {"accepted": False, "error": "ask_user 动作不能通过 handle_accept 接受，请使用用户决策流程"}
     ok, message = validate_task_contract(action)
     if not ok:
         return {"accepted": False, "error": message}

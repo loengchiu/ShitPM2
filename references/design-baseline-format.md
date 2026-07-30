@@ -25,7 +25,7 @@
 }
 ```
 
-必须字段：
+公共字段：
 
 - `schema_version`：固定为 `design-analysis/v2`；
 - `task_id`：当前动作的非空 ID，不得复用上游动作 ID；
@@ -33,7 +33,10 @@
 - `coverage`：数组，列出本次实际覆盖的责任范围；
 - `source_refs`：数组，列出每个关键结论对应的材料/上游资产证据。没有证据时只能留空并在
   `questions` 或 `conflicts` 中说明原因，不能用空数组掩盖未分析；其中引用材料时应绑定当前 `material_revision`。
-- `material_revision`：可选。存在材料输入时填写当前材料版本；无材料时不填写。它与材料事实资产中的 `material_revision` 同名但用途不同：前者绑定本次分析输入，后者绑定事实资产。
+
+可选字段：
+
+- `material_revision`：存在材料输入时填写当前材料版本；无材料时不填写。它与材料事实资产中的 `material_revision` 同名但用途不同：前者绑定本次分析输入，后者绑定事实资产。
 
 `schema_version` 是分析交接资产的格式版本；材料合并事实库的 `version` 是事实库内部版本，二者不互换。分析资产中的 `source_refs` 是结论级证据引用，材料事实中的 `source` 是单条事实的定位对象，二者不要求同形。
 
@@ -57,7 +60,7 @@
 
 ## 采纳前检查
 
-模型不能只返回“分析完成”文字；必须把完整 JSON 写入动作卡的 `expected_outputs`。缺少任一公共字段、
+模型不能只返回"分析完成"文字；必须把完整 JSON 写入动作卡的 `expected_outputs`。缺少任一公共字段（不含可选字段）、
 版本错误、状态不合法或数组类型错误，均属于输出不合格，应修复当前动作而不是让下游猜测补齐。
 
 <!-- context:design-asset-contract:end -->
