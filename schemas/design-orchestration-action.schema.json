@@ -6,11 +6,12 @@
   "properties": {
     "action_id": {"type": "string", "minLength": 1},
     "task_id": {"type": "string", "minLength": 1},
-    "type": {"enum": ["run_isolated_agent", "run_command", "ask_user", "report_completed"]},
+    "type": {"enum": ["run_isolated_agent", "run_command", "ask_user"]},
     "role": {"type": "string", "minLength": 1},
     "objective": {"type": "string", "minLength": 1},
     "mode": {"enum": ["simple", "full"]},
     "task_kind": {"type": "string", "minLength": 1},
+    "command": {"type": "object", "required": ["program", "script", "args"], "properties": {"program": {"type": "string", "minLength": 1}, "script": {"type": "string", "minLength": 1}, "args": {"type": "array", "items": {"type": "string"}}}},
     "depends_on": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
     "batch_key": {"type": "string", "minLength": 1},
     "input_files": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},

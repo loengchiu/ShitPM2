@@ -10,15 +10,15 @@ ShitPM 变更：
 - 可靠结构事实（字段属性、内部字段交付、明确权限允许/禁止反转）由脚本检查；复杂业务语义仍由 Review 判断。
 
 退出码：
-- 0: 通过（无 missing、无 hallucinated、无 attribute_mismatch），或 skipped（Prototype-only + --allow-no-prd）
-- 1: 发现 hallucinated / missing / attribute_mismatch（调用方必须修正后重新检查）
+- 0: 无明确冲突；可能遗漏和需要语义判断的分类仍会输出，或 skipped（Prototype-only + --allow-no-prd）
+- 1: 发现 deterministic_conflict，调用方必须修正后重新检查
 - 2: 致命错误（design.md 或 prd.md 不存在等）
 
 用法：
   python prd-consistency-check.py --project-root .
 
-ShitPM 修复包 D 增强：
-- 输出分类区分确定性冲突、可能遗漏、需模型语义判断，便于调用方（如 Fix）按严重程度处理。
+处理约定：
+- 输出分类区分确定性冲突、可能遗漏和需要语义判断，供调用方逐项阅读。
 - 支持 --allow-no-prd 参数：Prototype-only 项目无 PRD 时返回 skipped，退出码 0，不阻塞 Fix。
 - 字段类型差异保留给语义判断；必填、长度、默认值、枚举、格式、业务来源及内部字段交付的明确差异视为确定性问题。
 """
@@ -1579,11 +1579,13 @@ def main():
 
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
-    # ShitPM 修复包 D：退出码语义
-    # - 0: 无任何问题（exit_reason == "ok"）
-    # - 1: 存在确定性冲突 / 可能遗漏 / 属性不一致（调用方按 exit_reason 处理）
-    # - 2: 致命错误（design.md 不存在、JSON 损坏等，已在前面 sys.exit(2) 处理）
-    if exit_reason != "ok":
+    # 退出码只反映程序是否发现确定性冲突或发生致命运行错误。
+    # possible_omission 和 needs_semantic_judgment 已在分类输出中保留，
+    # 由 AI 对照 Design 判断，不能因为解析器不确定直接阻断。
+    # - 0: ok / possible_omission / needs_semantic_judgment
+    # - 1: deterministic_conflict
+    # - 2: 致命错误（已在前面 sys.exit(2) 处理）
+    if exit_reason == "deterministic_conflict":
         sys.exit(1)
 
 

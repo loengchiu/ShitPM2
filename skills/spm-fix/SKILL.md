@@ -36,7 +36,7 @@ description: "同步修复——ShitPM：把变更影响沿链路传播到当前
 4. 读取 `$BUNDLE/contracts/fix-propagation-rules.md`，判定受影响的最深阶段和实际存在的下游分支。
 5. 只修改事实源层，局部覆盖当前真相，不整篇重写、不制造多版本；不得把 PRD 或 Prototype 直接提升为 Design 事实。
 6. 若修改 `design.md`，必须先处理旧 confirmation 失效，再停止下游传播；Fix 不先改 PRD 或 Prototype。
-7. 仅对实际存在且受影响的分支运行适用检查：`design-confirmation.py`、`artifact-guard.py`、`prd-consistency-check.py`、`prototype-consistency-check.py`。PRD 不存在时不伪造 PRD 检查，Prototype-only 项目仍需走合法原型检查路径。
+7. 仅对实际存在且受影响的分支运行适用检查：`design-confirmation.py`、`prd-consistency-check.py`、`prototype-consistency-check.py`。PRD 不存在时不伪造 PRD 检查，Prototype-only 项目仍需走合法原型检查路径。
 
 ## Confirmation 与输出
 

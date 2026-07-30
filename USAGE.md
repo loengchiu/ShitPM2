@@ -35,7 +35,7 @@ python scripts/python/shitpm-host.py remove --host <host>
 | Skill | 职责 |
 |------|------|
 | `spm-start` | 状态与导航，列出可用动作和模型建议 |
-| `spm-align` | 可选需求整理 |
+| `spm-align` | Design 前的需求事实形成；可单独调用，也会由 Design 自动执行 |
 | `spm-design` | 产品定义 与 Design 基线生成 |
 | `spm-prd` | PRD 生成（基于确认版 Design） |
 | `spm-prototype` | Prototype 生成（基于确认版 Design） |
@@ -76,7 +76,7 @@ python scripts/python/stage-context.py --project-root .
 ## 4. ShitPM 流程总览
 
 ```text
-可选：spm-align（需求整理）
+spm-align（Design 必经的需求事实形成；材料可选）
         ↓
 材料准备/复用
         ├───────────────┐
@@ -100,7 +100,7 @@ python scripts/python/stage-context.py --project-root .
 
 | 动作 | 可用条件 | 默认模型等级 |
 |------|----------|--------------|
-| `spm-align` | 始终可用，可跳过 | 视任务而定 |
+| `spm-align` | 可单独调用；Design 首次生成或输入变化时自动必经 | 视任务而定 |
 | `spm-design` | 始终可用；用户必须选择简单模式或完整模式 | 无法判断时使用深度推理模型 |
 | `confirm-design` | `design.md` 存在 | 无需模型 |
 | `spm-prd` | `design.md` 存在且已确认 | 根据确认版 Design 判断 |
@@ -113,7 +113,7 @@ python scripts/python/stage-context.py --project-root .
 
 关键原则：
 
-- Align 可选，空项目可直接进入 Design；
+- Align 是 Design 的必经分析责任，但原始材料可选；空项目使用用户原话和回答形成事实；
 - Design 同时承担产品定义与 Design 基线，是主链路唯一人工确认点；
 - 用户确认后的 `design.md` 是 PRD 和 Prototype 的唯一产品事实基线；
 - PRD 与 Prototype 并列，可以任意顺序、单独生成；
@@ -123,29 +123,26 @@ python scripts/python/stage-context.py --project-root .
 
 ## 5. 核心流程
 
-### 5.1 需求整理（可选）：spm-align
+### 5.1 需求事实形成：spm-align
 
-何时使用：
+使用方式：
 
-- 目标、范围或边界含糊，需要先和用户对齐
-- 有会议结论、业务材料、已有系统说明需要整理
-- 用户希望先列出高影响未知项再进入 Design
+- 用户可以单独调用 Align，先整理目标、范围、边界和高影响未知；
+- 用户直接调用 Design 时，Design 在当前任务内自动先完成 Align；
+- 有原始材料时逐项保留页面、字段、操作、枚举、规则、状态、异常和验收；
+- 没有材料时使用用户原话和回答形成事实，`source_count=0` 合法；
+- Align 需要高影响回答时暂停，回答写回后自动继续。
 
-何时跳过：
+产物：`output/align/align.md` 和 `.workflow/runtime/align/align-notes.json`。
 
-- 需求与材料已经明确
-- 用户希望直接进入 Design
-
-产物：`output/align/align.md`。
-
-不承担完整业务流程、权限、状态或产品方案设计，也不作为进入 Design 的强制准入。
+Align 不承担最终方案决策，但不能只做摘要；Design 至少读取 Align 完整结果、详细材料事实和必要来源片段。
 
 ### 5.2 设计生成：spm-design
 
 输入：
 
-- 可选的 `align.md`；
-- 用户原始需求、业务材料、补充说明；
+- 当前任务内已完成或复用的 Align 完整对齐稿；
+- 用户原始需求、回答、业务材料和补充说明；
 - 已准备且仍有效的材料事实资产；
 - 当前模式依赖图允许读取的专项基线和证据。
 
@@ -163,12 +160,12 @@ python scripts/python/stage-context.py --project-root .
 Design 内部依赖图：
 
 ```text
-材料准备/复用
-  ├─ 简单：最小闭环分析 → 写作与生成内自审 → 确定性检查 → Design 索引
-  └─ 完整：A → B → C → 写作与生成内自审 → 三类成品检查并行 → 有限局部修复 → Design 索引
+Align（必经）
+  ├─ 简单：材料事实保留（有材料时）→ 最小闭环分析与写作内自审
+  └─ 完整：材料事实保留（有材料时）→ A → B → C → Design 写作与跨层自检
 ```
 
-编排器每轮返回当前全部 `ready_actions[]`。同批无硬依赖动作可以并行；有效上游不因下游失败重跑；不固定模型调用次数，也不把 `ready_actions[]` 压成唯一下一动作。材料内容未变化时复用事实资产，不重复全文提取。
+编排器每轮返回当前全部 `ready_actions[]`。Align 必须先于材料和 Design 分析；同批无硬依赖动作可以并行；有效上游不因下游失败重跑；不固定模型调用次数，也不把 `ready_actions[]` 压成唯一下一动作。材料内容未变化时复用事实资产，不重复全文提取；材料或输入变化时先使 Align 失效。
 
 最终 `design.md` 按产品经理理解顺序组织，正式页面定义使用：页面目的、适用角色、进入条件、数据范围、主要状态；页面下按区块定义目的；区块下按字段和操作定义固定属性。详细格式见 `$BUNDLE/templates/design.md` 和 `$BUNDLE/references/design-writing.md`。
 
@@ -302,14 +299,11 @@ Prototype Mark 收集的高影响反馈按 `$BUNDLE/templates/prototype-feedback
 | `design-confirmation.py confirm` | 写入 Design 确认记录（sha256 + 时间戳） |
 | `design-confirmation.py check` | 检查当前 `design.md` 是否仍与已确认版本一致 |
 | `design-confirmation.py show` | 查看当前确认记录 |
-| `review-precheck.py` | Review 前置检查：文件可读性、章节审查问题；缺章节不阻止 Review |
 | `prd-consistency-check.py` | PRD 与 Design 确定性对比，输出 `hallucinated` / `missing` / `attribute_mismatch`；`--allow-no-prd` 支持 Prototype-only 项目 |
 | `prd-style-lint.py` | PRD 风格检查（坏味道、流水账、模糊表述等） |
-| `state-machine-check.py` | 状态机闭环检查，按需调用 |
 | `design-analysis-protocol.md` | spm-design 生成前的分析责任协议（双模式、ABC 内部责任边界） |
 | `design-quality-rubric.md` | Design 成品质量分级标准（五维度 L0–L3，覆盖需求理解、业务建模、产品承接和跨层一致性） |
 | `stage-prep.py` | 旧版兼容：仅旧项目兼容诊断，ShitPM 主流程不依赖 |
-| `verify-against-metadata.py` | 旧版兼容：仅旧项目 metadata 结构校验 |
 | `shitpm-host.py install/verify/remove` | 安装、验证、卸载宿主映射 |
 
 典型用法：
@@ -318,11 +312,9 @@ Prototype Mark 收集的高影响反馈按 `$BUNDLE/templates/prototype-feedback
 python scripts/python/stage-context.py --project-root .
 python scripts/python/design-confirmation.py --project-root . confirm
 python scripts/python/design-confirmation.py --project-root . check
-python scripts/python/review-precheck.py --project-root . --stage design
 python scripts/python/prd-consistency-check.py --project-root .
 python scripts/python/prd-consistency-check.py --project-root . --allow-no-prd
 python scripts/python/prd-style-lint.py output/prd/prd.md --format json --output .workflow/runtime/prd/lint.json
-python scripts/python/state-machine-check.py --project-root .
 ```
 
 ## 9. 常见问题
@@ -343,7 +335,7 @@ python scripts/python/state-machine-check.py --project-root .
 不会。Review 是审查问题而不是门禁，不自动阻断后续工作，也不替用户决定是否继续。
 
 **Q: 旧项目有 metadata 怎么办？**
-不影响 ShitPM 主流程。canonical 文件探测优先于 `status.json` 的 artifacts 镜像，metadata 不再构成硬门禁。`stage-prep.py` 和 `verify-against-metadata.py` 仅作为旧版兼容诊断保留。
+不影响 ShitPM 主流程。canonical 文件探测优先于 `status.json` 的 artifacts 镜像，metadata 不再构成硬门禁。`stage-prep.py` 仅作为旧版兼容诊断保留。
 
 **Q: `stage-context.py` 报 `status_source: corrupted` 怎么办？**
 `status.json` JSON 损坏。脚本仍会基于 canonical 文件输出可用动作，但建议修复或删除 `.workflow/status.json` 后由后续流程重建。

@@ -1,0 +1,105 @@
+{
+  "freeze_date": "2026-07-28",
+  "git_commit": "7e4198d",
+  "regression": {
+    "command": "python scripts/python/test-shitpm-regression.py",
+    "exit_code": 0,
+    "passed": 28,
+    "failed": 0,
+    "evidence": "test-fixture/v2-remediation/baseline/regression-2026-07-28.txt"
+  },
+  "park": {
+    "executable_available": false,
+    "original_artifacts_available": false,
+    "synthetic_baseline_allowed": true,
+    "source_note": "test-fixture/v2-remediation/park/SOURCE-STATUS.md"
+  },
+  "sets": {
+    "calibration": "test-fixture/v2-remediation/calibration",
+    "retained": "test-fixture/v2-remediation/retained",
+    "simple": "test-fixture/v2-remediation/simple",
+    "known_failures": "test-fixture/v2-remediation/known-failures"
+  },
+  "artifacts": [
+    {
+      "path": "test-fixture/v2-remediation/baseline/blind-review-form.md",
+      "sha256": "787683a2d84d40cdf77f5ee26f1de6424f6feb38099ecb48de2e3554b639c389",
+      "bytes": 778
+    },
+    {
+      "path": "test-fixture/v2-remediation/baseline/manifest.json",
+      "sha256": "bc877468dc0737e443e7855d2f9e3fa57b817fe1d5c00b3f365730a46730ad86",
+      "bytes": 747
+    },
+    {
+      "path": "test-fixture/v2-remediation/baseline/README.md",
+      "sha256": "10e316a1799616f1ea8f0b01320cee941a99045df69465f1e6899fd28d12dbdb",
+      "bytes": 1191
+    },
+    {
+      "path": "test-fixture/v2-remediation/baseline/regression-2026-07-28.txt",
+      "sha256": "6b69393d3edbdd78cf8928e7314e71b6aeb5c68f4ffe0c5761e1c925a45afad6",
+      "bytes": 1412
+    },
+    {
+      "path": "test-fixture/v2-remediation/baseline/shitpm-original-design.md",
+      "sha256": "1ecb77171aeb9e7dfa439c9067d4ed8c0391e75a0ae91eed32f14a1f62418561",
+      "bytes": 4577
+    },
+    {
+      "path": "test-fixture/v2-remediation/baseline/shitpm-original-prd.md",
+      "sha256": "11cf31b28785edc99110e32a9541197a4e41e72d61c072cbeeb9e2ecc01b3313",
+      "bytes": 1855
+    },
+    {
+      "path": "test-fixture/v2-remediation/calibration/complex-inventory-generated-design.md",
+      "sha256": "daab54d7e5fa5c056c71c97719955c8df460aa922ed0f7594a86f23f4f49136a",
+      "bytes": 65226
+    },
+    {
+      "path": "test-fixture/v2-remediation/calibration/complex-inventory-input.md",
+      "sha256": "1f47f8fae5ff7aa87022667a153951a291b953bbcc832b9953a41e0cbc0f6f24",
+      "bytes": 64251
+    },
+    {
+      "path": "test-fixture/v2-remediation/calibration/complex-inventory-shitpm-original-design.md",
+      "sha256": "5fcd5078de0e063fa29189b5e6f78e6b9b6b276c44feeb99d262b8552067c25e",
+      "bytes": 130830
+    },
+    {
+      "path": "test-fixture/v2-remediation/calibration/complex-inventory-shitpm-original-prd.md",
+      "sha256": "2b9a4752dc028a23da898bbcef89e2dcc9190b04c6481472e5ed4950e1fb2fd2",
+      "bytes": 101050
+    },
+    {
+      "path": "test-fixture/v2-remediation/calibration/README.md",
+      "sha256": "7039045221f696e8246c418a4d1045a73aba2b110acd89d3dd3716ebd8091add",
+      "bytes": 410
+    },
+    {
+      "path": "test-fixture/v2-remediation/known-failures/README.md",
+      "sha256": "5e3f28df3eb6bc9827134b061e02fe2235090c98bfbbe25f5ca5036a984070d7",
+      "bytes": 355
+    },
+    {
+      "path": "test-fixture/v2-remediation/park/README.md",
+      "sha256": "3512ca747ce1f0be3011a869256eb202c972e27c99a051c9fe1c2ef9f4df8bf9",
+      "bytes": 210
+    },
+    {
+      "path": "test-fixture/v2-remediation/park/SOURCE-STATUS.md",
+      "sha256": "f876a922ee2fccbabd257cea24d1e3ba1b7eda9bc16d42baacedfdc2f260cce6",
+      "bytes": 522
+    },
+    {
+      "path": "test-fixture/v2-remediation/retained/README.md",
+      "sha256": "65e4df6029d1ce45ac370a1957048c0c1c6bdabaf0e1d9925f53c6d8633927f9",
+      "bytes": 339
+    },
+    {
+      "path": "test-fixture/v2-remediation/simple/README.md",
+      "sha256": "3e0edabc786ed25a5f7c9ede9da92e152ead9e05e7f97911b5f6ece331769947",
+      "bytes": 222
+    }
+  ]
+}

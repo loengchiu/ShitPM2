@@ -82,13 +82,12 @@ MINIMAL_READ_SET = {
         "scripts/python/context-pack.py",
         "scripts/python/context-budget.py",
         "scripts/python/context-runtime-check.py",
-        "output/align/align.md",  # 可选业务输入
+        "output/align/align.md",  # Design 必经的需求事实输入；原始材料可选
     ],
     "prd": [
         "contracts/context-loading.manifest.json",
         "scripts/python/context-pack.py",
         "scripts/python/context-budget.py",
-        "scripts/python/prototype-structure.py",
         "contracts/subagent-context-contract.md",
         "output/design/design.md",
     ],
@@ -325,11 +324,11 @@ def build_available_actions(
 
     actions: list[dict] = []
 
-    # spm-align 可选
+    # Align 是 Design 的首个必经分析责任；也可以单独显式调用。
     actions.append({
         "action": "spm-align",
         "available": True,
-        "reason": "可选需求整理模块，无需 Align 也可进入 Design。",
+        "reason": "Design 首次生成或输入变化时必须先完成 Align；原始材料可选。",
         **recommend_model_for_action("spm-align"),
     })
 

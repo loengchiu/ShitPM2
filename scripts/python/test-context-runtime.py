@@ -162,7 +162,7 @@ def main() -> int:
             return 1
         v2_handoff = {
             'schema_version': 'design-analysis/v2',
-            'task_id': 'b6-model-review',
+            'task_id': 'b-layer',
             'status': 'completed',
             'coverage': [],
             'source_refs': [],
@@ -204,18 +204,10 @@ def main() -> int:
             print('缺少字段的 v2 交接未被拒绝')
             return 1
 
-        bad_model = dict(design_model)
-        bad_model.pop('permissions')
-        (handoff / 'design-model.json').write_text(json.dumps(bad_model, ensure_ascii=False), encoding='utf-8')
-        rejected_model = run(str(CHECK), '--project-root', str(project), '--require', 'design-model', cwd=ROOT)
-        if rejected_model.returncode == 0:
-            print('缺少字段的 Design 模型交接未被拒绝')
-            return 1
-
         skill = (ROOT / 'skills/spm-design/SKILL.md').read_text(encoding='utf-8-sig')
-        for command in ('--require design-model', '--require design-challenge'):
-            if command not in skill:
-                print(f'Design Skill 未接线交接门禁: {command}')
+        for marker in ('context-pack.py', 'context-loading.manifest.json', 'Align 完整对齐稿'):
+            if marker not in skill:
+                print(f'Design Skill 未接入当前分层上下文契约: {marker}')
                 return 1
 
         if (project / '.workflow/runtime/context/design/source-index.json').exists():

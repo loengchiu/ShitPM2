@@ -7,7 +7,7 @@
 <!-- context:design-card-page-module:start -->
 ## 用户意图分析
 
-从需求材料（可选 align.md、用户原始描述、业务资料）中提取所有用户角色，列出每个角色的核心任务：
+从 Align 完整对齐稿、用户原始描述、详细材料事实和明确提供的业务资料中提取所有用户角色，列出每个角色的核心任务。Align 是 Design 的必经事实形成阶段；没有原始材料时直接使用用户描述和回答：
 
 > 角色A：[任务1] → [任务2] → [任务3]
 > 角色B：[任务1] → [任务2]
@@ -45,16 +45,19 @@
 3. 必填字段前置，选填后置或折叠
 4. 同一条规则适用的字段必须在同一个区域/动作内
 
+在决定布局前，先建立逐页字段全集。至少核对：页面清单、列表展示列、搜索与筛选项、详情展示项、表单输入项、统计指标、状态与提示、操作前置条件依赖字段、外部系统返回且用户可见的字段。字段全集必须穷举，不得只保留“代表字段”。
+
 根据信息量决定布局策略：
 - 字段 ≤5，无列表 → 单列直排，不需要分区
 - 字段 6-15，或有列表 → 按操作上下文分 2-3 个区域
 - 字段 >15，或有多个子表 → 用卡片分区、折叠面板、或分步骤 Tab
 
-信息密度为"重"的页面，必须在页面清单的"主要功能"列注明分区策略。
+字段较多是页面分区信号，不是删减字段的理由。每个字段在最终 Design 中必须单独占一行；不同来源、格式或校验的字段不得用斜杠、顿号等合并。展示、搜索、筛选、表单、统计、状态提示和操作依赖字段都必须进入页面字段表；“基本字段”“相关信息”“按需展示”不是规格。信息密度为“重”的页面，必须在页面清单中说明分区策略。
 
 <!-- context:design-card-fields:end -->
 <!-- context:design-methodology-boundary:start -->
 ## 与分析协议和质量标准的关系
 
-本文件提供通用设计方法；模式责任、ABC 分析、B3 挑战、跨层挑战和质量分级以 `references/design-analysis-protocol.md`、`references/design-quality-rubric.md` 为准。方法论不得把 ABC 变成最终 Design 目录，也不得以 Review 或 metadata 替代首次 Design 责任。
+本文件提供通用设计方法；模式责任、Park 对齐的 ABC 分析、跨层挑战和质量分级以 `references/design-analysis-protocol.md`、`references/design-quality-rubric.md` 为准。方法论不得把 ABC 变成最终 Design 目录，也不得以 Review、metadata、Align 摘要或中间资产替代首次 Design 责任。
 <!-- context:design-methodology-boundary:end -->
+

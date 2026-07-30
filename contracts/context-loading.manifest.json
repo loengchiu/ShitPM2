@@ -2,6 +2,23 @@
   "version": 1,
   "description": "ShitPM Design / PRD 编译式上下文装载清单。规范性规则由显式 pack 和稳定章节标记选择，不使用相似度检索决定强制装载。",
   "stages": {
+    "align": {
+      "passes": {
+        "analysis": [
+          "align-core"
+        ]
+      },
+      "packs": {
+        "align-core": {
+          "purpose": "需求事实形成、材料详细保留、问答写回和高影响未知处理",
+          "sections": [
+            "align-writing-core",
+            "align-writing-detail",
+            "align-template"
+          ]
+        }
+      }
+    },
     "design": {
       "passes": {
         "analysis": [
@@ -19,11 +36,6 @@
           "design-cards",
           "design-writing",
           "design-output"
-        ],
-        "verification": [
-          "design-core",
-          "design-cards",
-          "design-verification"
         ]
       },
       "packs": {
@@ -32,7 +44,9 @@
           "sections": [
             "design-analysis-core",
             "design-analysis-boundary",
-            "design-methodology-boundary"
+            "design-methodology-boundary",
+            "design-asset-contract",
+            "design-fact-contract"
           ]
         },
         "design-mode": {
@@ -78,7 +92,9 @@
           "sections": [
             "design-writing-common-errors",
             "design-writing-structure",
-            "design-writing-final"
+            "design-writing-final",
+            "design-verification-self-review-boundary",
+            "design-verification-self-review"
           ]
         },
         "design-output": {
@@ -86,13 +102,6 @@
           "sections": [
             "design-template",
             "decision-notes-template"
-          ]
-        },
-        "design-verification": {
-          "purpose": "生成内成品审查标准，不包含独立 Review 评分和 verdict",
-          "sections": [
-            "design-verification-self-review-boundary",
-            "design-verification-self-review"
           ]
         },
         "design-compatibility": {
@@ -105,31 +114,19 @@
     },
     "prd": {
       "passes": {
-        "plan": [
-          "prd-core",
-          "prd-writing-structure"
-        ],
-        "module": [
-          "prd-core",
-          "prd-writing-structure",
-          "prd-writing-action",
-          "prd-examples",
-          "prd-cards"
-        ],
-        "integration": [
+        "writing": [
           "prd-core",
           "prd-writing-structure",
           "prd-writing-action",
           "prd-writing-glossary",
           "prd-writing-versioning",
-          "prd-examples",
           "prd-verification"
         ],
-        "verification": [
+        "module": [
           "prd-core",
           "prd-writing-structure",
           "prd-writing-action",
-          "prd-verification"
+          "prd-cards"
         ]
       },
       "packs": {
@@ -231,7 +228,9 @@
     "design-mode-full": {
       "stage": "design",
       "source": "references/design-analysis-protocol.md",
-      "selector": "marker"
+      "selector": "marker",
+      "shared": true,
+      "reuse_note": "完整模式统一承担 A/B/C 三层设计责任；具体任务图由编排器决定。"
     },
     "design-card-cross-layer": {
       "stage": "design",
@@ -421,6 +420,31 @@
       "stage": "prd",
       "source": "references/prd-writing-rules.md",
       "selector": "marker"
+    },
+    "design-asset-contract": {
+      "stage": "design",
+      "source": "references/design-baseline-format.md",
+      "selector": "marker"
+    },
+    "design-fact-contract": {
+      "stage": "design",
+      "source": "references/design-fact-format.md",
+      "selector": "marker"
+    },
+    "align-writing-core": {
+      "stage": "align",
+      "source": "references/align-writing.md",
+      "selector": "marker"
+    },
+    "align-writing-detail": {
+      "stage": "align",
+      "source": "references/align-writing.md",
+      "selector": "marker"
+    },
+    "align-template": {
+      "stage": "align",
+      "source": "templates/align.md",
+      "selector": "marker"
     }
   },
   "subagent_roles": {
@@ -434,15 +458,6 @@
           "packs": [
             "design-core",
             "design-mode"
-          ]
-        },
-        "prd": {
-          "passes": [
-            "plan"
-          ],
-          "packs": [
-            "prd-core",
-            "prd-writing-structure"
           ]
         }
       }
@@ -473,24 +488,7 @@
             "prd-core",
             "prd-writing-structure",
             "prd-writing-action",
-            "prd-examples",
             "prd-cards"
-          ]
-        }
-      }
-    },
-    "module-verifier": {
-      "purpose": "检查模块草稿遗漏、冲突和来源，不补写高影响事实",
-      "allowed": {
-        "prd": {
-          "passes": [
-            "verification"
-          ],
-          "packs": [
-            "prd-core",
-            "prd-writing-structure",
-            "prd-writing-action",
-            "prd-verification"
           ]
         }
       }

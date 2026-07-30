@@ -71,6 +71,8 @@ CAUSE_PHRASE_PATTERNS = {
 _CAUSE_PHRASE_WORDS = set(CAUSE_PHRASE_PATTERNS.keys())
 
 PLACEHOLDER_PATTERNS = [w for w in _PROFILE_FORBIDDEN if not w.startswith("**") and w not in _CAUSE_PHRASE_WORDS] or _PLACEHOLDER_FALLBACK
+# 只有明确的空占位才硬阻断；“按配置”等表达存在误报可能，作为 warning 交给 AI 判断。
+_PLACEHOLDER_ERROR_TERMS = {"待补充", "待定", "TBD", "TODO"}
 PLACEHOLDER_RULES = {
     "待定": re.compile(r'(?<![\u4e00-\u9fa5])待定(?!性|稿|人|项|状态|原因|结论|计划|方案)'),
     "待补充": re.compile(r'(?<![\u4e00-\u9fa5])待补充(?!说明|材料|资料|附件|内容|信息|证据|记录|明细|清单)'),
@@ -316,18 +318,18 @@ def check_placeholders(lines: list) -> list:
                 if rule.search(line):
                     issues.append(Issue(
                         code="STYLE008",
-                        severity="error",
+                        severity="error" if pattern in _PLACEHOLDER_ERROR_TERMS else "warning",
                         line=i + 1,
                         message=f"占位符：发现 '{pattern}'",
-                        suggestion="填写具体内容，不得使用占位符",
+                        suggestion="填写具体内容；若该表达只是规则引用，改为明确说明或由 AI 确认误报",
                     ))
             elif pattern in line:
                 issues.append(Issue(
                     code="STYLE008",
-                    severity="error",
+                    severity="error" if pattern in _PLACEHOLDER_ERROR_TERMS else "warning",
                     line=i + 1,
                     message=f"占位符：发现 '{pattern}'",
-                    suggestion="填写具体内容，不得使用占位符",
+                    suggestion="填写具体内容；若该表达只是规则引用，改为明确说明或由 AI 确认误报",
                 ))
     # 原因腔词单独检查，避免误报正常描述
     issues.extend(check_cause_phrase(lines))
@@ -474,6 +476,7 @@ def main():
     else:
         print(format_text(issues))
 
+    # warning/info 只提示 AI 判断，不阻断命令；确定性 error 才返回 1。
     if any(i.severity == "error" for i in issues):
         sys.exit(1)
 

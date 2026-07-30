@@ -76,6 +76,46 @@ ENTITY_ALIASES = {
 
 OPERATION_ONLY_ATTRIBUTES = {"availability", "confirmation", "success_result", "state_change", "failure_recovery", "destination"}
 
+FIELD_TABLE_HEADERS = (
+    "字段名称",
+    "业务含义",
+    "字段来源",
+    "展示条件",
+    "输入与编辑规则",
+    "取值与默认规则",
+    "交互方式",
+    "校验与反馈",
+)
+FIELD_TABLE_ATTRIBUTE_KEYS = (
+    "meaning",
+    "source",
+    "display_condition",
+    "input_edit",
+    "value_default",
+    "interaction",
+    "validation_feedback",
+)
+OPERATION_TABLE_HEADERS = (
+    "操作",
+    "适用角色",
+    "展示与可用条件",
+    "是否二次确认",
+    "成功结果",
+    "数据与状态变化",
+    "失败与恢复",
+    "后续去向",
+)
+OPERATION_TABLE_ATTRIBUTE_KEYS = (
+    "roles",
+    "availability",
+    "confirmation",
+    "success_result",
+    "state_change",
+    "failure_recovery",
+    "destination",
+)
+COMBINED_FIELD_PATTERN = re.compile(r"[/／、]")
+
 
 def index_path(project_root: Path) -> Path:
     return project_root / INDEX_RELATIVE_PATH
@@ -106,6 +146,9 @@ def _normalize_label(value: str) -> str:
 def _entity_heading(title: str) -> tuple[str | None, str | None]:
     """识别“页面：名称”这类固定实体标题，不把章节容器当成实体。"""
     title = _normalize_label(title)
+    if title == "页面操作":
+        # 新格式将页面级操作集中在独立区块中；索引内部仍复用 page → block → operation 树。
+        return "block", "页面操作"
     for entity_type, aliases in ENTITY_ALIASES.items():
         for alias in aliases:
             match = re.match(rf"^{re.escape(alias)}\s*(?:[:：\-—]\s*|\s+)(.+)$", title, re.IGNORECASE)
@@ -140,6 +183,111 @@ def _split_heading_lines(content: str) -> list[dict[str, Any]]:
             "name": name,
         })
     return headings
+
+
+def _heading_scope_end(headings: list[dict[str, Any]], index: int, total_lines: int) -> int:
+    current = headings[index]
+    for next_heading in headings[index + 1:]:
+        if next_heading["level"] <= current["level"]:
+            return next_heading["line"] - 1
+    return total_lines
+
+
+def _split_table_row(raw_line: str) -> list[str]:
+    line = raw_line.strip()
+    if not line.startswith("|") or not line.endswith("|"):
+        return []
+    cells = re.split(r"(?<!\\)\|", line[1:-1])
+    return [_clean_text(cell.replace(r"\|", "|")).strip() for cell in cells]
+
+
+def _is_table_separator(cells: list[str]) -> bool:
+    return bool(cells) and all(re.fullmatch(r":?-{3,}:?", cell.replace(" ", "")) for cell in cells)
+
+
+def _table_after_heading(
+    lines: list[str],
+    headings: list[dict[str, Any]],
+    heading_index: int,
+) -> tuple[int | None, list[str], list[tuple[int, list[str]]]]:
+    """读取标题直属范围内的第一张有效 Markdown 表。
+
+    表前允许出现说明文字、空行和 HTML 注释；只有找到“表头行 + 分隔行”
+    这一对有效行后才认定表格开始。这样不会因为模型在表格前增加一句
+    引导语而把整张表静默丢弃。
+    """
+    start = headings[heading_index]["line"]
+    end = _heading_scope_end(headings, heading_index, len(lines))
+    table_start: int | None = None
+    invalid_start: int | None = None
+    invalid_headers: list[str] = []
+    for line_no in range(start + 1, end + 1):
+        raw = lines[line_no - 1].strip()
+        if not raw or raw.startswith("<!--"):
+            continue
+        if not raw.startswith("|") or not raw.endswith("|"):
+            continue
+        headers = _split_table_row(raw)
+        if invalid_start is None:
+            invalid_start = line_no
+            invalid_headers = headers
+        separator_line = line_no + 1
+        if separator_line > end:
+            continue
+        separator_raw = lines[separator_line - 1].strip()
+        separator = _split_table_row(separator_raw)
+        if headers and _is_table_separator(separator) and len(separator) == len(headers):
+            table_start = line_no
+            break
+    if table_start is None:
+        if invalid_start is None:
+            return None, [], []
+        return invalid_start, invalid_headers, []
+    headers = _split_table_row(lines[table_start - 1])
+    rows: list[tuple[int, list[str]]] = []
+    for line_no in range(table_start + 2, end + 1):
+        raw = lines[line_no - 1].strip()
+        if not raw.startswith("|") or not raw.endswith("|"):
+            break
+        rows.append((line_no, _split_table_row(raw)))
+    return table_start, headers, rows
+
+
+def _scoped_parent(
+    nodes: list[dict[str, Any]],
+    entity_type: str,
+    line_no: int,
+) -> dict[str, Any] | None:
+    candidates = [
+        node
+        for node in nodes
+        if node["type"] == entity_type
+        and node["line"] < line_no
+        and node.get("scope_end", line_no) >= line_no
+    ]
+    return max(candidates, key=lambda item: (item["level"], item["line"]), default=None)
+
+
+def _new_table_node(
+    entity_type: str,
+    name: str,
+    line_no: int,
+    parent: dict[str, Any],
+    attributes: dict[str, str],
+) -> dict[str, Any]:
+    path = parent["path"] + [name]
+    return {
+        "type": entity_type,
+        "name": name,
+        "line": line_no,
+        "level": parent["level"] + 1,
+        "scope_end": line_no,
+        "parent": parent,
+        "path": path,
+        "id": _make_id(entity_type, path),
+        "attributes": attributes,
+        "source_format": "table",
+    }
 
 
 def _attribute_from_table_row(cells: list[str]) -> tuple[str | None, str | None]:
@@ -228,7 +376,7 @@ def _node_public(node: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _parse_design(content: str, design_sha256: str) -> dict[str, Any]:
+def _parse_design(content: str, design_sha256: str, require_current_format: bool = False) -> dict[str, Any]:
     lines = content.splitlines()
     headings = _split_heading_lines(content)
     entity_nodes: list[dict[str, Any]] = []
@@ -244,8 +392,10 @@ def _parse_design(content: str, design_sha256: str) -> dict[str, Any]:
             "name": heading["name"],
             "line": heading["line"],
             "level": heading["level"],
+            "scope_end": _heading_scope_end(headings, index, len(lines)),
             "parent": parent,
             "attributes": _extract_attributes(_segment_for_heading(lines, headings, index)),
+            "source_format": "heading",
         }
         if parent:
             path = parent["path"] + [node["name"]]
@@ -255,12 +405,59 @@ def _parse_design(content: str, design_sha256: str) -> dict[str, Any]:
         node["id"] = _make_id(entity_type, path)
         entity_nodes.append(node)
 
+    table_nodes: list[dict[str, Any]] = []
+    for heading_index, heading in enumerate(headings):
+        title = _normalize_label(heading["title"])
+        if title not in {"字段表", "操作表"}:
+            continue
+        entity_type = "field" if title == "字段表" else "operation"
+        expected_headers = FIELD_TABLE_HEADERS if entity_type == "field" else OPERATION_TABLE_HEADERS
+        attribute_keys = FIELD_TABLE_ATTRIBUTE_KEYS if entity_type == "field" else OPERATION_TABLE_ATTRIBUTE_KEYS
+        invalid_code = "invalid_field_table_headers" if entity_type == "field" else "invalid_operation_table_headers"
+        table_line, headers, rows = _table_after_heading(lines, headings, heading_index)
+        marker = {"line": table_line or heading["line"], "path": [heading["title"]]}
+        if tuple(headers) != expected_headers:
+            actual = " | ".join(headers) if headers else "未找到有效表格"
+            _add_error(errors, invalid_code, f"{title}表头必须严格为：{' | '.join(expected_headers)}；实际为：{actual}", marker)
+            continue
+        parent = _scoped_parent(entity_nodes, "block", heading["line"])
+        if parent is None:
+            _add_error(errors, "item_without_block", f"{title}必须位于页面区块下", marker)
+            continue
+        for line_no, cells in rows:
+            row_marker = {"line": line_no, "path": parent["path"]}
+            if not any(cells):
+                continue
+            if len(cells) != len(expected_headers):
+                _add_error(
+                    errors,
+                    "invalid_table_row",
+                    f"{title}第 {line_no} 行列数应为 {len(expected_headers)}，实际为 {len(cells)}",
+                    row_marker,
+                )
+                continue
+            name = _normalize_label(cells[0])
+            if not name:
+                _add_error(errors, "missing_entity_name", f"{entity_type} 名称不能为空", row_marker)
+                continue
+            attributes = {key: cells[position + 1] for position, key in enumerate(attribute_keys)}
+            table_nodes.append(_new_table_node(entity_type, name, line_no, parent, attributes))
+
+    entity_nodes.extend(table_nodes)
+
     if not entity_nodes:
         _add_error(
             errors,
             "unsupported_format",
             "design.md 未发现固定的页面/区块/字段/操作标题结构；不能编译为 Design v1 索引，请由下游兼容解析器处理旧格式",
         )
+
+    if require_current_format:
+        for node in entity_nodes:
+            if node["type"] == "field" and node.get("source_format") != "table":
+                _add_error(errors, "outdated_field_format", "当前格式要求字段写入区块字段表，不再使用逐字段标题", node)
+            if node["type"] == "operation" and node.get("source_format") != "table":
+                _add_error(errors, "outdated_operation_format", "当前格式要求操作写入页面操作表，不再使用逐操作标题", node)
 
     # 校验层级，并将节点挂到固定的页面 → 区块 → 字段/操作树。
     pages: list[dict[str, Any]] = []
@@ -271,16 +468,13 @@ def _parse_design(content: str, design_sha256: str) -> dict[str, Any]:
 
     for node in entity_nodes:
         parent = node.get("parent")
-        valid = True
         if node["type"] == "page":
             if parent:
-                valid = False
                 _add_error(errors, "page_nested", "页面不能嵌套在其他实体下", node)
             item = {"id": node["id"], "name": node["name"], "line": node["line"], "attributes": node["attributes"], "blocks": []}
             pages.append(item)
         elif node["type"] == "block":
             if not parent or parent["type"] != "page":
-                valid = False
                 _add_error(errors, "block_without_page", "区块必须直接位于页面下", node)
             item = {"id": node["id"], "name": node["name"], "line": node["line"], "attributes": node["attributes"], "page_id": parent["id"] if parent and parent["type"] == "page" else None, "fields": [], "operations": []}
             blocks.append(item)
@@ -290,7 +484,6 @@ def _parse_design(content: str, design_sha256: str) -> dict[str, Any]:
                     page["blocks"].append(item)
         elif node["type"] in {"field", "operation"}:
             if not parent or parent["type"] != "block":
-                valid = False
                 _add_error(errors, "item_without_block", f"{node['type']} 必须位于区块下", node)
             item = {
                 "id": node["id"],
@@ -302,6 +495,8 @@ def _parse_design(content: str, design_sha256: str) -> dict[str, Any]:
             }
             if node["type"] == "field":
                 fields.append(item)
+                if COMBINED_FIELD_PATTERN.search(node["name"]):
+                    _add_error(errors, "combined_field_name", f"字段“{node['name']}”疑似合并了多个字段，必须拆成一行一个字段", node)
                 if any(key in node["attributes"] for key in OPERATION_ONLY_ATTRIBUTES):
                     _add_error(errors, "operation_as_field", "字段包含操作专属属性，疑似将操作错误写成字段", node)
             else:
@@ -326,6 +521,41 @@ def _parse_design(content: str, design_sha256: str) -> dict[str, Any]:
         missing = [key for key in required if _is_explicit_empty(node["attributes"].get(key))]
         if missing:
             _add_error(errors, "missing_attribute", f"{node['type']} 缺少必填属性: {', '.join(missing)}", node)
+
+    for page in pages:
+        if not page["blocks"]:
+            _add_error(errors, "page_without_block", f"页面“{page['name']}”没有正式区块", {"line": page["line"], "path": [page["name"]]})
+    for block in blocks:
+        if not block["fields"] and not block["operations"]:
+            page_name = next((page["name"] for page in pages if page["id"] == block.get("page_id")), "")
+            _add_error(errors, "block_without_items", f"区块“{block['name']}”没有字段或操作", {"line": block["line"], "path": [page_name, block["name"]]})
+
+    summary_present = False
+    summary_names: list[str] = []
+    for heading_index, heading in enumerate(headings):
+        if not _normalize_label(heading["title"]).startswith("页面清单"):
+            continue
+        summary_present = True
+        table_line, headers, rows = _table_after_heading(lines, headings, heading_index)
+        if "页面" not in headers:
+            marker = {"line": table_line or heading["line"], "path": [heading["title"]]}
+            _add_error(errors, "invalid_page_summary_table", "页面清单必须包含“页面”列", marker)
+            continue
+        page_column = headers.index("页面")
+        for _, cells in rows:
+            if len(cells) > page_column:
+                name = _normalize_label(cells[page_column])
+                if name:
+                    summary_names.append(name)
+
+    if summary_present:
+        detail_names = [page["name"] for page in pages]
+        for name in dict.fromkeys(summary_names):
+            if name not in detail_names:
+                _add_error(errors, "page_summary_missing_detail", f"页面清单中的“{name}”没有正式页面定义")
+        for page in pages:
+            if page["name"] not in summary_names:
+                _add_error(errors, "page_detail_missing_summary", f"正式页面“{page['name']}”未出现在页面清单中", {"line": page["line"], "path": [page["name"]]})
 
     pages_public = []
     for page in pages:
@@ -413,13 +643,13 @@ def _ancestor_name(node: dict[str, Any] | None, entity_type: str) -> str | None:
             return current.get("name")
         current = current.get("parent")
     return None
-def compile_index(project_root: Path) -> dict[str, Any]:
+def compile_index(project_root: Path, require_current_format: bool = False) -> dict[str, Any]:
     design_path = project_root / "output" / "design" / "design.md"
     if not design_path.is_file():
         raise FileNotFoundError(f"design.md 不存在: {design_path}")
     raw = design_path.read_bytes()
     content = raw.decode("utf-8")
-    return _parse_design(content, _sha256(raw))
+    return _parse_design(content, _sha256(raw), require_current_format=require_current_format)
 
 
 def _canonical_index(value: dict[str, Any]) -> str:
@@ -446,9 +676,9 @@ def load_index(project_root: Path) -> dict[str, Any]:
     return value
 
 
-def validate_index(project_root: Path, stored: dict[str, Any] | None = None) -> tuple[bool, dict[str, Any], str | None]:
+def validate_index(project_root: Path, stored: dict[str, Any] | None = None, require_current_format: bool = False) -> tuple[bool, dict[str, Any], str | None]:
     try:
-        expected = compile_index(project_root)
+        expected = compile_index(project_root, require_current_format=require_current_format)
     except (OSError, UnicodeDecodeError, ValueError) as exc:
         return False, {}, str(exc)
     if stored is None:
@@ -508,12 +738,13 @@ def main() -> int:
     for command in ("compile", "check"):
         sub = subparsers.add_parser(command)
         sub.add_argument("--project-root", required=True)
+        sub.add_argument("--require-current-format", action="store_true")
     args = parser.parse_args()
     root = Path(args.project_root).resolve()
 
     if args.command == "compile":
         try:
-            data = compile_index(root)
+            data = compile_index(root, require_current_format=args.require_current_format)
             target = write_index(root, data)
         except (OSError, UnicodeDecodeError, ValueError) as exc:
             _print_json({"ok": False, "command": "compile", "error": str(exc)})
@@ -534,7 +765,7 @@ def main() -> int:
     except (OSError, ValueError) as exc:
         _print_json({"ok": False, "command": "check", "error": str(exc)})
         return 2
-    valid, expected, reason = validate_index(root, stored)
+    valid, expected, reason = validate_index(root, stored, require_current_format=args.require_current_format)
     result = {
         "ok": valid,
         "command": "check",

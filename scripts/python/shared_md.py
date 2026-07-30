@@ -9,7 +9,7 @@ import re
 
 # ── 常量 ──────────────────────────────────────────────────────
 
-STABLE_ID_PATTERN = re.compile(r'(MODULE|PAGE|FIELD|RULE|FLOW|REL|PERM|STATE)-(design|prd|prototype)-\\d{3}')
+STABLE_ID_PATTERN = re.compile(r'(MODULE|PAGE|FIELD|RULE|FLOW|REL|PERM|STATE)-(design|prd|prototype)-\d{3}')
 
 ARTIFACT_PATHS = {
     "align": "output/align/align.md",

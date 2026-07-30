@@ -20,20 +20,14 @@ description: "Prototype Review——独立审查原型页面覆盖、Design 一�
 ## 执行流程
 
 1. 读取确认版 `output/design/design.md`、`output/prototype/index.html`、必要的页面资源、Design confirmation 状态和 PRD（如存在，仅用于冲突参考）。Prototype 必须以 Design 为事实源。
-2. 运行：
-
-```text
-python $BUNDLE/scripts/python/review-precheck.py --project-root . --stage prototype --artifact-file output/prototype/index.html
-```
-
-输出位于 `.workflow/runtime/prototype/review-precheck.json`。只有目标文件不存在、不可读或无法解析时停止；缺页面、内容不足、冲突、质量问题和 metadata 缺失继续作为审查问题。脚本误报 `can_start_review=false` 时人工核对文件可读性，可读则继续并记录警告。
+2. 确认 `output/prototype/index.html` 存在、可读且可解析；缺失或不可读时停止，缺页面、内容不足、冲突和质量问题继续作为审查问题。
 3. 运行：
 
 ```text
 python $BUNDLE/scripts/python/prototype-consistency-check.py --project-root .
 ```
 
-需要时运行 `artifact-guard.py check --stage prototype` 检查来源陈旧性；脚本问题作为审查问题，不把一致性检查当作 Review 启动门禁。
+一致性检查结果作为审查问题，不把检查当作 Review 启动门禁。
 4. 读取 `$BUNDLE/contracts/review-checklist.md`、`$BUNDLE/contracts/prototype-review-checklist.md` 和 `$BUNDLE/references/prototype-writing.md`；发现多页面 shell、路由或空白页问题时再读取 `$BUNDLE/references/prototype-shell.md`；从 Design 的“页面清单”提取全部页面，逐项输出 `存在 / 缺失 / 幻觉`，并审查字段、状态、主路径、权限、操作限制、异常反馈和 Design 未授权高影响行为。
 5. 按 `$BUNDLE/schemas/review-result.schema.json` 输出：
    - 机读：`.workflow/reviews/prototype-review-N.json`

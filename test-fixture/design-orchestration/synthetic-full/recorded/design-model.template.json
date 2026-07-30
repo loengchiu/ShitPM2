@@ -1,0 +1,18 @@
+{
+  "schema_version": "design-model/v1",
+  "provenance": {"input_hash": "__INPUT_HASH__", "material_revision": "__MATERIAL_REVISION__", "rule_hash": "__RULE_HASH__"},
+  "objective": "完成组织内设备借还的可恢复业务闭环",
+  "scope": ["设备申请、审批、库存锁定、借出、归还"],
+  "non_goals": ["付费结算"],
+  "roles": [{"id": "employee", "name": "员工"}, {"id": "asset-admin", "name": "资产管理员"}],
+  "data_scopes": [{"role": "employee", "scope": "本人所属部门"}, {"role": "asset-admin", "scope": "本组织"}],
+  "flows": [{"id": "borrow", "steps": ["提交申请", "审批", "库存锁定", "借出", "归还"]}, {"id": "exception", "steps": ["锁定失败", "保留审批结果并提示重试或取消"]}],
+  "states": [{"entity": "device", "states": ["可借", "预占", "借出", "逾期", "维修"]}],
+  "permissions": [{"role": "employee", "actions": ["查看本部门设备", "提交申请"]}, {"role": "asset-admin", "actions": ["处理本组织申请"]}],
+  "cross_system_responsibilities": [{"system": "库存系统", "responsibility": "最终锁定设备"}, {"system": "审批系统", "responsibility": "记录审批结果"}],
+  "invariants": ["没有库存锁定成功不得宣称预占成功"],
+  "decisions": [{"id": "lock-order", "decision": "先审批再锁库存", "reason": "避免未审批申请长期占用库存"}],
+  "tradeoffs": [{"id": "lock-order", "rejected": "先锁库存再审批", "reason": "会造成审批前占用"}],
+  "pending_confirmations": [{"question_id": "overdue-reapply", "question": "设备逾期后是否禁止再次申请？"}],
+  "source_refs": ["roles", "state", "external", "tradeoff"]
+}

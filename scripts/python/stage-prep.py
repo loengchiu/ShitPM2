@@ -70,6 +70,9 @@ HEADING_BLACKLIST = {
     "核心业务流程", "业务流程",
 }
 
+# 状态机语义标题（### 或 #### 均可作为实体边界）
+_STATE_MACHINE_HEADING_RE = re.compile(r"状态机|生命周期|状态流转")
+
 
 def read_existing_entities(stage: str, project_root: Path) -> tuple:
     """从已有 metadata 中读取已有实体的 {title: id} 映射和每种前缀的最大 ID 编号
@@ -309,18 +312,28 @@ def _find_header_index(headers, candidates):
 
 
 def _infer_entity_from_headings(table_line, headings):
-    """从表格行号往上找最近的 ### 实体标题（跳过容器标题黑名单）
+    """从表格行号往上找最近的实体标题（跳过容器标题黑名单）
 
-    状态机表通常在 ## 级章节下用 ### 分实体。遇 ## 级标题停止（实体不会在 ## 之上）。
+    状态机表通常用 ### 或 #### 分实体（如「### 状态机：订单状态」「#### 状态机：订单状态」）。
+    遇 ## 级标题停止（实体不会在 ## 之上）。
+    优先匹配状态机语义标题（任何级别），兜底用最近的 ### 非黑名单标题作为实体。
     """
+    nearest_section = None
     for h in sorted(headings, key=lambda x: x["line"], reverse=True):
-        if h["line"] >= table_line:
-            continue
-        if h["level"] == 3 and h["title"] not in HEADING_BLACKLIST:
-            return h["title"]
         if h["level"] <= 2:
             break
-    return None
+        if h["line"] >= table_line:
+            continue
+        title = h["title"]
+        if title in HEADING_BLACKLIST:
+            continue
+        # 状态机语义标题（### 或 ####）直接作为实体边界，支持多个状态机各自独立
+        if h["level"] in (3, 4) and _STATE_MACHINE_HEADING_RE.search(title):
+            return title
+        # 兜底：最近的 ### 非黑名单标题
+        if h["level"] == 3 and nearest_section is None:
+            nearest_section = title
+    return nearest_section
 
 
 def _extract_states_from_tables(tables, headings, stage, counter):
@@ -467,7 +480,7 @@ def _extract_states_from_content(content: str, stage: str, counter: dict) -> lis
       3. 撤回后从 `submitted` 回到 `draft`
 
     ShitPM 修复：补全 entity/transitions/is_terminal 字段，并解析"状态迁移"编号列表，
-    使 state-machine-check.py 能正确判断闭环（之前只提取状态名，不提取迁移，导致全部被判为"无出路"）。
+    使 状态闭环检查脚本 能正确判断闭环（之前只提取状态名，不提取迁移，导致全部被判为"无出路"）。
     ID 分配与此函数内联，与 _extract_states_from_tables 对称。
     不再提取 h3 标题（"状态集合"/"状态迁移" 是容器标题不是状态）。
     """
@@ -570,7 +583,7 @@ def _extract_states_from_content(content: str, stage: str, counter: dict) -> lis
                     })
                 # 如果 from_state 不在已定义状态中（如"创建"隐含从无到 draft），
                 # to_state 仍需记录以便初始态推断；附加到一个虚拟初始入口
-                # state-machine-check.py 通过 first_non_terminal 推断初始态，无需额外处理
+                # 状态闭环检查脚本 通过 first_non_terminal 推断初始态，无需额外处理
 
                 # 更新 last_to_state 用于下一条链式推导
                 last_to_state = to_state

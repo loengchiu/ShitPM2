@@ -186,7 +186,7 @@ def verify_bundle_mapping(host: str) -> None:
     path = host_bundle(host)
     if not path.exists():
         raise RuntimeError(f'bundle mapping missing: {path}')
-    if not (path / 'AGENTS.md').exists() or not (path / 'skills').exists():
+    if not (path / 'README.md').exists() or not (path / 'skills').exists():
         raise RuntimeError(f'bundle mapping target wrong: {path}')
 
 

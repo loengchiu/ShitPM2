@@ -22,7 +22,7 @@ description: "Prototype 阶段——根据已确认的 Design 生成可运行、
 python $BUNDLE/scripts/python/design-confirmation.py --project-root . check
 ```
 
-退出码非 0 或 Design 未确认/哈希不一致时停止，提示用户显式运行 `confirm`；不要求 PRD、metadata 或 Prototype Review 存在。
+退出码非 0 或 Design 未确认/哈希不一致时停止，用自然语言询问用户是否确认当前 Design；仅在用户明确确认后，由你运行 `confirm` 记录哈希，再继续。不得在用户未明确确认前运行 `confirm`，也不要求用户输入命令行。不要求 PRD、metadata 或 Prototype Review 存在。
 
 ## 输入资源
 
@@ -46,10 +46,9 @@ python $BUNDLE/scripts/python/design-confirmation.py --project-root . check
 
 ```text
 python $BUNDLE/scripts/python/prototype-consistency-check.py --project-root .
-python $BUNDLE/scripts/python/artifact-guard.py --project-root . record --stage prototype
 ```
 
-确定性检查或浏览器检查失败时先修复并重新验证，不交付未验证的原型；来源记录写入 `.workflow/provenance/prototype.json`，后续可用 `artifact-guard.py check --stage prototype` 检查陈旧性。
+确定性检查或浏览器检查失败时先修复并重新验证，不交付未验证的原型。
 8. 更新 `.workflow/status.json`：`current_stage=prototype`，`artifacts.prototype=output/prototype/index.html`；不使用 `current_stage=done` 表达线性完成。
 
 ## 产物
@@ -57,7 +56,6 @@ python $BUNDLE/scripts/python/artifact-guard.py --project-root . record --stage 
 - `output/prototype/index.html`：主原型文件；页面多时可按业务模块拆分，但必须有可运行入口。
 - `output/prototype/lib/`：自包含的本地 CSS/JS 运行资源。
 - `output/prototype/prototype-feedback.md`：可选反馈记录。
-- `.workflow/provenance/prototype.json`：由 artifact guard 登记的来源记录。
 - `.workflow/status.json`：导航状态和产物路径。
 
 ## 反馈处理

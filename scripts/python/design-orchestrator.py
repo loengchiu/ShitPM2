@@ -4,22 +4,25 @@ import argparse
 import hashlib
 import json
 import os
-import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from material_revision import file_digest, material_revision as shared_material_revision, source_id_for as shared_source_id_for
+
 REPO_ROOT = SCRIPT_DIR.parent.parent
 BUNDLE_ROOT = Path(os.environ.get("SHITPM_BUNDLE_ROOT", "C:/Users/guduj/.codex/shitpm"))
 SCHEMA_VERSION = "design-orchestration/v2"
 RUNTIME_REL = Path(".workflow/runtime/context/design")
 MATERIALS_REL = Path(".workflow/runtime/materials")
 MAX_ACTION_ATTEMPTS = 3
-MAX_REPAIR_ATTEMPTS = 1
+SUPPORTED_MODES = ("simple", "full")
 ACTION_SCHEMA_PATH = REPO_ROOT / "schemas" / "design-orchestration-action.schema.json"
-CONTEXT_RUNTIME_CHECK = SCRIPT_DIR / "context-runtime-check.py"
 
 
 def now() -> str:
@@ -66,8 +69,8 @@ def resolve_rel(project_root: Path, value: str) -> Path:
 
 def file_hash(path: Path) -> str | None:
     try:
-        return sha256_bytes(path.read_bytes())
-    except OSError:
+        return file_digest(path)
+    except (OSError, UnicodeError):
         return None
 
 
@@ -95,7 +98,7 @@ def receipt_path(project_root: Path, task_id: str) -> Path:
 
 
 def default_model_calls() -> dict[str, int]:
-    return {"total": 0, "material_fact_extraction": 0, "design_analysis": 0, "business_model_challenge": 0, "design_writing": 0, "independent_final_review": 0}
+    return {"total": 0, "material_fact_extraction": 0, "design_analysis": 0, "business_model_challenge": 0, "design_writing": 0}
 
 
 def load_state(project_root: Path) -> dict[str, Any]:
@@ -107,10 +110,9 @@ def load_state(project_root: Path) -> dict[str, Any]:
         state.setdefault("answers", {})
         state.setdefault("attempts", {})
         state.setdefault("model_calls", default_model_calls())
-        state.setdefault("repair_fingerprints", [])
         state.setdefault("completed", False)
         return state
-    return {"schema_version": SCHEMA_VERSION, "run_id": sha256_text(f"{project_root.resolve()}:{now()}")[:16], "created_at": now(), "nodes": {}, "events": [], "failures": [], "answers": {}, "attempts": {}, "model_calls": default_model_calls(), "repair_fingerprints": [], "completed": False}
+    return {"schema_version": SCHEMA_VERSION, "run_id": sha256_text(f"{project_root.resolve()}:{now()}")[:16], "created_at": now(), "nodes": {}, "events": [], "failures": [], "answers": {}, "attempts": {}, "model_calls": default_model_calls(), "completed": False}
 
 
 def save_state(project_root: Path, state: dict[str, Any]) -> None:
@@ -123,26 +125,48 @@ def read_input_manifest(project_root: Path) -> tuple[dict[str, Any] | None, str 
         return None, "input-manifest.json 不存在或不是 JSON 对象"
     if value.get("schema_version") not in ("design-input/v1", "design-input/v2"):
         return None, "input-manifest.json schema_version 不受支持"
-    if value.get("mode") not in ("simple", "full", None):
+    if value.get("mode") not in (*SUPPORTED_MODES, None):
         return None, "mode 必须是 simple、full 或未指定"
     if not isinstance(value.get("material_inputs", []), list):
         return None, "material_inputs 必须是数组"
     for key in ("request_path", "align_path"):
-        if value.get(key) and not resolve_rel(project_root, value[key]).is_file():
-            return None, f"{key} 不存在: {value[key]}"
+        if value.get(key):
+            path = resolve_rel(project_root, value[key])
+            # Align 是首个动作，初始化时其规范输出尚未生成；下游动作再要求它存在。
+            if key == "align_path" and not path.exists():
+                continue
+            if not path.is_file():
+                return None, f"{key} 不存在: {value[key]}"
     for item in value.get("material_inputs", []):
         if not isinstance(item, str) or not resolve_rel(project_root, item).is_file():
             return None, f"材料输入不存在: {item}"
     return value, None
 
 
-def input_hash(project_root: Path, manifest: dict[str, Any]) -> str:
-    payload = {"request": safe_file_hash(project_root, manifest.get("request_path")), "align": (safe_file_hash(project_root, manifest.get("align_path")) if manifest.get("align_path") else None), "materials": [(item, safe_file_hash(project_root, item)) for item in manifest.get("material_inputs", [])], "mode": manifest.get("mode")}
+def input_hash(project_root: Path, manifest: dict[str, Any], include_align: bool = True) -> str:
+    payload = {
+        "request": safe_file_hash(project_root, manifest.get("request_path")),
+        "align": (safe_file_hash(project_root, manifest.get("align_path")) if include_align and manifest.get("align_path") else None),
+        "materials": [(item, safe_file_hash(project_root, item)) for item in manifest.get("material_inputs", [])],
+        "mode": manifest.get("mode"),
+    }
     return f"sha256:{hash_object(payload)}"
 
 
+def material_sources(project_root: Path, manifest: dict[str, Any]) -> list[dict[str, str]]:
+    sources = []
+    for item in manifest.get("material_inputs", []):
+        path = resolve_rel(project_root, item).resolve()
+        sources.append({
+            "source_id": source_id_for(rel_path(project_root, path)),
+            "path": rel_path(project_root, path),
+            "sha256": safe_file_hash(project_root, item) or "",
+        })
+    return sources
+
+
 def material_revision(project_root: Path, manifest: dict[str, Any]) -> str:
-    return f"sha256:{hash_object([(item, safe_file_hash(project_root, item)) for item in manifest.get('material_inputs', [])])}"
+    return shared_material_revision(material_sources(project_root, manifest))
 
 
 def decisions(project_root: Path) -> list[dict[str, Any]]:
@@ -160,9 +184,6 @@ def answer_scope_matches(decision: dict[str, Any], task_id: str, task_kind: str,
         "analysis": {"analysis", "a", "b", "c"},
         "challenge": {"challenge", "baseline", "b6-model-review", "c4-cross-layer-review"},
         "writing": {"writing", "design_writer", "design-editor", "simple-design"},
-        "verification": {"verification", "generated_check"},
-        "index": {"index", "compile_index", "compile-design-index"},
-        "report": {"report", "report-completed"},
     }
     for scope in scopes:
         if not isinstance(scope, str):
@@ -199,7 +220,7 @@ def dependency_fingerprints(project_root: Path, task: dict[str, Any]) -> dict[st
 
 
 def source_id_for(value: str) -> str:
-    return Path(value).stem.replace(" ", "-")
+    return shared_source_id_for(value)
 
 
 def rule_pack(project_root: Path, stage: str, mode: str) -> dict[str, Any]:
@@ -245,70 +266,95 @@ def facts_valid(project_root: Path, manifest: dict[str, Any]) -> bool:
 
 def task_definitions(mode: str, manifest: dict[str, Any]) -> list[dict[str, Any]]:
     tasks: list[dict[str, Any]] = []
+
     def add(task_id: str, deps: list[str], batch: str, kind: str, outputs: list[str], stage: str, max_attempts: int = MAX_ACTION_ATTEMPTS) -> None:
-        tasks.append({"task_id": task_id, "mode": mode, "task_kind": kind, "depends_on": deps, "batch_key": batch, "expected_outputs": outputs, "stage": stage, "max_attempts": max_attempts})
-    add("material-index", [], "materials", "material_preparation", [".workflow/runtime/materials/manifest.json", ".workflow/runtime/materials/source-index.json"], "materials")
+        tasks.append({
+            "task_id": task_id,
+            "mode": mode,
+            "task_kind": kind,
+            "depends_on": deps,
+            "batch_key": batch,
+            "expected_outputs": outputs,
+            "stage": stage,
+            "max_attempts": max_attempts,
+        })
+
+    add("align", [], "align", "align", [
+        "output/align/align.md",
+        ".workflow/runtime/align/align-notes.json",
+    ], "align")
+    # 物料索引可复用；preview_next 已先完成 Align，确保首次运行不会绕过 Align。
+    add("material-index", [], "materials", "material_preparation", [
+        ".workflow/runtime/materials/manifest.json",
+        ".workflow/runtime/materials/source-index.json",
+    ], "materials")
     for item in manifest.get("material_inputs", []):
         sid = source_id_for(item)
-        add(f"material-facts:{sid}", ["material-index"], "material-facts", "material_fact_extraction", [f".workflow/runtime/materials/facts/{sid}.json"], "materials")
+        add(f"material-facts:{sid}", ["material-index"], "material-facts", "material_fact_extraction", [
+            f".workflow/runtime/materials/facts/{sid}.json",
+        ], "materials")
     fact_ids = [t["task_id"] for t in tasks if t["task_id"].startswith("material-facts:")]
-    add("material-merge", fact_ids or ["material-index"], "materials", "material_merge", [".workflow/runtime/materials/facts.json"], "materials")
-    if mode == "simple":
-        add("simple-design", ["material-merge"], "simple-design", "design_writer", ["output/design/design.md", "output/design/decision-notes.md", ".workflow/runtime/context/design/analysis/simple/simple-coverage.json"], "simple")
-        add("simple-generated-check", ["simple-design"], "simple-check", "generated_check", [".workflow/runtime/context/design/reviews/simple-generated-check.json"], "verification")
-        add("compile-design-index", ["simple-generated-check"], "index", "compile_index", [".workflow/runtime/context/design/index/design-index.json"], "index")
-        add("report-completed", ["compile-design-index"], "report", "report", [], "report")
-        return tasks
-    add("a1-requirement-clarification", ["material-merge"], "a1", "analysis", [".workflow/runtime/context/design/analysis/a/a1-requirement-clarification.json"], "a")
-    add("a2-stakeholders", ["a1-requirement-clarification"], "a2", "analysis", [".workflow/runtime/context/design/analysis/a/a2-stakeholders.json"], "a")
-    add("a2-goals-success", ["a1-requirement-clarification"], "a2", "analysis", [".workflow/runtime/context/design/analysis/a/a2-goals-success.json"], "a")
-    add("a3-scenarios-journeys", ["a1-requirement-clarification", "a2-stakeholders", "a2-goals-success"], "a3", "analysis", [".workflow/runtime/context/design/analysis/a/a3-scenarios-journeys.json"], "a")
-    add("a4-user-stories", ["a3-scenarios-journeys"], "a4", "analysis", [".workflow/runtime/context/design/analysis/a/a4-user-stories.json"], "a")
-    add("a4-scope-boundary", ["a1-requirement-clarification", "a2-stakeholders", "a2-goals-success", "a3-scenarios-journeys"], "a4", "analysis", [".workflow/runtime/context/design/analysis/a/a4-scope-boundary.json"], "a")
-    add("a5-merge-review", ["a1-requirement-clarification", "a2-stakeholders", "a2-goals-success", "a3-scenarios-journeys", "a4-user-stories", "a4-scope-boundary"], "a5", "baseline", [".workflow/runtime/context/design/baselines/a-baseline.json"], "a")
-    add("b1-business-process", ["a5-merge-review"], "b1", "analysis", [".workflow/runtime/context/design/analysis/b/b1-business-process.json"], "b")
-    add("b1-use-cases", ["a5-merge-review"], "b1", "analysis", [".workflow/runtime/context/design/analysis/b/b1-use-cases.json"], "b")
-    b2 = ["b1-business-process", "b1-use-cases", "a5-merge-review"]
-    for task_id in ("b2-data-flow", "b2-business-objects", "b2-business-rules", "b2-exceptions-boundaries"):
-        add(task_id, b2, "b2", "analysis", [f".workflow/runtime/context/design/analysis/b/{task_id}.json"], "b")
-    add("b3-data-dictionary", ["b2-data-flow", "b2-business-objects"], "b3", "analysis", [".workflow/runtime/context/design/analysis/b/b3-data-dictionary.json"], "b")
-    add("b3-object-relations", ["b2-business-objects"], "b3", "analysis", [".workflow/runtime/context/design/analysis/b/b3-object-relations.json"], "b")
-    add("b4-logical-data-model", ["b3-data-dictionary", "b3-object-relations"], "b4", "analysis", [".workflow/runtime/context/design/analysis/b/b4-logical-data-model.json"], "b")
-    add("b4-lifecycle-states", ["b2-business-objects", "b2-business-rules", "b1-business-process"], "b4", "analysis", [".workflow/runtime/context/design/analysis/b/b4-lifecycle-states.json"], "b")
-    add("b5-object-behavior", ["b1-use-cases", "b3-object-relations", "b4-lifecycle-states"], "b5", "analysis", [".workflow/runtime/context/design/analysis/b/b5-object-behavior.json"], "b")
-    add("b6-model-review", [t["task_id"] for t in tasks if t["task_id"].startswith("b")], "b6", "baseline", [".workflow/runtime/context/design/baselines/b-baseline.json", ".workflow/runtime/context/design/conflicts/business-conflicts.json"], "b")
-    for task_id in ("c1-system-functions", "c1-permissions", "c1-integrations", "c1-product-nfr"):
-        add(task_id, ["a5-merge-review", "b6-model-review"], "c1", "analysis", [f".workflow/runtime/context/design/analysis/c/{task_id}.json"], "c")
-    add("c2-interaction-prototype", ["c1-system-functions", "a5-merge-review", "b6-model-review"], "c2", "analysis", [".workflow/runtime/context/design/analysis/c/c2-interaction-prototype.json"], "c")
-    add("c2-system-data", ["c1-system-functions", "b6-model-review"], "c2", "analysis", [".workflow/runtime/context/design/analysis/c/c2-system-data.json"], "c")
-    add("c3-acceptance", ["c1-system-functions", "c1-permissions", "c1-integrations", "c1-product-nfr", "c2-interaction-prototype", "c2-system-data"], "c3", "baseline", [".workflow/runtime/context/design/analysis/c/c3-acceptance.json"], "c")
-    add("c4-cross-layer-review", ["a5-merge-review", "b6-model-review", "c3-acceptance"], "c4", "baseline", [".workflow/runtime/context/design/baselines/c-baseline.json", ".workflow/runtime/context/design/conflicts/cross-layer-conflicts.json", ".workflow/runtime/context/design/baselines/design-brief.json"], "c")
-    add("design-editor", ["c4-cross-layer-review"], "editor", "design_writer", ["output/design/design.md", "output/design/decision-notes.md"], "writing")
-    for task_id, name in (("review-pm-readability", "pm-readability"), ("review-park-coverage", "park-coverage"), ("review-downstream-sufficiency", "downstream-sufficiency")):
-        add(task_id, ["design-editor"], "reviews", "generated_check", [f".workflow/runtime/context/design/reviews/{name}.json"], "verification")
-    add("compile-design-index", ["review-pm-readability", "review-park-coverage", "review-downstream-sufficiency"], "index", "compile_index", [".workflow/runtime/context/design/index/design-index.json"], "index")
-    add("report-completed", ["compile-design-index"], "report", "report", [], "report")
-    return tasks
+    add("material-merge", fact_ids or ["material-index"], "materials", "material_merge", [
+        ".workflow/runtime/materials/facts.json",
+    ], "materials")
 
+    if mode == "simple":
+        add("simple-design", ["material-merge"], "simple-design", "design_writer", [
+            "output/design/design.md",
+            "output/design/decision-notes.md",
+        ], "simple")
+        return tasks
+
+    add("a-layer", ["material-merge"], "a-layer", "baseline", [
+        ".workflow/runtime/context/design/baselines/a-baseline.json",
+    ], "a")
+    add("b-layer", ["a-layer"], "b-layer", "baseline", [
+        ".workflow/runtime/context/design/baselines/b-baseline.json",
+        ".workflow/runtime/context/design/conflicts/business-conflicts.json",
+    ], "b")
+    add("c-layer", ["a-layer", "b-layer"], "c-layer", "baseline", [
+        ".workflow/runtime/context/design/baselines/c-baseline.json",
+        ".workflow/runtime/context/design/conflicts/cross-layer-conflicts.json",
+        ".workflow/runtime/context/design/baselines/design-brief.json",
+    ], "c")
+    add("design-editor", ["a-layer", "b-layer", "c-layer"], "editor", "design_writer", [
+        "output/design/design.md",
+        "output/design/decision-notes.md",
+    ], "writing")
+    return tasks
 
 def task_map(mode: str, manifest: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return {t["task_id"]: t for t in task_definitions(mode, manifest)}
 
 
 def task_input_files(project_root: Path, task: dict[str, Any], manifest: dict[str, Any]) -> list[str]:
-    if task["task_id"].startswith("material-facts:"):
-        sid = task["task_id"].split(":", 1)[1]
+    task_id = task["task_id"]
+    if task_id.startswith("material-facts:"):
+        sid = task_id.split(":", 1)[1]
         return [item for item in manifest.get("material_inputs", []) if source_id_for(item) == sid]
     files = []
+    if task_id == "align":
+        files.extend([manifest.get("request_path"), *manifest.get("material_inputs", [])])
+        return [item for item in dict.fromkeys(files) if item]
     if task["task_kind"] == "material_preparation":
         files.extend(manifest.get("material_inputs", []))
+    elif task["task_kind"] == "material_merge":
+        files.extend([f".workflow/runtime/materials/facts/{source_id_for(item)}.json" for item in manifest.get("material_inputs", [])])
+    elif task_id == "a-layer":
+        files.extend([manifest.get("align_path"),manifest.get("request_path"), ".workflow/runtime/materials/facts.json"])
+    elif task_id == "b-layer":
+        files.extend([manifest.get("align_path"),manifest.get("request_path"), ".workflow/runtime/materials/facts.json", ".workflow/runtime/context/design/baselines/a-baseline.json"])
+    elif task_id == "c-layer":
+        files.extend([manifest.get("align_path"),manifest.get("request_path"), ".workflow/runtime/materials/facts.json", ".workflow/runtime/context/design/baselines/a-baseline.json", ".workflow/runtime/context/design/baselines/b-baseline.json", ".workflow/runtime/context/design/conflicts/business-conflicts.json"])
+    elif task_id == "design-editor":
+        files.extend([manifest.get("align_path"),manifest.get("request_path"), ".workflow/runtime/materials/facts.json", ".workflow/runtime/context/design/baselines/a-baseline.json", ".workflow/runtime/context/design/baselines/b-baseline.json", ".workflow/runtime/context/design/baselines/c-baseline.json", ".workflow/runtime/context/design/baselines/design-brief.json", ".workflow/runtime/context/design/conflicts/business-conflicts.json", ".workflow/runtime/context/design/conflicts/cross-layer-conflicts.json"])
     else:
         for key in ("request_path", "align_path"):
             if manifest.get(key):
                 files.append(manifest[key])
         if task["task_kind"] not in {"material_merge", "report"}:
             files.append(".workflow/runtime/materials/facts.json")
-    return list(dict.fromkeys(files))
+    return [item for item in dict.fromkeys(files) if item]
 
 
 def input_hashes(project_root: Path, task: dict[str, Any], manifest: dict[str, Any]) -> dict[str, Any]:
@@ -316,7 +362,11 @@ def input_hashes(project_root: Path, task: dict[str, Any], manifest: dict[str, A
     if task["task_id"].startswith("material-facts:"):
         # 分来源事实只绑定本来源，避免其他来源变化导致重复提取。
         return values
-    values["__input_hash__"] = input_hash(project_root, manifest)
+    values["__input_hash__"] = input_hash(
+        project_root,
+        manifest,
+        include_align=task.get("task_id") not in {"align", "material-index", "material-merge"},
+    )
     values["__material_revision__"] = material_revision(project_root, manifest)
     values["__answers__"] = answer_hash_for_task(project_root, task)
     values["__dependency_fingerprints__"] = dependency_fingerprints(project_root, task)
@@ -370,10 +420,95 @@ def task_status(project_root: Path, task: dict[str, Any], manifest: dict[str, An
     return "ready"
 
 
+def command_for_task(task: dict[str, Any], manifest: dict[str, Any]) -> dict[str, Any] | None:
+    if task["task_id"] != "material-index":
+        return None
+    args = [
+        "scripts/python/source-index.py",
+        "--project-root", ".",
+        "--output-dir", ".workflow/runtime/materials",
+    ]
+    for item in manifest.get("material_inputs", []):
+        args.extend(["--input", item])
+    return {"program": "python", "script": "scripts/python/source-index.py", "args": args[1:]}
+
+
+def output_contract(task: dict[str, Any]) -> dict[str, Any]:
+    task_id = task["task_id"]
+    task_kind = task["task_kind"]
+    if task_kind == "align":
+        return {
+            "type": "object",
+            "schema_ref": "$BUNDLE/templates/align.md",
+            "required": ["blocking_gaps", "needs_ask_back", "ask_back_reason", "judgement_note", "last_updated_at"],
+        }
+    if task_id.startswith("material-facts:"):
+        return {
+            "type": "object",
+            "schema_ref": "$BUNDLE/references/design-fact-format.md#分来源事实文件",
+            "required": ["schema_version", "source_path", "source_hash", "material_revision", "facts"],
+            "properties": {
+                "schema_version": {"type": "string", "enum": ["material-fact/v2"]},
+                "source_path": {"type": "string", "minLength": 1},
+                "source_hash": {"type": "string", "minLength": 1},
+                "material_revision": {"type": "string", "minLength": 1},
+                "facts": {"type": "array"},
+            },
+        }
+    if task_kind == "material_merge":
+        return {
+            "type": "object",
+            "schema_ref": "$BUNDLE/references/design-fact-format.md#合并事实库",
+            "required": ["version", "material_revision", "confirmed_facts", "source_conflicts", "missing_information", "non_derivable_items"],
+            "properties": {
+                "version": {"type": "integer", "enum": [1]},
+                "material_revision": {"type": "string", "minLength": 1},
+                "confirmed_facts": {"type": "array"},
+                "source_conflicts": {"type": "array"},
+                "missing_information": {"type": "array"},
+                "non_derivable_items": {"type": "array"},
+            },
+        }
+    if task_kind == "baseline":
+        return {
+            "type": "object",
+            "schema_ref": "$BUNDLE/references/design-baseline-format.md#公共-json-包装",
+            "required": ["schema_version", "task_id", "status", "coverage", "source_refs"],
+            "properties": {
+                "schema_version": {"type": "string", "enum": ["design-analysis/v2"]},
+                "material_revision": {"type": "string", "minLength": 1},
+                "task_id": {"type": "string", "minLength": 1},
+                "status": {"type": "string", "enum": ["completed", "success"]},
+                "coverage": {"type": "array"},
+                "source_refs": {"type": "array"},
+            },
+        }
+    return {"type": "object", "required": []}
+
+
+def completion_checks(task: dict[str, Any]) -> list[str]:
+    task_id = task["task_id"]
+    task_kind = task["task_kind"]
+    checks = ["输出文件存在", "输入哈希仍然匹配"]
+    if task_kind == "align":
+        checks.extend(["按 templates/align.md 写入完整需求事实对齐稿", "按 schemas/align-notes.schema.json 写入对齐结果和未决问题"])
+    elif task_id.startswith("material-facts:"):
+        checks.extend(["按 references/design-fact-format.md 写入 material-fact/v2 分来源事实", "source_path/source_hash/material_revision/facts 均存在"] )
+    elif task_kind == "material_merge":
+        checks.extend(["按 references/design-fact-format.md 写入 version=1 合并事实库", "四个事实分类数组均存在且每条事实可定位来源"] )
+    elif task_kind == "baseline":
+        checks.extend(["按 references/design-baseline-format.md 写入 design-analysis/v2 交接资产", "schema_version/status/coverage/source_refs 通过交接门禁"] )
+    return checks
+
+
 def make_action(project_root: Path, task: dict[str, Any], manifest: dict[str, Any], reason: str | None = None) -> dict[str, Any]:
     mode = manifest.get("mode") or "full"
-    isolated = task["task_kind"] not in {"material_preparation", "material_merge", "compile_index", "report"}
-    action = {"action_id": task["task_id"], "task_id": task["task_id"], "type": "run_isolated_agent" if isolated else "run_command", "role": task["task_kind"], "objective": f"完成 {task['task_id']} 的单一责任", "mode": mode, "task_kind": task["task_kind"], "depends_on": task["depends_on"], "batch_key": task["batch_key"], "input_files": task_input_files(project_root, task, manifest), "input_hashes": input_hashes(project_root, task, manifest), "rule_pack_ref": rule_pack(project_root, task["stage"], mode), "expected_outputs": task["expected_outputs"], "output_schema": {"type": "object", "required": []}, "completion_check": ["输出文件存在", "JSON 输出可解析", "输入哈希仍然匹配"], "forbidden_inputs": ["完整父对话历史", "未列出的原始材料", "其他专项的完整分析正文", "主任务自动规划的新动作"], "allowed_evidence_ranges": [{"path": item, "range": "必要的定点片段"} for item in task_input_files(project_root, task, manifest)], "max_attempts": task.get("max_attempts", MAX_ACTION_ATTEMPTS)}
+    isolated = task["task_kind"] not in {"material_preparation", "material_merge"}
+    input_files = task_input_files(project_root, task, manifest)
+    action = {"action_id": task["task_id"], "task_id": task["task_id"], "type": "run_isolated_agent" if isolated else "run_command", "role": task["task_kind"], "objective": f"完成 {task['task_id']} 的单一责任", "mode": mode, "task_kind": task["task_kind"], "depends_on": task["depends_on"], "batch_key": task["batch_key"], "input_files": input_files, "input_hashes": input_hashes(project_root, task, manifest), "rule_pack_ref": rule_pack(project_root, task["stage"], mode), "expected_outputs": task["expected_outputs"], "output_schema": output_contract(task), "completion_check": completion_checks(task), "forbidden_inputs": ["完整父对话历史", "未列出的原始材料", "其他专项的完整分析正文", "主任务自动规划的新动作"], "allowed_evidence_ranges": [{"path": item, "range": "必要的定点片段"} for item in input_files], "max_attempts": task.get("max_attempts", MAX_ACTION_ATTEMPTS)}
+    command = command_for_task(task, manifest)
+    if command:
+        action["command"] = command
     if isolated:
         action["fork_context"] = False
     if reason:
@@ -425,16 +560,6 @@ def unanswered(project_root: Path) -> list[dict[str, Any]]:
     return [q for q in user_questions(project_root) if q.get("blocking", True) and q.get("question_id") not in answered]
 
 
-def review_findings(project_root: Path, mode: str) -> list[dict[str, Any]]:
-    names = ["simple-generated-check"] if mode == "simple" else ["pm-readability", "park-coverage", "downstream-sufficiency"]
-    result = []
-    for name in names:
-        value = read_json(runtime_dir(project_root) / "reviews" / f"{name}.json")
-        if value and value.get("status") not in ("passed", "success", "completed"):
-            result.extend(value.get("findings", []) or [{"id": name, "summary": value.get("error", "检查未通过")}])
-    return result
-
-
 def migration_required(project_root: Path) -> dict[str, Any] | None:
     old = read_json(runtime_dir(project_root) / "run.json")
     if old and old.get("schema_version") not in (None, SCHEMA_VERSION):
@@ -452,32 +577,33 @@ def preview_next(project_root: Path) -> dict[str, Any]:
     assert manifest is not None
     mode = manifest.get("mode")
     if mode is None:
-        action = {"action_id": "select-mode", "type": "ask_user", "role": "mode_selection", "objective": "选择简单模式或完整模式", "options": ["simple", "full"], "input_files": [], "input_hashes": {"__input_hash__": input_hash(project_root, manifest)}, "rule_pack_ref": rule_pack(project_root, "mode-selection", "simple"), "expected_outputs": [".workflow/runtime/context/design/inputs/input-manifest.json"], "output_schema": {"type": "object"}, "completion_check": ["用户只选择一次模式"], "forbidden_inputs": ["自动根据材料判断模式"], "allowed_evidence_ranges": []}
+        action = {"action_id": "select-mode", "type": "ask_user", "role": "mode_selection", "objective": "选择简单模式或完整模式", "options": list(SUPPORTED_MODES), "input_files": [], "input_hashes": {"__input_hash__": input_hash(project_root, manifest)}, "rule_pack_ref": rule_pack(project_root, "mode-selection", "simple"), "expected_outputs": [".workflow/runtime/context/design/inputs/input-manifest.json"], "output_schema": {"type": "object"}, "completion_check": ["用户只选择一次模式"], "forbidden_inputs": ["自动根据材料判断模式"], "allowed_evidence_ranges": []}
         compile_task(project_root, action)
         return {"state": "waiting_user", "ready_actions": [action], "blocked_by_user_questions": [], "completed_actions": []}
     state = load_state(project_root)
     tasks = task_map(mode, manifest)
+    status_cache: dict[str, str] = {}
+    align_status = task_status(project_root, tasks["align"], manifest, state, tasks, status_cache)
+    if align_status == "ready":
+        action = make_action(project_root, tasks["align"], manifest, "Design 必须先完成 Align 需求事实形成")
+        compile_task(project_root, action)
+        return {"state": "ready", "ready_actions": [action], "blocked_by_user_questions": [], "completed_actions": []}
+    if align_status == "failed":
+        return {"state": "failed", "error": "Align 动作已达到重试上限", "ready_actions": [], "blocked_by_user_questions": [], "completed_actions": []}
+    blocked = unanswered(project_root)
+    if blocked:
+        questions = []
+        for q in blocked:
+            questions.append({"action_id": f"question:{q.get('question_id')}", "type": "ask_user", "role": "user_decision", "objective": q.get("question", "请补充高影响决策"), "question": q, "input_files": [".workflow/runtime/context/design/conflicts/user-questions.json"], "input_hashes": {"__answers__": answer_hash(project_root)}, "rule_pack_ref": rule_pack(project_root, "questions", mode), "expected_outputs": [".workflow/runtime/context/design/inputs/user-decisions.json"], "output_schema": {"type": "object"}, "completion_check": ["问题已回答"], "forbidden_inputs": [], "allowed_evidence_ranges": []})
+        return {"state": "waiting_user", "ready_actions": questions, "blocked_by_user_questions": blocked, "completed_actions": []}
     ready = material_ready(project_root, manifest, tasks)
     if not ready:
-        blocked = unanswered(project_root)
-        if blocked:
-            questions = []
-            for q in blocked:
-                questions.append({"action_id": f"question:{q.get('question_id')}", "type": "ask_user", "role": "user_decision", "objective": q.get("question", "请补充高影响决策"), "question": q, "input_files": [".workflow/runtime/context/design/conflicts/user-questions.json"], "input_hashes": {"__answers__": answer_hash(project_root)}, "rule_pack_ref": rule_pack(project_root, "questions", mode), "expected_outputs": [".workflow/runtime/context/design/inputs/user-decisions.json"], "output_schema": {"type": "object"}, "completion_check": ["问题已回答"], "forbidden_inputs": [], "allowed_evidence_ranges": []})
-            return {"state": "waiting_user", "ready_actions": questions, "blocked_by_user_questions": blocked, "completed_actions": []}
-        status_cache: dict[str, str] = {}
+        status_cache = {}
         for task_id, task in tasks.items():
-            if task_id.startswith("material-"):
+            if task_id.startswith("material-") or task_id == "align":
                 continue
             if task_status(project_root, task, manifest, state, tasks, status_cache) == "ready":
                 ready.append(make_action(project_root, task, manifest, "依赖已满足"))
-        findings = review_findings(project_root, mode)
-        if findings:
-            repair_prefix = "simple-repair" if mode == "simple" else "design-repair"
-            repair_id = f"{repair_prefix}:{hash_object(findings)}"
-            if repair_id not in state.get("repair_fingerprints", []):
-                repair = {"task_id": repair_id, "mode": mode, "task_kind": "repair", "depends_on": [], "batch_key": "repair", "expected_outputs": ["output/design/design.md", "output/design/decision-notes.md"], "stage": "writing", "max_attempts": MAX_REPAIR_ATTEMPTS}
-                ready = [make_action(project_root, repair, manifest, "生成内检查发现可修复问题")]
         completed = [task_id for task_id, task in tasks.items() if task_status(project_root, task, manifest, state, tasks, status_cache) == "completed"]
         if not ready and len(completed) == len(tasks):
             state["completed"] = True
@@ -550,6 +676,10 @@ def validate_task_contract(action: dict[str, Any]) -> tuple[bool, str]:
         return False, f"动作 Schema 校验失败: {error}"
     if action["type"] == "run_isolated_agent" and action.get("fork_context") is not False:
         return False, "隔离动作必须使用 fork_context=false"
+    if action["type"] == "run_command" and action.get("task_kind") == "material_preparation":
+        command = action.get("command")
+        if not isinstance(command, dict) or command.get("program") != "python" or not isinstance(command.get("script"), str) or not isinstance(command.get("args"), list) or not command["args"]:
+            return False, "材料索引动作必须声明可执行命令"
     return True, "ok"
 
 
@@ -562,36 +692,25 @@ def active_input_matches(project_root: Path, action: dict[str, Any]) -> bool:
     return input_hashes(project_root, task, manifest) == action.get("input_hashes")
 
 
-def _handoff_requirements(action: dict[str, Any]) -> list[str]:
-    output_names = set(action.get("expected_outputs", []))
-    requirements = []
-    mapping = {
-        ".workflow/runtime/context/design/baselines/a-baseline.json": "a-baseline",
-        ".workflow/runtime/context/design/baselines/b-baseline.json": "b-baseline",
-        ".workflow/runtime/context/design/baselines/c-baseline.json": "c-baseline",
-        ".workflow/runtime/context/design/baselines/design-brief.json": "design-brief",
-        ".workflow/runtime/context/design/conflicts/business-conflicts.json": "business-conflicts",
-        ".workflow/runtime/context/design/conflicts/cross-layer-conflicts.json": "cross-layer-conflicts",
-    }
-    for path, name in mapping.items():
-        if path in output_names:
-            requirements.append(name)
-    return requirements
-
+def _validate_design_writer_upstream(project_root: Path, action: dict[str, Any]) -> tuple[bool, str]:
+    if action.get("task_kind") != "design_writer" or action.get("mode") == "simple":
+        return True, "ok"
+    required = [
+        ".workflow/runtime/context/design/baselines/a-baseline.json",
+        ".workflow/runtime/context/design/baselines/b-baseline.json",
+        ".workflow/runtime/context/design/baselines/c-baseline.json",
+        ".workflow/runtime/context/design/baselines/design-brief.json",
+    ]
+    for raw in required:
+        if not output_valid(project_root, raw):
+            return False, f"Design 写作上游基线缺失: {raw}"
+    return True, "ok"
 
 def accept_outputs(project_root: Path, action: dict[str, Any]) -> tuple[bool, str]:
     for raw in action.get("expected_outputs", []):
         if not output_valid(project_root, raw):
             return False, f"缺少或无效输出: {raw}"
-    requirements = _handoff_requirements(action)
-    if requirements:
-        command = [sys.executable, str(CONTEXT_RUNTIME_CHECK), "--project-root", str(project_root), "--stage", "design"]
-        for name in requirements:
-            command.extend(["--require", name])
-        checked = subprocess.run(command, cwd=REPO_ROOT, capture_output=True, text=True, encoding="utf-8")
-        if checked.returncode != 0:
-            return False, "交接门禁失败: " + (checked.stdout.strip() or checked.stderr.strip())
-    return True, "ok"
+    return _validate_design_writer_upstream(project_root, action)
 
 def handle_accept(project_root: Path, action_id_value: str, result: str, error: str | None, fingerprint: str | None) -> dict[str, Any]:
     state = load_state(project_root)
@@ -609,8 +728,7 @@ def handle_accept(project_root: Path, action_id_value: str, result: str, error: 
         manifest, manifest_error = read_input_manifest(project_root)
         if manifest and not manifest_error:
             tasks = task_map(manifest.get("mode") or "full", manifest)
-            task_id = action_id_value.split(":", 1)[0] if action_id_value.startswith(("design-repair:", "simple-repair:")) else action_id_value
-            task = tasks.get(task_id)
+            task = tasks.get(action_id_value)
             if task and outputs_valid(project_root, task):
                 action = make_action(project_root, task, manifest, "输出已存在，补记接受结果")
                 action["action_id"] = action_id_value
@@ -645,10 +763,6 @@ def handle_accept(project_root: Path, action_id_value: str, result: str, error: 
         "accepted_at": now(),
     })
     state.setdefault("events", []).append({"event": "accept_success", "action_id": action_id_value, "task_id": base_id, "at": now()})
-    if action.get("task_kind") == "repair":
-        state.setdefault("repair_fingerprints", []).append(action_id_value.split(":", 1)[1] if ":" in action_id_value else action_id_value)
-    if action.get("task_kind") == "report":
-        state["completed"] = True
     save_state(project_root, state)
     return {"accepted": True, "action_id": action_id_value, "result": "success", "output_hashes": node["accepted_output_hashes"]}
 
@@ -660,7 +774,7 @@ def handle_answer(project_root: Path, question_id: str, answer: str) -> dict[str
     if error or not manifest:
         return {"accepted": False, "error": error or "输入不存在"}
     if question_id in ("mode-selection", "select-mode"):
-        if answer not in {"simple", "full"}:
+        if answer not in set(SUPPORTED_MODES):
             return {"accepted": False, "error": "模式只能是 simple 或 full"}
         manifest["mode"] = answer
         write_json(runtime_dir(project_root) / "inputs/input-manifest.json", manifest)
@@ -683,7 +797,7 @@ def handle_answer(project_root: Path, question_id: str, answer: str) -> dict[str
 def handle_status(project_root: Path) -> dict[str, Any]:
     state = load_state(project_root)
     preview = preview_next(project_root)
-    return {"schema_version": SCHEMA_VERSION, "run_id": state["run_id"], "completed": state.get("completed", False), "state": "completed" if state.get("completed") else preview.get("state"), "ready_actions": preview.get("ready_actions", []), "completed_actions": preview.get("completed_actions", []), "blocked_by_user_questions": preview.get("blocked_by_user_questions", []), "model_calls": state.get("model_calls", default_model_calls()), "failures": state.get("failures", []), "repair_fingerprints": state.get("repair_fingerprints", [])}
+    return {"schema_version": SCHEMA_VERSION, "run_id": state["run_id"], "completed": state.get("completed", False), "state": "completed" if state.get("completed") else preview.get("state"), "ready_actions": preview.get("ready_actions", []), "completed_actions": preview.get("completed_actions", []), "blocked_by_user_questions": preview.get("blocked_by_user_questions", []), "model_calls": state.get("model_calls", default_model_calls()), "failures": state.get("failures", [])}
 
 
 def init_project(project_root: Path, request: str, mode: str | None, materials: list[str]) -> dict[str, Any]:
@@ -695,7 +809,7 @@ def init_project(project_root: Path, request: str, mode: str | None, materials: 
     for item in materials:
         candidate = Path(item) if Path(item).is_absolute() else project_root / item
         paths.append(rel_path(project_root, candidate))
-    manifest = {"schema_version": "design-input/v2", "request_path": rel_path(project_root, request_path), "material_inputs": paths, "created_at": now()}
+    manifest = {"schema_version": "design-input/v2", "request_path": rel_path(project_root, request_path), "align_path": "output/align/align.md", "material_inputs": paths, "created_at": now()}
     if mode:
         manifest["mode"] = mode
     write_json(root / "input-manifest.json", manifest)
@@ -709,7 +823,7 @@ def main() -> int:
     parser.add_argument("command", choices=("init", "next", "accept", "answer", "status"))
     parser.add_argument("--project-root", type=Path, default=Path.cwd())
     parser.add_argument("--request", default="")
-    parser.add_argument("--mode", choices=("simple", "full"))
+    parser.add_argument("--mode", choices=SUPPORTED_MODES)
     parser.add_argument("--materials", action="append", default=[])
     parser.add_argument("--action-id")
     parser.add_argument("--result", choices=("success", "failure"), default="success")

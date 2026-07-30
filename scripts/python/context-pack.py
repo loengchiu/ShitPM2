@@ -78,7 +78,7 @@ def _section_ids_for_pack(pack: dict[str, Any], mode: str | None,
     section_ids = list(pack.get('sections', []))
     if 'mode_sections' in pack:
         if not mode:
-            raise RuntimeError(f'pack {pack_name} 需要 --mode simple 或 --mode full')
+            raise RuntimeError(f'pack {pack_name} 需要 --mode simple 或 full')
         if mode not in pack['mode_sections']:
             raise RuntimeError(f'不支持的模式: {mode}')
         section_ids.extend(pack['mode_sections'][mode])

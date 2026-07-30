@@ -114,6 +114,46 @@ LEGACY_DESIGN = """# 设计基线
 | 订单编号 | 订单服务 |
 """
 
+TABLE_DESIGN = """# 设计基线
+
+## 七、页面、区块、字段与操作设计
+
+### 页面清单（可选速览）
+
+| 页面 | 用户任务 | 适用角色 | 主要入口/去向 |
+| --- | --- | --- | --- |
+| 订单列表 | 查看和处理订单 | 运营人员 | 工作台进入 |
+
+### 页面：订单列表
+
+- 页面目的：查看和处理订单
+- 适用角色：运营人员
+- 进入条件：已登录
+- 数据范围：本人所属组织订单
+- 主要状态：待处理、已完成
+
+#### 区块：筛选条件
+
+- 区块目的：按条件缩小订单范围
+
+##### 字段表
+
+| 字段名称 | 业务含义 | 字段来源 | 展示条件 | 输入与编辑规则 | 取值与默认规则 | 交互方式 | 校验与反馈 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 订单编号 | 订单的唯一业务编号 | 订单服务 | 始终展示 | 可输入，不可修改已有值 | 默认空值 | 文本输入 | 格式错误时提示 |
+| 状态 | 订单当前处理状态 | 订单服务 | 始终展示 | 可选择 | 默认全部 | 单选 | 无 |
+
+#### 页面操作
+
+- 区块目的：定义本页面可执行的业务操作及其结果。
+
+##### 操作表
+
+| 操作 | 适用角色 | 展示与可用条件 | 是否二次确认 | 成功结果 | 数据与状态变化 | 失败与恢复 | 后续去向 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 查询 | 运营人员 | 输入条件合法 | 否 | 刷新订单列表 | 无 | 保留当前筛选条件并提示 | 仍停留在订单列表 |
+"""
+
 
 class DesignIndexTests(unittest.TestCase):
     def setUp(self):
@@ -127,9 +167,9 @@ class DesignIndexTests(unittest.TestCase):
     def tearDown(self):
         self.temp.cleanup()
 
-    def run_cli(self, command):
+    def run_cli(self, command, *extra):
         completed = subprocess.run(
-            [sys.executable, str(SCRIPT), command, "--project-root", str(self.root)],
+            [sys.executable, str(SCRIPT), command, "--project-root", str(self.root), *extra],
             text=True,
             capture_output=True,
             check=False,
@@ -225,9 +265,67 @@ class DesignIndexTests(unittest.TestCase):
     def test_standard_prd_missing_field_is_rejected(self):
         self.write_downstream(STANDARD_PRD.replace("| 状态 | 单选 | 否 | — | 默认全部 | 订单服务 | 订单当前处理状态 |\n", ""))
         run = self.run_downstream("prd-consistency-check.py")
-        self.assertEqual(run.returncode, 1, run.stdout + run.stderr)
+        self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
         missing = json.loads(run.stdout)["design_index"]["structure"]["missing"]
         self.assertTrue(any(item.get("name") == "状态" for item in missing))
+
+    def test_table_preamble_does_not_discard_valid_table(self):
+        with_preamble = TABLE_DESIGN.replace(
+            "##### 字段表\n\n|",
+            "##### 字段表\n\n以下字段用于描述订单筛选条件。\n\n<!-- 表格说明 -->\n\n|",
+        ).replace(
+            "##### 操作表\n\n|",
+            "##### 操作表\n\n以下操作用于完成订单查询。\n\n<!-- 操作说明 -->\n\n|",
+        )
+        (self.root / "output" / "design" / "design.md").write_text(with_preamble, encoding="utf-8")
+        code, output = self.run_cli("compile", "--require-current-format")
+        self.assertEqual(code, 0, output)
+        self.assertTrue(output["ok"])
+
+    def test_table_format_compiles_with_complete_field_and_operation_index(self):
+        (self.root / "output" / "design" / "design.md").write_text(TABLE_DESIGN, encoding="utf-8")
+        code, output = self.run_cli("compile", "--require-current-format")
+        self.assertEqual(code, 0, output)
+        self.assertEqual(output["summary"], {"pages": 1, "blocks": 2, "fields": 2, "operations": 1, "errors": 0})
+        index = json.loads((self.root / self.mod.INDEX_RELATIVE_PATH).read_text(encoding="utf-8"))
+        self.assertEqual([item["name"] for item in index["fields"]], ["订单编号", "状态"])
+        self.assertEqual(index["operations"][0]["name"], "查询")
+        self.assertEqual(index["operations"][0]["attributes"]["state_change"], "无")
+
+    def test_current_format_rejects_legacy_field_and_operation_headings(self):
+        code, output = self.run_cli("compile", "--require-current-format")
+        self.assertEqual(code, 1, output)
+        codes = {item["code"] for item in output["errors"]}
+        self.assertIn("outdated_field_format", codes)
+        self.assertIn("outdated_operation_format", codes)
+
+    def test_table_headers_and_page_summary_are_gated(self):
+        invalid = TABLE_DESIGN.replace("| 字段名称 | 业务含义 | 字段来源 | 展示条件 | 输入与编辑规则 | 取值与默认规则 | 交互方式 | 校验与反馈 |", "| 字段名称 | 业务含义 | 字段来源 | 展示条件 | 交互方式 | 校验与反馈 |")
+        (self.root / "output" / "design" / "design.md").write_text(invalid, encoding="utf-8")
+        code, output = self.run_cli("compile", "--require-current-format")
+        self.assertEqual(code, 1, output)
+        self.assertTrue(any(item["code"] == "invalid_field_table_headers" for item in output["errors"]))
+
+        mismatch = TABLE_DESIGN.replace("| 订单列表 | 查看和处理订单 | 运营人员 | 工作台进入 |", "| 其他页面 | 其他任务 | 运营人员 | 工作台进入 |")
+        (self.root / "output" / "design" / "design.md").write_text(mismatch, encoding="utf-8")
+        code, output = self.run_cli("compile", "--require-current-format")
+        self.assertEqual(code, 1, output)
+        codes = {item["code"] for item in output["errors"]}
+        self.assertIn("page_summary_missing_detail", codes)
+        self.assertIn("page_detail_missing_summary", codes)
+
+    def test_combined_field_and_empty_blocks_are_gated(self):
+        combined = TABLE_DESIGN.replace("| 状态 | 订单当前处理状态 |", "| 状态 / 订单状态 | 订单当前处理状态 |")
+        (self.root / "output" / "design" / "design.md").write_text(combined, encoding="utf-8")
+        code, output = self.run_cli("compile", "--require-current-format")
+        self.assertEqual(code, 1, output)
+        self.assertTrue(any(item["code"] == "combined_field_name" for item in output["errors"]))
+
+        empty = TABLE_DESIGN.replace("#### 区块：筛选条件", "#### 区块：空区块\n\n- 区块目的：暂未定义\n\n#### 区块：筛选条件")
+        (self.root / "output" / "design" / "design.md").write_text(empty, encoding="utf-8")
+        code, output = self.run_cli("compile", "--require-current-format")
+        self.assertEqual(code, 1, output)
+        self.assertTrue(any(item["code"] == "block_without_items" for item in output["errors"]))
 
     def test_legacy_design_compile_is_explicitly_unsupported(self):
         (self.root / "output" / "design" / "design.md").write_text(LEGACY_DESIGN, encoding="utf-8")
@@ -264,7 +362,7 @@ class DesignIndexTests(unittest.TestCase):
         missing = VALID_PRD.replace("##### 字段：状态\n来源：订单服务\n展示条件：始终展示\n", "")
         (self.root / "output" / "prd" / "prd.md").write_text(missing, encoding="utf-8")
         run = self.run_downstream("prd-consistency-check.py")
-        self.assertEqual(run.returncode, 1, run.stdout + run.stderr)
+        self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
         self.assertTrue(json.loads(run.stdout)["design_index"]["structure"]["missing"])
 
         added = VALID_PRD.replace("##### 操作：查询", "##### 字段：额外字段\n来源：订单服务\n展示条件：始终展示\n\n##### 操作：查询")

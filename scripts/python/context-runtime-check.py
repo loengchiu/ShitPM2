@@ -44,7 +44,7 @@ def check_manifest(path: Path, project_root: Path) -> dict:
     if data.get('version') != 1 or data.get('kind') != 'project-materials':
         raise RuntimeError(f'项目级材料清单格式不受支持: {path}')
     revision = str(data.get('material_revision', ''))
-    if not re.fullmatch(r'[0-9a-f]{64}', revision):
+    if not re.fullmatch(r'(?:sha256:)?[0-9a-f]{64}', revision):
         raise RuntimeError(f'项目级材料清单缺少合法 material_revision: {path}')
     sources = require_list(data, 'sources', path)
     if data.get('source_count') != len(sources):

@@ -4,7 +4,7 @@
 
 | 产物状态 | Design 确认 | 可用动作 |
 |---------|------------|---------|
-| 全空 | — | `/spm-align`（可选）、`/spm-design` |
+| 全空 | — | `/spm-align`、`/spm-design`（Design 内先完成 Align） |
 | 仅 Align | — | `/spm-design` |
 | Design 存在 | 未确认 | `confirm-design`、`/spm-design`（修改）、`/spm-design-review` |
 | Design 存在 | 已确认 | `/spm-prd`、`/spm-prototype`、`/spm-design-review`、`confirm-design`（重新确认） |

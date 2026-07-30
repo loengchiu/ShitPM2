@@ -5,7 +5,7 @@
 > 新项目无需生成 metadata，仍可正常生成、Review、Fix、Start。
 > 旧项目保留的 metadata 文件可被读取、诊断和逐步迁移，但不构成当前产物质量证明。
 >
-> 本文件保留作为 `stage-prep.py`（旧版兼容）和 `verify-against-metadata.py`（旧版兼容）的规则来源，仅供旧项目兼容诊断使用。
+> 本文件仅保留旧项目 metadata 兼容诊断规则；新项目主流程不依赖 metadata。
 
 
 
@@ -32,12 +32,12 @@
 | 失败处理 | stable ID 编号跳跃 | stage-prep.py 运行中断后重跑 | 旧 metadata 机制未满足兼容约束 | read_existing_entities() 从 max+1 继续，跳号正常 | 若跳号影响追溯，手动检查 fields.json |
 | 失败处理 | ID 前缀用错 | 把 REQ- 或 RISK- 写入 metadata | 旧 metadata 机制未满足兼容约束 | 只允许 8 种前缀：MODULE/PAGE/FIELD/RULE/FLOW/REL/STATE/PERM | 全文搜索非法前缀并替换 |
 | 失败处理 | ID 前缀与 type 不匹配 | 历史 pages.json 误用 PERM- 前缀 | 旧 metadata 机制未满足兼容约束 | read_existing_entities() 前缀校验：前缀不符 type 则不复用，重新分配 | 清空 metadata 目录重跑 stage-prep |
-| 失败处理 | ID 泄漏到人读正文 | design.md 或 prd.md 出现 FIELD-design-001 | 旧 metadata 机制未满足兼容约束 | 运行 review-precheck.py 检查 stable_id_leak | 手动搜索并删除正文中的 ID |
+| 失败处理 | ID 泄漏到人读正文 | design.md 或 prd.md 出现 FIELD-design-001 | 旧 metadata 机制未满足兼容约束 | 人工搜索正文中的稳定 ID，确认没有泄漏 | 手动搜索并删除正文中的 ID |
 | 失败处理 | 关系引用的实体不存在 | relations.json 中 from/to 引用了未定义的 ID | 旧 metadata 机制未满足兼容约束 | 检查 modules.json/pages.json/fields.json/rules.json 中是否有对应 ID | 若实体已删除，同步删除关系记录 |
 | 失败处理 | metadata 文件为空数组 | stage-prep.py 未提取到内容 | 旧 metadata 机制未满足兼容约束 | 检查 design.md 对应章节是否有结构化表格 | 若表格格式被破坏，修复 design.md 后重新生成 |
 | 失败处理 | 多次 re-extract 后 ID 不稳定 | design.md 表格顺序变化 | 旧 metadata 机制未满足兼容约束 | read_existing_entities() 按 title 匹配已有 ID | 若 title 也变了，视为新实体 |
 | 失败处理 | page-fields 覆盖率不足 | 页面清单中有页面未出现在 page-fields.json | 旧 metadata 机制未满足兼容约束 | 检查 design.md 的页面与字段落点章节是否遗漏 | 若页面无业务字段，声明 declared_empty |
-| 失败处理 | schema 校验失败 | metadata 文件结构不符合 schema | 旧 metadata 机制未满足兼容约束 | 查看 verify-against-metadata.py 的 integrity_errors 详情 | 按 schema 修正后重跑 stage-prep |
+| 失败处理 | schema 校验失败 | metadata 文件结构不符合 schema | 旧 metadata 机制未满足兼容约束 | 查看旧项目 metadata 校验输出中的 integrity_errors 详情 | 按 schema 修正后重跑 stage-prep |
 | 失败处理 | metadata 与正文数量不一致 | 字段数/页面数/模块数对比偏差 | 旧 metadata 机制未满足兼容约束 | 运行 stage-prep.py --stage design 重新生成 | 若重新生成仍不一致，检查 design.md 表格格式 |
 | 失败处理 | 状态/权限提取到章节标题 | states.json 含"状态集合"等容器标题 | 旧 metadata 机制未满足兼容约束 | _extract_states_from_content 改解析列表项，非标题 | 确认 design 状态章节格式为列表项 |
 | 反模式 | **手动编写 metadata JSON** | 出现该做法 | 容易与人读稿不一致 | 由 stage-prep.py 自动生成 | — |
@@ -122,11 +122,11 @@ ShitPM 不再为 prototype 阶段生成 metadata。
 
 | 脚本 | ShitPM 职责 | 旧版兼容 行为 |
 |------|------|---------|
-| verify-against-metadata.py | 旧版兼容：仅在旧项目存在 metadata 时按需执行 | schema 校验 + ID 唯一性校验 |
+| 旧项目 metadata 校验 | 仅在旧项目存在 metadata 时按需执行 | schema 校验 + ID 唯一性校验 |
 | prd-consistency-check.py | ShitPM：直接读取人读 Design 和人读 PRD，检查明确可解析的标题、角色、对象、状态、关键动作和明显冲突 | 不依赖 Design metadata |
-| review-precheck.py | ShitPM：文件存在性、可读性和基础结构检查 | 不决定是否允许 Review |
+| Review 输入核对 | ShitPM：文件存在性、可读性和基础结构检查 | 不决定是否允许 Review |
 | prd-style-lint.py | ShitPM：PRD 模板、文风和格式 | 不变 |
-| state-machine-check.py | ShitPM：按需检查，不作为所有生成任务的硬门禁 | 无 metadata 时降级 |
+| 状态闭环人工审查 | ShitPM：按需检查，不作为所有生成任务的硬门禁 | 直接根据 Design 正文审查 |
 | stage-prep.py | 旧版兼容：新主流程不默认调用 | 仅旧项目兼容诊断 |
 | design-confirmation.py | ShitPM：Design 确认标记读写 | 无 旧版兼容 对应 |
 

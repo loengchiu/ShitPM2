@@ -11,6 +11,7 @@ from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 from token_estimate import estimate_tokens
+from material_revision import material_revision as shared_material_revision, source_id_for
 from typing import Iterable
 
 TEXT_SUFFIXES = {'.md', '.markdown', '.txt', '.csv', '.json', '.yaml', '.yml', '.html'}
@@ -151,7 +152,7 @@ def build_sources(project_root: Path, input_paths: list[Path], previous_index: d
             reused['absolute_path'] = str(path)
             sources.append(reused)
             continue
-        source_id = sha256_text(rel)[:16]
+        source_id = source_id_for(rel)
         sources.append({
             'source_id': source_id,
             'path': rel,
@@ -166,10 +167,7 @@ def build_sources(project_root: Path, input_paths: list[Path], previous_index: d
 
 
 def material_revision(sources: list[dict]) -> str:
-    return sha256_object([
-        {'source_id': item['source_id'], 'path': item['path'], 'sha256': item['sha256']}
-        for item in sources
-    ])
+    return shared_material_revision(sources)
 
 
 def build_assets(project_root: Path, sources: list[dict], previous_manifest: dict | None) -> tuple[dict, dict, dict]:
@@ -253,7 +251,15 @@ def main() -> int:
     started = time.perf_counter()
     try:
         previous_manifest, previous_index = load_previous_materials(materials_dir)
-        input_paths = resolve_inputs(project_root, args.input) if args.input else load_reuse_inputs(project_root, materials_dir)
+        if args.input:
+            input_paths = resolve_inputs(project_root, args.input)
+        elif previous_manifest is not None:
+            input_paths = load_reuse_inputs(project_root, materials_dir)
+        elif any((materials_dir / name).exists() for name in ('manifest.json', 'source-index.json')):
+            input_paths = load_reuse_inputs(project_root, materials_dir)
+        else:
+            # 空项目也要生成合法的空材料资产，避免把“没有材料”误判为材料准备失败。
+            input_paths = []
         sources = build_sources(project_root, input_paths, previous_index)
         manifest, index, change = build_assets(project_root, sources, previous_manifest)
         reused = bool(previous_manifest and previous_index and change['unchanged'] and not args.force)

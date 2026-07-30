@@ -5,6 +5,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -27,39 +28,112 @@ def write_output(root: Path, action: dict[str, Any]) -> list[str]:
     for raw in action.get("expected_outputs", []):
         path = root / raw
         path.parent.mkdir(parents=True, exist_ok=True)
-        if raw.endswith("design.md"):
-            write_text(path, """# 产品方案 Design\n\n## 一、方案摘要\n\n完成核心业务闭环。\n\n## 二、用户、场景与目标\n\n覆盖主要用户的主路径和异常恢复。\n\n## 七、页面、区块与字段设计\n\n### 页面：业务处理\n\n- 页面目的：完成业务处理\n- 适用角色：业务人员\n- 进入条件：用户已登录\n- 数据范围：本人负责范围\n- 主要状态：无特殊规则\n\n#### 区块：基本信息\n\n- 区块目的：展示和填写业务信息\n\n##### 字段：业务名称\n\n- 业务含义：业务对象名称\n- 字段来源：用户输入\n- 展示条件：始终展示\n- 输入与编辑：可输入和编辑\n- 取值与默认：默认空值\n- 交互方式：文本输入\n- 校验与反馈：不能为空，错误时提示\n\n##### 操作：提交\n\n- 适用角色：业务人员\n- 展示与可用条件：信息完整时可用\n- 二次确认：无需确认\n- 成功结果：提交成功并进入处理状态\n- 数据与状态变化：状态变为处理中\n- 失败与恢复：保留输入并提示重试\n- 后续去向：进入处理结果页\n\n## 九、成功与验收\n\n主路径、异常和权限均可验证。\n""")
+        if raw.endswith("align.md"):
+            write_text(path, "# 对齐稿\n\n## 一、需求事实\n\n- 当前输入已记录，详细材料事实交由后续分析继续承接。\n\n## 六、待确认问题\n\n- 无。\n")
+        elif raw.endswith("design.md"):
+            simple = action.get("mode") == "simple"
+            content = (
+                "# 产品方案 Design\n\n"
+                "## 一、方案摘要\n\n"
+                "完成目标、范围、主路径、关键规则、必要状态与权限、功能、数据、异常和验收的最小闭环。\n\n"
+                "## 二、用户、场景与目标\n\n"
+                "覆盖主要用户的主路径和异常恢复。\n\n"
+                "## 七、页面、区块、字段与操作设计\n\n"
+                "### 页面清单（可选速览）\n\n"
+                "| 页面 | 用户任务 | 适用角色 | 主要入口/去向 |\n"
+                "| --- | --- | --- | --- |\n"
+                "| 业务处理 | 填写并提交业务信息 | 业务人员 | 工作台进入，提交后进入处理结果页 |\n\n"
+                "### 页面：业务处理\n\n"
+                "- 页面目的：完成业务处理\n"
+                "- 适用角色：业务人员、管理员\n"
+                "- 进入条件：用户已登录\n"
+                "- 数据范围：本人负责范围；管理员可查看组织范围\n"
+                "- 主要状态：草稿、处理中、审批中、已通过、已驳回、已撤销、失败待重试\n\n"
+                "#### 区块：基本信息\n\n"
+                "- 区块目的：展示和填写业务信息\n\n"
+                "##### 字段表\n\n"
+                "| 字段名称 | 业务含义 | 字段来源 | 展示条件 | 输入与编辑规则 | 取值与默认规则 | 交互方式 | 校验与反馈 |\n"
+                "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+                "| 业务名称 | 业务对象名称 | 用户输入 | 始终展示 | 草稿状态可编辑，提交时必填 | 默认空值 | 文本输入 | 不能为空，错误时提示 |\n\n"
+                "#### 页面操作\n\n"
+                "- 区块目的：定义本页面可执行的业务操作及其结果。\n\n"
+                "##### 操作表\n\n"
+                "| 操作 | 适用角色 | 展示与可用条件 | 是否二次确认 | 成功结果 | 数据与状态变化 | 失败与恢复 | 后续去向 |\n"
+                "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+                "| 提交 | 业务人员 | 信息完整时可用 | 否 | 进入审批中 | 状态变为审批中 | 缺少信息时保留输入并提示 | 进入处理结果页 |\n"
+                "| 审批 | 管理员 | 在本人负责组织范围内可用 | 是 | 进入已通过或已驳回 | 更新审批结果 | 权限不足或外部失败时保留待处理状态并允许重试 | 返回业务处理页 |\n"
+                "| 撤销/重提 | 业务人员 | 满足状态条件时可用 | 是 | 撤销或重新进入审批中 | 记录状态变化 | 不满足条件时提示原因 | 返回处理结果页 |\n\n"
+                "## 九、成功与验收\n\n"
+                "主路径、异常、权限、状态变化和数据范围均可验证。\n"
+            )
+            if simple:
+                content = content.replace("、审批中、已通过、已驳回、已撤销", "").replace("| 审批 | 管理员 | 在本人负责组织范围内可用 | 是 | 进入已通过或已驳回 | 更新审批结果 | 权限不足或外部失败时保留待处理状态并允许重试 | 返回业务处理页 |\n", "").replace("| 撤销/重提 | 业务人员 | 满足状态条件时可用 | 是 | 撤销或重新进入审批中 | 记录状态变化 | 不满足条件时提示原因 | 返回处理结果页 |\n", "")
+            write_text(path, content)
         elif raw.endswith("decision-notes.md"):
-            write_text(path, "# 决策记录\n\n## 设计决策\n- 选择最小闭环。\n\n## 偏离\n- 无。\n\n## 权衡\n- 无。\n\n## 待确认\n- 无。\n")
+            write_text(path, "# 决策记录\n\n## 设计决策\n- 选择最小闭环。\n\n## 偏离\n- 材料冲突和缺失信息保留为待确认事项，不静默拍板。\n\n## 权衡\n- 外部失败采用保留输入并允许重试。\n\n## 待确认\n- 无。\n")
         elif raw.endswith(".json"):
             value: dict[str, Any] = {"schema_version": "design-analysis/v2", "task_id": action.get("task_id"), "input_fingerprint": action.get("input_hashes", {}).get("__input_hash__"), "status": "completed", "conclusions": [], "conflicts": [], "questions": [], "coverage": [action.get("task_id")], "source_refs": [], "payload": {}}
-            if action.get("task_kind") == "material_preparation":
-                manifest = orch.read_input_manifest(root)[0] or {}
-                sources = [{"source_id": orch.source_id_for(item), "path": item} for item in manifest.get("material_inputs", [])]
-                value = {"schema_version": "material-manifest/v2", "material_revision": material_revision, "sources": sources}
-                orch.write_json(path, value)
-                written.append(raw)
-                if raw.endswith("manifest.json"):
-                    orch.write_json(root / ".workflow/runtime/materials/source-index.json", {"schema_version": "source-index/v2", "material_revision": material_revision, "files": sources})
-                    written.append(".workflow/runtime/materials/source-index.json")
+            if action.get("task_kind") == "align":
+                value = {
+                    "blocking_gaps": [],
+                    "needs_ask_back": False,
+                    "ask_back_reason": None,
+                    "judgement_note": "合成测试中的 Align 已记录用户输入和材料范围。",
+                    "last_updated_at": orch.now(),
+                }
+            elif action.get("task_kind") == "material_preparation":
+                command = action.get("command") or {}
+                script_name = Path(command.get("script", "source-index.py")).name
+                script = SCRIPT.with_name(script_name)
+                result = subprocess.run(
+                    [sys.executable, str(script), *command.get("args", [])],
+                    cwd=root,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                )
+                if result.returncode != 0:
+                    raise RuntimeError(result.stdout + result.stderr)
+                written.extend(raw for raw in action.get("expected_outputs", []) if (root / raw).exists())
                 continue
             if action.get("task_kind") == "material_fact_extraction":
                 item = action.get("input_files", [""])[0]
-                value = {"schema_version": "material-fact/v2", "source_path": item, "source_hash": orch.safe_file_hash(root, item), "material_revision": material_revision, "facts": [{"id": f"fact-{orch.source_id_for(item)}", "fact": "合成事实", "source_refs": [orch.source_id_for(item)]}]}
+                source_hash = orch.safe_file_hash(root, item)
+                line_end = max(1, len((root / item).read_text(encoding="utf-8").splitlines()))
+                value = {
+                    "schema_version": "material-fact/v2",
+                    "source_path": item,
+                    "source_hash": source_hash,
+                    "material_revision": material_revision,
+                    "facts": [{
+                        "statement": "合成事实",
+                        "source": {"path": item, "sha256": source_hash, "line_start": 1, "line_end": line_end},
+                    }],
+                }
             elif action.get("task_kind") == "material_merge":
-                facts = []
+                confirmed_facts = []
                 for item in (orch.read_input_manifest(root)[0] or {}).get("material_inputs", []):
-                    part = orch.read_json(orch.material_dir(root) / "facts" / f"{orch.source_id_for(item)}.json") or {}
-                    facts.extend(part.get("facts", []))
-                value = {"schema_version": "facts/v2", "material_revision": material_revision, "sources": (orch.read_input_manifest(root)[0] or {}).get("material_inputs", []), "facts": facts, "conflicts": [], "missing_high_impact": [], "not_applicable": [], "tradeoffs": []}
-            elif action.get("task_kind") == "generated_check":
-                value = {"schema_version": "design-check/v2", "status": "passed", "findings": [], "input_fingerprint": action.get("input_hashes", {}).get("__input_hash__")}
-            elif action.get("task_kind") == "compile_index":
-                cmd = [sys.executable, str(SCRIPT.with_name("design-index.py")), "compile", "--project-root", str(root)]
-                result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
-                if result.returncode != 0:
-                    raise RuntimeError(result.stdout + result.stderr)
-                continue
+                    source_id = orch.source_id_for(item)
+                    part = orch.read_json(orch.material_dir(root) / "facts" / f"{source_id}.json") or {}
+                    source_hash = part.get("source_hash") or orch.safe_file_hash(root, item)
+                    for fact in part.get("facts", []):
+                        confirmed_facts.append({
+                            "statement": fact.get("statement") or fact.get("fact") or "合成事实",
+                            "source": {
+                                "path": item,
+                                "sha256": source_hash,
+                                "line_start": 1,
+                                "line_end": max(1, len((root / item).read_text(encoding="utf-8").splitlines())),
+                            },
+                        })
+                value = {
+                    "version": 1,
+                    "material_revision": material_revision,
+                    "confirmed_facts": confirmed_facts,
+                    "source_conflicts": [],
+                    "missing_information": [],
+                    "non_derivable_items": [],
+                }
             orch.write_json(path, value)
         else:
             write_text(path, "generated")
@@ -118,18 +192,27 @@ def run(args: argparse.Namespace) -> int:
             program_declared = {
                 "action_id": action.get("action_id"),
                 "task_id": task_id,
+                "task_kind": action.get("task_kind"),
+                "stage": action.get("rule_pack_ref", {}).get("stage"),
                 "input_files": action.get("input_files", []),
                 "allowed_evidence_ranges": action.get("allowed_evidence_ranges", []),
                 "fork_context": action.get("fork_context"),
                 "expected_outputs": action.get("expected_outputs", []),
+                "command": action.get("command"),
             }
             stage_count = used.get(task_id, 0)
+            if args.interrupt_after and args.interrupt_after == task_id:
+                return 75
+            started = time.perf_counter()
+            action_card_chars = len(json.dumps(action, ensure_ascii=False, separators=(",", ":")))
+            raw_model_reads = sum(1 for raw in action.get("input_files", []) if raw.startswith("materials/")) if action.get("task_kind") == "material_fact_extraction" else 0
             if stage_count < budgets.get(task_id, 0):
                 used[task_id] = stage_count + 1
                 fingerprint = f"sha256:failure-{task_id}"
                 accepted = orch.handle_accept(root, action["action_id"], "failure", "模拟失败", fingerprint)
                 if not accepted.get("accepted"):
                     return 1
+                finished = time.perf_counter()
                 event = {
                     "ready_batch": ready_batch,
                     "program_declared": program_declared,
@@ -142,13 +225,26 @@ def run(args: argparse.Namespace) -> int:
                     },
                     "result": "failure",
                     "error": "模拟失败",
+                    "metrics": {
+                        "started_at": started,
+                        "finished_at": finished,
+                        "duration_ms": round((finished - started) * 1000, 3),
+                        "action_card_chars": action_card_chars,
+                        "main_agent_receipt_chars": len(json.dumps(accepted, ensure_ascii=False, separators=(",", ":"))),
+                        "child_body_return_chars": 0,
+                        "material_raw_model_reads": raw_model_reads,
+                        "estimated": False,
+                        "host_real_token_data": False,
+                    },
                 }
                 with trace_path.open("a", encoding="utf-8") as handle:
                     handle.write(json.dumps(event, ensure_ascii=False) + "\n")
                 continue
-            if args.interrupt_after and args.interrupt_after == task_id:
-                return 75
             written = write_output(root, action)
+            accepted = orch.handle_accept(root, action["action_id"], "success", None, None)
+            if not accepted.get("accepted"):
+                return 1
+            finished = time.perf_counter()
             event = {
                 "ready_batch": ready_batch,
                 "program_declared": program_declared,
@@ -160,12 +256,20 @@ def run(args: argparse.Namespace) -> int:
                     "written_files": written,
                 },
                 "result": "success",
+                "metrics": {
+                    "started_at": started,
+                    "finished_at": finished,
+                    "duration_ms": round((finished - started) * 1000, 3),
+                    "action_card_chars": action_card_chars,
+                    "main_agent_receipt_chars": len(json.dumps(accepted, ensure_ascii=False, separators=(",", ":"))),
+                    "child_body_return_chars": 0,
+                    "material_raw_model_reads": raw_model_reads,
+                    "estimated": False,
+                    "host_real_token_data": False,
+                },
             }
             with trace_path.open("a", encoding="utf-8") as handle:
                 handle.write(json.dumps(event, ensure_ascii=False) + "\n")
-            accepted = orch.handle_accept(root, action["action_id"], "success", None, None)
-            if not accepted.get("accepted"):
-                return 1
     return 75
 
 

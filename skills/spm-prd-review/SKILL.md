@@ -23,11 +23,10 @@ description: "PRD Review——独立审查 PRD 的结构、写作质量、Design
 2. 运行：
 
 ```text
-python $BUNDLE/scripts/python/review-precheck.py --project-root . --stage prd --artifact-file output/prd/prd.md
 python $BUNDLE/scripts/python/prd-style-lint.py output/prd/prd.md
 ```
 
-预检查输出位于 `.workflow/runtime/prd/review-precheck.json`。只有目标文件不存在、不可读或无法解析时停止；缺章节、内容不足、冲突、写作质量问题和 metadata 缺失继续作为审查问题。脚本误报 `can_start_review=false` 时人工核对文件可读性，可读则继续并记录警告。
+目标文件不存在、不可读或无法解析时停止；缺章节、内容不足、冲突和写作质量问题继续作为审查问题。
 3. 运行：
 
 ```text

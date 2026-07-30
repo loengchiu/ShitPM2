@@ -1,0 +1,5 @@
+{
+  "schema_version": "material-manifest/v1",
+  "material_revision": "__MATERIAL_REVISION__",
+  "sources": ["__SOURCE_LIST__"]
+}

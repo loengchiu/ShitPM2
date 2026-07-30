@@ -53,9 +53,9 @@ spm-design
 
 ### 2.3 Align 与 Design 的关系
 
-`spm-align` 是可选的需求整理阶段，不是 Design 的硬性前置。
+`spm-align` 是 Design 首个必经的需求事实形成责任；原始材料可选。用户直接调用 Design 时，不要求退出后再次手工调用 `/spm-align`。
 
-如果使用 Align，它更适合完成：
+Align 需要完成：
 
 - 整理目标和范围；
 - 登记原始材料；
