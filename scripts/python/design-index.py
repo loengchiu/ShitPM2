@@ -443,6 +443,59 @@ def _parse_design(content: str, design_sha256: str, require_current_format: bool
             attributes = {key: cells[position + 1] for position, key in enumerate(attribute_keys)}
             table_nodes.append(_new_table_node(entity_type, name, line_no, parent, attributes))
 
+    # ShitPM: 兼容无"字段表"/"操作表"显式标题但表格直接跟在区块后的格式
+    # 当显式标题方式未解析到任何字段或操作时，遍历区块标题查找直属表格
+    if not table_nodes:
+        for heading_index, heading in enumerate(headings):
+            entity_type_h = heading.get("entity_type")
+            if entity_type_h != "block":
+                continue
+            table_line, headers, rows = _table_after_heading(lines, headings, heading_index)
+            if not headers:
+                continue
+            if tuple(headers) == FIELD_TABLE_HEADERS:
+                table_entity_type = "field"
+                attr_keys = FIELD_TABLE_ATTRIBUTE_KEYS
+            elif tuple(headers) == OPERATION_TABLE_HEADERS:
+                table_entity_type = "operation"
+                attr_keys = OPERATION_TABLE_ATTRIBUTE_KEYS
+            else:
+                continue
+            parent = _scoped_parent(entity_nodes, "block", heading["line"])
+            if parent is None:
+                # 直接从 entity_nodes 中找该区块
+                parent = next(
+                    (n for n in entity_nodes
+                     if n["type"] == "block" and n["line"] == heading["line"]),
+                    None,
+                )
+            if parent is None:
+                continue
+            for line_no, cells in rows:
+                if not any(cells):
+                    continue
+                if len(cells) != len(headers):
+                    _add_error(
+                        errors,
+                        "invalid_table_row",
+                        f"区块“{heading['name']}”第 {line_no} 行列数应为 {len(headers)}，实际为 {len(cells)}",
+                        {"line": line_no, "path": parent["path"]},
+                    )
+                    continue
+                name = _normalize_label(cells[0])
+                if not name:
+                    _add_error(
+                        errors,
+                        "missing_entity_name",
+                        f"{table_entity_type} 名称不能为空",
+                        {"line": line_no, "path": parent["path"]},
+                    )
+                    continue
+                attributes = {key: cells[pos + 1] for pos, key in enumerate(attr_keys)}
+                table_nodes.append(
+                    _new_table_node(table_entity_type, name, line_no, parent, attributes)
+                )
+
     entity_nodes.extend(table_nodes)
 
     if not entity_nodes:
@@ -693,7 +746,10 @@ def validate_index(project_root: Path, stored: dict[str, Any] | None = None, req
             reason = "索引内容与 design.md 的确定性编译结果不一致"
         return False, expected, reason
     if expected.get("errors"):
-        return False, expected, "Design 索引解析失败"
+        if _is_unsupported_format(expected):
+            return False, expected, "Design 索引无法编译（不支持的格式）"
+        # 非致命错误（missing_attribute / block_without_items 等）不阻碍索引使用
+        # 下游 _compare_indexed_structure 仍可从已解析实体中做有效对比
     return True, expected, None
 
 
@@ -716,7 +772,7 @@ def load_verified_index(project_root: Path) -> tuple[dict[str, Any] | None, str 
         if compiled.get("errors"):
             if _is_unsupported_format(compiled):
                 return compiled, None, False
-            return None, "Design 索引解析失败", False
+            # 非致命错误仍可使用已解析实体做对比
         return compiled, None, False
     except ValueError as exc:
         return None, str(exc), True

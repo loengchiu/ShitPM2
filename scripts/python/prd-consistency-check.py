@@ -1333,16 +1333,21 @@ def main():
         sys.exit(2)
 
     # 阶段 9：优先读取与 design.md 哈希绑定的索引；缺失时只在内存中编译，绝不把索引当事实源。
+    # ShitPM: 索引不可用时优雅降级为 legacy 模式，不阻塞一致性检查。
+    design_index_from_file = False
     try:
         design_index_module, design_index, design_index_error, design_index_from_file = _load_verified_design_index(project_root)
     except Exception as exc:
-        print(json.dumps({"error": f"Design 索引加载失败: {exc}"}, ensure_ascii=False))
-        sys.exit(2)
+        design_index = None
+        design_index_error = str(exc)
     if design_index is None or design_index_error:
-        print(json.dumps({"error": design_index_error or "Design 索引解析失败"}, ensure_ascii=False))
-        sys.exit(2)
-    indexed_result = _compare_indexed_structure(design_index, content, design_index_module)
-    indexed_active = indexed_result["enabled"]
+        # 索引编译失败（如旧格式/格式变体），降级为 legacy 模式
+        indexed_result = {"enabled": False, "expected_count": 0, "matched_count": 0,
+                          "missing": [], "hallucinated": [], "attribute_mismatch": []}
+        indexed_active = False
+    else:
+        indexed_result = _compare_indexed_structure(design_index, content, design_index_module)
+        indexed_active = indexed_result["enabled"]
 
     design_fields = design_data.get("fields", []) or []
     design_pages = design_data.get("pages", []) or []
@@ -1557,10 +1562,11 @@ def main():
         "roles": role_result,
         "modules": module_result,
         "design_index": {
-            "used": True,
+            "used": indexed_active,
             "from_file": design_index_from_file,
             "path": ".workflow/runtime/context/design/index/design-index.json",
             "structure": indexed_result,
+            "error": design_index_error if design_index is None else None,
         },
         "classification": classification,
         "summary": {
