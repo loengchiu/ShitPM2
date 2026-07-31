@@ -263,9 +263,9 @@ def extract_prd_pages(content: str, headings: list) -> list:
             seen.add(name)
             pages.append(name)
 
-    # 新结构：系统全景中的页面映射表是页面身份的确定性落点。
-    # 只读取“页面与终端映射”章节，避免把角色权限矩阵中的“页面”列误识别为页面。
-    mapping_ranges = _find_multiple_section_ranges(headings, ["页面与终端映射"])
+    # 新结构：总体说明中的页面清单是页面身份的确定性落点。
+    # 只读取“页面清单”章节，避免把角色权限矩阵中的“页面”列误识别为页面。
+    mapping_ranges = _find_multiple_section_ranges(headings, ["页面清单", "页面与终端映射"])
     mapping_tables = _tables_in_ranges(parse_tables_with_context(content, headings), mapping_ranges)
     if mapping_tables:
         for table in mapping_tables:

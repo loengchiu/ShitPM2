@@ -48,11 +48,11 @@ PRD_BASE = """# 订单 PRD
 
 NEW_STRUCTURE_PRD = """# 订单 PRD
 
-## 系统全景与共享规则
+## 总体说明
 
 订单：业务订单。
 
-## 业务闭环模块
+## 功能需求
 
 ### 客户履约业务闭环
 
@@ -62,7 +62,7 @@ NEW_STRUCTURE_PRD = """# 订单 PRD
 
 订单确认动作在允许状态下完成。
 
-##### 数据与字段定义
+##### 字段定义
 
 | 字段 | 类型 | 必填 | 取值约束 | 默认值 | 业务来源 | 说明 |
 |---|---|---|---|---|---|---|
@@ -72,7 +72,7 @@ NEW_STRUCTURE_PRD = """# 订单 PRD
 
 订单状态用于表示业务处理状态。
 
-##### 数据与字段定义
+##### 字段定义
 
 | 字段 | 类型 | 必填 | 取值约束 | 默认值 | 业务来源 | 说明 |
 |---|---|---|---|---|---|---|
@@ -88,11 +88,11 @@ NEW_STRUCTURE_PRD = """# 订单 PRD
 # 新模板四列字段表：| 字段 | 类型/取值 | 来源或约束 | 使用说明 |，枚举值内联在"类型/取值"列。
 NEW_TEMPLATE_4COL_PRD = """# 订单 PRD
 
-## 业务闭环模块
+## 功能需求
 
 ### 履约闭环
 
-#### 数据与字段定义
+#### 字段定义
 
 ##### 订单对象
 
@@ -110,11 +110,11 @@ NEW_TEMPLATE_4COL_PRD = """# 订单 PRD
 # 新模板四列字段表 + 显式"必填"列（对抗探针 CLEAN 写法）。
 NEW_TEMPLATE_5COL_PRD = """# 订单 PRD
 
-## 业务闭环模块
+## 功能需求
 
 ### 履约闭环
 
-#### 数据与字段定义
+#### 字段定义
 
 ##### 订单对象
 
@@ -131,9 +131,9 @@ NEW_TEMPLATE_5COL_PRD = """# 订单 PRD
 
 PAGE_MAPPING_PRD = """# 订单 PRD
 
-## 系统全景与共享规则
+## 总体说明
 
-### 页面与终端映射
+### 页面清单
 
 | 页面/入口 | 终端 | 所属业务闭环 | 主要承接阶段 |
 |---|---|---|---|
@@ -239,7 +239,7 @@ def main() -> int:
     headings = module.parse_headings(PAGE_MAPPING_PRD)
     pages = module.extract_prd_pages(PAGE_MAPPING_PRD, headings)
     if pages != ["订单列表", "现场处置"]:
-        raise AssertionError(f"系统全景页面映射提取错误: {pages}")
+        raise AssertionError(f"总体说明页面清单提取错误: {pages}")
 
     headings4 = module.parse_headings(NEW_TEMPLATE_4COL_PRD)
     tables4 = module.parse_tables_with_context(NEW_TEMPLATE_4COL_PRD, headings4)

@@ -168,7 +168,7 @@ def check_table_dominance(lines: list) -> list:
         heading = re.match(r'^#{1,6}\s+(.*)$', stripped)
         if heading:
             title = heading.group(1).strip()
-            if re.search(r'业务闭环|业务模块|业务阶段|功能需求', title):
+            if re.search(r'业务闭环|业务模块|业务阶段|功能需求|功能详细说明', title):
                 if in_business:
                     flush()
                 in_business = True
@@ -335,7 +335,7 @@ def check_glossary_section(lines: list) -> list:
         stripped = line.strip()
         if (re.match(r'^#{1,2}\s.*名词说明', stripped) or
                 re.match(r'^#{1,2}\s.*术语说明', stripped) or
-                re.match(r'^#{1,2}\s.*系统全景与共享规则', stripped)):
+                re.match(r'^#{1,2}\s.*总体说明', stripped)):
             has_glossary = True
             break
 
@@ -345,7 +345,7 @@ def check_glossary_section(lines: list) -> list:
             severity="error",
             line=1,
             message="缺少名词说明章节",
-            suggestion="在系统全景与共享规则中补充名词说明，按确认版 Design 列出业务术语",
+            suggestion="在总体说明中补充名词说明，按确认版 Design 列出业务术语",
         ))
     return issues
 
