@@ -147,7 +147,7 @@ daisyUI 5 是 CSS-only 库，无 JS 依赖。交互态（modal/dropdown 开关�
 
 
 1. 必须读取 design.md
-2. 如 prd.md 已存在，还需读取：详细需求说明（含字段定义表、状态机表、权限规则）
+2. 如 prd.md 已存在，还需读取：PRD 中与原型相关的业务闭环、页面落点、字段使用、状态和权限说明（PRD 结构不固定，Design 仍是唯一事实源）
 3. 如存在反馈，读取 `output/prototype/prototype-feedback.md`
 
 ## 六、反馈输入边界

@@ -1,94 +1,81 @@
 # PRD Review 检查项
 
-> 本文件只保存 PRD 专项检查项映射。通用审查结论、预检查、输出、独立性和停止规则见 [Review 公共执行契约](review-checklist.md)。详细解释按检查项读取 [PRD 写作规则](../references/prd-writing-rules.md)、[PRD 示例](../references/prd-writing-examples.md)、[名词说明格式](../references/prd-glossary-format.md)、[版本规则](../references/prd-versioning.md) 和 [场景检查清单](../references/prd-scene-checklist.md)。
+> 本文件只保存 PRD 专项审查口径。通用审查结论、预检查、输出、独立性和停止规则见 [Review 公共执行契约](review-checklist.md)。Review 只审查、不修改、不自动推进；不把旧模板结构当作正确性标准。
 
 ## 目录
 
-- [坏味道与规则边界](#坏味道与规则边界)
-- [覆盖与写作质量](#覆盖与写作质量)
-- [Design 一致性与结构](#design-一致性与结构)
-- [机读交叉与幻觉](#机读交叉与幻觉)
-- [高影响事实与上游回退](#高影响事实与上游回退)
+- [结构与业务闭环](#结构与业务闭环)
+- [动作、字段与状态](#动作字段与状态)
+- [权限、异常与验收](#权限异常与验收)
+- [Design 一致性与高影响事实](#design-一致性与高影响事实)
+- [文风与交付文件](#文风与交付文件)
 
-## 坏味道与规则边界
+## 结构与业务闭环
 
-| 检查项 | 触发证据 | 权威规则来源 | 默认严重度 | 输出位置 |
-| --- | --- | --- | --- | --- |
-| 1. 禁止标签式正文 | 出现“页面目标/关键动作/状态变化/异常提示/关联功能点”等标签堆叠 | [PRD 写作规则](../references/prd-writing-rules.md)；`prd-writing.profile.json` | P2 | `content` / 具体段落 |
-| 2. 禁止动作流水账 | 页面正文只按点击顺序描述，没有业务判断、结果和约束 | [PRD 写作规则](../references/prd-writing-rules.md)；[PRD 示例](../references/prd-writing-examples.md) | P1 | `content` / 具体动作 |
-| 3. 页面正文不是纯表格 | 页面正文全部由字段/动作表格组成，缺少连续说明 | [PRD 写作规则](../references/prd-writing-rules.md) | P2 | `content` / 页面正文 |
-| 4. 控制加粗和模板腔 | 过多加粗，或出现“用于承载/用于支撑/需支持/同常规”等模板化表达 | `prd-writing.profile.json`；[PRD 写作规则](../references/prd-writing-rules.md) | P2 | `content` / 具体段落 |
-| 5. 禁止模糊表达 | 出现“按配置/按规范/待补充/详见原型/待定/按业务规则”等未落地表达 | `prd-writing.profile.json`；[PRD 写作规则](../references/prd-writing-rules.md) | P1 | `content` / 具体段落 |
-| 6. 禁止原因腔 | 出现“方便用户理解/避免用户误判/符合操作习惯”等不能验收的理由 | `prd-writing.profile.json`；[PRD 写作规则](../references/prd-writing-rules.md) | P2 | `content` / 具体段落 |
+| 检查项 | 触发证据 | 默认严重度 | 输出位置 |
+|---|---|---:|---|
+| 1. 顶层结构可定位 | 缺少文档信息、范围、总体说明、功能模块或待确认事项中的必要部分 | P1 | `structure` |
+| 2. 按业务闭环组织 | 直接按菜单、页面目录、管理端/移动端或 Design 章节拆分，导致同一闭环被拆散 | P1 | `structure` |
+| 3. 模块边界清楚 | 模块目标、起点、结果、终点或范围外内容无法理解 | P1 | `content` |
+| 4. 模块可独立阅读 | 关键事实依赖“同上”“见前文”或模糊跨节引用 | P1 | `content` |
+| 5. 页面落点准确 | 页面只在映射表出现，没有放入真实业务阶段，或一个页面被重复定义且口径不一 | P1 | `structure` / `consistency` |
+| 6. 管理端和移动端共同闭环 | 移动端被单独堆成统一模块，或与所属业务阶段脱节 | P1 | `structure` |
+| 7. 共用事实单一定义 | 共用页面、字段、状态或“我的处理记录”等事实存在多个权威版本 | P1 | `consistency` |
+| 8. 全局与模块边界合理 | 模块专属规则被放在全局，或跨模块规则被重复定义并冲突 | P1 | `content` |
 
-## 覆盖与写作质量
+## 动作、字段与状态
 
-| 检查项 | 触发证据 | 权威规则来源 | 默认严重度 | 输出位置 |
-| --- | --- | --- | --- | --- |
-| 7. 三层覆盖完整 | 页面同时有界面元素/展示规则、交互逻辑/状态流转、异常/边界处理 | [PRD 写作规则](../references/prd-writing-rules.md)；[场景检查清单](../references/prd-scene-checklist.md) | P1 | `content` / 页面或动作 |
-| 8. 标题层级稳定 | 标题跳级、编号混乱或结构无法定位 | [PRD 写作规则](../references/prd-writing-rules.md)；[PRD 模板](../templates/prd.md) | P2 | `structure` / 标题位置 |
-| 9. 模块到动作组织正确 | 详细需求按模块 → 小模块 → 页面 → 动作组织，不按页面平铺整章 | [PRD 写作规则](../references/prd-writing-rules.md)；[PRD 示例](../references/prd-writing-examples.md) | P1 | `structure` / 模块位置 |
-| 10. 模块职责和页面范围先行 | 模块开头没有职责与涉及页面，读者无法建立上下文 | [PRD 写作规则](../references/prd-writing-rules.md) | P2 | `content` / 模块位置 |
-| 11. 页面动作按用户意图组织 | 按 UI 区域盘点，或没有以动词短语形成动作分块 | [PRD 写作规则](../references/prd-writing-rules.md)；[PRD 示例](../references/prd-writing-examples.md) | P1 | `content` / 页面位置 |
-| 12. 动作信息可验收 | 关键动作缺触发、过程、结果或异常中的关键信息 | [PRD 写作规则](../references/prd-writing-rules.md) | P1 | `content` / 动作位置 |
-| 13. 复杂度与篇幅匹配 | 简单动作过度展开，复杂动作被一句模糊话带过 | [PRD 写作规则](../references/prd-writing-rules.md)；[PRD 示例](../references/prd-writing-examples.md) | P2 | `content` / 动作位置 |
-| 14. 顺序与并列表达正确 | 有顺序流程未使用有序列表，并列规则被写成混乱长句 | [PRD 写作规则](../references/prd-writing-rules.md) | P2 | `content` / 具体段落 |
-| 15. PRD 整体业务流程不混入页面操作 | 整体流程写成页面跳转、按钮点击、抽屉/弹窗操作流水 | [PRD 写作规则](../references/prd-writing-rules.md)；[PRD 示例](../references/prd-writing-examples.md) | P1 | `content` / 业务流程 |
-| 16. 字段表不搬入页面正文 | 页面正文重复字段定义表的完整属性清单，而非只写当前动作需要的字段 | [PRD 写作规则](../references/prd-writing-rules.md)；[PRD 示例](../references/prd-writing-examples.md) | P2 | `content` / 页面正文 |
-| 17. 关键业务信息优先 | 动作开头先写排序、分页、默认加载等通用规则，掩盖业务判断和状态 | [PRD 写作规则](../references/prd-writing-rules.md) | P2 | `content` / 动作位置 |
-| 18. 数值和动态内容明确 | 出现占位数字、静态文案未加引号或动态内容无数据来源 | [PRD 写作规则](../references/prd-writing-rules.md)；[PRD 示例](../references/prd-writing-examples.md) | P1 | `content` / 具体段落 |
-| 19. 长文本和按钮规则完整 | 未说明截断/换行/滚动，或按钮缺可用条件、反馈、成功变化、失败提示 | [PRD 写作规则](../references/prd-writing-rules.md) | P1 | `content` / 动作位置 |
-| 20. 表单、列表和弹窗边界完整 | 缺输入限制/校验时机、加载/空/失败状态或弹窗关闭/遮罩/优先级 | [PRD 写作规则](../references/prd-writing-rules.md) | P1 | `content` / 控件规则 |
-| 21. 异常具备降级处理 | 网络异常、权限不足或关键功能失效没有结果、提示和恢复方式 | [PRD 写作规则](../references/prd-writing-rules.md) | P1 | `content` / 异常位置 |
-| 22. 无空栏目和伪缩进 | 标题下为空、占位段，或用伪缩进字符/手敲空格制造层级 | [PRD 写作规则](../references/prd-writing-rules.md) | P2 | `structure` / 具体位置 |
-| 23. 表格使用边界正确 | 用表格承载页面长正文或流程叙述，而不是字段、权限、状态、枚举等结构化信息 | [PRD 写作规则](../references/prd-writing-rules.md) | P2 | `content` / 表格位置 |
+| 检查项 | 触发证据 | 默认严重度 | 输出位置 |
+|---|---|---:|---|
+| 9. 核心动作形成因果链 | 缺执行角色、前置条件、输入、处理规则、结果、状态副作用或失败边界 | P1 | `content` |
+| 10. 动作不是流水账 | 只描述点击顺序，没有业务判断和结果 | P1 | `content` |
+| 11. 强动作条件明确 | 新建、删除、提交、确认、停用等动作未写角色、允许状态或权限 | P1 | `content` / `consistency` |
+| 12. 字段有准确落点 | Design 字段未在对象、业务阶段、页面使用或系统内部用途处出现 | P1 | `consistency` |
+| 13. 字段属性不被猜测 | 类型、枚举、格式、默认值、范围、来源或权限与 Design 冲突，或凭经验补造 | P1 | `consistency` |
+| 14. 局部字段表达合理 | 把局部表格误当总字典，或用固定七列要求替代业务判断 | P2 | `content` |
+| 15. 业务状态清楚 | 业务状态、页面展示状态和操作过程状态混淆，或状态迁移缺条件和结果 | P1 | `content` / `consistency` |
+| 16. 页面表达与状态一致 | 页面筛选、按钮、展示或动作条件与业务状态冲突 | P1 | `consistency` |
+| 17. 生命周期完整（按需） | 删除、作废、归档、恢复、撤回等场景存在但未说明可见性、可编辑性或关联结果 | P1 | `content` |
+| 18. 查询统计口径完整（按需） | 筛选范围、统计口径、下钻关系或无数据结果不清楚；无依据补排序/分页/上限 | P1 | `content` |
 
-## Design 一致性与结构
+## 权限、异常与验收
 
-| 检查项 | 触发证据 | 权威规则来源 | 默认严重度 | 输出位置 |
-| --- | --- | --- | --- | --- |
-| 24. 名词说明可追溯 | PRD 术语未在 glossary 规则要求的位置收录，或术语前后含义漂移 | [名词说明格式](../references/prd-glossary-format.md)；[PRD 写作规则](../references/prd-writing-rules.md) | P1 | `consistency` / glossary |
-| 25. 页面组织保持既有方向 | 核心章节缺名词说明或详细需求，模块/小模块/页面/动作层级被改写 | [PRD 模板](../templates/prd.md)；[PRD 写作规则](../references/prd-writing-rules.md) | P1 | `structure` / 章节位置 |
-| 26. 字段定义格式适配实际语义 | 字段表没有按实体分组，或机械铺开无关属性造成无法阅读 | [PRD 写作规则](../references/prd-writing-rules.md)；[PRD 模板](../templates/prd.md) | P2 | `structure` / 字段表 |
-| 27. 状态机按核心对象组织 | 状态没有对象、迁移、触发动作或限制条件 | [PRD 写作规则](../references/prd-writing-rules.md)；[PRD 模板](../templates/prd.md) | P1 | `content` / 状态机 |
-| 28. 辅助章节按真实约束出现 | 验收汇总、风险或待确认章节为空，或真实约束被省略 | [PRD 写作规则](../references/prd-writing-rules.md)；[PRD 场景清单](../references/prd-scene-checklist.md) | P1 | `structure` / 辅助章节 |
-| 29. 页面和字段覆盖 Design | Design 页面/字段未在 PRD 对应章节、字段表或必要落点出现 | [PRD 写作规则](../references/prd-writing-rules.md) | P1 | `consistency` / affected_objects |
-| 30. 权限表达保持一致 | PRD 权限口径与 Design 的页面、按钮、字段例外或数据范围不一致 | [PRD 写作规则](../references/prd-writing-rules.md) | P1 | `consistency` / 权限位置 |
-| 31. 状态表达保持一致 | PRD 状态集合、迁移、触发或限制与 Design 不一致 | [PRD 写作规则](../references/prd-writing-rules.md) | P1 | `consistency` / 状态位置 |
-| 32. 页面编号唯一 | 页面编号重复，或动作/页面引用无法定位 | [PRD 模板](../templates/prd.md)；[PRD 写作规则](../references/prd-writing-rules.md) | P2 | `structure` / 页面编号 |
-| 33. 动作避免机械复用 | 不同页面动作正文完全照抄，未说明页面特有条件和结果 | [PRD 写作规则](../references/prd-writing-rules.md)；[PRD 示例](../references/prd-writing-examples.md) | P2 | `content` / 动作位置 |
-| 34. 规则放置位置正确 | 一个页面的规则被跨节代写，或字段/状态/权限规则落错位置 | [PRD 写作规则](../references/prd-writing-rules.md) | P1 | `consistency` / 规则位置 |
-| 35. 三类读者可执行 | 开发不能写代码、测试不能写用例或设计不能画原型 | [PRD 写作规则](../references/prd-writing-rules.md) | P1 | `content` / 审查问题 |
+| 检查项 | 触发证据 | 默认严重度 | 输出位置 |
+|---|---|---:|---|
+| 19. 角色与数据范围一致 | 角色、组织范围、可见数据或职责分离与 Design 不一致 | P1 | `consistency` |
+| 20. 权限与按钮一致 | 权限规则和按钮可见/可点/置灰条件不匹配 | P1 | `consistency` |
+| 21. 外部责任边界清楚 | 未说明事实源、同步方向、责任人或失败后的业务归属 | P1 | `content` |
+| 22. 异常与恢复可理解 | 失败、无数据、状态过期、外部不可用或部分成功缺少产品结果；擅自补造重试/补偿 | P1 | `content` |
+| 23. 表单与配置边界清楚 | 保存/提交、空值/零值、生效范围/时点/历史影响或失败结果混淆 | P1 | `content` |
+| 24. 模块验收就近 | 验收只在文末堆放，或未覆盖模块业务结果、状态、权限和异常 | P1 | `content` |
+| 25. 待确认事项真实 | 高影响未知被静默拍板，或低影响表达被伪装成结论 | P1 | `consistency` |
+| 26. 不以建议代替结论 | Review 只给泛化建议，没有具体问题、严重度和位置 | P2 | `structure` |
 
-## 机读交叉与幻觉
+## Design 一致性与高影响事实
 
-| 检查项 | 触发证据 | 权威规则来源 | 默认严重度 | 输出位置 |
-| --- | --- | --- | --- | --- |
-| 36. 功能覆盖完整 | Design 页面清单中每个页面都有对应 PRD 章节 | `prd-consistency-check.py`；[PRD 模板](../templates/prd.md) | P1 | `consistency` / 页面位置 |
-| 37. 字段覆盖完整 | Design 字段定义中的业务字段出现在字段定义表或页面章节 | `prd-consistency-check.py`；[PRD 写作规则](../references/prd-writing-rules.md) | P1 | `consistency` / 字段位置 |
-| 38. 字段落点可追溯 | 字段在详细需求、权限、状态、验收或风险待确认中没有明确落点 | [PRD 写作规则](../references/prd-writing-rules.md) | P1 | `consistency` / 字段位置 |
-| 39. 字段跨页规则一致 | 同一字段在不同页面的展示格式、校验规则或来源发生冲突 | [PRD 写作规则](../references/prd-writing-rules.md) | P1 | `consistency` / 字段位置 |
-| 40. 权限与按钮一致 | 权限规则和页面按钮可见性/可操作性不匹配 | [PRD 写作规则](../references/prd-writing-rules.md) | P1 | `consistency` / 权限位置 |
-| 41. 状态与页面表达一致 | 状态机和页面筛选、展示或动作条件不匹配 | [PRD 写作规则](../references/prd-writing-rules.md) | P1 | `consistency` / 状态位置 |
-| 42. 变更传播完整 | 修改字段、页面动作、状态、权限、阈值或验收项后，相关章节未同步 | [PRD 写作规则](../references/prd-writing-rules.md)；[同步修复传播规则](fix-propagation-rules.md) | P1 | `consistency` / affected_objects |
-| 43. 无 Design 外字段/页面/状态幻觉 | PRD 出现 Design 未定义的字段、页面或状态 | `prd-consistency-check.py`；[PRD 写作规则](../references/prd-writing-rules.md) | P1 | `consistency` / hallucination |
-| 44. 业务流程可实现 | 状态流转只有集合无迁移，或分支、异常、降级策略无法执行 | [PRD 写作规则](../references/prd-writing-rules.md)；[PRD 示例](../references/prd-writing-examples.md) | P1 | `content` / 流程位置 |
-| 45. 跨页面流转有自然语言边界 | 状态变更或跨页面结果没有在详细需求中说明 | [PRD 写作规则](../references/prd-writing-rules.md) | P1 | `content` / 相关动作 |
+| 检查项 | 触发证据 | 默认严重度 | 输出位置 |
+|---|---|---:|---|
+| 27. 目标与范围一致 | PRD 改变 Design 的目标、范围、系统边界或排除项 | P1 | `consistency` / `affected_objects` |
+| 28. 无未授权页面和模块事实 | 出现 Design 未定义的新页面、页面行为或高影响模块边界 | P1 | `consistency` / `affected_objects` |
+| 29. 无未授权字段、状态和权限 | 出现 Design 未定义或与其冲突的字段、状态、权限、枚举或流程 | P1 | `consistency` / `affected_objects` |
+| 30. 待确认项未被结论化 | PRD 把 Design 待确认事项写成确定事实 | P1 | `consistency` / `affected_objects` |
+| 31. 变更传播完整 | 同一事实在对象、动作、状态、权限、验收或待确认位置发生不一致 | P1 | `consistency` / `affected_objects` |
+| 32. 内部字段可交付 | 非页面字段缺失，或未说明系统内部用途 | P1 | `consistency` |
+| 33. 语义问题不伪装成脚本通过 | 仅凭脚本退出码宣布完整，未人工回读业务闭环 | P2 | `content` |
+| 34. 上游问题正确回退 | Design 缺失或错误时 PRD 自行补事实，而不是提出上游同步 | P1 | `consistency` / `needs_upstream_sync` |
+
+## 文风与交付文件
+
+| 检查项 | 触发证据 | 默认严重度 | 输出位置 |
+|---|---|---:|---|
+| 35. 不使用标签式正文 | 出现“关键动作：”“状态变化：”等标签堆叠 | P2 | `content` |
+| 36. 表格只用于结构化事实 | 页面正文完全由表格组成，或用表格替代流程与异常说明 | P2 | `content` |
+| 37. 不使用 Mermaid | PRD 以 Mermaid 代码块替代流程图交付 | P1 | `structure` |
+| 38. draw.io 交付完整 | 需要流程图但缺源文件、SVG，或图文名称/流程不一致 | P1 | `structure` / `content` |
+| 39. 无明确占位与 AI 痕迹 | 出现待补充、TBD、TODO、明显生成痕迹或空泛理由 | P1 | `content` |
+| 40. 名词与编号统一 | 核心术语、稳定标识、页面名称或引用在不同模块不一致 | P1 | `consistency` |
+| 41. 用户说明与实际规则一致 | Skill、模板、规则和脚本对旧结构的宣称未同步 | P2 | `structure` |
 
 ## 高影响事实与上游回退
 
-| 检查项 | 触发证据 | 权威规则来源 | 默认严重度 | 输出位置 |
-| --- | --- | --- | --- | --- |
-| 46. 不引入 Design 未授权高影响事实 | PRD 新增字段、状态、权限、流程、模块边界或跨系统责任 | [PRD 写作规则](../references/prd-writing-rules.md)；[同步修复传播规则](fix-propagation-rules.md) | P1 | `consistency` / affected_objects |
-| 47. 不静默拍板 Design 待确认项 | PRD 将 Design 的待确认问题自行结论化 | [PRD 写作规则](../references/prd-writing-rules.md) | P1 | `consistency` / affected_objects |
-| 48. 表达问题留在 PRD | 只是措辞、结构、格式或覆盖不足，不改变 Design 事实 | [PRD 写作规则](../references/prd-writing-rules.md) | P2 | `content` / 具体位置 |
-| 49. 上游问题回退 Design | Design 缺失或错误导致 PRD 无法保持语义时，PRD 不自行补事实 | [同步修复传播规则](fix-propagation-rules.md) | P1 | `consistency` / needs_upstream_sync |
-| 50. Review 不承担计划内补全 | Review 结果直接代写 PRD 或把生成责任推给 Review | [Review 公共执行契约](review-checklist.md)；[PRD 写作规则](../references/prd-writing-rules.md) | P2 | `content` / 审查问题 |
-| 51. 字段全部属性完整承接 | PRD 字段表缺 Design 已确认的长度、枚举、格式、范围/精度、默认值、业务来源或说明 | `prd-consistency-check.py`；[PRD 写作规则](../references/prd-writing-rules.md) | P1 | `consistency` / 字段位置 |
-| 52. 系统内部字段仍可交付 | Design 非页面落点字段在 PRD 缺失，或未说明系统内部用途 | `prd-consistency-check.py`；[PRD 写作规则](../references/prd-writing-rules.md) | P1 | `consistency` / 字段位置 |
-| 53. 动作条件、结果与副作用完整 | 关键动作缺前置状态、对象/字段变化、成功/失败结果、状态副作用、恢复路径或下一责任人 | [场景检查清单](../references/prd-scene-checklist.md) | P1 | `content` / 动作位置 |
-| 54. 数据生命周期可执行（按需） | 删除、作废、归档、恢复或历史存在，但 PRD 未写当前数据、关联数据和可见性结果 | [场景检查清单](../references/prd-scene-checklist.md) | P1 | `content` / 对应动作 |
-| 55. 查询、文件、导入导出和批量口径完整（按需） | 场景存在但缺默认范围/排序/分页、格式/大小/数量、权限、上限、部分失败或结果反馈 | [场景检查清单](../references/prd-scene-checklist.md) | P1 | `content` / 对应动作 |
-| 56. 重复、并发和过期数据结果明确（按需） | 重复提交、多窗口编辑、数据过期或状态冲突时，用户结果和有效数据不明确 | [场景检查清单](../references/prd-scene-checklist.md) | P1 | `content` / 对应动作 |
-| 57. 跨系统失败和最终责任完整（按需） | 缺事实源、同步方向、失败/部分成功状态、补偿入口、可重试范围或最终责任 | [场景检查清单](../references/prd-scene-checklist.md) | P1 | `content` / 集成位置 |
-| 58. 产品级质量约束可验收（按需） | Design 已确认的性能、安全、审计、留存或兼容要求在 PRD 丢失或不可验收 | [PRD 写作规则](../references/prd-writing-rules.md)；[场景检查清单](../references/prd-scene-checklist.md) | P1 | `consistency` / 验收位置 |
+涉及核心流程、角色权限、数据范围、关键状态、系统边界、产品范围或核心字段含义的未知，必须作为高影响问题审查，并在需要时输出 `needs_upstream_sync: true` 和 `affected_objects`。Review 不代写 PRD，不自动修改、不自动推进，不新增 Review 阶段、覆盖率报告或证明性回执。

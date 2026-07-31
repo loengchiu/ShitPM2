@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """prd-style-lint.py — PRD 文风 lint 脚本
 
-职责：检查 PRD 正文中可机械识别的 10 类问题。
+职责：检查 PRD 正文中可机械识别的 9 类问题。
 不做业务语义判断，不做全文重写。
 
 用法：python prd-style-lint.py <prd_file_path> [--format text|json] [--output <path>]
@@ -16,7 +16,6 @@
   STYLE007 - AI 痕迹
   STYLE008 - 占位符
   STYLE009 - 名词说明章节缺失
-  STYLE010 - 字段表交付结构不完整
 """
 
 import json
@@ -143,98 +142,86 @@ def check_action_list(lines: list) -> list:
 
 
 def check_table_dominance(lines: list) -> list:
-    """STYLE003: 检查表格主导
+    """STYLE003: 检查业务模块正文是否被表格主导。
 
-    特征：在"详细需求说明"章节中，表格行数 > 段落行数
+    页面映射、版本记录和名词/字段等天然结构化区域不作为页面正文判断。
+    只对业务闭环模块或业务阶段内部的连续内容做机械提示，不判断业务完整性。
     """
     issues = []
-    in_detail_section = False
+    in_business = False
     table_lines = 0
-    paragraph_lines = 0
-    section_start = 0
+    prose_lines = 0
+    start_line = 0
+
+    def flush():
+        if table_lines > 0 and (prose_lines == 0 or table_lines > prose_lines * 2):
+            issues.append(Issue(
+                code="STYLE003",
+                severity="warning",
+                line=start_line,
+                message="业务模块正文中表格行数远超说明段落，疑似纯表格式正文",
+                suggestion="用自然语言说明业务条件、处理、结果和异常，表格只承载天然结构化信息",
+            ))
 
     for i, line in enumerate(lines):
         stripped = line.strip()
+        heading = re.match(r'^#{1,6}\s+(.*)$', stripped)
+        if heading:
+            title = heading.group(1).strip()
+            if re.search(r'业务闭环|业务模块|业务阶段|功能需求', title):
+                if in_business:
+                    flush()
+                in_business = True
+                table_lines = 0
+                prose_lines = 0
+                start_line = i + 1
+                continue
+            if in_business and re.match(r'^#{1,3}\s', stripped):
+                flush()
+                in_business = False
+                table_lines = 0
+                prose_lines = 0
 
-        # 遇到同级或更高级标题时，结束当前详细需求章节统计
-        if in_detail_section and re.match(r'^#{1,2}\s', stripped) and not re.match(r'^#{1,4}\s.*详细需求', stripped):
-            if table_lines > 0 and (paragraph_lines == 0 or table_lines > paragraph_lines * 2):
-                issues.append(Issue(
-                    code="STYLE003",
-                    severity="warning",
-                    line=section_start,
-                    message="表格行数远超段落数，疑似纯表格式页面正文",
-                    suggestion="页面正文应以自然规格说明为主，表格仅用于天然映射内容",
-                ))
-            in_detail_section = False
-            table_lines = 0
-            paragraph_lines = 0
-
-        if re.match(r'^#{1,4}\s.*详细需求', stripped):
-            in_detail_section = True
-            table_lines = 0
-            paragraph_lines = 0
-            section_start = i + 1
-            continue
-
-        if in_detail_section:
+        if in_business:
             if stripped.startswith('|') and '|' in stripped[1:]:
                 table_lines += 1
-            elif stripped and not stripped.startswith('#') and not stripped.startswith('<!--'):
-                paragraph_lines += 1
+            elif stripped and not stripped.startswith('#') and not stripped.startswith('<!--') and not stripped.startswith('```'):
+                prose_lines += 1
 
-    # 检查最后一个章节
-    if in_detail_section and table_lines > 0 and (paragraph_lines == 0 or table_lines > paragraph_lines * 2):
-        issues.append(Issue(
-            code="STYLE003",
-            severity="warning",
-            line=section_start,
-            message="表格行数远超段落数，疑似纯表格式页面正文",
-            suggestion="页面正文应以自然规格说明为主，表格仅用于天然映射内容",
-        ))
-
+    if in_business:
+        flush()
     return issues
 
 
 def check_duplicate_page_ids(lines: list) -> list:
-    """STYLE004: 检查重复页面编号
+    """STYLE004: 检查明确页面稳定标识是否重复。
 
-    新编号体系下，页面用粗体块 `**N.N.N.N 页面名**` 表示。
-    检查粗体块中的编号是否重复。
+    新结构不要求固定页面编号；只对文档中明确写出的编号或 page-id 做重复提示。
     """
     issues = []
     page_ids = {}
-
-    # 只在详细需求说明章节内检查，避免字段定义表等误报
-    in_detail = False
+    patterns = [
+        re.compile(r'^\*\*(\d+(?:\.\d+)+)\s+.+?\*\*\s*$'),
+        re.compile(r'<!--\s*page[-_]?id\s*[:=]\s*([A-Za-z0-9_.-]+)'),
+    ]
     for i, line in enumerate(lines):
         stripped = line.strip()
-        if re.match(r'^#{1,4}\s.*详细需求', stripped):
-            in_detail = True
-            continue
-        if re.match(r'^#{1,3}\s', stripped) and in_detail:
-            # 新的顶级章节，退出详细需求
-            if re.match(r'^#{1,2}\s', stripped):
-                in_detail = False
+        for pattern in patterns:
+            match = pattern.search(stripped)
+            if not match:
                 continue
-        if not in_detail:
-            continue
-
-        # 匹配粗体块页面：**N.N.N 页面名** 或 **N.N.N.N 页面名**
-        match = re.match(r'^\*\*(\d+(?:\.\d+)+)\s+.+?\*\*\s*$', stripped)
-        if match:
             pid = match.group(1)
             if pid in page_ids:
                 issues.append(Issue(
                     code="STYLE004",
                     severity="error",
                     line=i + 1,
-                    message=f"页面编号重复：{pid}（首次出现在第 {page_ids[pid]} 行）",
-                    suggestion="确保每个页面编号唯一",
+                    message=f"页面稳定标识重复：{pid}（首次出现在第 {page_ids[pid]} 行）",
+                    suggestion="确保明确写出的页面编号或 page-id 唯一；没有稳定标识时无需强行编号",
                 ))
             else:
                 page_ids[pid] = i + 1
-
+            break
     return issues
 
 
@@ -346,7 +333,9 @@ def check_glossary_section(lines: list) -> list:
     has_glossary = False
     for line in lines:
         stripped = line.strip()
-        if re.match(r'^#{1,2}\s.*名词说明', stripped) or re.match(r'^#{1,2}\s.*术语说明', stripped):
+        if (re.match(r'^#{1,2}\s.*名词说明', stripped) or
+                re.match(r'^#{1,2}\s.*术语说明', stripped) or
+                re.match(r'^#{1,2}\s.*系统全景与共享规则', stripped)):
             has_glossary = True
             break
 
@@ -356,36 +345,8 @@ def check_glossary_section(lines: list) -> list:
             severity="error",
             line=1,
             message="缺少名词说明章节",
-            suggestion="在文档概述之后、范围之前新增名词说明章节，按类别分组列出业务术语",
+            suggestion="在系统全景与共享规则中补充名词说明，按确认版 Design 列出业务术语",
         ))
-    return issues
-
-
-def check_field_table_schema(lines: list) -> list:
-    """STYLE010: 字段定义表必须使用 7 列研发交付结构。"""
-    issues = []
-    required_headers = ("字段", "类型", "必填", "取值约束", "默认值", "业务来源", "说明")
-
-    for index, line in enumerate(lines):
-        stripped = line.strip()
-        if not stripped.startswith("|") or index + 1 >= len(lines):
-            continue
-        separator = lines[index + 1].strip()
-        if not re.match(r"^\|(?:\s*:?-{3,}:?\s*\|)+$", separator):
-            continue
-        headers = [cell.strip() for cell in stripped.strip("|").split("|")]
-        header_text = "|".join(headers)
-        if "字段" not in header_text or "类型" not in header_text:
-            continue
-        missing = [header for header in required_headers if not any(header in cell for cell in headers)]
-        if missing:
-            issues.append(Issue(
-                code="STYLE010",
-                severity="error",
-                line=index + 1,
-                message=f"字段表缺少研发交付列：{'、'.join(missing)}",
-                suggestion="字段表统一使用：字段、类型、必填、取值约束、默认值、业务来源、说明",
-            ))
     return issues
 
 
@@ -399,7 +360,6 @@ ALL_CHECKS = [
     check_ai_traces,
     check_placeholders,
     check_glossary_section,
-    check_field_table_schema,
 ]
 
 
@@ -447,7 +407,7 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="PRD 文风 lint 脚本：检查 PRD 正文中可机械识别的 10 类问题。",
+        description="PRD 文风 lint 脚本：检查 PRD 正文中可机械识别的 9 类问题。",
     )
     parser.add_argument("prd_file", help="PRD 文件路径")
     parser.add_argument("--format", choices=["text", "json"], default="text", help="输出格式（默认 text）")
