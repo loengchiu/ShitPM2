@@ -40,7 +40,7 @@ python $BUNDLE/scripts/python/prd-consistency-check.py --project-root .
    - 对象、字段、状态、权限、异常、恢复、验收和待确认事项是否就近且无冲突；
    - Design 事实是否完整承接，是否出现未授权页面、字段、状态、权限、流程、默认值或外部行为；
    - 查询、统计、表单、配置、跨系统等适用场景是否写清产品结果，是否用经验补造数字；
-   - 流程图是否使用 draw.io 源文件和 SVG，图文是否一致；
+   - 流程图是否使用 draw.io 源文件和 PNG，图文是否一致；
    - 是否有标签式正文、流水账、表格主导、模糊跨节引用、AI 痕迹和明确占位符。
 5. 按 `$BUNDLE/schemas/review-result.schema.json` 输出既有格式：
    - 机读：`.workflow/reviews/prd-review-N.json`

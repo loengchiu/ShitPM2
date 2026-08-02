@@ -132,7 +132,7 @@
 当车辆入场确认涉及识别设备、值班人员和停车记录三个责任边界时，可交付：
 
 - `diagrams/vehicle-entry-confirmation.drawio`：可编辑源文件；
-- `diagrams/vehicle-entry-confirmation.svg`：评审和正文引用的导出图。
+- `diagrams/vehicle-entry-confirmation.png`：按 2 倍分辨率（X2）导出的评审和正文引用图。
 
-正文写清图中每个业务节点的前置条件、结果和异常；图文件、SVG 和正文使用同一业务名称和流程顺序。一张图只表达一个闭环，不使用 Mermaid 代码块代替交付文件。
+正文写清图中每个业务节点的前置条件、结果和异常；图文件、PNG 和正文使用同一业务名称和流程顺序。一张图只表达一个闭环，不使用 Mermaid 代码块代替交付文件。
 <!-- context:prd-example-flow:end -->
