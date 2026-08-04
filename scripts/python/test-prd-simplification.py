@@ -63,15 +63,62 @@ def main() -> int:
     ):
         if required not in template:
             raise AssertionError(f"PRD 模板缺少 4.x.6 硬约束: {required}")
+    for required in (
+        "###### 页面名称", "**动作名称**",
+        "PC 管理端页面名称不加", "（移动端）",
+    ):
+        if required not in template:
+            raise AssertionError(f"PRD 模板缺少新页面/动作格式: {required}")
+    for forbidden in ("**页面名称**", "###### 动作标题：业务结果", "车辆信息记录（管理端）"):
+        if forbidden in template:
+            raise AssertionError(f"PRD 模板仍保留旧格式: {forbidden}")
+
+    for required in (
+        "同一事实三处交叉比较",
+        "PRD 内部引用必须指向当前 `prd.md`",
+        "不得从生效描述推导时间范围",
+        "完成最后一次 `prd.md` 写入",
+        "页面操作已逐项回读",
+        "页面固定使用六级标题",
+        "动作固定使用单独一行加粗",
+        "页面展示行为和状态驱动展示已逐项回读",
+        "自动动作、删除传播、枚举来源和独立上限已逐项回读",
+    ):
+        if required not in skill:
+            raise AssertionError(f"Skill 缺少本轮直接约束或格式规则: {required}")
 
     rules = (ROOT / "references/prd-writing-rules.md").read_text(encoding="utf-8-sig")
     for required in (
         "所有 PRD 默认分片写作", "分片必须直接写入最终 `output/prd/prd.md`",
         "不得整篇重写", "每个功能模块必须包含 `4.x.6 功能详细说明`",
         "从最终 `prd.md` 的章节骨架", "不依赖 subagent",
+        "页面固定使用六级标题", "动作固定使用单独一行加粗",
+        "同一事实三处交叉比较", "PRD 内部引用必须指向当前 `prd.md`",
+        "不得从生效描述推导时间范围", "完成最后一次 `prd.md` 写入",
+        "页面操作逐项承接",
+        "页面展示行为与区块条件", "状态驱动展示",
+        "自动动作、删除传播与枚举上限",
     ):
         if required not in rules:
             raise AssertionError(f"写作规则缺少全量分片硬规则: {required}")
+    if "页面用加粗行" in rules:
+        raise AssertionError("写作规则仍保留旧页面格式")
+
+    scenes = (ROOT / "references/prd-scene-checklist.md").read_text(encoding="utf-8-sig")
+    for required in (
+        "页面操作逐项承接", "事实交叉一致性", "引用与时间范围",
+        "页面展示与状态驱动展示", "自动动作与删除传播", "枚举与独立上限",
+    ):
+        if required not in scenes:
+            raise AssertionError(f"场景清单缺少本轮自检项: {required}")
+
+    review = (ROOT / "contracts/prd-review-checklist.md").read_text(encoding="utf-8-sig")
+    for required in (
+        "无效引用", "时间范围", "页面操作逐项承接", "检查后修改", "格式统一",
+        "页面展示行为完整", "自动动作失败闭环", "删除传播完整", "枚举和独立上限有来源",
+    ):
+        if required not in review:
+            raise AssertionError(f"Review 清单缺少本轮检查项: {required}")
 
     stage_source = (ROOT / "scripts/python/stage-context.py").read_text(encoding="utf-8-sig")
     if '"scripts/python/prototype-structure.py"' in stage_source:

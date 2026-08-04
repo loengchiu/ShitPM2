@@ -23,7 +23,7 @@ Review 是独立第二意见，不是生成门禁，也不承担计划内补全�
 
 1. 读取 `output/design/design.md`、Design confirmation 状态、用户指定范围和最近 Review（如有）。confirmation 只作为上下文，不构成 Review 门禁。
 2. 确认 `output/design/design.md` 存在、可读且可解析；缺失或不可读时停止，缺章节、冲突和质量问题继续作为审查问题。
-3. 读取 `$BUNDLE/contracts/review-checklist.md`、`$BUNDLE/contracts/design-review-checklist.md` 和 `$BUNDLE/references/design-quality-rubric.md` 的独立 Review 评分部分；再按具体检查项读取 `$BUNDLE/references/design-state-format.md`、`design-flow-format.md`、`design-writing.md` 等细则。只有检测到 `.workflow/metadata/design/` 时才读取 `$BUNDLE/contracts/metadata-anchor-rules.md`。按检查项审查字段密度、状态闭环、流程密度、权限、页面/字段落点、高影响缺口和旧 metadata（仅存在时）。
+3. 读取 `$BUNDLE/contracts/review-checklist.md`、`$BUNDLE/contracts/design-review-checklist.md` 和 `$BUNDLE/references/design-quality-rubric.md` 的独立 Review 评分部分；再按具体检查项读取 `$BUNDLE/references/design-state-format.md`、`design-flow-format.md`、`design-writing.md` 等细则。只有检测到 `.workflow/metadata/design/` 时才读取 `$BUNDLE/contracts/metadata-anchor-rules.md`。按检查项审查字段密度、状态闭环、流程密度、权限、页面/字段落点、高影响缺口、横切能力和旧 metadata（仅存在时）。重点核对待办、提醒、编号、字典、文件/档案、审计侧/被审侧入口、自动动作失败、删除传播、枚举来源、独立上限以及页面展示状态。
 5. 从人读稿而不是 metadata 判断 Design 事实；不能确认的内容标记为产品风险或待用户决策，不擅自补全。
 6. 按 `$BUNDLE/schemas/review-result.schema.json` 输出结果：
    - 机读：`.workflow/reviews/design-review-N.json`

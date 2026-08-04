@@ -139,12 +139,32 @@ def test_recovery_and_acceptance_boundary() -> dict[str, Any]:
         holder.cleanup()
 
 
+def test_cross_layer_contracts_are_synced() -> dict[str, Any]:
+    required = {
+        ROOT / "skills/spm-design/SKILL.md": ["横切能力与事实状态识别", "已定义、局部定义、未定义或冲突", "自动动作"],
+        ROOT / "templates/design.md": ["所属业务侧", "页面展示行为", "自动动作与生命周期传播"],
+        ROOT / "references/design-writing.md": ["页面展示行为必须按实际适用情况落地", "横切能力、自动动作与生命周期"],
+        ROOT / "references/design-state-format.md": ["页面状态与状态驱动展示", "置灰操作及原因"],
+        ROOT / "skills/spm-design-review/SKILL.md": ["横切能力", "删除传播", "独立上限"],
+        ROOT / "contracts/design-review-checklist.md": ["X1. 横切能力事实状态可判断", "X4. 自动动作失败闭环", "X6. 枚举与上限有来源"],
+    }
+    missing = []
+    for path, terms in required.items():
+        text = path.read_text(encoding="utf-8-sig")
+        for term in terms:
+            if term not in text:
+                missing.append(f"{path.relative_to(ROOT)} 缺少 {term}")
+    check(not missing, "Design 跨层契约未同步：" + "；".join(missing))
+    return {"checked_files": len(required), "passed": True}
+
+
 def main() -> int:
     try:
         output = {
             "scenarios": test_three_synthetic_scenarios(),
             "graph": test_graph_size_and_removed_mode(),
             "recovery": test_recovery_and_acceptance_boundary(),
+            "cross_layer_contracts": test_cross_layer_contracts_are_synced(),
         }
     except Exception as exc:
         print(json.dumps({"passed": False, "error": str(exc)}, ensure_ascii=False, indent=2))

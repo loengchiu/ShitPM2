@@ -52,6 +52,8 @@
 
 `confirmed_facts` 中的事实应保持字段级、操作级、规则级和枚举级粒度；`source_conflicts` 保留冲突双方和影响；`missing_information` 保留材料没有说明的事项；`non_derivable_items` 保留不能从材料安全推出、需要用户判断的事项。
 
+下游在形成 Design 时按以下最小口径表达事实状态：已定义对应 `confirmed_facts`；局部定义同时保留已确认事实并把缺失部分写入 `missing_information` 或 `non_derivable_items`；未定义写入 `missing_information`/`non_derivable_items`；冲突写入 `source_conflicts`，并说明影响对象和受影响模块。不能因为 `confirmed_facts` 非空就把局部定义、未定义或冲突事项写成完整确定事实。
+
 无材料时允许 `material_revision` 对应空来源集合、四个数组为空；不得伪造来源路径或行号，需求事实由 Align 的用户原话和回答承接。
 
 ## 禁止事项
