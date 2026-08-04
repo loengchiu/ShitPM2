@@ -13,11 +13,13 @@ description: "Design Review——独立审查 Design 基线的结构完整性、
 
 Review 是独立第二意见，不是生成门禁，也不承担计划内补全。
 
-- 不修改 `output/design/design.md`、决策记录或 metadata。
-- 不自动修复、不自动确认、不自动推进阶段，不自动调用 `spm-fix`。
-- 不要求 metadata、`page-fields.json` 或其他 Review 存在。
+- 只审查，不修改 `output/design/design.md`、决策记录或 metadata。
+- 审查后停在结论输出，不自动修复、不自动确认、不自动推进阶段，不自动调用 `spm-fix`。
+- 审查只依赖 Design 与确认状态，不要求 metadata、`page-fields.json` 或其他 Review 存在。
 - 只有输入文件不存在、不可读或完全无法解析时才硬阻塞。
 - 结论必须区分确定性问题、产品风险和待用户决策问题。
+
+完成判据：审查清单全部逐项执行并记录结论；产出含结论、问题清单（位置/影响/建议）；无修改产物、无自动推进；无法判断项已显式标注而非默认通过。
 
 ## 执行流程
 

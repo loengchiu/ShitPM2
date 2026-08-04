@@ -60,6 +60,8 @@ ATTRIBUTE_ALIASES = {
     "interaction": ("交互", "交互方式"),
     "validation_feedback": ("校验反馈", "校验与反馈", "校验", "反馈"),
     "availability": ("可用条件", "展示与可用条件", "使用条件", "执行条件"),
+    "entry_source": ("入口/触发方式", "入口", "触发方式", "操作入口"),
+    "input_fields": ("输入（字段级）", "输入", "输入字段", "输入构成"),
     "confirmation": ("确认", "确认方式", "二次确认"),
     "success_result": ("成功结果", "成功后的结果", "预期结果"),
     "state_change": ("状态变化", "数据与状态变化", "状态变更", "状态流转"),
@@ -74,7 +76,7 @@ ENTITY_ALIASES = {
     "operation": ("操作", "动作", "operation", "action"),
 }
 
-OPERATION_ONLY_ATTRIBUTES = {"availability", "confirmation", "success_result", "state_change", "failure_recovery", "destination"}
+OPERATION_ONLY_ATTRIBUTES = {"entry_source", "input_fields", "availability", "confirmation", "success_result", "state_change", "failure_recovery", "destination"}
 
 FIELD_TABLE_HEADERS = (
     "字段名称",
@@ -98,6 +100,8 @@ FIELD_TABLE_ATTRIBUTE_KEYS = (
 OPERATION_TABLE_HEADERS = (
     "操作",
     "适用角色",
+    "入口/触发方式",
+    "输入（字段级）",
     "展示与可用条件",
     "是否二次确认",
     "成功结果",
@@ -107,6 +111,8 @@ OPERATION_TABLE_HEADERS = (
 )
 OPERATION_TABLE_ATTRIBUTE_KEYS = (
     "roles",
+    "entry_source",
+    "input_fields",
     "availability",
     "confirmation",
     "success_result",

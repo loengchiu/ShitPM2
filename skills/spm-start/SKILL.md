@@ -35,6 +35,8 @@ description: "ShitPM 项目启动与导航——只读扫描当前产物、Desig
 7. 按 `$BUNDLE/templates/start-report.md` 输出项目状态、产物清单、最近 Review、可用动作和建议。
 8. 输出后停止。
 
+完成判据：当前产物、Design confirmation、可用动作已扫描并输出；未修改任何文件；未给唯一下一步。
+
 ## Design confirmation
 
 需要时运行：
@@ -49,7 +51,7 @@ python $BUNDLE/scripts/python/design-confirmation.py --project-root . check
 
 ## 动作矩阵
 
-完整可用动作矩阵、Design confirmation 规则和动作级模型建议只读取 `$BUNDLE/contracts/start-action-matrix.md`，不要在 Skill 中复制。该矩阵保留 `/spm-prototype-mark` 的兼容动作行；本轮不修改该 Skill。
+完整可用动作矩阵、Design confirmation 规则和动作级模型建议只读取 `$BUNDLE/contracts/start-action-matrix.md`，不在 Skill 中复制。该矩阵保留 `/spm-prototype-mark` 的兼容动作行；本轮不修改该 Skill。
 
 ## 硬规则
 

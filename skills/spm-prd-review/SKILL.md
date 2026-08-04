@@ -12,10 +12,12 @@ description: "PRD Review——独立审查 PRD 的业务闭环结构、写作质
 ## 职责边界
 
 - Review 是独立第二意见，不是流程门禁，也不承担计划内补全。
-- 不修改 `output/prd/prd.md`、Design 或决策记录，不自动调用 `spm-fix`。
-- 不要求 metadata、`page-fields.json` 或其他 Review 资产存在。
+- 只审查，不修改 `output/prd/prd.md`、Design 或决策记录，不自动调用 `spm-fix`。
+- 审查只依赖 Design、PRD 与确认状态，不要求 metadata、`page-fields.json` 或其他 Review 资产存在。
 - 只有输入文件不存在、不可读或完全无法解析时才硬阻塞；缺章节、内容不足、冲突和写作质量问题继续作为审查问题。
 - 发现的问题分为确定性问题、产品风险和待用户决策问题，并按既有 P0/P1/P2 门槛输出。
+
+完成判据：审查清单全部逐项执行并记录结论；产出含结论、问题清单（位置/影响/建议）；无修改产物、无自动推进；无法判断项已显式标注而非默认通过。
 
 ## 执行流程
 
@@ -33,7 +35,7 @@ python $BUNDLE/scripts/python/prd-style-lint.py output/prd/prd.md
 python $BUNDLE/scripts/python/prd-consistency-check.py --project-root .
 ```
 
-引用 JSON 中的 `missing`、`hallucinated`、`attribute_mismatch` 和权限反转信息，再补充脚本覆盖不到的业务语义审查。脚本返回 `0` 不代表 PRD 通过，返回 `1` 也不替代问题定位。
+引用 JSON 中的三类输出：①确定性冲突（`missing`、`hallucinated`、`attribute_mismatch`、权限反转）直接采用为问题；②可能遗漏（脚本标注可能冲突但需人工确认）逐条判定；③`needs_semantic_judgment` 语义判断项——含**结构适配差异**（Design 用枚举表达状态而 PRD 改写为独立状态字段、对象合并/拆分后字段归属不一致等结构性改法差异）——由 Review 按业务语义判定，不因脚本无法确认而默认通过。脚本返回 `0` 不代表 PRD 通过，返回 `1` 也不替代问题定位。
 4. 读取 `$BUNDLE/contracts/review-checklist.md`、`$BUNDLE/contracts/prd-review-checklist.md`、`$BUNDLE/references/prd-writing-rules.md` 和 `$BUNDLE/contracts/prd-writing.profile.json`。按取证需要读取 `$BUNDLE/references/prd-writing-examples.md`、`prd-glossary-format.md`、`prd-versioning.md` 或 `prd-scene-checklist.md`。重点审查：
    - 是否按业务闭环组织，模块边界和模块独立可读是否成立；
    - 管理端和移动端是否落在同一闭环的真实阶段；页面映射与正文落点是否一致；

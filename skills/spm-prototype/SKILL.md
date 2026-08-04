@@ -51,6 +51,8 @@ python $BUNDLE/scripts/python/prototype-consistency-check.py --project-root .
 确定性检查或浏览器检查失败时先修复并重新验证，不交付未验证的原型。
 8. 更新 `.workflow/status.json`：`current_stage=prototype`，`artifacts.prototype=output/prototype/index.html`；不使用 `current_stage=done` 表达线性完成。
 
+完成判据：原型页面生成且可运行；Design 已确认；未引入 Design 未授权架构/技术；页面覆盖清单可核对；确定性检查与浏览器检查已通过。
+
 ## 产物
 
 - `output/prototype/index.html`：主原型文件；页面多时可按业务模块拆分，但必须有可运行入口。

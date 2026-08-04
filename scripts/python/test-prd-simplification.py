@@ -79,13 +79,24 @@ def main() -> int:
         "不得从生效描述推导时间范围",
         "完成最后一次 `prd.md` 写入",
         "页面操作已逐项回读",
-        "页面固定使用六级标题",
-        "动作固定使用单独一行加粗",
+        "页面、动作和终端命名格式遵循",
         "页面展示行为和状态驱动展示已逐项回读",
         "自动动作、删除传播、枚举来源和独立上限已逐项回读",
     ):
         if required not in skill:
             raise AssertionError(f"Skill 缺少本轮直接约束或格式规则: {required}")
+    # Design 分片读取：阶段 A 大 Design 读索引、阶段 C 用 --module、禁止一次性全读
+    for required in (
+        "design-index.py compile", "不一次性读 design.md 正文",
+        "--module <模块名>", "禁止一次性全读 design.md",
+        "片段不得包含无关模块内容",
+    ):
+        if required not in skill:
+            raise AssertionError(f"Skill 缺少 Design 分片读取指令: {required}")
+    if "sed 1,$p" not in skill:
+        raise AssertionError("Skill 未明确列出一性次全读的等效行为示例")
+    if "--pass module --card scenes" in skill and "--module" not in skill.split("--pass module --card scenes")[1][:400]:
+        raise AssertionError("阶段 C 模块装载命令未与 --module 一起给出")
 
     rules = (ROOT / "references/prd-writing-rules.md").read_text(encoding="utf-8-sig")
     for required in (
@@ -101,6 +112,12 @@ def main() -> int:
     ):
         if required not in rules:
             raise AssertionError(f"写作规则缺少全量分片硬规则: {required}")
+    for required in (
+        "Design 按模块分片读取", "context-pack.py --module",
+        "禁止一次性全读 design.md",
+    ):
+        if required not in rules:
+            raise AssertionError(f"写作规则缺少 Design 分片读取规则: {required}")
     if "页面用加粗行" in rules:
         raise AssertionError("写作规则仍保留旧页面格式")
 
@@ -111,6 +128,9 @@ def main() -> int:
     ):
         if required not in scenes:
             raise AssertionError(f"场景清单缺少本轮自检项: {required}")
+    for required in ("context-pack.py --module <模块名>", "未一次性全读 design.md"):
+        if required not in scenes:
+            raise AssertionError(f"场景清单缺少 --module 装载自检项: {required}")
 
     review = (ROOT / "contracts/prd-review-checklist.md").read_text(encoding="utf-8-sig")
     for required in (
@@ -119,6 +139,9 @@ def main() -> int:
     ):
         if required not in review:
             raise AssertionError(f"Review 清单缺少本轮检查项: {required}")
+    for required in ("Design 全读痕迹", "上下文爆栈", "一次性全读 design.md"):
+        if required not in review:
+            raise AssertionError(f"Review 清单缺少 Design 全读痕迹检查项: {required}")
 
     stage_source = (ROOT / "scripts/python/stage-context.py").read_text(encoding="utf-8-sig")
     if '"scripts/python/prototype-structure.py"' in stage_source:

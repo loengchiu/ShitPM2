@@ -11,11 +11,13 @@ description: "Prototype Review——独立审查原型页面覆盖、Design 一�
 
 ## 职责边界
 
-- Review 是独立第二意见，不修改 `output/prototype/index.html` 或其他原型文件。
-- 不自动修复、不自动确认、不自动推进、不自动调用 `spm-fix`。
-- 不要求 metadata、`pages.json`、PRD 或其他 Review 存在。
+- Review 是独立第二意见，只审查不修改 `output/prototype/index.html` 或其他原型文件。
+- 审查后停在结论输出，不自动修复、不自动确认、不自动推进、不自动调用 `spm-fix`。
+- 审查只依赖 Design 与 Prototype，不要求 metadata、`pages.json`、PRD 或其他 Review 存在。
 - 只有 Design 或 Prototype 输入缺失、不可读或完全无法解析时才硬阻塞。
 - 结论分为确定性问题、产品风险和待用户决策问题。
+
+完成判据：审查清单全部逐项执行并记录结论；产出含结论、问题清单（位置/影响/建议）；无修改产物、无自动推进；无法判断项已显式标注而非默认通过。
 
 ## 执行流程
 

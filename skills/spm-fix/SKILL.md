@@ -12,8 +12,8 @@ description: "同步修复——ShitPM：把变更影响沿链路传播到当前
 ## 职责边界
 
 - Design 是高影响产品事实源；目标、范围、建设方式、模块、页面、字段、规则、流程、状态、权限、异常和跨系统责任的语义变化必须回写 Design。
-- PRD 和 Prototype 是 Design 的两个并列下游，不要求同时存在，也不存在默认的 Design → PRD → Prototype 链路。
-- Align 仅作 Design 输入参考，不是事实源；目标、范围和建设方式不能通过 Align 反向定源。
+- PRD 和 Prototype 是 Design 的两个并列下游，各自独立存在与生成，不存在默认的 Design → PRD → Prototype 链路。
+- Align 仅作 Design 输入参考，不是事实源；目标、范围和建设方式以 Design 为准，不经 Align 反向定源。
 - 纯格式、措辞、排版或视觉表现修改可以只改对应下游，不触发 Design confirmation 失效。
 - 纯格式/措辞/排版修改直接改 PRD 时，页面、动作和终端名称遵循 `$BUNDLE/references/prd-writing-rules.md` §5 的当前格式：页面用 `###### 页面名称`，动作用 `**动作名称**`，PC 页面不加"（管理端）""（PC端）"后缀，特殊终端（移动端/小程序/自助终端）保留终端标识；格式只应用到被触达的页面或动作，不整篇迁移存量 PRD 格式。
 - 无法判断影响范围时按高影响变化处理。
@@ -35,13 +35,17 @@ description: "同步修复——ShitPM：把变更影响沿链路传播到当前
 2. 判断修改对象属于目标/范围/建设方式、模块/页面/字段/规则/流程/状态/权限、跨系统/异常，还是表现层/措辞/格式。
 3. 判定问题归属层和事实源所在阶段；跨层指令拆为独立动作，不混在一层改。
 4. 读取 `$BUNDLE/contracts/fix-propagation-rules.md`，判定受影响的最深阶段和实际存在的下游分支。
-5. 只修改事实源层，局部覆盖当前真相，不整篇重写、不制造多版本；不得把 PRD 或 Prototype 直接提升为 Design 事实。
+5. 只修改事实源层，局部覆盖当前真相，不整篇重写、不制造多版本；PRD 或 Prototype 不提升为 Design 事实。
 6. 若修改 `design.md`，必须先处理旧 confirmation 失效，再停止下游传播；Fix 不先改 PRD 或 Prototype。
 7. 仅对实际存在且受影响的分支运行适用检查：`design-confirmation.py`、`prd-consistency-check.py`、`prototype-consistency-check.py`。PRD 不存在时不伪造 PRD 检查，Prototype-only 项目仍需走合法原型检查路径。
 
+完成判据：修改对象与影响范围已判定；传播契约已读取且受影响最深阶段/分支已判定；事实源已局部覆盖且无多版本；confirmation 失效已处理；实际分支检查已运行。
+
 ## Confirmation 与输出
 
-修改 Design 后不手动删除 confirmation 文件，也不自动调用 `confirm`；通过 `design-confirmation.py check` 或 `stage-context.py` 让哈希不一致显现，并明确告知：旧确认失效，用户重新确认后才能生成下游。
+修改 Design 后通过 `design-confirmation.py check` 或 `stage-context.py` 让哈希不一致显现，并明确告知：旧确认失效，用户重新确认后才能生成下游；不手动删除 confirmation 文件，也不自动调用 `confirm`。
+
+Fix 完成判据：修改文件与影响范围已输出；Design confirmation 状态已说明；未自动确认、未自动生成下游。
 
 Fix 完成后输出：
 

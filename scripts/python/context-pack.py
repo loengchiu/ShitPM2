@@ -14,6 +14,15 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[2]
 MANIFEST_REL = Path('contracts/context-loading.manifest.json')
 GENERATED_PACK_RE = re.compile(r'^\d{3}-[A-Za-z0-9_.-]+\.md$')
+DESIGN_FRAGMENT_PACK = 'design-fragment'
+DESIGN_REL = Path('output/design/design.md')
+# 大 Design 阈值：与 SKILL 阶段 A “约 1000 行”一致；只有超过该规模才启用片段比例约束。
+LARGE_DESIGN_LINES = 1000
+# 标题锚点：Design 按“### 闭环X：名称 / ### 页面：名称 / ## 共用章节”组织，按锚点确定性切分。
+# 注意：匹配的是去掉 # 前缀后的标题文本，正则不得带 ### 前缀。
+CLOSURE_HEADING_RE = re.compile(r'^闭环[一二三四五六七八九十0-9A-Za-z]+[：:]\s*(.+)$')
+PAGE_HEADING_RE = re.compile(r'^页面[：:]\s*(.+)$')
+SHARED_HEADING_KEYWORDS = ('业务对象', '角色、权限', '权限与数据范围', '页面清单', '待确认事项')
 
 
 def sha256_text(text: str) -> str:
@@ -178,6 +187,211 @@ def build_sections(bundle_root: Path, manifest: dict[str, Any], stage: str,
     return [read_section(bundle_root, section_id, sections[section_id]) for section_id in section_ids]
 
 
+def _design_headings(text: str) -> list[dict[str, Any]]:
+    """解析 design.md 标题：记录所有标题用于边界计算；只对“闭环X：/页面：/共用章节”打锚点标记。"""
+    headings = []
+    for line_no, line in enumerate(text.splitlines(), 1):
+        match = re.match(r'^(#{1,6})\s+(.+?)\s*$', line)
+        if not match:
+            continue
+        level = len(match.group(1))
+        title = match.group(2).strip()
+        kind = None
+        name = None
+        closure = CLOSURE_HEADING_RE.match(title)
+        page = PAGE_HEADING_RE.match(title)
+        if closure:
+            kind, name = 'closure', closure.group(1).strip()
+        elif page:
+            kind, name = 'page', page.group(1).strip()
+        elif level == 2 and any(keyword in title for keyword in SHARED_HEADING_KEYWORDS):
+            kind, name = 'shared', title
+        elif level == 3 and title in ('页面清单', '待确认事项'):
+            kind, name = 'shared', title
+        headings.append({'line': line_no, 'level': level, 'title': title, 'kind': kind, 'name': name})
+    return headings
+
+
+def _scope_end(lines: list[str], headings: list[dict[str, Any]], index: int) -> int:
+    """当前标题的作用域到下一个同级或更高级标题为止（所有 markdown 标题都参与边界计算）。"""
+    current = headings[index]
+    for next_heading in headings[index + 1:]:
+        if next_heading['level'] <= current['level']:
+            return next_heading['line'] - 1
+    return len(lines)
+
+
+def _heading_text(lines: list[str], start_line: int, end_line: int) -> str:
+    return '\n'.join(lines[start_line - 1:end_line]).rstrip()
+
+
+def _longest_common_substring(a: str, b: str) -> str:
+    """确定性字符串算法：两段文本的最长公共子串，用于闭环与页面的标题词关联。"""
+    if not a or not b:
+        return ''
+    shorter, longer = (a, b) if len(a) <= len(b) else (b, a)
+    best = ''
+    for start in range(len(shorter)):
+        for length in range(len(shorter) - start, len(best), -1):
+            candidate = shorter[start:start + length]
+            if candidate in longer:
+                best = candidate
+                break
+    return best
+
+
+def _match_module(headings: list[dict[str, Any]], module: str) -> dict[str, Any] | None:
+    """模块名匹配闭环标题：名称精确、模块名含于闭环名、闭环名含于模块名（去掉“模块”后缀）。"""
+    candidates = [heading for heading in headings if heading['kind'] == 'closure']
+    stripped = re.sub(r'模块$', '', module)
+    for heading in candidates:
+        name = heading['name']
+        if name == module or module in name or name in module or stripped in name or name in stripped:
+            return heading
+    return None
+
+
+def _match_pages(headings: list[dict[str, Any]], names: list[str]) -> list[dict[str, Any]]:
+    """按页面名匹配“### 页面：名称”章节；只接受名称唯一且精确的匹配，避免短名误命。"""
+    pages = [heading for heading in headings if heading['kind'] == 'page']
+    by_name: dict[str, dict[str, Any]] = {}
+    for heading in pages:
+        by_name.setdefault(heading['name'], heading)
+    matched = []
+    for name in names:
+        name = re.sub(r'模块$', '', name.strip())
+        if not name:
+            continue
+        if name in by_name:
+            matched.append(by_name[name])
+    return matched
+
+
+def _related_pages(headings: list[dict[str, Any]], closure: dict[str, Any] | None,
+                   closure_text: str, module: str) -> list[dict[str, Any]]:
+    """确定页面关联：①闭环正文子串引用；②页面名与闭环名/模块名共享 ≥2 字最长公共子串；两者取并集。
+
+    不做语义检索；页面与闭环的标题词关联由字符串算法确定，避免模型自行猜测。
+    """
+    names = sorted({h['name'] for h in headings if h['kind'] == 'page'}, key=len, reverse=True)
+    referenced = [name for name in names if len(name) >= 2 and name in closure_text]
+    subjects = [module]
+    if closure is not None:
+        subjects.append(closure['name'])
+    for name in names:
+        if name in referenced:
+            continue
+        for subject in subjects:
+            shared = _longest_common_substring(name, subject)
+            if len(shared) >= 2:
+                referenced.append(name)
+                break
+    return _match_pages(headings, referenced)
+
+
+def extract_design_fragment(project_root: Path, module: str,
+                            threshold_fraction: float = 1 / 3,
+                            extra_pages: list[str] | None = None) -> dict[str, Any]:
+    """按标题锚点从 output/design/design.md 确定性提取模块片段（原文，不做语义检索、不做概括）。
+
+    提取范围：目标闭环章节全文 + 闭环正文引用的页面章节 + 共用章节（业务对象/权限/页面清单/待确认）。
+    匹配不到模块时报错并列出标题清单；片段行数超过全文阈值时报错提示拆分模块。
+    """
+    design_path = project_root / DESIGN_REL
+    if not design_path.is_file():
+        raise RuntimeError(f'Design 文件不存在: {design_path}')
+    text = design_path.read_text(encoding='utf-8-sig')
+    lines = text.splitlines()
+    headings = _design_headings(text)
+    closure = _match_module(headings, module)
+    matched_pages: list[dict[str, Any]] = []
+    closure_text = ''
+    if closure is None:
+        matched_pages = _match_pages(headings, [module] + list(extra_pages or []))
+        if not matched_pages:
+            available = '\n'.join(
+                f'  {h["title"]}' for h in headings
+                if h['kind'] in ('closure', 'page')
+            ) or '  （design.md 无闭环/页面标题锚点）'
+            raise RuntimeError(
+                f'模块名 “{module}” 匹配不到任何闭环或页面章节，不静默返回空。'
+                f'design.md 可用闭环/页面标题：\n{available}'
+            )
+    parts: list[str] = []
+    included_lines = 0
+    if closure is not None:
+        index = headings.index(closure)
+        end = _scope_end(lines, headings, index)
+        closure_text = _heading_text(lines, closure['line'], end)
+        parts.append(f'## 模块闭环：{closure["title"]}\n\n{closure_text}')
+        included_lines += end - closure['line'] + 1
+        matched_pages = _related_pages(headings, closure, closure_text, module)
+        # --pages 显式追加页面：闭环匹配成功后仍生效（补充标题词关联漏掉的页面），按名称精确匹配去重。
+        for page in _match_pages(headings, list(extra_pages or [])):
+            if page['name'] not in {p['name'] for p in matched_pages}:
+                matched_pages.append(page)
+    else:
+        # 模块名即页面名：目标页面已从 [module]+extra_pages 精确匹配，直接作为相关页面输出。
+        matched_pages = _match_pages(headings, [module] + list(extra_pages or []))
+    page_lines = 0
+    for page in matched_pages:
+        index = headings.index(page)
+        end = _scope_end(lines, headings, index)
+        parts.append(f'\n## 相关页面：{page["name"]}\n\n{_heading_text(lines, page["line"], end)}')
+        page_lines += end - page['line'] + 1
+    included_lines += page_lines
+    shared_parts: list[str] = []
+    page_names = {p['name'] for p in matched_pages}
+    for heading in headings:
+        if heading['kind'] != 'shared':
+            continue
+        index = headings.index(heading)
+        end = _scope_end(lines, headings, index)
+        section_text = _heading_text(lines, heading['line'], end)
+        if heading['title'] == '页面清单' and page_names:
+            # 页面清单只保留与本模块页面匹配的数据行（表头/分隔行保留），避免每个模块都携带全量页面清单。
+            kept = []
+            for raw in section_text.splitlines():
+                line = raw.strip()
+                if line.startswith('|'):
+                    cells = [c.strip() for c in line.strip('|').split('|')]
+                    first = cells[0] if cells else ''
+                    if first in page_names or first in ('页面', '页面/入口', '页面名称') or set(first) <= {'-', ' ', ''}:
+                        kept.append(raw)
+                    continue
+                kept.append(raw)
+            section_text = '\n'.join(kept)
+        shared_parts.append(f'\n## 共用部分：{heading["title"]}\n\n{section_text}')
+        included_lines += len(section_text.splitlines())
+    fragment_text = '\n'.join(parts)
+    if shared_parts:
+        fragment_text += '\n' + '\n'.join(shared_parts)
+    # 片段比例只约束大 Design（防止爆上下文）；小 Design 可接近全文，不误伤。
+    if len(lines) >= LARGE_DESIGN_LINES and included_lines > max(1, int(len(lines) * threshold_fraction)):
+        raise RuntimeError(
+            f'模块 “{module}” 的 Design 片段 {included_lines} 行超过阈值 '
+            f'（design.md 全文 {len(lines)} 行的 {threshold_fraction:.0%}）。'
+            f'模块边界过大，请按子闭环或页面拆分模块后再分片。'
+        )
+    section_id = f'design-fragment:{module}'
+    return {
+        'id': section_id,
+        'source': DESIGN_REL.as_posix(),
+        'source_hash': sha256_text(text),
+        'content_hash': sha256_text(fragment_text),
+        'selector': 'fragment',
+        'content': fragment_text,
+        'characters': len(fragment_text),
+        'lines': included_lines,
+        'module': module,
+        'fragment_meta': {
+            'design_lines': len(lines),
+            'fragment_lines': included_lines,
+            'threshold_fraction': threshold_fraction,
+        },
+    }
+
+
 
 def render_pack(stage: str, pack_name: str, sections: list[dict[str, Any]]) -> str:
     lines = [
@@ -206,7 +420,7 @@ def write_run(project_root: Path, stage: str, mode: str | None, pass_name: str |
               applicability: dict[str, str] | None, *, bundle_root: Path | None = None,
               manifest_hash: str | None = None, role: str | None = None,
               budget: dict[str, Any] | None = None, duration_ms: int | None = None,
-              metrics_dir: Path | None = None) -> dict[str, Any]:
+              metrics_dir: Path | None = None, module: str | None = None) -> dict[str, Any]:
     bundle_root = (bundle_root or ROOT).resolve()
     if manifest_hash is None:
         manifest_hash = sha256_file(manifest_path(bundle_root))
@@ -231,6 +445,7 @@ def write_run(project_root: Path, stage: str, mode: str | None, pass_name: str |
         'mode': mode,
         'pass': pass_name,
         'role': role,
+        'module': module,
         'packs': written_packs,
         'requested_packs': selected_packs,
         'sections': [
@@ -328,8 +543,18 @@ def verify_run(project_root: Path, stage: str, run_path: Path | None = None,
                 'expected': expected_manifest_hash,
                 'actual': actual_manifest_hash,
             })
+    # --module 装载的 design.md 片段按 selector=fragment 判定为项目级来源，从项目根解析；
+    # 其余 source 一律从 bundle 解析（bundle 内的同名输出文件不参与校验）。
+    project_sources = {
+        item.get('source')
+        for item in record.get('sections', [])
+        if isinstance(item, dict) and item.get('selector') == 'fragment'
+    }
     for source, expected in record.get('source_hashes', {}).items():
-        path = bundle_root / source
+        if source in project_sources:
+            path = project_root / source
+        else:
+            path = bundle_root / source
         if not path.is_file():
             stale.append({'source': source, 'reason': 'missing'})
             continue
@@ -370,6 +595,10 @@ def main() -> int:
     parser.add_argument('--pack', action='append', default=[])
     parser.add_argument('--card', action='append', default=[])
     parser.add_argument('--example', action='append', default=[])
+    parser.add_argument('--module', help='按模块名装载 design.md 片段（与 --pass module 组合使用）：提取闭环章节 + 相关页面 + 共用对象/权限部分')
+    parser.add_argument('--pages', action='append', default=[], help='显式追加提取的页面名（模块名匹配不到闭环时按页面名兜底）')
+    parser.add_argument('--fragment-threshold', type=float, default=1 / 3,
+                        help='Design 片段行数阈值占 design.md 全文比例，默认 1/3；超过时报错提示拆分模块')
     parser.add_argument('--applicability-json', type=Path)
     parser.add_argument('--output-dir', type=Path)
     parser.add_argument('--list-packs', action='store_true')
@@ -380,6 +609,8 @@ def main() -> int:
     args = parser.parse_args()
     if args.fail_on_budget and args.max_tokens is None:
         parser.error('--fail-on-budget 必须与 --max-tokens 一起使用')
+    if args.module and (args.fragment_threshold <= 0 or args.fragment_threshold >= 1):
+        parser.error('--fragment-threshold 必须是 (0, 1) 区间的小数')
     project_root = args.project_root.resolve()
     bundle_root = args.bundle_root.resolve()
     started = time.perf_counter()
@@ -403,15 +634,25 @@ def main() -> int:
         )
         section_ids = [section_id for ids in pack_sections.values() for section_id in ids]
         section_data = build_sections(bundle_root, manifest, args.stage, section_ids)
+        if args.module:
+            fragment = extract_design_fragment(
+                project_root, args.module,
+                threshold_fraction=args.fragment_threshold,
+                extra_pages=args.pages,
+            )
+            section_data.append(fragment)
+            selected_packs = list(dict.fromkeys(selected_packs + [DESIGN_FRAGMENT_PACK]))
+            pack_sections[DESIGN_FRAGMENT_PACK] = [fragment['id']]
         characters = sum(item['characters'] for item in section_data)
         preview = {
             'stage': args.stage,
             'mode': args.mode,
             'pass': args.pass_name,
             'role': args.role,
+            'module': args.module,
             'bundle_root': str(bundle_root),
             'requested_packs': selected_packs,
-            'sections': section_ids,
+            'sections': [item['id'] for item in section_data],
             'sources': sorted({item['source'] for item in section_data}),
             'source_file_count': len({item['source'] for item in section_data}),
             'section_count': len(section_data),
@@ -451,6 +692,7 @@ def main() -> int:
             budget=budget,
             duration_ms=round((time.perf_counter() - started) * 1000),
             metrics_dir=project_root / '.workflow' / 'runtime' / 'metrics',
+            module=args.module,
         )
         print(json.dumps(record, ensure_ascii=False, indent=2))
         return 0
