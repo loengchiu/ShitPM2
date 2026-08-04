@@ -50,10 +50,6 @@ Align 不是最终 Design，不新增用户未确认的高影响流程、状态�
 
 完成判据：来源事实逐项落入 Design；目标-能力-场景-流程-页面-动作-字段-状态-权限-规则-异常-验收链路完整；字段表八列齐全逐项；操作表十列角色×状态明确；状态机闭环规则满足；`design.md` 完整可读。
 
-完整模式：
-
-完成判据：A/B/C 三层责任全部承担并落盘；Design 按产品经理理解顺序组织；页面清单每个页面正式展开；字段/操作固定列表格逐项；未发现高影响未知未记录。
-
 ```text
 Align → material-index（有材料时复用或生成）→ material-facts:*（有材料时）→ material-merge → simple-design
 ```
@@ -61,6 +57,8 @@ Align → material-index（有材料时复用或生成）→ material-facts:*（
 `simple-design` 在一次写作动作内完成最小 A/B/C 责任：目标、范围、用户、场景、最小业务闭环、必要对象/规则/状态/权限/数据、页面/字段/操作、异常和验收，并进行一次内部回读修正。
 
 完整模式：
+
+完成判据：A/B/C 三层责任全部承担并落盘；Design 按产品经理理解顺序组织；页面清单每个页面正式展开；字段/操作固定列表格逐项；未发现高影响未知未记录。
 
 ```text
 Align → material-index（有材料时复用或生成）→ material-facts:*（有材料时）→ material-merge → A → B → C → design-editor

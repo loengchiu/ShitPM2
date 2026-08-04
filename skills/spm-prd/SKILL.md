@@ -181,7 +181,7 @@ python $BUNDLE/scripts/python/context-pack.py --bundle-root $BUNDLE --project-ro
 
 ### 阶段 D：有限范围整合
 
-整合阶段只处理以下七项内容；处理完成后不再改模块正文：
+整合阶段只处理以下七项内容；处理完成后不再改模块正文，不重新生成全文、不把模块正文压缩成摘要或改写已完成模块：
 
 - 模块编号；
 - 标题层级；

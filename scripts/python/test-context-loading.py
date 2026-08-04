@@ -353,6 +353,19 @@ def check_design_fragment(module) -> None:
         # 页面清单共用部分按模块页面名过滤：不携带全量清单行（P2-2）
         if '| 库存列表 |' in content:
             fail('页面清单共用部分未按模块页面名过滤')
+        # 模板格式标题"页面清单（可选速览）"同样被识别并过滤（P2-2 兼容）
+        with tempfile.TemporaryDirectory() as tpl_dir:
+            tpl_root = Path(tpl_dir)
+            build_sample_design(tpl_root)
+            tpl_design = tpl_root / 'output/design/design.md'
+            tpl_text = tpl_design.read_text(encoding='utf-8')
+            tpl_text = tpl_text.replace('### 页面清单', '### 页面清单（可选速览）')
+            tpl_design.write_text(tpl_text, encoding='utf-8')
+            tpl_frag = module.extract_design_fragment(str(tpl_root), '订单处理')
+            if '共用部分：页面清单（可选速览）' not in tpl_frag['content']:
+                fail('模板标题"页面清单（可选速览）"未被识别为共用部分')
+            if '| 库存列表 |' in tpl_frag['content']:
+                fail('模板标题下页面清单未按模块页面名过滤')
         # 闭环字母编号（闭环A/B/C）可匹配（P2-1）
         with tempfile.TemporaryDirectory() as alpha_dir:
             alpha_root = Path(alpha_dir)

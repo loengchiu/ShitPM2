@@ -206,7 +206,7 @@ def _design_headings(text: str) -> list[dict[str, Any]]:
             kind, name = 'page', page.group(1).strip()
         elif level == 2 and any(keyword in title for keyword in SHARED_HEADING_KEYWORDS):
             kind, name = 'shared', title
-        elif level == 3 and title in ('页面清单', '待确认事项'):
+        elif level == 3 and (title.startswith('页面清单') or title in ('待确认事项',)):
             kind, name = 'shared', title
         headings.append({'line': line_no, 'level': level, 'title': title, 'kind': kind, 'name': name})
     return headings
@@ -348,7 +348,7 @@ def extract_design_fragment(project_root: Path, module: str,
         index = headings.index(heading)
         end = _scope_end(lines, headings, index)
         section_text = _heading_text(lines, heading['line'], end)
-        if heading['title'] == '页面清单' and page_names:
+        if heading['title'].startswith('页面清单') and page_names:
             # 页面清单只保留与本模块页面匹配的数据行（表头/分隔行保留），避免每个模块都携带全量页面清单。
             kept = []
             for raw in section_text.splitlines():
