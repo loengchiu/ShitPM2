@@ -150,41 +150,6 @@
             "prd-verification-scenes"
           ]
         },
-        "prd-examples": {
-          "purpose": "按命中动作和写作难点选择的示例章节，不作为规范性规则",
-          "example_sections": {
-            "simple-action": [
-              "prd-example-simple-action"
-            ],
-            "complex-action": [
-              "prd-example-complex-action"
-            ],
-            "field-table": [
-              "prd-example-field-table"
-            ],
-            "page-fields": [
-              "prd-example-page-fields"
-            ],
-            "action-body": [
-              "prd-example-action-body"
-            ],
-            "page-layout": [
-              "prd-example-page-layout"
-            ],
-            "glossary": [
-              "prd-example-glossary"
-            ],
-            "small-module": [
-              "prd-example-small-module"
-            ],
-            "bad-action": [
-              "prd-example-bad-action"
-            ],
-            "flow": [
-              "prd-example-flow"
-            ]
-          }
-        },
         "prd-writing-structure": {
           "purpose": "PRD 结构、页面组织、字段表和状态机的组织规则，以及输出模板和机读约束",
           "sections": [
@@ -356,56 +321,6 @@
       "source": "templates/prd.md",
       "selector": "marker"
     },
-    "prd-example-simple-action": {
-      "stage": "prd",
-      "source": "references/prd-writing-examples.md",
-      "selector": "marker"
-    },
-    "prd-example-complex-action": {
-      "stage": "prd",
-      "source": "references/prd-writing-examples.md",
-      "selector": "marker"
-    },
-    "prd-example-field-table": {
-      "stage": "prd",
-      "source": "references/prd-writing-examples.md",
-      "selector": "marker"
-    },
-    "prd-example-page-fields": {
-      "stage": "prd",
-      "source": "references/prd-writing-examples.md",
-      "selector": "marker"
-    },
-    "prd-example-action-body": {
-      "stage": "prd",
-      "source": "references/prd-writing-examples.md",
-      "selector": "marker"
-    },
-    "prd-example-page-layout": {
-      "stage": "prd",
-      "source": "references/prd-writing-examples.md",
-      "selector": "marker"
-    },
-    "prd-example-glossary": {
-      "stage": "prd",
-      "source": "references/prd-writing-examples.md",
-      "selector": "marker"
-    },
-    "prd-example-small-module": {
-      "stage": "prd",
-      "source": "references/prd-writing-examples.md",
-      "selector": "marker"
-    },
-    "prd-example-bad-action": {
-      "stage": "prd",
-      "source": "references/prd-writing-examples.md",
-      "selector": "marker"
-    },
-    "prd-example-flow": {
-      "stage": "prd",
-      "source": "references/prd-writing-examples.md",
-      "selector": "marker"
-    },
     "prd-profile": {
       "stage": "prd",
       "source": "contracts/prd-writing.profile.json",
@@ -478,7 +393,7 @@
       }
     },
     "prd-module-writer": {
-      "purpose": "按 Design 已定义业务模块生成内部 PRD 草稿",
+      "purpose": "按 Design 已定义业务闭环并行分析单个模块，输出事实要点供主 Agent 直接落盘；不写最终产物、不产生模块草稿、不承担完成条件",
       "allowed": {
         "prd": {
           "passes": [

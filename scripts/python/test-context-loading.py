@@ -119,7 +119,7 @@ def check_selection(module) -> None:
             ('design', 'simple', 'analysis', [], []),
             ('design', 'full', 'writing', ['state', 'permissions'], []),
             ('prd', None, 'writing', [], []),
-            ('prd', None, 'module', ['scenes'], ['complex-action', 'action-body']),
+            ('prd', None, 'module', ['scenes'], []),
         ]
         for stage, mode, pass_name, cards, examples in cases:
             _, section_ids = module.resolve_selection(manifest, stage, mode, pass_name, [], cards, examples, None)

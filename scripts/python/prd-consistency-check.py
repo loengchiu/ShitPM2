@@ -45,6 +45,72 @@ from shared_md import (
 # PRD 章节别名（用于章节定位，但 ShitPM 主要采用全文扫描策略，章节定位仅作辅助）
 NON_CONCRETE_STATE_NAMES = frozenset({"—", "-", "N/A", "任意状态", "状态"})
 
+_FIELD_SPLIT_RE = re.compile(r"[、，,；;/｜|]+")
+_ACTION_FRAGMENT_RE = re.compile(
+    r"回退|退回|回到|重新|撤回|修改后|保存后|发送后|删除后|新增后|可修改|重新提交|继续处理|再提交"
+)
+
+
+def _clean_object_name(name: str) -> str:
+    """从章节标题提取对象名：去编号前缀、去括号补充说明、去尾缀'对象/表'。"""
+    if not name:
+        return ""
+    text = strip_heading_number(name)
+    text = re.sub(r"[（(][^）)]*[）)]", "", text)
+    text = text.replace(" ", "").strip()
+    for suffix in ("对象", "表"):
+        if text.endswith(suffix) and len(text) > len(suffix):
+            text = text[:-len(suffix)]
+    return text
+
+
+def _normalize_field_title(title: str) -> str:
+    """归一化字段名：去空格、去括号内容，用于匹配拼写差异（如'报告 ID'/'报告ID'）。"""
+    text = re.sub(r"[（(][^）)]*[）)]", "", str(title or ""))
+    return re.sub(r"\s+", "", text).strip()
+
+
+def _split_field_tokens(raw: str) -> list:
+    """拆分合并字段名（如'反馈人/回复人'→['反馈人','回复人']）。"""
+    if not raw:
+        return []
+    parts = _FIELD_SPLIT_RE.split(str(raw).replace("\n", "、"))
+    tokens = []
+    for part in parts:
+        token = part.strip().strip("`")
+        if token and token not in ("—", "-"):
+            tokens.append(token)
+    return tokens
+
+
+def _split_state_tokens(raw: str) -> list:
+    """拆分状态单元格或箭头片段中的组合值，并清理标注和动作残留。"""
+    if not raw:
+        return []
+    text = str(raw).strip().strip("`")
+    # 去掉括号注释（如'已上报告（设定上报告标记）'→'已上报告'）
+    text = re.sub(r"[（(][^）)]*[）)]", "", text)
+    tokens = []
+    for part in _FIELD_SPLIT_RE.split(text):
+        token = part.strip().strip("`").strip("。；;，,、")
+        if not token:
+            continue
+        if token in NON_CONCRETE_STATE_NAMES:
+            continue
+        if re.match(r'^[A-Z]\[', token) or token.startswith("|") or token.endswith("]"):
+            continue
+        if any(ch in token for ch in ("-->", "---", "==>", "~~", ">>", "<<")):
+            continue
+        if _ACTION_FRAGMENT_RE.search(token):
+            continue
+        # 过滤版本号等带数字小数的片段（如 V1.0→V2.0 递增说明），避免误当状态
+        if re.search(r"\d+\.\d+", token):
+            continue
+        if len(token) > 12:
+            continue
+        tokens.append(token)
+    return tokens
+
 
 SECTION_ALIASES = {
     "详细需求说明": ["详细需求说明", "详细需求", "需求说明", "详细需求规格", "需求详细说明"],
@@ -174,12 +240,17 @@ def extract_prd_fields(headings: list, tables: list, content: str) -> list:
             format_idx = _idx(headers, ("格式",))
             source_idx = _idx(headers, ("业务来源", "来源"))
 
+            object_name = _clean_object_name(table.get("section_title", ""))
             for row in table["rows"]:
                 if not row:
                     continue
-                name = _cell(row, name_idx)
-                if not name or name in ("---", "字段"):
+                raw_name = _cell(row, name_idx)
+                if not raw_name or raw_name in ("---", "字段"):
                     continue
+                name_tokens = _split_field_tokens(raw_name)
+                if not name_tokens:
+                    continue
+                merged = len(name_tokens) > 1
                 required = None
                 required_cell = _cell(row, required_idx)
                 if required_cell in ("是", "否"):
@@ -205,26 +276,34 @@ def extract_prd_fields(headings: list, tables: list, content: str) -> list:
                 enum_values = []
                 if "enum" in field_type.lower() or "枚举" in field_type:
                     # 兼容新模板把枚举值内联在"类型/取值"列：枚举：a、b 或 枚举(a、b)
-                    enum_values = _parse_enum_values(field_type)
+                    # 只有明确的枚举声明才从类型列解析，避免合并类型单元格误判。
+                    if _looks_like_enum_declaration(field_type):
+                        enum_values = _parse_enum_values(field_type)
                     if not enum_values:
                         enum_values = _parse_enum_values(constraint_text)
                     if not enum_values:
                         enum_values = _parse_enum_values(description)
-                fields.append({
-                    "name": name,
-                    "line": table.get("line_offset"),
-                    "type": field_type,
-                    "required": required,
-                    "has_required_column": required_idx is not None,
-                    "constraints": constraint_text,
-                    "length": length,
-                    "default": default,
-                    "format": field_format,
-                    "source": source,
-                    "description": description,
-                    "combined_text": combined_text,
-                    "enum_values": enum_values,
-                })
+                for name in name_tokens:
+                    record = {
+                        "name": name,
+                        "object": object_name,
+                        "line": table.get("line_offset"),
+                        "type": field_type,
+                        "required": required,
+                        "has_required_column": required_idx is not None,
+                        "constraints": constraint_text,
+                        "length": length,
+                        "default": default,
+                        "format": field_format,
+                        "source": source,
+                        "description": description,
+                        "combined_text": combined_text,
+                        "enum_values": enum_values,
+                    }
+                    if merged:
+                        record["merged_split"] = True
+                        record["raw_name"] = raw_name
+                    fields.append(record)
 
     # 新结构允许字段表分散在多个业务模块、对象和阶段；只要表头明确为字段/类型，就合并读取。
     # 页面映射、权限和验收等天然表格不会同时具备这两个表头，因此不会被误当字段。
@@ -255,9 +334,11 @@ def extract_prd_pages(content: str, headings: list) -> list:
     pages = []
     seen = set()
 
-    def _add_page(name):
+    def _add_page(name, ignore_blacklist=False):
         name = clean_page_title(name).strip()
-        if not name or name in blacklist:
+        if not name:
+            return
+        if not ignore_blacklist and name in blacklist:
             return
         if name not in seen:
             seen.add(name)
@@ -280,7 +361,9 @@ def extract_prd_pages(content: str, headings: list) -> list:
                     continue
                 value = row[page_idx].strip()
                 if value and value not in {"页面/入口", "页面", "入口", "---"}:
-                    _add_page(value)
+                    # 页面清单是页面身份的确定性落点：即使与章节同名（如"数据字典"），
+                    # 也按真实页面处理，不再被章节黑名单误过滤。
+                    _add_page(value, ignore_blacklist=True)
         # 新结构的映射表是页面身份的唯一权威来源，不再继续扫描正文中的粗体动作标题。
         return pages
     else:
@@ -403,7 +486,7 @@ def extract_prd_states(content: str, headings: list, tables: list) -> list:
 
     支持格式：
     1. 箭头文本：state1 → state2 或 state1 -> state2
-    2. 状态机表格：表头同时含"状态"和"触发动作"
+    2. 状态机/状态清单表格：表头含"状态"，并含"触发动作/进入条件/下一状态/含义/规则"之一
     """
     # 新结构允许每个业务闭环就近放置“状态与规则/状态与业务规则”，也可能使用
     # “状态机”子标题；逐个收集这些标题的范围，避免漏掉管理端与移动端的状态表。
@@ -448,39 +531,42 @@ def extract_prd_states(content: str, headings: list, tables: list) -> list:
     if candidate_ranges:
         ranges_content = _lines_in_ranges(content_clean, candidate_ranges)
         ranges_lines = ranges_content.split("\n")
-        table_state_count = len(states)
 
-        # 格式 1: 状态机表格。只读取“状态”列，不把“下一状态”整串当成状态。
+        # 格式 1: 状态机/状态清单表格。读取“状态”和“下一状态”列，
+        # 组合值（如“启用/停用”）按枚举集合拆分，避免整体当作单一状态。
         for table in _tables_in_ranges(tables, candidate_ranges):
             headers = table.get("headers", [])
             if not headers:
                 continue
             header_text = "|".join(headers)
             if "状态" not in header_text or not any(
-                marker in header_text for marker in ("触发动作", "进入条件", "下一状态")
+                marker in header_text for marker in ("触发动作", "进入条件", "下一状态", "含义", "规则")
             ):
                 continue
-            state_cols = [i for i, h in enumerate(headers) if h.strip() in ("状态", "展示状态")]
+            state_cols = [i for i, h in enumerate(headers) if h.strip() in ("状态", "展示状态", "下一状态")]
             for row in table["rows"]:
                 for col_idx in state_cols:
                     if col_idx < len(row) and row[col_idx]:
-                        _add_state(row[col_idx])
+                        for token in _split_state_tokens(row[col_idx]):
+                            _add_state(token)
 
-        # 格式 2: 只有在候选章节没有状态表时，才兼容“状态A→状态B”文本。
-        # 状态表存在时跳过箭头，避免把异常说明中的多个条件误识别为状态。
-        if len(states) == table_state_count:
-            for line in ranges_lines:
-                stripped = line.strip()
-                if not stripped or stripped.startswith("#") or stripped.startswith("<!--") or stripped.startswith("-->"):
-                    continue
-                if "→" in stripped or "->" in stripped:
-                    if any(ui_word in stripped for ui_word in ("点击", "跳转", "打开", "弹出", "返回", "进入页面")):
-                        continue
-                    arrow = "→" if "→" in stripped else "->"
-                    parts = [p.strip().strip("`") for p in stripped.split(arrow)]
-                    for p in parts:
-                        p = re.sub(r'^[^：:]*[：:]', '', p).strip()
-                        _add_state(p)
+        # 格式 2: 同章节内的箭头/列表状态表达（如“审计问题：待定性 → 已上报告”）。
+        # 无论是否存在状态表都扫描，避免遗漏仅以箭头表达的状态；动作残留片段会被过滤。
+        for line in ranges_lines:
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#") or stripped.startswith("<!--") or stripped.startswith("-->"):
+                continue
+            if stripped.startswith("|"):
+                continue
+            if "→" not in stripped and "->" not in stripped:
+                continue
+            if any(ui_word in stripped for ui_word in ("点击", "跳转", "打开", "弹出", "返回", "进入页面")):
+                continue
+            arrow = "→" if "→" in stripped else "->"
+            for part in stripped.split(arrow):
+                part = re.sub(r'^[^：:]*[：:]', '', part).strip()
+                for token in _split_state_tokens(part):
+                    _add_state(token)
 
     # 策略 2: 候选章节未找到，降级为全文扫描
     if not states:
@@ -490,30 +576,71 @@ def extract_prd_states(content: str, headings: list, tables: list) -> list:
                 continue
             header_text = "|".join(headers)
             if "状态" not in header_text or not any(
-                marker in header_text for marker in ("触发动作", "进入条件", "下一状态")
+                marker in header_text for marker in ("触发动作", "进入条件", "下一状态", "含义", "规则")
             ):
                 continue
-            state_cols = [i for i, h in enumerate(headers) if h.strip() in ("状态", "展示状态")]
+            state_cols = [i for i, h in enumerate(headers) if h.strip() in ("状态", "展示状态", "下一状态")]
             for row in table["rows"]:
                 for col_idx in state_cols:
                     if col_idx < len(row) and row[col_idx]:
-                        _add_state(row[col_idx])
+                        for token in _split_state_tokens(row[col_idx]):
+                            _add_state(token)
 
         if not states:
             for line in content_clean.split("\n"):
                 stripped = line.strip()
                 if not stripped or stripped.startswith("#") or stripped.startswith("<!--") or stripped.startswith("-->"):
                     continue
+                if stripped.startswith("|"):
+                    continue
                 if "→" in stripped or "->" in stripped:
                     if any(ui_word in stripped for ui_word in ("点击", "跳转", "打开", "弹出", "返回", "进入页面")):
                         continue
                     arrow = "→" if "→" in stripped else "->"
-                    parts = [p.strip().strip("`") for p in stripped.split(arrow)]
-                    for p in parts:
-                        p = re.sub(r'^[^：:]*[：:]', '', p).strip()
-                        _add_state(p)
+                    for part in stripped.split(arrow):
+                        part = re.sub(r'^[^：:]*[：:]', '', part).strip()
+                        for token in _split_state_tokens(part):
+                            _add_state(token)
 
     return states
+
+
+def extract_prd_state_enum_values(tables: list) -> list:
+    """从字段定义表提取状态类字段的枚举值（如“签署状态｜待签署/已签署/已过期”）。
+
+    只读取字段名含“状态”的字段行，用于识别以字段枚举形式交付的状态，
+    不把页面展示标签误当成状态机转换。Design 与 PRD 字段表共用此解析。
+    """
+    values = []
+    seen = set()
+    for table in tables:
+        headers = table.get("headers", [])
+        if not headers:
+            continue
+        header_text = "|".join(headers)
+        if "字段" not in header_text:
+            continue
+        name_idx = next((i for i, h in enumerate(headers) if "字段" in h and "字段权限" not in h), None)
+        if name_idx is None:
+            continue
+        type_idx = next((i for i, h in enumerate(headers) if "类型" in h or "取值" in h), None)
+        constraint_idx = next((i for i, h in enumerate(headers) if "约束" in h or "规则" in h or "枚举" in h), None)
+        for row in table["rows"]:
+            if name_idx >= len(row):
+                continue
+            name = row[name_idx].strip()
+            if "状态" not in name:
+                continue
+            raw = ""
+            if type_idx is not None and type_idx < len(row):
+                raw = row[type_idx]
+            if not _parse_enum_values(raw) and constraint_idx is not None and constraint_idx < len(row):
+                raw = row[constraint_idx]
+            for value in _parse_enum_values(raw):
+                if value not in seen:
+                    seen.add(value)
+                    values.append(value)
+    return values
 
 
 def extract_prd_permission_pages(headings: list, tables: list, content: str) -> list:
@@ -914,23 +1041,37 @@ def _attribute_present_in_prd(design_value, prd_value) -> bool:
     return _normalize_scalar(prd_value) == design_norm
 
 
+def _looks_like_enum_declaration(raw: str) -> bool:
+    """判断单元格是否为明确的枚举声明（如“枚举：a、b”“枚举(a、b)”）。
+
+    避免把“文件/字符串/枚举/字符串”这类合并类型单元格误解析成枚举值列表。
+    """
+    text = str(raw or "").strip()
+    return bool(re.search(r"(?:枚举(?:值)?|取值)\s*[：:]", text)) or text.startswith("枚举")
+
+
 def compare_field_attributes(
     design_fields: list,
     prd_fields: list,
     design_title_to_id: dict,
     fuzzy_fn=None,
+    design_field_objects: list = None,
 ) -> list:
     """对比 matched 字段的可确定属性。
 
     type 仍可能存在等价别名，单独标记为需语义判断；其余明确属性缺失或差异
-    均可由结构化字段表可靠证明。
+    均可由结构化字段表可靠证明。同名字段（如多个对象的“状态”）优先按对象
+    上下文区分，无法区分时归入语义判断，不直接判定冲突。
     """
-    design_attrs = {}
-    for field in design_fields:
+    design_items = []
+    for field in (design_field_objects if design_field_objects is not None else design_fields):
         if not isinstance(field, dict) or "title" not in field:
             continue
         attrs = field.get("attributes", {})
-        design_attrs[field["title"]] = {
+        design_items.append({
+            "title": field["title"],
+            "title_norm": _normalize_field_title(field["title"]),
+            "object": field.get("object", ""),
             "type": attrs.get("数据类型", ""),
             "required": attrs.get("必填"),
             "length": attrs.get("长度", ""),
@@ -938,23 +1079,59 @@ def compare_field_attributes(
             "enum_values": _parse_enum_values(attrs.get("枚举值", "")),
             "format": attrs.get("格式", ""),
             "source": attrs.get("业务来源", ""),
-        }
+        })
+
+    def _find_design(prd_name: str, prd_object: str):
+        norm = _normalize_field_title(prd_name)
+        exact = [d for d in design_items if d["title"] == prd_name or d["title_norm"] == norm]
+        fuzzy = []
+        if not exact and fuzzy_fn:
+            for d in design_items:
+                if fuzzy_fn(prd_name, {d["title"]: d["title"]}) == d["title"]:
+                    fuzzy.append(d)
+        candidates = exact or fuzzy
+        if not candidates:
+            return None, "no_match"
+        if len(candidates) == 1:
+            return candidates[0], "unique"
+        # 同名字段：优先按对象上下文区分（如“年度计划”的“状态”与“审批流程实例”的“状态”）
+        obj_key = _clean_object_name(prd_object)
+        by_object = [
+            d for d in candidates
+            if d["object"] and obj_key and (obj_key == d["object"] or obj_key in d["object"] or d["object"] in obj_key)
+        ]
+        if len(by_object) == 1:
+            return by_object[0], "by_object"
+        return None, "ambiguous"
 
     mismatches = []
+    merged_attr_skipped = 0
     matched_pairs = set()
     for prd_field in prd_fields:
         if not isinstance(prd_field, dict) or "name" not in prd_field:
             continue
-        prd_name = prd_field["name"]
-        matched_design = _try_match(prd_name, design_title_to_id, fuzzy_fn)
-        if not matched_design or matched_design not in design_attrs:
+        if prd_field.get("merged_split"):
+            # 合并字段行（如“相关附件/附件名称/附件类型/上传附件”）的类型和约束单元格
+            # 混合了多个字段的属性，无法可靠做确定性属性对比，交给语义判断。
+            merged_attr_skipped += 1
             continue
-        pair_key = (prd_name, matched_design)
+        prd_name = prd_field["name"]
+        design, match_kind = _find_design(prd_name, prd_field.get("object", ""))
+        if design is None:
+            if match_kind == "ambiguous":
+                mismatches.append({
+                    "name": prd_name,
+                    "object": prd_field.get("object", ""),
+                    "mismatch_kinds": ["same_name_ambiguous"],
+                    "deterministic": False,
+                    "reason": "同名字段存在多个 Design 候选且无法按对象区分，需人工判断",
+                })
+            continue
+        pair_key = (prd_name, design["title"])
         if pair_key in matched_pairs:
             continue
         matched_pairs.add(pair_key)
 
-        design = design_attrs[matched_design]
         mismatch_kinds = []
         d_type = _normalize_type(design["type"])
         p_type = _normalize_type(prd_field.get("type", ""))
@@ -985,9 +1162,16 @@ def compare_field_attributes(
             mismatch_kinds.append("enum")
 
         if mismatch_kinds:
-            deterministic_kinds = [kind for kind in mismatch_kinds if kind != "type"]
+            # 枚举差异只有在两侧都解析出明确枚举集合时才是确定性问题；
+            # 仅一侧有枚举（另一侧可能以正文或约束表达）时归入语义判断。
+            both_enum_present = bool(d_enum and p_enum)
+            deterministic_kinds = [
+                kind for kind in mismatch_kinds
+                if kind != "type" and not (kind == "enum" and not both_enum_present)
+            ]
             mismatches.append({
                 "name": prd_name,
+                "object": prd_field.get("object", ""),
                 "mismatch_kinds": mismatch_kinds,
                 "deterministic": bool(deterministic_kinds),
                 "design_type": design["type"],
@@ -1007,7 +1191,7 @@ def compare_field_attributes(
                 "enum_missing": sorted(set(d_enum) - set(p_enum)),
                 "enum_hallucinated": sorted(set(p_enum) - set(d_enum)),
             })
-    return mismatches
+    return {"mismatches": mismatches, "merged_attr_skipped": merged_attr_skipped}
 
 
 def compare_internal_field_delivery(
@@ -1137,6 +1321,133 @@ def compare_entities(
         "hallucinated": hallucinated,
         "matched_count": len(matched_design),
     }
+
+
+def _compare_field_sets(
+    design_fields: list,
+    prd_fields: list,
+    design_title_to_id: dict,
+    fuzzy_fn=None,
+    design_context_titles: set = None,
+) -> dict:
+    """对比 Design 与 PRD 字段集合。
+
+    与 compare_entities 的区别：
+    - 字段名归一化（去空格/去括号），兼容“报告 ID”/“报告ID”等拼写差异；
+    - 合并字段拆分后的碎片（如“报告 ID/编号”拆出的“编号”）若无 Design 匹配，
+      归入 needs_semantic_judgment，而不是直接判定为确定性幻觉。
+    """
+    design_items = [
+        {"title": f["title"], "norm": _normalize_field_title(f["title"])}
+        for f in design_fields if isinstance(f, dict) and "title" in f
+    ]
+    prd_items = [
+        {
+            "name": f["name"],
+            "norm": _normalize_field_title(f["name"]),
+            "merged_split": bool(f.get("merged_split")),
+        }
+        for f in prd_fields if isinstance(f, dict) and "name" in f
+    ]
+
+    matched_design = set()
+    matched_prd = set()
+    for p in prd_items:
+        matched = None
+        if p["name"] in design_title_to_id:
+            matched = p["name"]
+        else:
+            for d in design_items:
+                if d["title"] == p["name"] or d["norm"] == p["norm"]:
+                    matched = d["title"]
+                    break
+        if matched is None and fuzzy_fn:
+            matched_id = fuzzy_fn(p["name"], design_title_to_id)
+            if matched_id:
+                for t, eid in design_title_to_id.items():
+                    if eid == matched_id:
+                        matched = t
+                        break
+        if matched:
+            matched_design.add(matched)
+            matched_prd.add(p["name"])
+
+    missing = sorted({d["title"] for d in design_items} - matched_design)
+    hallucinated = []
+    merged_split_unmatched = []
+    for p in prd_items:
+        if p["name"] in matched_prd:
+            continue
+        if p["merged_split"]:
+            merged_split_unmatched.append({"name": p["name"], "issue": "merged_split_unmatched"})
+        else:
+            hallucinated.append(p["name"])
+    # 命名/引用变体（如“实例状态”对应 Design“状态”、“审批记录”对应 Design 对象）：
+    # 归入语义判断，不直接判定为确定性幻觉。
+    hallucinated_kept = []
+    for name in hallucinated:
+        norm = _normalize_field_title(name)
+        if design_context_titles and (
+            name in design_context_titles or norm in design_context_titles
+        ):
+            merged_split_unmatched.append({"name": name, "issue": "object_or_page_reference"})
+        elif name.endswith("状态") and "状态" in design_title_to_id:
+            merged_split_unmatched.append({"name": name, "issue": "state_name_variant"})
+        else:
+            hallucinated_kept.append(name)
+    return {
+        "missing": missing,
+        "hallucinated": sorted(set(hallucinated_kept)),
+        "matched_count": len(matched_design),
+        "merged_split_unmatched": merged_split_unmatched,
+    }
+
+
+def _design_field_objects(project_root: Path, design_fields: list) -> list:
+    """为 design_fields 补充所属对象（来自 design.md 字段表所在章节标题）。"""
+    try:
+        content = (project_root / "output" / "design" / "design.md").read_text(encoding="utf-8")
+    except Exception:
+        return []
+    headings = parse_headings(content)
+    tables = parse_tables_with_context(content, headings)
+    line_to_object = {
+        t["line_offset"]: _clean_object_name(t.get("section_title", ""))
+        for t in tables
+    }
+    result = []
+    for field in design_fields:
+        if not isinstance(field, dict):
+            continue
+        item = dict(field)
+        item["object"] = line_to_object.get(field.get("line"), "")
+        result.append(item)
+    return result
+
+
+def _design_enum_state_values(project_root: Path) -> set:
+    """从 design.md 字段表提取状态类字段的枚举值（Design 数据字典口径）。"""
+    try:
+        content = (project_root / "output" / "design" / "design.md").read_text(encoding="utf-8")
+    except Exception:
+        return set()
+    headings = parse_headings(content)
+    tables = parse_tables_with_context(content, headings)
+    return set(extract_prd_state_enum_values(tables))
+
+
+def _design_context_titles(project_root: Path) -> set:
+    """收集 Design 的对象/章节标题，用于识别 PRD 字段名中的对象引用变体。"""
+    try:
+        content = (project_root / "output" / "design" / "design.md").read_text(encoding="utf-8")
+    except Exception:
+        return set()
+    titles = set()
+    for heading in parse_headings(content):
+        clean = _clean_object_name(heading["title"])
+        if clean:
+            titles.add(clean)
+    return titles
 
 
 def compare_permission_pages(
@@ -1488,24 +1799,28 @@ def main():
     # 非页面字段无需虚构页面落点，但必须在字段表保留来源和内部用途。
 
     # 固定结构 Design 使用索引完成页面/字段覆盖和高影响属性检查；旧模板继续走 legacy 解析。
+    design_field_objects = _design_field_objects(project_root, design_fields)
     if indexed_active:
         field_result = {
             "missing": [], "hallucinated": [], "attribute_mismatch": [],
-            "enum_mismatch": [], "deterministic_attribute_mismatch": [], "internal_field_issues": [],
+            "enum_mismatch": [], "deterministic_attribute_mismatch": [],
+            "internal_field_issues": [], "merged_split_unmatched": [], "merged_attr_skipped": 0,
         }
         page_result = {"missing": [], "hallucinated": [], "matched_count": len(prd_pages)}
     else:
-        prd_field_names = [f["name"] for f in prd_fields if isinstance(f, dict) and "name" in f]
-        field_result = compare_entities(
-            [f["title"] for f in design_fields if isinstance(f, dict)],
-            prd_field_names, field_title_to_id, fuzzy_field_match,
-        )
-        field_result["attribute_mismatch"] = compare_field_attributes(
+        field_result = _compare_field_sets(
             design_fields, prd_fields, field_title_to_id, fuzzy_field_match,
+            design_context_titles=_design_context_titles(project_root),
         )
+        attr_result = compare_field_attributes(
+            design_fields, prd_fields, field_title_to_id, fuzzy_field_match,
+            design_field_objects=design_field_objects,
+        )
+        field_result["attribute_mismatch"] = attr_result["mismatches"]
+        field_result["merged_attr_skipped"] = attr_result["merged_attr_skipped"]
         field_result["enum_mismatch"] = [
             item for item in field_result["attribute_mismatch"]
-            if item.get("enum_missing") or item.get("enum_hallucinated")
+            if item.get("deterministic") and (item.get("enum_missing") or item.get("enum_hallucinated"))
         ]
         field_result["deterministic_attribute_mismatch"] = [
             item for item in field_result["attribute_mismatch"] if item.get("deterministic")
@@ -1530,6 +1845,26 @@ def main():
         design_deliverable_states,
         prd_states, state_title_to_id, fuzzy_state_match,
     )
+    # 状态补充识别：
+    # - Design 状态以字段枚举形式交付（如“问题挂销号状态｜已挂号/已销号”）不算遗漏；
+    # - PRD 状态机/状态表中出现的状态若来自 Design 数据字典枚举（如“启用/停用”），
+    #   属表达口径差异，归入语义判断，不直接判定为确定性幻觉。
+    prd_enum_states = extract_prd_state_enum_values(tables)
+    design_enum_state_values = _design_enum_state_values(project_root)
+    state_result["missing"] = [s for s in state_result["missing"] if s not in prd_enum_states]
+    state_via_enum = []
+    kept_hallucinated = []
+    for s in state_result["hallucinated"]:
+        if s in design_enum_state_values:
+            state_via_enum.append({
+                "state": s,
+                "issue": "design_enum_state",
+                "note": "PRD 以状态机/状态表表达 Design 数据字典枚举，需人工确认表达口径",
+            })
+        else:
+            kept_hallucinated.append(s)
+    state_result["hallucinated"] = kept_hallucinated
+    state_result["state_via_enum"] = state_via_enum
     perm_result = compare_permission_pages(design_permissions, prd_perm_pages)
 
     # ShitPM 增强：权限角色对对比（覆盖角色级一致性，检测 PRD 中 design 没有的角色-页面组合）
@@ -1542,6 +1877,15 @@ def main():
     prd_roles = extract_prd_roles(headings, tables, content)
     role_title_to_id = {r: r for r in design_roles}
     role_result = compare_entities(design_roles, prd_roles, role_title_to_id, None)
+
+    # 权限提取为空时，missing/hallucinated 集合无意义（无法证明缺失或新增），
+    # 全部标记为未评估，由人工验收，避免把解析失败当成权限不一致。
+    permission_extracted = bool(prd_perm_pages or prd_perm_pairs or prd_roles)
+    if not permission_extracted:
+        perm_result = {"missing": [], "hallucinated": [], "matched_count": 0, "not_evaluated": True}
+        perm_pair_result = {"missing": [], "hallucinated": [], "matched_count": 0, "not_evaluated": True}
+        role_result = {"missing": [], "hallucinated": [], "matched_count": 0, "not_evaluated": True}
+        permission_inversions = []
 
     # 业务闭环名称不必与 Design 菜单模块逐字相同；模块边界和完整性由 AI/Review 语义判断。
     # 仍保留模块字段，兼容旧调用方，但不以模块标题集合产生机器冲突。
@@ -1573,6 +1917,10 @@ def main():
     needs_semantic_judgment_items = [
         item for item in field_result["attribute_mismatch"] if not item.get("deterministic")
     ]
+    # 合并字段拆分后无法匹配的碎片、状态以 Design 数据字典枚举形式表达的口径差异，
+    # 都是解析层面的表达差异，归入语义判断，不当作确定性冲突。
+    needs_semantic_judgment_items.extend(field_result.get("merged_split_unmatched", []))
+    needs_semantic_judgment_items.extend(state_result.get("state_via_enum", []))
     needs_semantic_judgment_count = len(needs_semantic_judgment_items)
     total_deterministic_attribute_mismatch = len(field_result["deterministic_attribute_mismatch"]) + len(indexed_result["attribute_mismatch"])
     total_attribute_mismatch = total_deterministic_attribute_mismatch + needs_semantic_judgment_count
@@ -1633,9 +1981,25 @@ def main():
         "needs_semantic_judgment": {
             "attribute_mismatches": needs_semantic_judgment_items,
             "count": needs_semantic_judgment_count,
-            "hint": "仅字段类型等价性仍需语义判断；明确属性缺失和差异已归入确定性冲突。",
+            "hint": "字段类型等价性、同名字段对象归属、合并字段拆分碎片和状态枚举表达口径仍需语义判断；明确属性缺失和差异已归入确定性冲突。",
         },
     }
+
+    # 权限解析为空时，明确给出“无法提取、需人工验收”信号，不显示为“权限一致”。
+    permission_extracted = bool(
+        prd_perm_pages or prd_perm_pairs or prd_roles
+    )
+    if permission_extracted:
+        permission_evaluation = {
+            "status": "extracted",
+            "message": "权限内容已从 PRD 正文提取，仍需人工对照 Design 权限矩阵核对。",
+        }
+    else:
+        permission_evaluation = {
+            "status": "cannot_extract",
+            "message": "权限无法从当前正文提取，需人工验收",
+            "note": "解析结果为空不代表权限一致；不得将权限缺失视为通过。",
+        }
 
     # ShitPM 修复包 D：exit_reason 按严重程度优先级判定
     # 优先级：deterministic_conflict > possible_omission > needs_semantic_judgment > ok
@@ -1671,6 +2035,7 @@ def main():
         "permissions": perm_result,
         "permission_role_pairs": perm_pair_result,
         "permission_inversions": permission_inversions,
+        "permission_evaluation": permission_evaluation,
         "roles": role_result,
         "modules": module_result,
         "design_index": {

@@ -141,6 +141,110 @@ PAGE_MAPPING_PRD = """# 订单 PRD
 | 现场处置 | 移动端 | 客户履约业务闭环 | 订单确认 |
 """
 
+# 斜杠合并字段（如"反馈人/回复人"）应拆分匹配，不整体判为缺失或新增。
+SLASH_FIELD_DESIGN = """# 设计基线
+
+## 字段定义
+
+### 报告意见反馈
+
+| 字段 | 类型 | 必填 | 取值约束 | 默认值 | 业务来源 | 说明 |
+|---|---|---|---|---|---|---|
+| 反馈人 | 关联 | 否 | 无 | 无 | 用户表 | 反馈提交人 |
+| 回复人 | 关联 | 否 | 无 | 无 | 用户表 | 审计方回复人 |
+"""
+
+SLASH_FIELD_PRD = """# PRD 正文
+
+## 功能需求
+
+### 反馈闭环
+
+#### 字段定义
+
+##### 报告意见反馈
+
+| 字段 | 类型/取值 | 来源或约束 | 使用说明 |
+|---|---|---|---|
+| 反馈人/回复人 | 关联 | 被审单位/审计方 | 留痕 |
+"""
+
+# 页面"数据字典"与 PRD 章节同名，不应被章节黑名单误过滤。
+DICT_PAGE_DESIGN = """# 设计基线
+
+## 页面清单
+
+| 页面 | 终端 | 说明 |
+|---|---|---|
+| 数据字典 | PC | 枚举与编码配置 |
+"""
+
+DICT_PAGE_PRD = """# PRD 正文
+
+## 总体说明
+
+### 页面清单
+
+| 页面/入口 | 终端 | 所属业务闭环 | 主要承接阶段 |
+|---|---|---|---|
+| 数据字典 | PC | 系统管理 | 配置 |
+"""
+
+# 状态组合值拆分 + "下一状态"列读取 + 同章节箭头列表状态表达。
+COMBINED_STATE_PRD = """# PRD 正文
+
+## 功能需求
+
+### 系统管理
+
+#### 4.10.5 状态与业务规则
+
+| 对象 | 状态 | 规则 |
+|---|---|---|
+| 检查项 | 启用/停用 | 可切换 |
+| 审批流程实例 | 进行中/已通过 | 流转 |
+
+#### 4.10.6 状态机
+
+| 状态 | 含义 | 操作人 | 触发动作 | 下一状态 | 限制条件 |
+|---|---|---|---|---|---|
+| 草稿 | 编辑中 | 编制人 | 发送签署 | 已发出 | — |
+| 已发出 | 签署中 | 用户 | 签署 | 待签署 | — |
+"""
+
+# 同名"状态"字段按对象区分（年度计划 vs 审批流程实例），不得跨对象误配属性。
+SAME_NAME_DESIGN = """# 设计基线
+
+## 数据字典
+
+### 年度计划
+
+| 字段 | 类型 | 必填 | 枚举值 / 规则 | 说明 |
+|---|---|---|---|---|
+| 状态 | 枚举 | 是 | 草稿/待审批/已通过 | 计划状态 |
+
+### 审批流程实例
+
+| 字段 | 类型 | 必填 | 枚举值 / 规则 | 说明 |
+|---|---|---|---|---|
+| 状态 | 枚举 | 是 | 进行中/已通过/已驳回 | 实例状态 |
+"""
+
+SAME_NAME_PRD = """# PRD 正文
+
+## 功能需求
+
+### 计划模块
+
+#### 字段定义
+
+##### 年度计划
+
+| 字段 | 类型/取值 | 来源或约束 | 使用说明 |
+|---|---|---|---|
+| 状态 | 枚举 | 草稿/待审批/已通过 | 计划状态 |
+"""
+
 
 def run_case(prd: str, design: str = DESIGN):
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -209,6 +313,38 @@ def main() -> int:
     if report["extracted"]["prd_fields_count"] != 2:
         raise AssertionError(f"分散字段表未合并读取: {report['extracted']}")
 
+    # 回归：斜杠合并字段拆分后应匹配 Design 两侧字段，不再整体判为缺失或新增。
+    code, report = run_case(SLASH_FIELD_PRD, design=SLASH_FIELD_DESIGN)
+    if code != 0 or report.get("exit_reason") != "ok":
+        raise AssertionError(f"斜杠合并字段样本应为 ok/0: {code}, {report.get('exit_reason')}\n{json.dumps(report.get('classification'), ensure_ascii=False)}")
+    if report["extracted"]["prd_fields_count"] != 2:
+        raise AssertionError(f"斜杠合并字段未拆分: {report['extracted']}")
+    if report["fields"]["missing"] or report["fields"]["hallucinated"]:
+        raise AssertionError(f"斜杠合并字段拆分后仍误报: {report['fields']}")
+
+    # 回归：页面"数据字典"与章节同名，不应被黑名单误过滤为缺失。
+    code, report = run_case(DICT_PAGE_PRD, design=DICT_PAGE_DESIGN)
+    if code != 0 or report.get("exit_reason") != "ok":
+        raise AssertionError(f"数据字典页面样本应为 ok/0: {code}, {report.get('exit_reason')}\n{json.dumps(report.get('classification'), ensure_ascii=False)}")
+    if report["pages"]["missing"] or report["pages"]["hallucinated"]:
+        raise AssertionError(f"数据字典页面被误报: {report['pages']}")
+
+    # 回归：同名"状态"字段按对象区分，不跨对象误配属性。
+    code, report = run_case(SAME_NAME_PRD, design=SAME_NAME_DESIGN)
+    if code != 0 or report.get("exit_reason") != "ok":
+        raise AssertionError(f"同名状态按对象区分样本应为 ok/0: {code}, {report.get('exit_reason')}\n{json.dumps(report.get('classification'), ensure_ascii=False)}")
+    if report["fields"]["attribute_mismatch"]:
+        raise AssertionError(f"同名状态字段跨对象误配: {report['fields']['attribute_mismatch']}")
+
+    # 回归：权限解析为空时输出"无法提取、需人工验收"信号，不显示为权限一致。
+    no_perm_prd = PRD_BASE.split("## 权限定义")[0].rstrip() + "\n"
+    code, report = run_case(no_perm_prd)
+    perm_eval = report.get("permission_evaluation", {})
+    if perm_eval.get("status") != "cannot_extract" or "需人工验收" not in perm_eval.get("message", ""):
+        raise AssertionError(f"权限提取为空未给出无法提取信号: {perm_eval}")
+    if report.get("permissions", {}).get("not_evaluated") is not True:
+        raise AssertionError("权限未提取时 missing/hallucinated 应标记为 not_evaluated")
+
     # P1 回归：新模板"类型/取值"合并列 + 无"必填"列，严格照模板写不应误报确定性冲突。
     code, report = run_case(NEW_TEMPLATE_4COL_PRD)
     if code != 0 or report.get("exit_reason") != "ok":
@@ -250,6 +386,13 @@ def main() -> int:
     if status4.get("has_required_column") is not False:
         raise AssertionError(f"新模板四列字段表应标记无必填列: {status4}")
 
+    # 回归：状态组合值拆分 + "下一状态"列 + 同章节箭头状态都应被提取。
+    headings_cs = module.parse_headings(COMBINED_STATE_PRD)
+    tables_cs = module.parse_tables_with_context(COMBINED_STATE_PRD, headings_cs)
+    states_cs = module.extract_prd_states(COMBINED_STATE_PRD, headings_cs, tables_cs)
+    if set(states_cs) != {"启用", "停用", "进行中", "已通过", "草稿", "已发出", "待签署"}:
+        raise AssertionError(f"状态组合值/下一状态/箭头未正确提取: {states_cs}")
+
     with tempfile.TemporaryDirectory() as temp_dir:
         root = Path(temp_dir)
         (root / "output/design").mkdir(parents=True)
@@ -264,7 +407,7 @@ def main() -> int:
         if missing.returncode != 2:
             raise AssertionError(f"输入缺失应返回 2: {missing.returncode}")
 
-    print("test-prd-consistency-semantics: PASS（新结构页面映射、分散字段、新模板内联枚举、冲突、遗漏、语义判断和致命错误）")
+    print("test-prd-consistency-semantics: PASS（新结构页面映射、分散字段、斜杠合并字段、数据字典页面、状态组合值、同名按对象、权限 zero 信号、冲突、遗漏、语义判断和致命错误）")
     return 0
 
 

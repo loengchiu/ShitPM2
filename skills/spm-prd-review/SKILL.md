@@ -37,6 +37,9 @@ python $BUNDLE/scripts/python/prd-consistency-check.py --project-root .
 4. 读取 `$BUNDLE/contracts/review-checklist.md`、`$BUNDLE/contracts/prd-review-checklist.md`、`$BUNDLE/references/prd-writing-rules.md` 和 `$BUNDLE/contracts/prd-writing.profile.json`。按取证需要读取 `$BUNDLE/references/prd-writing-examples.md`、`prd-glossary-format.md`、`prd-versioning.md` 或 `prd-scene-checklist.md`。重点审查：
    - 是否按业务闭环组织，模块边界和模块独立可读是否成立；
    - 管理端和移动端是否落在同一闭环的真实阶段；页面映射与正文落点是否一致；
+   - 按模块检查 `4.x.6 功能详细说明` 是否存在且非空，页面是否在该章节落点，而不是只出现在页面清单；
+   - 页面区块和动作是否被压缩成空泛摘要，高影响字段、状态、权限、异常和恢复是否有实际落点；
+   - 是否出现角色页、组织页、审批页等页面语义被重新解释的问题（如被合并成无差别的“系统配置”摘要）；
    - 对象、字段、状态、权限、异常、恢复、验收和待确认事项是否就近且无冲突；
    - Design 事实是否完整承接，是否出现未授权页面、字段、状态、权限、流程、默认值或外部行为；
    - 查询、统计、表单、配置、跨系统等适用场景是否写清产品结果，是否用经验补造数字；
@@ -51,6 +54,7 @@ python $BUNDLE/scripts/python/prd-consistency-check.py --project-root .
 ## 判定规则
 
 - 共享契约的统一门槛：零 P0/P1 为“通过”；零 P0 且 1 个 P1 为“有问题需修改”；存在 P0 或至少 2 个 P1 为“阻塞”。
+- 有页面或业务动作的模块缺少 `4.x.6 功能详细说明`、`4.x.6` 为空、页面只出现在清单未落正文、或页面/动作被压缩成模块摘要时，按结构或内容层 P1 处理。
 - PRD 引入 Design 未授权字段、页面、状态、权限、流程、模块边界，或静默拍板 Design 的“待确认”事实时，必须作为高影响审查问题，并在需要时建议回上游。
 - 一致性校验是 Review 审查问题依据，不是阻止 Review 开始的门禁。
 - Review 通过不等于 Design confirmation，也不自动推进阶段。
