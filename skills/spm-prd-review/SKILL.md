@@ -49,7 +49,7 @@ python $BUNDLE/scripts/python/prd-consistency-check.py --project-root .
    - 待办、提醒、编号、字典、文件/档案、审计侧/被审侧入口、枚举来源以及分页、导出、批量、首页和文件限制是否有具体来源或待确认；
    - 查询、统计、表单、配置、跨系统等适用场景是否写清产品结果，是否用经验补造数字；
    - 流程图是否使用 draw.io 源文件和 PNG，图文是否一致；
-   - 是否有标签式正文、流水账、表格主导、模糊跨节引用、AI 痕迹和明确占位符。
+   - 是否有标签式正文（含“触发：”“处理：”“成功结果：”“失败与恢复：”等行首标签）、流水账、表格主导、模糊跨节引用、AI 痕迹和明确占位符。
 5. 按 `$BUNDLE/schemas/review-result.schema.json` 输出既有格式：
    - 机读：`.workflow/reviews/prd-review-N.json`
    - 人读：`.workflow/reviews/prd-review-N.md`

@@ -41,22 +41,32 @@ _PROFILE_PATH = Path(__file__).resolve().parent.parent.parent / "contracts" / "p
 _PROFILE = load_json(_PROFILE_PATH) or {}
 _PROFILE_FORBIDDEN = _PROFILE.get("constraints", {}).get("forbidden_expressions", [])
 
-# 标签式正文模式：从 profile 的 ** 开头表达式动态生成（单一事实源）
+# 标签式正文模式：从 profile 的 forbidden_expressions 动态生成（单一事实源）
+# 两类：
+#   1. 加粗标签 `**名称：**`：出现在行中任意位置即报；
+#   2. 行首标签 `名称：内容`（不带加粗，独立成行）：以 `^名称：` 行首锚定识别，
+#      避免正文中"系统处理：xxx"等行中自然出现"处理："时误报。
 # 降级兜底：profile 加载失败时使用内置完整列表（从 prd-writing.profile.json 同步）
 _FALLBACK_LABEL_EXPRS = [
     "**页面目标：**", "**关键动作：**", "**状态变化：**", "**异常提示：**", "**关联功能点：**",
+    "触发：", "处理：", "成功结果：", "失败与恢复：", "失败结果：",
 ]
 _PLACEHOLDER_FALLBACK = [
     "按配置", "按规范", "同常规", "待补充", "需支持", "需考虑",
     "详见原型", "待定", "按业务规则", "具体数值见", "用于承载", "用于支撑",
     "方便用户", "避免用户", "符合操作", "TBD", "TODO",
 ]
-_LABEL_EXPRS = [w for w in _PROFILE_FORBIDDEN if w.startswith("**")] or _FALLBACK_LABEL_EXPRS
+_LABEL_EXPRS = [w for w in _PROFILE_FORBIDDEN if w.startswith("**") or w.endswith(("：", ":"))] or _FALLBACK_LABEL_EXPRS
 LABEL_PATTERNS = []
+LEADING_LABEL_PATTERNS = []
 for _expr in _LABEL_EXPRS:
     _name = _expr.strip("*").rstrip("：:").strip()
-    _pat = r'\*\*' + re.escape(_name) + r'[：:]\*\*'
-    LABEL_PATTERNS.append((_pat, f"{_name}标签"))
+    if _expr.startswith("**"):
+        _pat = r'\*\*' + re.escape(_name) + r'[：:]\*\*'
+        LABEL_PATTERNS.append((_pat, f"{_name}标签"))
+    else:
+        _pat = r'^\s*' + re.escape(_name) + r'[：:]'
+        LEADING_LABEL_PATTERNS.append((_pat, f"{_name}标签"))
 
 # 原因腔词：从 forbidden_expressions 中识别，单独检查以避免误报正常描述
 # "方便用户""避免用户" 后接动词才是原因腔；"需支持""需考虑" 后接标点或行尾才是占位符
@@ -69,7 +79,11 @@ CAUSE_PHRASE_PATTERNS = {
 }
 _CAUSE_PHRASE_WORDS = set(CAUSE_PHRASE_PATTERNS.keys())
 
-PLACEHOLDER_PATTERNS = [w for w in _PROFILE_FORBIDDEN if not w.startswith("**") and w not in _CAUSE_PHRASE_WORDS] or _PLACEHOLDER_FALLBACK
+# 行首标签式表达式（触发：/处理：/成功结果：/失败与恢复：/失败结果：）属 STYLE001 标签域而非占位符；
+# 且 STYLE008 按子串匹配，会从"系统处理：""数据处理："等合法正文中误伤，故从占位符集合排除，
+# 只由 STYLE001 的行首锚定拦截（行首`触发：`→error，行内`系统处理：`→不误报）。
+_PLACEHOLDER_EXCLUDED = {w for w in _LABEL_EXPRS if not w.startswith("**")}
+PLACEHOLDER_PATTERNS = [w for w in _PROFILE_FORBIDDEN if not w.startswith("**") and w not in _CAUSE_PHRASE_WORDS and w not in _PLACEHOLDER_EXCLUDED] or _PLACEHOLDER_FALLBACK
 # 只有明确的空占位才硬阻断；“按配置”等表达存在误报可能，作为 warning 交给 AI 判断。
 _PLACEHOLDER_ERROR_TERMS = {"待补充", "待定", "TBD", "TODO"}
 PLACEHOLDER_RULES = {
@@ -86,7 +100,7 @@ AI_PATTERNS = [
 
 
 def check_label_style(lines: list) -> list:
-    """STYLE001: 检查标签式正文"""
+    """STYLE001: 检查标签式正文（加粗标签 + 行首标签两类）"""
     issues = []
     for i, line in enumerate(lines):
         for pattern, label in LABEL_PATTERNS:
@@ -97,6 +111,15 @@ def check_label_style(lines: list) -> list:
                     line=i + 1,
                     message=f"发现标签式正文：{label}",
                     suggestion="改用自然规格说明段落，不用加粗标签拼接",
+                ))
+        for pattern, label in LEADING_LABEL_PATTERNS:
+            if re.search(pattern, line):
+                issues.append(Issue(
+                    code="STYLE001",
+                    severity="error",
+                    line=i + 1,
+                    message=f"发现行首标签式正文：{label}",
+                    suggestion="改用自然语言段落表达，不写成“标签：内容”式独立行",
                 ))
     return issues
 

@@ -80,6 +80,17 @@ def main() -> int:
         if code not in found:
             raise AssertionError(f"未识别 {code}: {found}")
 
+    leading_label = "## 功能需求\n\n### 订单处理业务闭环\n\n**确认订单**\n\n触发：卡口摄像头推送数据。\n\n处理：系统创建订单。\n\n成功结果：订单可见。\n\n失败与恢复：识别失败进入异常。"
+    leading_issues = STYLE.run_lint(leading_label)
+    leading_errors = [issue for issue in leading_issues if issue.code == "STYLE001" and issue.severity == "error"]
+    if len(leading_errors) < 4:
+        raise AssertionError(f"行首标签式正文应识别 4 处以上: {leading_issues}")
+    # 行中自然出现的"处理："（如"系统处理：xxx"）不得误报
+    inline_sample = "## 总体说明\n订单：业务订单。\n\n## 功能需求\n系统处理：按规则执行。"
+    inline = [i for i in STYLE.run_lint(inline_sample) if i.code == "STYLE001"]
+    if inline:
+        raise AssertionError(f"行中“系统处理：”不应判为行首标签: {inline}")
+
     warning_only = VALID + "\n字段按配置决定展示。\n"
     warning_issues = STYLE.run_lint(warning_only)
     if not warning_issues or any(issue.severity == "error" for issue in warning_issues):
