@@ -120,13 +120,15 @@
           "prd-writing-action",
           "prd-writing-glossary",
           "prd-writing-versioning",
-          "prd-verification"
+          "prd-verification",
+          "prd-writing-examples"
         ],
         "module": [
           "prd-core",
           "prd-writing-structure",
           "prd-writing-action",
-          "prd-cards"
+          "prd-cards",
+          "prd-writing-examples"
         ]
       },
       "packs": {
@@ -163,6 +165,40 @@
           "sections": [
             "prd-writing-action"
           ]
+        },
+        "prd-writing-examples": {
+          "purpose": "详细需求说明写作示例：目标颗粒度和表达方式的必要输入，不提供产品事实。模块写作自动装载简单查看、多角色状态流转和反例示例；其他类型用 --example 按需装载",
+          "sections": [
+            "prd-example-simple-action",
+            "prd-example-state-flow-action",
+            "prd-example-bad-patterns"
+          ],
+          "example_sections": {
+            "form": [
+              "prd-example-form-action"
+            ],
+            "query-stats": [
+              "prd-example-query-stats"
+            ],
+            "multi-block": [
+              "prd-example-multi-block-page"
+            ],
+            "few-block": [
+              "prd-example-few-block-page"
+            ],
+            "mobile-cross-role": [
+              "prd-example-mobile-cross-role"
+            ],
+            "copy-source-text": [
+              "prd-example-copy-source-text"
+            ],
+            "auto-action": [
+              "prd-example-auto-action"
+            ],
+            "flow": [
+              "prd-example-flow"
+            ]
+          }
         },
         "prd-writing-glossary": {
           "purpose": "PRD 名词说明格式",
@@ -336,6 +372,61 @@
       "source": "references/prd-writing-rules.md",
       "selector": "marker"
     },
+    "prd-example-simple-action": {
+      "stage": "prd",
+      "source": "references/prd-writing-examples.md",
+      "selector": "marker"
+    },
+    "prd-example-form-action": {
+      "stage": "prd",
+      "source": "references/prd-writing-examples.md",
+      "selector": "marker"
+    },
+    "prd-example-state-flow-action": {
+      "stage": "prd",
+      "source": "references/prd-writing-examples.md",
+      "selector": "marker"
+    },
+    "prd-example-query-stats": {
+      "stage": "prd",
+      "source": "references/prd-writing-examples.md",
+      "selector": "marker"
+    },
+    "prd-example-multi-block-page": {
+      "stage": "prd",
+      "source": "references/prd-writing-examples.md",
+      "selector": "marker"
+    },
+    "prd-example-few-block-page": {
+      "stage": "prd",
+      "source": "references/prd-writing-examples.md",
+      "selector": "marker"
+    },
+    "prd-example-mobile-cross-role": {
+      "stage": "prd",
+      "source": "references/prd-writing-examples.md",
+      "selector": "marker"
+    },
+    "prd-example-copy-source-text": {
+      "stage": "prd",
+      "source": "references/prd-writing-examples.md",
+      "selector": "marker"
+    },
+    "prd-example-auto-action": {
+      "stage": "prd",
+      "source": "references/prd-writing-examples.md",
+      "selector": "marker"
+    },
+    "prd-example-bad-patterns": {
+      "stage": "prd",
+      "source": "references/prd-writing-examples.md",
+      "selector": "marker"
+    },
+    "prd-example-flow": {
+      "stage": "prd",
+      "source": "references/prd-writing-examples.md",
+      "selector": "marker"
+    },
     "design-asset-contract": {
       "stage": "design",
       "source": "references/design-baseline-format.md",
@@ -403,7 +494,8 @@
             "prd-core",
             "prd-writing-structure",
             "prd-writing-action",
-            "prd-cards"
+            "prd-cards",
+            "prd-writing-examples"
           ]
         }
       }

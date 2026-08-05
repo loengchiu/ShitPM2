@@ -125,6 +125,10 @@ def check_selection(module) -> None:
             _, section_ids = module.resolve_selection(manifest, stage, mode, pass_name, [], cards, examples, None)
             if len(section_ids) != len(set(section_ids)):
                 fail(f'选择结果含重复章节: {stage}.{pass_name}')
+            if stage == 'prd' and pass_name == 'module':
+                for required in ('prd-example-simple-action', 'prd-example-state-flow-action', 'prd-example-bad-patterns'):
+                    if required not in section_ids:
+                        fail(f'module pass 未自动装载写作示例: {required}')
             sections = module.build_sections(ROOT, manifest, stage, section_ids)
             if not sections:
                 fail(f'选择结果为空: {stage}.{pass_name}')

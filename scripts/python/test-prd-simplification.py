@@ -17,10 +17,12 @@ def main() -> int:
     if prd["passes"]["writing"] != [
         "prd-core", "prd-writing-structure", "prd-writing-action",
         "prd-writing-glossary", "prd-writing-versioning", "prd-verification",
+        "prd-writing-examples",
     ]:
         raise AssertionError(f"writing pack 不完整: {prd['passes']['writing']}")
     if prd["passes"]["module"] != [
         "prd-core", "prd-writing-structure", "prd-writing-action", "prd-cards",
+        "prd-writing-examples",
     ]:
         raise AssertionError(f"module pack 不符合目标: {prd['passes']['module']}")
 
@@ -78,10 +80,11 @@ def main() -> int:
         "PRD 内部引用必须指向当前 `prd.md`",
         "不得从生效描述推导时间范围",
         "完成最后一次 `prd.md` 写入",
-        "页面操作已逐项回读",
+        "Design 操作按业务结果重组",
         "页面、动作和终端命名格式遵循",
-        "页面展示行为和状态驱动展示已逐项回读",
-        "自动动作、删除传播、枚举来源和独立上限已逐项回读",
+        "页面是否围绕用户任务和业务判断组织",
+        "自动动作、删除传播、枚举和独立上限按",
+        "写作规则和写作示例必须联合装载",
     ):
         if required not in skill:
             raise AssertionError(f"Skill 缺少本轮直接约束或格式规则: {required}")
@@ -106,8 +109,8 @@ def main() -> int:
         "页面固定使用六级标题", "动作固定使用单独一行加粗",
         "同一事实三处交叉比较", "PRD 内部引用必须指向当前 `prd.md`",
         "不得从生效描述推导时间范围", "完成最后一次 `prd.md` 写入",
-        "页面操作逐项承接",
-        "页面展示行为与区块条件", "状态驱动展示",
+        "页面操作承接与合并",
+        "页面语境与区块表达", "状态驱动展示",
         "自动动作、删除传播与枚举上限",
     ):
         if required not in rules:
@@ -123,7 +126,7 @@ def main() -> int:
 
     scenes = (ROOT / "references/prd-scene-checklist.md").read_text(encoding="utf-8-sig")
     for required in (
-        "页面操作逐项承接", "事实交叉一致性", "引用与时间范围",
+        "页面操作承接与合并", "事实交叉一致性", "引用与时间范围",
         "页面展示与状态驱动展示", "自动动作与删除传播", "枚举与独立上限",
     ):
         if required not in scenes:
@@ -134,7 +137,7 @@ def main() -> int:
 
     review = (ROOT / "contracts/prd-review-checklist.md").read_text(encoding="utf-8-sig")
     for required in (
-        "无效引用", "时间范围", "页面操作逐项承接", "检查后修改", "格式统一",
+        "无效引用", "时间范围", "页面操作承接与合并", "检查后修改", "格式统一",
         "页面展示行为完整", "自动动作失败闭环", "删除传播完整", "枚举和独立上限有来源",
     ):
         if required not in review:

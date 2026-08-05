@@ -91,7 +91,7 @@ def check_context_manifest() -> None:
         return
     if data.get("version") != 1:
         fail("context-loading.manifest.json version 必须为 1")
-    for rel in ("scripts/python/context-pack.py", "scripts/python/context-budget.py", "scripts/python/source-index.py", "scripts/python/context-runtime-check.py", "scripts/python/context-run.py", "scripts/python/token_estimate.py", "scripts/python/test-context-loading.py", "scripts/python/test-context-runtime.py", "scripts/python/prototype-structure.py"):
+    for rel in ("scripts/python/context-pack.py", "scripts/python/context-budget.py", "scripts/python/source-index.py", "scripts/python/context-runtime-check.py", "scripts/python/token_estimate.py", "scripts/python/test-context-loading.py", "scripts/python/test-context-runtime.py", "scripts/python/prototype-structure.py"):
         if not (ROOT / rel).is_file():
             fail(f"上下文装载工具不存在: {rel}")
     sections = data.get("sections", {})

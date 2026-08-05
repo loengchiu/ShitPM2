@@ -420,7 +420,7 @@ def write_run(project_root: Path, stage: str, mode: str | None, pass_name: str |
               applicability: dict[str, str] | None, *, bundle_root: Path | None = None,
               manifest_hash: str | None = None, role: str | None = None,
               budget: dict[str, Any] | None = None, duration_ms: int | None = None,
-              metrics_dir: Path | None = None, module: str | None = None) -> dict[str, Any]:
+              module: str | None = None) -> dict[str, Any]:
     bundle_root = (bundle_root or ROOT).resolve()
     if manifest_hash is None:
         manifest_hash = sha256_file(manifest_path(bundle_root))
@@ -468,29 +468,6 @@ def write_run(project_root: Path, stage: str, mode: str | None, pass_name: str |
     }
     output_dir.mkdir(parents=True, exist_ok=True)
     (output_dir / 'run.json').write_text(json.dumps(record, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
-    if metrics_dir is not None:
-        metrics_dir.mkdir(parents=True, exist_ok=True)
-        stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
-        metric = {
-            'version': 1,
-            'stage': stage,
-            'mode': mode,
-            'pass': pass_name,
-            'role': role,
-            'status': 'completed',
-            'generated_at': record['generated_at'],
-            'duration_ms': duration_ms,
-            'tokens': record['tokens'],
-            'characters': characters,
-            'section_count': record['section_count'],
-            'source_file_count': record['source_file_count'],
-            'material_assets_available': all((project_root / '.workflow/runtime/materials' / name).is_file() for name in ('manifest.json', 'source-index.json')),
-            'raw_materials_in_pack': False,
-            'handoff_dir': str(project_root / '.workflow/runtime/context' / stage / 'handoff'),
-        }
-        (metrics_dir / f'{stamp}-{stage}-{pass_name or "explicit"}.json').write_text(
-            json.dumps(metric, ensure_ascii=False, indent=2) + '\n', encoding='utf-8'
-        )
     return record
 
 
@@ -691,7 +668,6 @@ def main() -> int:
             bundle_root=bundle_root, manifest_hash=sha256_file(manifest_path(bundle_root)), role=args.role,
             budget=budget,
             duration_ms=round((time.perf_counter() - started) * 1000),
-            metrics_dir=project_root / '.workflow' / 'runtime' / 'metrics',
             module=args.module,
         )
         print(json.dumps(record, ensure_ascii=False, indent=2))
