@@ -126,9 +126,15 @@ def check_selection(module) -> None:
             if len(section_ids) != len(set(section_ids)):
                 fail(f'选择结果含重复章节: {stage}.{pass_name}')
             if stage == 'prd' and pass_name == 'module':
-                for required in ('prd-example-simple-action', 'prd-example-state-flow-action', 'prd-example-bad-patterns'):
+                for required in ('prd-example-simple-readonly', 'prd-example-multi-role-state'):
                     if required not in section_ids:
                         fail(f'module pass 未自动装载写作示例: {required}')
+                for forbidden in (
+                    'prd-example-dashboard', 'prd-example-external-auto', 'prd-template', 'prd-profile',
+                    'prd-writing-versioning', 'prd-writing-glossary', 'prd-writing-structure',
+                ):
+                    if forbidden in section_ids:
+                        fail(f'module pass 不应装载章节: {forbidden}')
             sections = module.build_sections(ROOT, manifest, stage, section_ids)
             if not sections:
                 fail(f'选择结果为空: {stage}.{pass_name}')
@@ -281,9 +287,15 @@ def build_sample_design(root: Path, *, large: bool = False) -> Path:
     design_dir.mkdir(parents=True, exist_ok=True)
     lines = ['# 产品方案设计', '## 一、方案摘要', '### 要解决的问题', '测试样本']
     fill = 400 if large else 40
-    lines += [f'## 四、关键业务闭环', '### 闭环一：订单处理', '#### 流程速览', '下单到发货闭环。']
+    lines += [
+        '## 四、关键业务闭环',
+        '### 闭环一：订单处理',
+        '#### 流程速览',
+        '下单到发货闭环。',
+        '涉及页面：订单列表、订单详情',
+    ]
     lines += [f'订单处理内容 {i}' for i in range(fill)]
-    lines += ['### 闭环二：库存管理', '#### 流程速览', '入库到出库闭环。']
+    lines += ['### 闭环二：库存管理', '#### 流程速览', '入库到出库闭环。', '涉及页面：库存列表']
     lines += [f'库存管理内容 {i}' for i in range(fill)]
     lines += ['## 五、业务对象、规则与状态', '### 核心业务对象及关系']
     lines += [f'对象规则内容 {i}' for i in range(fill)]
@@ -307,9 +319,15 @@ def build_page_heavy_design(root: Path) -> Path:
     design_dir = root / 'output/design'
     design_dir.mkdir(parents=True, exist_ok=True)
     lines = ['# 产品方案设计', '## 一、方案摘要', '### 要解决的问题', '测试样本']
-    lines += ['## 四、关键业务闭环', '### 闭环一：订单处理', '#### 流程速览', '下单到发货闭环。']
+    lines += [
+        '## 四、关键业务闭环',
+        '### 闭环一：订单处理',
+        '#### 流程速览',
+        '下单到发货闭环。',
+        '涉及页面：订单列表、订单详情、订单编辑、订单删除、订单导出、订单导入',
+    ]
     lines += ['订单处理内容'] * 30
-    lines += ['### 闭环二：库存管理', '#### 流程速览', '入库到出库闭环。']
+    lines += ['### 闭环二：库存管理', '#### 流程速览', '入库到出库闭环。', '涉及页面：库存列表']
     lines += ['库存管理内容'] * 30
     lines += ['## 五、业务对象、规则与状态', '### 核心业务对象及关系']
     lines += ['对象规则内容'] * 30
@@ -354,6 +372,25 @@ def check_design_fragment(module) -> None:
         appended = module.extract_design_fragment(str(root), '订单处理', extra_pages=['库存列表'])
         if '相关页面：库存列表' not in appended['content']:
             fail('--pages 显式追加页面未生效（闭环匹配时）')
+        # 显式闭环映射优先：闭环正文不引用页面名时，仍按映射装载相关页面，且不混入无关页面
+        with tempfile.TemporaryDirectory() as map_dir:
+            map_root = Path(map_dir)
+            build_sample_design(map_root)
+            map_design = map_root / 'output/design/design.md'
+            map_text = map_design.read_text(encoding='utf-8')
+            map_text = map_text.replace('涉及页面：订单列表、订单详情', '页面由映射文件指定')
+            map_design.write_text(map_text, encoding='utf-8')
+            mapping_file = map_root / 'prd-module-map.json'
+            mapping_file.write_text(json.dumps({
+                'closures': {'闭环一：订单处理': ['订单列表', '订单详情']},
+            }, ensure_ascii=False), encoding='utf-8')
+            mapped = module.extract_design_fragment(
+                str(map_root), '订单处理', mapping=module.parse_closure_mapping(mapping_file),
+            )
+            if '相关页面：订单列表' not in mapped['content'] or '相关页面：订单详情' not in mapped['content']:
+                fail('显式闭环映射未装载目标相关页面')
+            if '库存列表' in mapped['content']:
+                fail('显式闭环映射装载了无关页面')
         # 页面清单共用部分按模块页面名过滤：不携带全量清单行（P2-2）
         if '| 库存列表 |' in content:
             fail('页面清单共用部分未按模块页面名过滤')

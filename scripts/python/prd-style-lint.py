@@ -16,6 +16,9 @@
   STYLE007 - AI 痕迹
   STYLE008 - 占位符
   STYLE009 - 名词说明章节缺失
+  STYLE010 - 页面元数据连续块
+  STYLE011 - UI 动作词直接作为动作标题
+  STYLE012 - 连续键值对句式承载正文
 """
 
 import json
@@ -249,21 +252,144 @@ def check_duplicate_page_ids(lines: list) -> list:
 
 
 def check_cross_section_refs(lines: list) -> list:
-    """STYLE005: 检查跨节引用"""
+    """STYLE005: 检查跨节引用——只对“引用目标在当前 PRD 不存在”报错。
+
+    正常指向真实章节的编号引用不再产生提示（旧版对全部引用刷 info 属于低价值噪音）；
+    “Design §x.x”等上游引用不属于 PRD 内部引用，不检查。
+    """
     issues = []
-    # 只匹配"见 X.X"、"参见 X.X"、"详见 X.X"，排除"参考"（太常见的词）
-    cross_ref_pattern = re.compile(r'(?:见|参见|详见)\s*\d+\.\d+')
+    cross_ref_pattern = re.compile(r'(?:见|参见|详见)\s*(\d+(?:\.\d+)*)')
+    heading_numbers = set()
+    for line in lines:
+        match = re.match(r'^#{1,6}\s+(\d+(?:\.\d+)*)\s+', line.strip())
+        if match:
+            heading_numbers.add(match.group(1))
 
     for i, line in enumerate(lines):
-        if cross_ref_pattern.search(line):
+        for match in cross_ref_pattern.finditer(line):
+            target = match.group(1)
+            if target in heading_numbers:
+                continue
             issues.append(Issue(
                 code="STYLE005",
-                severity="info",
+                severity="error",
                 line=i + 1,
-                message="发现跨节引用，可能导致读者跳转",
-                suggestion="考虑将相关内容直接写在当前段落",
+                message=f"内部引用目标不存在：见 {target}",
+                suggestion="修正为当前 prd.md 中真实存在的章节编号，或明确写成 Design 上游来源",
             ))
 
+    return issues
+
+
+PAGE_METADATA_LABELS = (
+    "页面职责：", "使用对象：", "所属业务侧：", "所处业务阶段：",
+    "入口与返回：", "区块清单：", "页面区块：", "页面展示行为：", "状态驱动展示：",
+    "字段来源：",
+)
+
+
+def check_page_metadata_block(lines: list) -> list:
+    """STYLE010: 页面正文退化为连续元数据块（页面职责/使用对象/入口与返回/区块清单等）。
+
+    连续 3 个及以上元数据标签行即判定页面主体仍是元数据清单，违反
+    “页面从用户任务和业务判断开始”的要求。
+    """
+    issues = []
+    run = 0
+    run_start = 0
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        is_meta = any(stripped.startswith(label) for label in PAGE_METADATA_LABELS)
+        if is_meta:
+            if run == 0:
+                run_start = i + 1
+            run += 1
+        else:
+            if run >= 3:
+                issues.append(Issue(
+                    code="STYLE010",
+                    severity="error",
+                    line=run_start,
+                    message=f"页面正文为连续元数据块（共 {run} 个元数据标签行）",
+                    suggestion="从用户要完成的业务任务和判断开始写作，元数据事实融入语境、动作前提或结果",
+                ))
+            run = 0
+    if run >= 3:
+        issues.append(Issue(
+            code="STYLE010",
+            severity="error",
+            line=run_start,
+            message=f"页面正文为连续元数据块（共 {run} 个元数据标签行）",
+            suggestion="从用户要完成的业务任务和判断开始写作，元数据事实融入语境、动作前提或结果",
+        ))
+    return issues
+
+
+UI_ACTION_WORDS = ("点击", "打开", "切换", "返回", "播放")
+
+
+def check_ui_word_action_titles(lines: list) -> list:
+    """STYLE011: UI 动作词（点击/打开/切换/返回/播放）直接作为动作标题。"""
+    issues = []
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        match = re.match(r'^\*\*(.+?)\*\*\s*$', stripped)
+        if not match:
+            continue
+        title = match.group(1).strip()
+        if title in UI_ACTION_WORDS:
+            issues.append(Issue(
+                code="STYLE011",
+                severity="error",
+                line=i + 1,
+                message=f"动作标题直接使用 UI 动作词：{title}",
+                suggestion="动作标题用“动词 + 业务对象/结果”表达，例如“定位异常车辆”“控制视频播放”",
+            ))
+    return issues
+
+
+def check_key_value_lines(lines: list) -> list:
+    """STYLE012: 连续键值对句式（字段名：说明 / 来源：xxx / 结果：xxx）承载正文。
+
+    独立行或 `·` 列表项以“名称：内容”形式出现且连续 3 行及以上，
+    判定为键值对式模板替代自然语义。单行或两行的偶发冒号句不报，
+    避免把自然说明误判为模板。
+    """
+    issues = []
+    run = 0
+    run_start = 0
+    kv_pattern = re.compile(r'^[^：:]{1,40}[：:]\s*\S+')
+
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        is_kv = False
+        if stripped.startswith('·'):
+            is_kv = bool(kv_pattern.match(stripped[1:].strip()))
+        elif stripped and not stripped.startswith(('|', '#', '<!--', '```', '>', '*', '-')):
+            is_kv = bool(kv_pattern.match(stripped))
+        if is_kv:
+            if run == 0:
+                run_start = i + 1
+            run += 1
+        else:
+            if run >= 3:
+                issues.append(Issue(
+                    code="STYLE012",
+                    severity="error",
+                    line=run_start,
+                    message=f"连续键值对句式承载正文（共 {run} 行）",
+                    suggestion="把字段名、来源、结果等事实融入自然语言段落或列表，不写成“名称：内容”式独立行",
+                ))
+            run = 0
+
+    if run >= 3:
+        issues.append(Issue(
+            code="STYLE012",
+            severity="error",
+            line=run_start,
+            message=f"连续键值对句式承载正文（共 {run} 行）",
+            suggestion="把字段名、来源、结果等事实融入自然语言段落或列表，不写成“名称：内容”式独立行",
+        ))
     return issues
 
 
@@ -347,18 +473,16 @@ def check_placeholders(lines: list) -> list:
 
 
 def check_glossary_section(lines: list) -> list:
-    """STYLE009: 检查名词说明章节存在性
+    """STYLE009: 检查术语定义章节存在性
 
-    PRD 必须包含"名词说明"章节（别名"术语说明"），
+    PRD 必须在总体说明下包含"术语定义"章节（兼容旧名"名词说明"/"术语说明"），
     让研发在进入详细需求前建立统一术语认知。
     """
     issues = []
     has_glossary = False
     for line in lines:
         stripped = line.strip()
-        if (re.match(r'^#{1,2}\s.*名词说明', stripped) or
-                re.match(r'^#{1,2}\s.*术语说明', stripped) or
-                re.match(r'^#{1,2}\s.*总体说明', stripped)):
+        if re.match(r'^#{1,3}\s.*(名词说明|术语说明|术语定义)', stripped):
             has_glossary = True
             break
 
@@ -368,7 +492,7 @@ def check_glossary_section(lines: list) -> list:
             severity="error",
             line=1,
             message="缺少名词说明章节",
-            suggestion="在总体说明中补充名词说明，按确认版 Design 列出业务术语",
+            suggestion="补充术语定义章节（### x.x 术语定义），按确认版 Design 列出业务术语",
         ))
     return issues
 
@@ -383,6 +507,9 @@ ALL_CHECKS = [
     check_ai_traces,
     check_placeholders,
     check_glossary_section,
+    check_page_metadata_block,
+    check_ui_word_action_titles,
+    check_key_value_lines,
 ]
 
 

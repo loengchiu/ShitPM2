@@ -44,6 +44,12 @@ from shared_md import (
 
 # PRD 章节别名（用于章节定位，但 ShitPM 主要采用全文扫描策略，章节定位仅作辅助）
 NON_CONCRETE_STATE_NAMES = frozenset({"—", "-", "N/A", "任意状态", "状态"})
+# 页面展示/请求过程状态：不属于业务状态机，不得判为业务状态幻觉。
+# 只有在 Design 明确把同类词定义为业务状态时，才需要人工核对表达口径。
+PROCESS_OR_DISPLAY_STATE_MARKERS = frozenset({
+    "保存失败", "已保存", "已加载", "未保存", "部分数据缺失",
+    "加载中", "加载失败", "实时更新中", "网络较慢", "离线缓存", "拉流失败",
+})
 
 _FIELD_SPLIT_RE = re.compile(r"[、，,；;/｜|]+")
 _ACTION_FRAGMENT_RE = re.compile(
@@ -1033,6 +1039,11 @@ def _parse_enum_values(raw: str) -> list[str]:
     })
 
 
+def _normalize_enum_value(value: str) -> str:
+    """压缩枚举值内部空白并转小写，避免「10年」与「10 年」被判为不一致。"""
+    return re.sub(r"\s+", "", str(value).strip()).lower()
+
+
 def _attribute_present_in_prd(design_value, prd_value) -> bool:
     """只比较独立列或已解析的标签值，避免被其他属性中的同词误判为已交付。"""
     design_norm = _normalize_scalar(design_value)
@@ -1158,7 +1169,9 @@ def compare_field_attributes(
 
         d_enum = design["enum_values"]
         p_enum = prd_field.get("enum_values", [])
-        if d_enum != p_enum and (d_enum or p_enum):
+        d_enum_norm = [_normalize_enum_value(v) for v in d_enum]
+        p_enum_norm = [_normalize_enum_value(v) for v in p_enum]
+        if d_enum_norm != p_enum_norm and (d_enum_norm or p_enum_norm):
             mismatch_kinds.append("enum")
 
         if mismatch_kinds:
@@ -1188,8 +1201,8 @@ def compare_field_attributes(
                 "prd_format": prd_field.get("format", ""),
                 "design_source": design["source"],
                 "prd_source": prd_field.get("source", ""),
-                "enum_missing": sorted(set(d_enum) - set(p_enum)),
-                "enum_hallucinated": sorted(set(p_enum) - set(d_enum)),
+                "enum_missing": sorted(set(d_enum_norm) - set(p_enum_norm)),
+                "enum_hallucinated": sorted(set(p_enum_norm) - set(d_enum_norm)),
             })
     return {"mismatches": mismatches, "merged_attr_skipped": merged_attr_skipped}
 
@@ -1533,7 +1546,10 @@ def _normalize_indexed_value(value) -> str:
     value = str(value).strip().strip("`")
     if value in {"", "—", "-", "无", "不适用", "N/A", "NA", "null", "None"}:
         return ""
-    return re.sub(r"[\s，,；;。]+", "", value).lower()
+    # 去掉括号注释（如“车牌号（列表列）”“车辆类型（筛选条件）”）和全部空白/标点，
+    # 使同一字段在不同页面或列表/筛选语境下的名称可归一化比较。
+    value = re.sub(r"[（(][^）)]*[）)]", "", value)
+    return re.sub(r"[\s，,；;。、：:]+", "", value).lower()
 
 
 def _compare_indexed_structure(index: dict, content: str, index_module) -> dict:
@@ -1549,134 +1565,79 @@ def _compare_indexed_structure(index: dict, content: str, index_module) -> dict:
             "hallucinated": [],
             "attribute_mismatch": [],
         }
-    actual_nodes = index_module.extract_document_entities(content)
-    flexible = False
+    # 页面/字段只按“名称”做确定比较，不再要求字段具备页面和区块位置：
+    # - missing：Design 名称未在 PRD 正文任何位置出现（存在性候选，possible_omission）；
+    # - hallucinated：PRD 页面标题/字段表名称不在 Design 索引名称集合中（确定性幻觉）。
+    # Design 操作与 PRD 动作不做一对一名称匹配（动作组织由 LLM 按业务结果重组，属语义判断）。
+    pages_expected = [item for item in expected if item["type"] == "page"]
+    fields_expected = [item for item in expected if item["type"] == "field"]
+    operations_expected = [item for item in expected if item["type"] == "operation"]
+    normalized_content = re.sub(r"[\s，,；;。、：:（）()\"'“”]+", "", content).lower()
+    expected_page_names = {_normalize_indexed_value(item["name"]) for item in pages_expected}
+    expected_field_names = {_normalize_indexed_value(item["name"]) for item in fields_expected}
 
-    # 新结构仍会保留“页面：”标题，因此索引提取器可能只拿到页面节点；
-    # 此时继续用分散字段表和页面映射表补齐字段/操作，避免把业务闭环正文误判为 134 项遗漏。
-    has_detail_nodes = any(node.get("type") in {"field", "operation"} for node in actual_nodes)
-    if not actual_nodes or not has_detail_nodes:
-        headings = parse_headings(content)
-        tables = parse_tables_with_context(content, headings)
-        prd_pages = extract_prd_pages(content, headings)
-        prd_fields = extract_prd_fields(headings, tables, content)
-        page_markers = []
-        page_patterns = [
-            re.compile(r'^\*\*(?:\d+(?:\.\d+)+)\s+(.+?)\*\*\s*$'),
-            re.compile(r'^#{3,}\s+页面\s*[:：]\s*(.+?)\s*$'),
-        ]
-        for line_no, line in enumerate(content.splitlines(), 1):
-            stripped = line.strip()
-            for page_pattern in page_patterns:
-                match = page_pattern.match(stripped)
-                if match:
-                    page_markers.append((line_no, clean_page_title(match.group(1))))
-                    break
-        page_markers.sort()
-
-        def page_for_line(line_no: int | None) -> str | None:
-            if not page_markers:
-                return prd_pages[0] if len(prd_pages) == 1 else None
-            selected = None
-            for marker_line, marker_name in page_markers:
-                if line_no is None or marker_line <= line_no:
-                    selected = marker_name
-                else:
-                    break
-            return selected
-
-        actual_nodes = [
-            {"type": "page", "name": name, "page_name": None, "block_name": None, "attributes": {}, "line": None}
-            for name in prd_pages
-        ]
-        for field in prd_fields:
-            attrs = {}
-            if field.get("source"):
-                attrs["source"] = field["source"]
-            if field.get("required") is not None:
-                attrs["required"] = "是" if field["required"] else "否"
-            actual_nodes.append({
-                "type": "field",
-                "name": field.get("name"),
-                "page_name": page_for_line(field.get("line")),
-                "block_name": None,
-                "attributes": attrs,
-                "line": field.get("line"),
-            })
-        operation_pattern = re.compile(r'^\s*[·•]\s*(?:\*\*)?([^：:]+?)(?:\*\*)?\s*$')
-        for line_no, line in enumerate(content.splitlines(), 1):
-            match = operation_pattern.match(line)
-            if match:
-                name = match.group(1).strip()
-                if name and name not in {"动作一", "动作二"}:
-                    actual_nodes.append({
-                        "type": "operation", "name": name,
-                        "page_name": page_for_line(line_no), "block_name": None,
-                        "attributes": {}, "line": line_no,
-                    })
-        flexible = bool(prd_pages or prd_fields)
-
-    def structure_key(item: dict, flexible_mode: bool = False) -> tuple:
-        if flexible_mode and item.get("type") in {"field", "operation"}:
-            return (item.get("type"), item.get("page_name"), item.get("name"))
-        return _indexed_entity_key(item)
-
-    expected_for_compare = [
-        item for item in expected
-        if not (flexible and item.get("type") == "block")
+    page_missing = [
+        item for item in pages_expected
+        if _normalize_indexed_value(item["name"]) not in normalized_content
     ]
-    expected_keys = {structure_key(item, flexible) for item in expected_for_compare}
-    actual_keys = {structure_key(item, flexible) for item in actual_nodes}
-    missing = [item for item in expected_for_compare if structure_key(item, flexible) not in actual_keys]
-    hallucinated = [
-        {"type": item.get("type"), "name": item.get("name"), "page_name": item.get("page_name"), "block_name": item.get("block_name"), "line": item.get("line")}
-        for item in actual_nodes if structure_key(item, flexible) not in expected_keys
+    field_missing = [
+        item for item in fields_expected
+        if _normalize_indexed_value(item["name"]) not in normalized_content
     ]
-    # 新结构允许同一页面在不同区块重复定义同名字段（例如筛选区和列表区）。
-    # 柔性匹配忽略区块时，保留全部候选，避免后一个区块覆盖前一个区块造成误报。
-    actual_by_key = {}
-    for actual_item in actual_nodes:
-        actual_by_key.setdefault(structure_key(actual_item, flexible), []).append(actual_item)
-    attribute_mismatch = []
-    checks = {
-        "field": ("source", "required") if flexible else ("source", "required", "display_condition"),
-        "operation": () if flexible else ("success_result", "state_change"),
+    headings = parse_headings(content)
+    tables = parse_tables_with_context(content, headings)
+    prd_pages = extract_prd_pages(content, headings)
+    prd_fields = extract_prd_fields(headings, tables, content)
+    page_hallucinated = [
+        {"type": "page", "name": name}
+        for name in sorted(set(prd_pages))
+        if _normalize_indexed_value(name) not in expected_page_names
+    ]
+    # 字段幻觉只判定“完全无法对应”的名称；命名变体（进场时间/入场时间、占用车辆车牌号/车牌号、
+    # 服务区 ID/服务区ID 等）与索引名称共享 ≥2 字公共子串，归入语义判断，不直接判确定性幻觉。
+    # 对象级字段表（无页面/区块位置）不再因缺少页面位置被判幻觉。
+    field_hallucinated = []
+    field_name_variants = []
+    expected_names_list = sorted(expected_field_names)
+    expected_bigrams = {
+        name[j:j + 2]
+        for name in expected_names_list
+        for j in range(len(name) - 1)
+        if len(name) >= 2
     }
-    for item in expected_for_compare:
-        if item.get("type") not in checks:
+    for field in prd_fields:
+        if not field.get("name"):
             continue
-        actual_items = actual_by_key.get(structure_key(item, flexible), [])
-        if not actual_items:
+        norm = _normalize_indexed_value(field["name"])
+        if norm in expected_field_names:
             continue
-        for attr in checks[item["type"]]:
-            expected_value = item.get("attributes", {}).get(attr)
-            if expected_value is None or _normalize_indexed_value(expected_value) == "":
-                continue
-            # 同名字段只要有一个实际区块与 Design 属性一致，就不构成确定性冲突。
-            if any(
-                _normalize_indexed_value(actual_item.get("attributes", {}).get(attr))
-                == _normalize_indexed_value(expected_value)
-                for actual_item in actual_items
-            ):
-                continue
-            actual_value = actual_items[-1].get("attributes", {}).get(attr)
-            attribute_mismatch.append({
-                "type": item["type"],
-                "name": item["name"],
-                "page_name": item.get("page_name"),
-                "block_name": item.get("block_name"),
-                "attribute": attr,
-                "expected": expected_value,
-                "actual": actual_value or "",
-                "deterministic": True,
+        prd_bigrams = {norm[j:j + 2] for j in range(len(norm) - 1) if len(norm) >= 2}
+        if any(en in norm or norm in en for en in expected_field_names) or (
+            prd_bigrams & expected_bigrams
+        ):
+            field_name_variants.append({
+                "type": "field", "name": field["name"], "issue": "name_variant",
+                "note": "与 Design 索引字段名存在变体或包含关系，需语义判断是否为同一字段",
             })
+        else:
+            field_hallucinated.append({"type": "field", "name": field["name"]})
+
+    # 新格式的明确属性（来源/必填/展示条件）分散在页面上下文中，对象级字段表无法可靠逐字比较，
+    # 一律归语义判断；旧格式项目的属性冲突由 legacy compare_field_attributes 负责。
+    attribute_mismatch = []
     return {
         "enabled": bool(expected),
-        "expected_count": len(expected_for_compare),
-        "matched_count": len(expected_keys & actual_keys),
-        "missing": missing,
-        "hallucinated": hallucinated,
+        "expected_count": len(pages_expected) + len(fields_expected) + len(operations_expected),
+        "matched_count": len(expected) - len(page_missing) - len(field_missing),
+        "missing": page_missing + field_missing,
+        "hallucinated": page_hallucinated + field_hallucinated,
         "attribute_mismatch": attribute_mismatch,
+        "field_name_variants": field_name_variants,
+        "operations": {
+            "expected_count": len(operations_expected),
+            "matched_count": 0,
+            "note": "Design 操作与 PRD 动作不做一对一名称匹配：动作是否完整承接需语义判断，由生成回读与 Review 负责。",
+        },
     }
 
 # ── 主入口 ────────────────────────────────────────────────────
@@ -1787,7 +1748,6 @@ def main():
     # 构建 title → id 映射
     field_title_to_id = {f["title"]: f.get("id", f["title"]) for f in design_fields if isinstance(f, dict) and "title" in f}
     page_title_to_id = {p["title"]: p.get("id", p["title"]) for p in design_pages if isinstance(p, dict) and "title" in p}
-    state_title_to_id = {s["title"]: s.get("id", s["title"]) for s in design_states if isinstance(s, dict) and "title" in s}
 
     # 从 PRD 提取实体（多模板兼容）
     prd_fields = extract_prd_fields(headings, tables, content)
@@ -1798,9 +1758,27 @@ def main():
     # PRD 是研发交付物：Design 的页面字段和非页面内部字段都必须出现。
     # 非页面字段无需虚构页面落点，但必须在字段表保留来源和内部用途。
 
-    # 固定结构 Design 使用索引完成页面/字段覆盖和高影响属性检查；旧模板继续走 legacy 解析。
+    # “任意状态”等是状态机通配/占位行，不是需要在 PRD 中单独交付的具体状态。
+    # Design“下一状态”列的组合值（如“停留中、数据异常、离场异常”）先拆分，
+    # 避免把组合单元格整体当作单一状态要求 PRD 逐字复刻。
+    design_deliverable_states = []
+    seen_states: set[str] = set()
+    for state in design_states:
+        if not isinstance(state, dict) or not state.get("title"):
+            continue
+        if state["title"] in NON_CONCRETE_STATE_NAMES:
+            continue
+        for token in _split_state_tokens(state["title"]):
+            if token and token not in seen_states:
+                seen_states.add(token)
+                design_deliverable_states.append(token)
+    state_title_to_id = {t: t for t in design_deliverable_states}
+
     design_field_objects = _design_field_objects(project_root, design_fields)
     if indexed_active:
+        # 新格式 Design 以索引为权威：页面/字段存在性、名称级幻觉和显式来源属性
+        # 都由 _compare_indexed_structure 负责；stage-prep 的旧格式提取对新结构不可靠，
+        # 因此不在此分支混用 legacy 字段/页面集合比较。
         field_result = {
             "missing": [], "hallucinated": [], "attribute_mismatch": [],
             "enum_mismatch": [], "deterministic_attribute_mismatch": [],
@@ -1833,14 +1811,6 @@ def main():
             prd_pages, page_title_to_id, fuzzy_page_match,
         )
 
-    # “任意状态”等是状态机通配/占位行，不是需要在 PRD 中单独交付的具体状态。
-    # 保留 stage-prep 中的伪状态，供状态机完整性校验使用；这里只在 Design 与 PRD
-    # 的下游交付集合对比边界排除它们，避免 legacy 路径误报缺失。
-    design_deliverable_states = [
-        s["title"]
-        for s in design_states
-        if isinstance(s, dict) and s.get("title") not in NON_CONCRETE_STATE_NAMES
-    ]
     state_result = compare_entities(
         design_deliverable_states,
         prd_states, state_title_to_id, fuzzy_state_match,
@@ -1853,6 +1823,7 @@ def main():
     design_enum_state_values = _design_enum_state_values(project_root)
     state_result["missing"] = [s for s in state_result["missing"] if s not in prd_enum_states]
     state_via_enum = []
+    state_via_process = []
     kept_hallucinated = []
     for s in state_result["hallucinated"]:
         if s in design_enum_state_values:
@@ -1861,10 +1832,17 @@ def main():
                 "issue": "design_enum_state",
                 "note": "PRD 以状态机/状态表表达 Design 数据字典枚举，需人工确认表达口径",
             })
+        elif s in PROCESS_OR_DISPLAY_STATE_MARKERS:
+            state_via_process.append({
+                "state": s,
+                "issue": "process_or_display_state",
+                "note": "页面展示/请求过程状态，不判为业务状态幻觉；只在 Design 定义为业务状态时再人工核对",
+            })
         else:
             kept_hallucinated.append(s)
     state_result["hallucinated"] = kept_hallucinated
     state_result["state_via_enum"] = state_via_enum
+    state_result["state_via_process"] = state_via_process
     perm_result = compare_permission_pages(design_permissions, prd_perm_pages)
 
     # ShitPM 增强：权限角色对对比（覆盖角色级一致性，检测 PRD 中 design 没有的角色-页面组合）
@@ -1921,6 +1899,14 @@ def main():
     # 都是解析层面的表达差异，归入语义判断，不当作确定性冲突。
     needs_semantic_judgment_items.extend(field_result.get("merged_split_unmatched", []))
     needs_semantic_judgment_items.extend(state_result.get("state_via_enum", []))
+    needs_semantic_judgment_items.extend(state_result.get("state_via_process", []))
+    needs_semantic_judgment_items.extend(indexed_result.get("field_name_variants", []))
+    if indexed_result.get("operations"):
+        needs_semantic_judgment_items.append({
+            "issue": "operations_semantic",
+            "note": indexed_result["operations"]["note"],
+            "expected_count": indexed_result["operations"].get("expected_count"),
+        })
     needs_semantic_judgment_count = len(needs_semantic_judgment_items)
     total_deterministic_attribute_mismatch = len(field_result["deterministic_attribute_mismatch"]) + len(indexed_result["attribute_mismatch"])
     total_attribute_mismatch = total_deterministic_attribute_mismatch + needs_semantic_judgment_count

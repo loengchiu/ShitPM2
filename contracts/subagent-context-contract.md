@@ -37,7 +37,7 @@ Sub-agent 请求上下文包时必须同时通过 `context-pack.py --role <role>
 |---|---|---|---|
 | Material Reader | `material-reader` | Design `analysis` | `design-core`、`design-mode` |
 | Design Challenger | `design-challenger` | Design `challenge` | `design-core`、`design-mode`、`design-cards` |
-| PRD Module Writer | `prd-module-writer` | 仅 PRD `module` | `prd-core`、`prd-writing-structure`、`prd-writing-action`、`prd-cards`、`prd-writing-examples` |
+| PRD Module Writer | `prd-module-writer` | 仅 PRD `module` | `prd-core`、`prd-writing-spec`、`prd-cards`、`prd-writing-examples` |
 
 角色白名单只约束上下文装载边界，不授予最终产物写入权；Sub-agent 的输出仍须带来源并由主 Agent 复核。
 

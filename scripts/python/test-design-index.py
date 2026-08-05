@@ -358,25 +358,40 @@ class DesignIndexTests(unittest.TestCase):
         self.assertTrue(json.loads(prototype_run.stdout)["ok"])
 
     def test_prd_detects_missing_added_and_changed_indexed_items(self):
-        self.write_downstream(VALID_PRD)
-        missing = VALID_PRD.replace("##### 字段：状态\n来源：订单服务\n展示条件：始终展示\n", "")
+        # 新格式（design-index 激活）下：页面/字段按名称级确定比较；
+        # 缺失字段只输出 possible_omission 候选（退出码 0）；新增字段为确定性幻觉（退出码 1）；
+        # 新格式正文属性（必填/来源/成功结果）不再逐字比较，差异归语义判断，不产生 attribute_mismatch。
+        self.write_downstream(STANDARD_PRD)
+        missing = STANDARD_PRD.replace("| 状态 | 单选 | 否 | — | 默认全部 | 订单服务 | 订单当前处理状态 |\n", "")
         (self.root / "output" / "prd" / "prd.md").write_text(missing, encoding="utf-8")
         run = self.run_downstream("prd-consistency-check.py")
         self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
-        self.assertTrue(json.loads(run.stdout)["design_index"]["structure"]["missing"])
+        report = json.loads(run.stdout)
+        self.assertTrue(any(item.get("name") == "状态" for item in report["design_index"]["structure"]["missing"]))
+        self.assertEqual(report.get("exit_reason"), "possible_omission")
 
-        added = VALID_PRD.replace("##### 操作：查询", "##### 字段：额外字段\n来源：订单服务\n展示条件：始终展示\n\n##### 操作：查询")
+        added = STANDARD_PRD.replace(
+            "| 状态 | 单选 | 否 | — | 默认全部 | 订单服务 | 订单当前处理状态 |\n",
+            "| 状态 | 单选 | 否 | — | 默认全部 | 订单服务 | 订单当前处理状态 |\n"
+            "| 额外字段 | 文本 | 否 | — | — | 订单服务 | 幻觉字段 |\n",
+        )
         (self.root / "output" / "prd" / "prd.md").write_text(added, encoding="utf-8")
         run = self.run_downstream("prd-consistency-check.py")
         self.assertEqual(run.returncode, 1, run.stdout + run.stderr)
-        self.assertTrue(json.loads(run.stdout)["design_index"]["structure"]["hallucinated"])
+        report = json.loads(run.stdout)
+        self.assertTrue(any(item.get("name") == "额外字段" for item in report["design_index"]["structure"]["hallucinated"]))
+        self.assertEqual(report.get("exit_reason"), "deterministic_conflict")
 
-        changed = VALID_PRD.replace("来源：订单服务", "来源：其他服务", 1).replace("成功结果：刷新订单列表", "成功结果：跳转到首页")
+        changed = STANDARD_PRD.replace("| 订单编号 | 文本 | 是 |", "| 订单编号 | 文本 | 否 |", 1)
         (self.root / "output" / "prd" / "prd.md").write_text(changed, encoding="utf-8")
         run = self.run_downstream("prd-consistency-check.py")
-        self.assertEqual(run.returncode, 1, run.stdout + run.stderr)
-        mismatches = json.loads(run.stdout)["design_index"]["structure"]["attribute_mismatch"]
-        self.assertEqual({item["attribute"] for item in mismatches}, {"source", "success_result"})
+        self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+        report = json.loads(run.stdout)
+        self.assertEqual(report["design_index"]["structure"]["attribute_mismatch"], [])
+        self.assertTrue(any(
+            item.get("issue") == "operations_semantic"
+            for item in report["classification"]["needs_semantic_judgment"]["attribute_mismatches"]
+        ))
 
     def test_prototype_detects_missing_state_and_added_operation(self):
         self.write_downstream(html=VALID_HTML)

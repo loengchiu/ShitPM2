@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""PRD 全量分片流程的配置、Skill 和活动行为回归测试。"""
+"""PRD Skill 精简后：manifest 装载面、SKILL 规模、规则唯一性和活动行为回归测试。"""
 
+import importlib.util
 import json
 import subprocess
 import sys
@@ -9,22 +10,50 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 
 
+def estimate_tokens(text: str) -> int:
+    spec = importlib.util.spec_from_file_location("token_estimate", ROOT / "scripts/python/token_estimate.py")
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module.estimate_tokens(text)
+
+
 def main() -> int:
     manifest = json.loads((ROOT / "contracts/context-loading.manifest.json").read_text(encoding="utf-8-sig"))
     prd = manifest["stages"]["prd"]
     if set(prd["passes"]) != {"writing", "module"}:
         raise AssertionError(f"PRD pass 不符合目标: {prd['passes']}")
     if prd["passes"]["writing"] != [
-        "prd-core", "prd-writing-structure", "prd-writing-action",
-        "prd-writing-glossary", "prd-writing-versioning", "prd-verification",
-        "prd-writing-examples",
+        "prd-core", "prd-writing-structure", "prd-writing-template",
+        "prd-writing-glossary", "prd-writing-versioning",
     ]:
-        raise AssertionError(f"writing pack 不完整: {prd['passes']['writing']}")
+        raise AssertionError(f"writing pack 不符合精简装载面: {prd['passes']['writing']}")
     if prd["passes"]["module"] != [
-        "prd-core", "prd-writing-structure", "prd-writing-action", "prd-cards",
-        "prd-writing-examples",
+        "prd-core", "prd-writing-spec", "prd-cards", "prd-writing-examples",
     ]:
-        raise AssertionError(f"module pack 不符合目标: {prd['passes']['module']}")
+        raise AssertionError(f"module pack 不符合精简装载面: {prd['passes']['module']}")
+
+    # module pass 不装载完整模板、完整 profile、完整版本规则、完整场景清单和反例组
+    examples_pack = prd["packs"]["prd-writing-examples"]
+    if set(examples_pack.get("sections", [])) != {"prd-example-simple-readonly", "prd-example-multi-role-state"}:
+        raise AssertionError(f"module pass 自动示例不符合两份正例: {examples_pack.get('sections')}")
+    if "prd-example-dashboard" in examples_pack.get("sections", []):
+        raise AssertionError("看板示例仍被 module pass 自动装载")
+    for required_key in (
+        "dashboard", "list-detail-query", "form-config", "multi-role-state",
+        "mobile-cross-terminal", "external-auto", "simple-readonly",
+    ):
+        if required_key not in examples_pack.get("example_sections", {}):
+            raise AssertionError(f"按需 --example 键缺失: {required_key}")
+    module_sections = []
+    for pack_name in prd["passes"]["module"]:
+        pack = prd["packs"][pack_name]
+        module_sections.extend(pack.get("sections", []))
+        for group in pack.get("card_sections", {}).values():
+            module_sections.extend(group)
+    for forbidden in ("prd-template", "prd-profile", "prd-writing-versioning", "prd-writing-glossary"):
+        if forbidden in module_sections:
+            raise AssertionError(f"module pass 仍装载非模块写作章节: {forbidden}")
 
     roles = manifest["subagent_roles"]
     if "module-verifier" in roles:
@@ -33,14 +62,26 @@ def main() -> int:
         raise AssertionError("material-reader 仍拥有 PRD 授权")
     if roles["prd-module-writer"]["allowed"]["prd"]["passes"] != ["module"]:
         raise AssertionError("prd-module-writer 未收敛到 module")
+    if roles["prd-module-writer"]["allowed"]["prd"]["packs"] != [
+        "prd-core", "prd-writing-spec", "prd-cards", "prd-writing-examples",
+    ]:
+        raise AssertionError(f"prd-module-writer pack 白名单未同步: {roles['prd-module-writer']['allowed']['prd']['packs']}")
     if "生成内部 PRD 草稿" in roles["prd-module-writer"]["purpose"]:
         raise AssertionError("prd-module-writer 仍被授权生成内部 PRD 草稿")
 
     subagent_contract = (ROOT / "contracts/subagent-context-contract.md").read_text(encoding="utf-8-sig")
     if "可以产生内部模块草稿" in subagent_contract:
         raise AssertionError("Sub-agent 契约仍允许产生内部模块草稿")
+    if "prd-writing-spec" not in subagent_contract:
+        raise AssertionError("Sub-agent 契约未同步 prd-writing-spec 白名单")
 
     skill = (ROOT / "skills/spm-prd/SKILL.md").read_text(encoding="utf-8-sig")
+    skill_lines = len(skill.splitlines())
+    skill_tokens = estimate_tokens(skill)
+    if skill_lines > 160:
+        raise AssertionError(f"SKILL.md 超过 160 行: {skill_lines}")
+    if skill_tokens > 2500:
+        raise AssertionError(f"SKILL.md 超过约 2500 token: {skill_tokens}")
     for forbidden in (
         "--pass plan", "--pass integration", "--pass verification",
         "prototype-structure.py", "检查回执", "机器签名", "综合门禁", "检查 JSON", "结果哈希链",
@@ -54,10 +95,61 @@ def main() -> int:
     for required in (
         "全量分片", "不再根据 Design 大小", "阶段 A：全局扫描", "阶段 B：建立最终 PRD 骨架",
         "阶段 C：模块分片写入", "阶段 D：有限范围整合", "4.x.6 功能详细说明",
-        "中断恢复", "不依赖 subagent",
+        "中断恢复", "不依赖 subagent", "Design confirmation",
+        "重新生成", "局部修复",
     ):
         if required not in skill:
             raise AssertionError(f"Skill 缺少全量分片规则: {required}")
+    for required in (
+        "业务判断链", "动作按业务结果重组", "动作按复杂度", "数据型功能",
+        "高影响未知", "直接回读", "详细需求说明写作规范", "--example <键>",
+    ):
+        if required not in skill:
+            raise AssertionError(f"Skill 缺少核心语义责任: {required}")
+    for required in (
+        "design-index.py compile", "不一次性读 design.md 正文",
+        "--module <模块名>", "禁止一次性全读 design.md",
+        "片段不得包含无关模块内容", "sed 1,$p",
+    ):
+        if required not in skill:
+            raise AssertionError(f"Skill 缺少 Design 分片读取指令: {required}")
+
+    rules = (ROOT / "references/prd-writing-rules.md").read_text(encoding="utf-8-sig")
+    for marker in ("prd-writing-structure", "prd-writing-spec", "prd-core-boundary"):
+        if f"<!-- context:{marker}:start -->" not in rules or f"<!-- context:{marker}:end -->" not in rules:
+            raise AssertionError(f"写作规则缺少装载标记: {marker}")
+    for required in (
+        "详细需求说明写作规范", "研发只读", "自然语言硬约束",
+        "按实际适用覆盖", "前端事实承接", "后端事实承接",
+        "动作按业务结果重组", "动作按复杂度写", "跨前后端的完整业务链",
+        "事实边界与信息密度", "不得从“立即生效”等生效描述推导",
+        "行首标签", "每个有页面或业务动作的功能模块必须包含 `4.x.6 功能详细说明`",
+    ):
+        if required not in rules:
+            raise AssertionError(f"写作规则缺少精简后唯一规范项: {required}")
+
+    scenes = (ROOT / "references/prd-scene-checklist.md").read_text(encoding="utf-8-sig")
+    for required in (
+        "适用 / 不适用 / 待确认",
+        "谁在什么业务前提和状态下操作", "判断依据来自哪里",
+        "下一步由谁继续", "是否新增 Design 未确认事实",
+    ):
+        if required not in scenes:
+            raise AssertionError(f"场景清单缺少语义自检项: {required}")
+    if "context-pack.py --module" in scenes:
+        raise AssertionError("场景清单仍包含 context pack 运行记录自检")
+
+    examples = (ROOT / "references/prd-writing-examples.md").read_text(encoding="utf-8-sig")
+    for marker in (
+        "prd-example-simple-readonly", "prd-example-dashboard",
+        "prd-example-list-detail-query", "prd-example-form-config",
+        "prd-example-multi-role-state", "prd-example-mobile-cross-terminal",
+        "prd-example-external-auto",
+    ):
+        if f"<!-- context:{marker}:start -->" not in examples:
+            raise AssertionError(f"示例缺少页面类型章节: {marker}")
+    if "反例" in examples:
+        raise AssertionError("示例不应保留反例（坏味道由 lint 识别）")
 
     template = (ROOT / "templates/prd.md").read_text(encoding="utf-8-sig")
     for required in (
@@ -75,76 +167,15 @@ def main() -> int:
         if forbidden in template:
             raise AssertionError(f"PRD 模板仍保留旧格式: {forbidden}")
 
-    for required in (
-        "同一事实三处交叉比较",
-        "PRD 内部引用必须指向当前 `prd.md`",
-        "不得从生效描述推导时间范围",
-        "完成最后一次 `prd.md` 写入",
-        "Design 操作按业务结果重组",
-        "页面、动作和终端命名格式遵循",
-        "页面是否围绕用户任务和业务判断组织",
-        "自动动作、删除传播、枚举和独立上限按",
-        "写作规则和写作示例必须联合装载",
-    ):
-        if required not in skill:
-            raise AssertionError(f"Skill 缺少本轮直接约束或格式规则: {required}")
-    # Design 分片读取：阶段 A 大 Design 读索引、阶段 C 用 --module、禁止一次性全读
-    for required in (
-        "design-index.py compile", "不一次性读 design.md 正文",
-        "--module <模块名>", "禁止一次性全读 design.md",
-        "片段不得包含无关模块内容",
-    ):
-        if required not in skill:
-            raise AssertionError(f"Skill 缺少 Design 分片读取指令: {required}")
-    if "sed 1,$p" not in skill:
-        raise AssertionError("Skill 未明确列出一性次全读的等效行为示例")
-    if "--pass module --card scenes" in skill and "--module" not in skill.split("--pass module --card scenes")[1][:400]:
-        raise AssertionError("阶段 C 模块装载命令未与 --module 一起给出")
-
-    rules = (ROOT / "references/prd-writing-rules.md").read_text(encoding="utf-8-sig")
-    for required in (
-        "所有 PRD 默认分片写作", "分片必须直接写入最终 `output/prd/prd.md`",
-        "不得整篇重写", "每个功能模块必须包含 `4.x.6 功能详细说明`",
-        "从最终 `prd.md` 的章节骨架", "不依赖 subagent",
-        "页面固定使用六级标题", "动作固定使用单独一行加粗",
-        "同一事实三处交叉比较", "PRD 内部引用必须指向当前 `prd.md`",
-        "不得从生效描述推导时间范围", "完成最后一次 `prd.md` 写入",
-        "页面操作承接与合并",
-        "页面语境与区块表达", "状态驱动展示",
-        "自动动作、删除传播与枚举上限",
-    ):
-        if required not in rules:
-            raise AssertionError(f"写作规则缺少全量分片硬规则: {required}")
-    for required in (
-        "Design 按模块分片读取", "context-pack.py --module",
-        "禁止一次性全读 design.md",
-    ):
-        if required not in rules:
-            raise AssertionError(f"写作规则缺少 Design 分片读取规则: {required}")
-    if "页面用加粗行" in rules:
-        raise AssertionError("写作规则仍保留旧页面格式")
-
-    scenes = (ROOT / "references/prd-scene-checklist.md").read_text(encoding="utf-8-sig")
-    for required in (
-        "页面操作承接与合并", "事实交叉一致性", "引用与时间范围",
-        "页面展示与状态驱动展示", "自动动作与删除传播", "枚举与独立上限",
-    ):
-        if required not in scenes:
-            raise AssertionError(f"场景清单缺少本轮自检项: {required}")
-    for required in ("context-pack.py --module <模块名>", "未一次性全读 design.md"):
-        if required not in scenes:
-            raise AssertionError(f"场景清单缺少 --module 装载自检项: {required}")
-
     review = (ROOT / "contracts/prd-review-checklist.md").read_text(encoding="utf-8-sig")
     for required in (
         "无效引用", "时间范围", "页面操作承接与合并", "检查后修改", "格式统一",
         "页面展示行为完整", "自动动作失败闭环", "删除传播完整", "枚举和独立上限有来源",
+        "Design 全读痕迹", "上下文爆栈", "一次性全读 design.md",
+        "详细需求说明语义专项检查", "数据范围与统计口径专项检查",
     ):
         if required not in review:
             raise AssertionError(f"Review 清单缺少本轮检查项: {required}")
-    for required in ("Design 全读痕迹", "上下文爆栈", "一次性全读 design.md"):
-        if required not in review:
-            raise AssertionError(f"Review 清单缺少 Design 全读痕迹检查项: {required}")
 
     stage_source = (ROOT / "scripts/python/stage-context.py").read_text(encoding="utf-8-sig")
     if '"scripts/python/prototype-structure.py"' in stage_source:
@@ -164,7 +195,7 @@ def main() -> int:
         if result.returncode == 0 or "不存在 pass" not in result.stderr:
             raise AssertionError(f"废弃 pass 未被清晰拒绝: {old_pass}, {result.returncode}, {result.stderr}")
 
-    print("test-prd-simplification: PASS（manifest、角色、Skill、模板、写作规则、Prototype 依赖和旧 pass 拒绝）")
+    print("test-prd-simplification: PASS（manifest 精简装载面、SKILL 规模、规则唯一性、示例按需装载和旧 pass 拒绝）")
     return 0
 
 

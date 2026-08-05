@@ -293,6 +293,13 @@ def main() -> int:
     if not report.get("permission_inversions"):
         raise AssertionError("权限反转未输出分类详情")
 
+    required_reversal = PRD_BASE.replace("| 订单编号 | 字符串 | 是 |", "| 订单编号 | 字符串 | 否 |", 1)
+    code, report = run_case(required_reversal)
+    if code != 1 or report.get("exit_reason") != "deterministic_conflict":
+        raise AssertionError(f"必填反转应阻断并返回 1: {code}, {report.get('exit_reason')}")
+    if not report["classification"]["deterministic_conflicts"]["field_attributes"]:
+        raise AssertionError("必填反转未进入 deterministic_conflict 分类")
+
     omission = PRD_BASE.replace("| 状态 | 枚举 | 是 | 草稿、已完成 | 草稿 | 订单服务 | 订单处理状态 |\n", "")
     code, report = run_case(omission)
     if code != 0 or report.get("exit_reason") != "possible_omission":
@@ -365,6 +372,18 @@ def main() -> int:
     enum_items = [item for item in report["classification"]["deterministic_conflicts"]["field_enums"] if item.get("name") == "状态"]
     if not enum_items or "已完成" not in enum_items[0].get("enum_missing", []):
         raise AssertionError(f"内联枚举冲突未正确归类: {enum_items}")
+
+    # P2-1 回归：枚举值仅空白差异（Design「10年」vs PRD「10 年」）不应判确定性冲突。
+    design_ws = DESIGN.replace("草稿、已完成", "10年、20年、永久")
+    prd_ws = PRD_BASE.replace("草稿、已完成", "10 年、20 年、永久")
+    code, report = run_case(prd_ws, design_ws)
+    if code != 0 or report.get("exit_reason") != "ok":
+        raise AssertionError(f"枚举空白差异应 ok/0: {code}, {report.get('exit_reason')}")
+    # 真阳性仍须拦截：枚举值实质不同（「已归档」替换「永久」）判确定性冲突/1。
+    enum_real = prd_ws.replace("10 年、20 年、永久", "10 年、20 年、已归档")
+    code, report = run_case(enum_real, design_ws)
+    if code != 1 or report.get("exit_reason") != "deterministic_conflict":
+        raise AssertionError(f"枚举实质差异应确定性冲突: {code}, {report.get('exit_reason')}")
 
     # P1 回归：extract_prd_fields 能从"类型/取值"列解析内联枚举，且识别无"必填"列表。
     spec = importlib.util.spec_from_file_location("prd_consistency_check", SCRIPT)

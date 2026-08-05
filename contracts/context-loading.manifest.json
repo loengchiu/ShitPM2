@@ -117,16 +117,13 @@
         "writing": [
           "prd-core",
           "prd-writing-structure",
-          "prd-writing-action",
+          "prd-writing-template",
           "prd-writing-glossary",
-          "prd-writing-versioning",
-          "prd-verification",
-          "prd-writing-examples"
+          "prd-writing-versioning"
         ],
         "module": [
           "prd-core",
-          "prd-writing-structure",
-          "prd-writing-action",
+          "prd-writing-spec",
           "prd-cards",
           "prd-writing-examples"
         ]
@@ -138,65 +135,59 @@
             "prd-core-boundary"
           ]
         },
+        "prd-writing-structure": {
+          "purpose": "PRD 顶层结构和模块固定子章节的最小结构规则（writing pass 骨架初始化）",
+          "sections": [
+            "prd-writing-structure"
+          ]
+        },
+        "prd-writing-template": {
+          "purpose": "PRD 最小骨架模板：writing pass 骨架初始化使用，module pass 不装载",
+          "sections": [
+            "prd-template"
+          ]
+        },
+        "prd-writing-spec": {
+          "purpose": "详细需求说明（4.x.6）唯一写作规范：模块组织、页面判断链、动作重组与复杂度、数据口径、事实边界和信息密度",
+          "sections": [
+            "prd-writing-spec"
+          ]
+        },
         "prd-cards": {
-          "purpose": "按适用性装载 PRD 专项场景规则",
+          "purpose": "按适用性装载 PRD 精简语义自检问题",
           "card_sections": {
             "scenes": [
               "prd-verification-scenes"
             ]
           }
         },
-        "prd-verification": {
-          "purpose": "PRD 生成内场景覆盖和交付检查",
-          "sections": [
-            "prd-verification-scenes"
-          ]
-        },
-        "prd-writing-structure": {
-          "purpose": "PRD 结构、页面组织、字段表和状态机的组织规则，以及输出模板和机读约束",
-          "sections": [
-            "prd-writing-structure",
-            "prd-template",
-            "prd-profile"
-          ]
-        },
-        "prd-writing-action": {
-          "purpose": "PRD 动作正文和具体写作要求",
-          "sections": [
-            "prd-writing-action"
-          ]
-        },
         "prd-writing-examples": {
-          "purpose": "详细需求说明写作示例：目标颗粒度和表达方式的必要输入，不提供产品事实。模块写作自动装载简单查看、多角色状态流转和反例示例；其他类型用 --example 按需装载",
+          "purpose": "详细需求说明写作示例：目标颗粒度和表达方式的必要输入，不提供产品事实。模块写作自动装载简单只读和多角色状态示例，分别展示篇幅下限和复杂页面的完整颗粒度；其他类型用 --example 按需装载",
           "sections": [
-            "prd-example-simple-action",
-            "prd-example-state-flow-action",
-            "prd-example-bad-patterns"
+            "prd-example-simple-readonly",
+            "prd-example-multi-role-state"
           ],
           "example_sections": {
-            "form": [
-              "prd-example-form-action"
+            "dashboard": [
+              "prd-example-dashboard"
             ],
-            "query-stats": [
-              "prd-example-query-stats"
+            "list-detail-query": [
+              "prd-example-list-detail-query"
             ],
-            "multi-block": [
-              "prd-example-multi-block-page"
+            "form-config": [
+              "prd-example-form-config"
             ],
-            "few-block": [
-              "prd-example-few-block-page"
+            "multi-role-state": [
+              "prd-example-multi-role-state"
             ],
-            "mobile-cross-role": [
-              "prd-example-mobile-cross-role"
+            "mobile-cross-terminal": [
+              "prd-example-mobile-cross-terminal"
             ],
-            "copy-source-text": [
-              "prd-example-copy-source-text"
+            "external-auto": [
+              "prd-example-external-auto"
             ],
-            "auto-action": [
-              "prd-example-auto-action"
-            ],
-            "flow": [
-              "prd-example-flow"
+            "simple-readonly": [
+              "prd-example-simple-readonly"
             ]
           }
         },
@@ -348,81 +339,58 @@
     "prd-verification-scenes": {
       "stage": "prd",
       "source": "references/prd-scene-checklist.md",
-      "selector": "marker",
-      "shared": true,
-      "reuse_note": "模块写作需要逐动作自检，生成内审查需要同一清单复核；两个 pass 共享同一章节，装载结果按章节 ID 去重。"
+      "selector": "marker"
     },
     "prd-template": {
       "stage": "prd",
       "source": "templates/prd.md",
       "selector": "marker"
     },
-    "prd-profile": {
-      "stage": "prd",
-      "source": "contracts/prd-writing.profile.json",
-      "selector": "whole"
-    },
     "prd-writing-structure": {
       "stage": "prd",
       "source": "references/prd-writing-rules.md",
       "selector": "marker"
     },
-    "prd-writing-action": {
+    "prd-writing-spec": {
       "stage": "prd",
       "source": "references/prd-writing-rules.md",
       "selector": "marker"
     },
-    "prd-example-simple-action": {
+    "prd-example-simple-readonly": {
+      "stage": "prd",
+      "source": "references/prd-writing-examples.md",
+      "selector": "marker",
+      "shared": true,
+      "reuse_note": "简单只读示例同时作为 module pass 自动装载的篇幅下限样本和 simple-readonly 按需键。"
+    },
+    "prd-example-dashboard": {
       "stage": "prd",
       "source": "references/prd-writing-examples.md",
       "selector": "marker"
     },
-    "prd-example-form-action": {
+    "prd-example-list-detail-query": {
       "stage": "prd",
       "source": "references/prd-writing-examples.md",
       "selector": "marker"
     },
-    "prd-example-state-flow-action": {
+    "prd-example-form-config": {
       "stage": "prd",
       "source": "references/prd-writing-examples.md",
       "selector": "marker"
     },
-    "prd-example-query-stats": {
+    "prd-example-multi-role-state": {
+      "stage": "prd",
+      "source": "references/prd-writing-examples.md",
+      "selector": "marker",
+      "shared": true,
+      "reuse_note": "多角色状态示例同时作为 module pass 自动装载的复杂页面样本和 multi-role-state 按需键。"
+    },
+    "prd-example-mobile-cross-terminal": {
       "stage": "prd",
       "source": "references/prd-writing-examples.md",
       "selector": "marker"
     },
-    "prd-example-multi-block-page": {
-      "stage": "prd",
-      "source": "references/prd-writing-examples.md",
-      "selector": "marker"
-    },
-    "prd-example-few-block-page": {
-      "stage": "prd",
-      "source": "references/prd-writing-examples.md",
-      "selector": "marker"
-    },
-    "prd-example-mobile-cross-role": {
-      "stage": "prd",
-      "source": "references/prd-writing-examples.md",
-      "selector": "marker"
-    },
-    "prd-example-copy-source-text": {
-      "stage": "prd",
-      "source": "references/prd-writing-examples.md",
-      "selector": "marker"
-    },
-    "prd-example-auto-action": {
-      "stage": "prd",
-      "source": "references/prd-writing-examples.md",
-      "selector": "marker"
-    },
-    "prd-example-bad-patterns": {
-      "stage": "prd",
-      "source": "references/prd-writing-examples.md",
-      "selector": "marker"
-    },
-    "prd-example-flow": {
+    "prd-example-external-auto": {
       "stage": "prd",
       "source": "references/prd-writing-examples.md",
       "selector": "marker"
@@ -492,8 +460,7 @@
           ],
           "packs": [
             "prd-core",
-            "prd-writing-structure",
-            "prd-writing-action",
+            "prd-writing-spec",
             "prd-cards",
             "prd-writing-examples"
           ]

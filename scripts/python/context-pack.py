@@ -19,10 +19,16 @@ DESIGN_REL = Path('output/design/design.md')
 # 大 Design 阈值：与 SKILL 阶段 A “约 1000 行”一致；只有超过该规模才启用片段比例约束。
 LARGE_DESIGN_LINES = 1000
 # 标题锚点：Design 按“### 闭环X：名称 / ### 页面：名称 / ## 共用章节”组织，按锚点确定性切分。
+# 同时支持编号式业务闭环“### 4.2 车流和车位实时监测”（仅位于业务闭环章节下时识别）。
 # 注意：匹配的是去掉 # 前缀后的标题文本，正则不得带 ### 前缀。
 CLOSURE_HEADING_RE = re.compile(r'^闭环[一二三四五六七八九十0-9A-Za-z]+[：:]\s*(.+)$')
+NUMBERED_CLOSURE_RE = re.compile(r'^(\d+(?:\.\d+)+)\s+(.+)$')
+CLOSURE_SECTION_KEYWORDS = ('核心业务闭环', '业务闭环')
 PAGE_HEADING_RE = re.compile(r'^页面[：:]\s*(.+)$')
-SHARED_HEADING_KEYWORDS = ('业务对象', '角色、权限', '权限与数据范围', '页面清单', '待确认事项')
+SHARED_HEADING_KEYWORDS = (
+    '业务对象', '角色、权限', '权限与数据范围', '页面清单', '待确认事项',
+    '用户、组织与权限', '状态与规则', '系统与外部数据边界', '统计口径', '异常与恢复',
+)
 
 
 def sha256_text(text: str) -> str:
@@ -188,27 +194,43 @@ def build_sections(bundle_root: Path, manifest: dict[str, Any], stage: str,
 
 
 def _design_headings(text: str) -> list[dict[str, Any]]:
-    """解析 design.md 标题：记录所有标题用于边界计算；只对“闭环X：/页面：/共用章节”打锚点标记。"""
+    """解析 design.md 标题：记录所有标题用于边界计算；只对“闭环X：/编号闭环/页面：/共用章节”打锚点标记。"""
     headings = []
+    section_title = ''
     for line_no, line in enumerate(text.splitlines(), 1):
         match = re.match(r'^(#{1,6})\s+(.+?)\s*$', line)
         if not match:
             continue
         level = len(match.group(1))
         title = match.group(2).strip()
+        if level <= 2:
+            section_title = title if level == 2 else section_title
         kind = None
         name = None
+        number = None
         closure = CLOSURE_HEADING_RE.match(title)
         page = PAGE_HEADING_RE.match(title)
+        numbered = NUMBERED_CLOSURE_RE.match(title)
         if closure:
             kind, name = 'closure', closure.group(1).strip()
         elif page:
             kind, name = 'page', page.group(1).strip()
+        elif (
+            level == 3 and numbered
+            and any(keyword in section_title for keyword in CLOSURE_SECTION_KEYWORDS)
+        ):
+            number = numbered.group(1)
+            kind, name = 'closure', numbered.group(2).strip()
         elif level == 2 and any(keyword in title for keyword in SHARED_HEADING_KEYWORDS):
             kind, name = 'shared', title
-        elif level == 3 and (title.startswith('页面清单') or title in ('待确认事项',)):
+        elif level == 3 and (
+            title.startswith('页面清单') or title in ('待确认事项',) or '权限速览' in title
+        ):
             kind, name = 'shared', title
-        headings.append({'line': line_no, 'level': level, 'title': title, 'kind': kind, 'name': name})
+        headings.append({
+            'line': line_no, 'level': level, 'title': title,
+            'kind': kind, 'name': name, 'number': number,
+        })
     return headings
 
 
@@ -225,76 +247,82 @@ def _heading_text(lines: list[str], start_line: int, end_line: int) -> str:
     return '\n'.join(lines[start_line - 1:end_line]).rstrip()
 
 
-def _longest_common_substring(a: str, b: str) -> str:
-    """确定性字符串算法：两段文本的最长公共子串，用于闭环与页面的标题词关联。"""
-    if not a or not b:
-        return ''
-    shorter, longer = (a, b) if len(a) <= len(b) else (b, a)
-    best = ''
-    for start in range(len(shorter)):
-        for length in range(len(shorter) - start, len(best), -1):
-            candidate = shorter[start:start + length]
-            if candidate in longer:
-                best = candidate
-                break
-    return best
-
-
 def _match_module(headings: list[dict[str, Any]], module: str) -> dict[str, Any] | None:
-    """模块名匹配闭环标题：名称精确、模块名含于闭环名、闭环名含于模块名（去掉“模块”后缀）。"""
+    """模块名匹配闭环标题：名称精确、互相包含（去掉“模块”后缀），或编号匹配（4.2 / 4.2 名称）。"""
     candidates = [heading for heading in headings if heading['kind'] == 'closure']
-    stripped = re.sub(r'模块$', '', module)
+    stripped = re.sub(r'模块$', '', module.strip())
+    numbered = re.match(r'^(\d+(?:\.\d+)+)$', stripped)
+    full = re.match(r'^(\d+(?:\.\d+)+)\s+(.+)$', stripped)
     for heading in candidates:
         name = heading['name']
-        if name == module or module in name or name in module or stripped in name or name in stripped:
+        if name == stripped or stripped in name or name in stripped:
             return heading
+        if heading.get('number'):
+            if numbered and heading['number'] == numbered.group(1):
+                return heading
+            if full and heading['number'] == full.group(1) and full.group(2).strip() in name:
+                return heading
     return None
 
 
 def _match_pages(headings: list[dict[str, Any]], names: list[str]) -> list[dict[str, Any]]:
-    """按页面名匹配“### 页面：名称”章节；只接受名称唯一且精确的匹配，避免短名误命。"""
+    """按页面名匹配“### 页面：名称”章节；只接受名称唯一且精确的匹配，避免短名误命；同名去重。"""
     pages = [heading for heading in headings if heading['kind'] == 'page']
     by_name: dict[str, dict[str, Any]] = {}
     for heading in pages:
         by_name.setdefault(heading['name'], heading)
     matched = []
+    seen: set[str] = set()
     for name in names:
         name = re.sub(r'模块$', '', name.strip())
         if not name:
             continue
         if name in by_name:
-            matched.append(by_name[name])
+            if name not in seen:
+                matched.append(by_name[name])
+                seen.add(name)
     return matched
 
 
 def _related_pages(headings: list[dict[str, Any]], closure: dict[str, Any] | None,
-                   closure_text: str, module: str) -> list[dict[str, Any]]:
-    """确定页面关联：①闭环正文子串引用；②页面名与闭环名/模块名共享 ≥2 字最长公共子串；两者取并集。
+                   closure_text: str, module: str,
+                   mapping: dict[str, list[str]] | None = None) -> tuple[list[dict[str, Any]], list[str]]:
+    """确定页面关联：优先使用显式闭环→页面映射；无映射时只接受闭环正文对页面名的显式引用。
 
-    不做语义检索；页面与闭环的标题词关联由字符串算法确定，避免模型自行猜测。
+    显式映射来源为 --mapping-json 或项目 .workflow/context/prd-module-map.json；
+    不使用最长公共子串等标题词猜测，避免把短公共词关联到无关页面。
+    返回 (匹配到的页面标题, 映射中未在 design.md 命中的页面名)。
     """
     names = sorted({h['name'] for h in headings if h['kind'] == 'page'}, key=len, reverse=True)
-    referenced = [name for name in names if len(name) >= 2 and name in closure_text]
-    subjects = [module]
-    if closure is not None:
-        subjects.append(closure['name'])
-    for name in names:
-        if name in referenced:
-            continue
-        for subject in subjects:
-            shared = _longest_common_substring(name, subject)
-            if len(shared) >= 2:
-                referenced.append(name)
+    unresolved: list[str] = []
+    if mapping is not None and closure is not None:
+        mapped_names: list[str] = []
+        keys = [closure['name'], closure['title'], closure.get('number') or '']
+        for key in keys:
+            if key and key in mapping:
+                mapped_names = list(mapping[key])
                 break
-    return _match_pages(headings, referenced)
+        if not mapped_names and closure.get('number'):
+            for key, value in mapping.items():
+                if key == closure['number']:
+                    mapped_names = list(value)
+                    break
+        resolved = _match_pages(headings, mapped_names)
+        found = {h['name'] for h in resolved}
+        unresolved = [n for n in mapped_names if n not in found]
+        return resolved, unresolved
+    referenced = [name for name in names if len(name) >= 2 and name in closure_text]
+    return _match_pages(headings, referenced), []
 
 
 def extract_design_fragment(project_root: Path, module: str,
                             threshold_fraction: float = 1 / 3,
-                            extra_pages: list[str] | None = None) -> dict[str, Any]:
+                            extra_pages: list[str] | None = None,
+                            mapping: dict[str, list[str]] | None = None) -> dict[str, Any]:
     """按标题锚点从 output/design/design.md 确定性提取模块片段（原文，不做语义检索、不做概括）。
 
     提取范围：目标闭环章节全文 + 闭环正文引用的页面章节 + 共用章节（业务对象/权限/页面清单/待确认）。
+    页面关联优先使用显式映射（--mapping-json / 项目映射文件）；无映射时只接受闭环正文的页面名显式引用。
     匹配不到模块时报错并列出标题清单；片段行数超过全文阈值时报错提示拆分模块。
     """
     design_path = project_root / DESIGN_REL
@@ -325,7 +353,9 @@ def extract_design_fragment(project_root: Path, module: str,
         closure_text = _heading_text(lines, closure['line'], end)
         parts.append(f'## 模块闭环：{closure["title"]}\n\n{closure_text}')
         included_lines += end - closure['line'] + 1
-        matched_pages = _related_pages(headings, closure, closure_text, module)
+        matched_pages, unresolved_pages = _related_pages(
+            headings, closure, closure_text, module, mapping=mapping,
+        )
         # --pages 显式追加页面：闭环匹配成功后仍生效（补充标题词关联漏掉的页面），按名称精确匹配去重。
         for page in _match_pages(headings, list(extra_pages or [])):
             if page['name'] not in {p['name'] for p in matched_pages}:
@@ -333,6 +363,7 @@ def extract_design_fragment(project_root: Path, module: str,
     else:
         # 模块名即页面名：目标页面已从 [module]+extra_pages 精确匹配，直接作为相关页面输出。
         matched_pages = _match_pages(headings, [module] + list(extra_pages or []))
+        unresolved_pages = []
     page_lines = 0
     for page in matched_pages:
         index = headings.index(page)
@@ -388,6 +419,7 @@ def extract_design_fragment(project_root: Path, module: str,
             'design_lines': len(lines),
             'fragment_lines': included_lines,
             'threshold_fraction': threshold_fraction,
+            'mapping_unresolved_pages': unresolved_pages,
         },
     }
 
@@ -561,6 +593,25 @@ def parse_json_mapping(path: Path | None) -> dict[str, str] | None:
     return {str(key): str(value) for key, value in data.items()}
 
 
+def parse_closure_mapping(path: Path) -> dict[str, list[str]]:
+    """解析闭环→页面显式映射 JSON（{closures: {闭环名或编号: [页面名, ...]}}）。"""
+    try:
+        data = json.loads(path.read_text(encoding='utf-8-sig'))
+    except Exception as exc:
+        raise RuntimeError(f'闭环映射文件格式错误: {path}: {exc}') from exc
+    closures = data.get('closures') if isinstance(data, dict) else None
+    if not isinstance(closures, dict):
+        raise RuntimeError(f'闭环映射文件缺少 closures 对象: {path}')
+    result: dict[str, list[str]] = {}
+    for key, pages in closures.items():
+        if not isinstance(key, str) or not isinstance(pages, list) or not all(
+            isinstance(page, str) for page in pages
+        ):
+            raise RuntimeError(f'闭环映射 {key!r} 的页面必须是字符串列表: {path}')
+        result[key] = list(pages)
+    return result
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description='按 bundle manifest 编译 ShitPM Design / PRD 运行时上下文包')
     parser.add_argument('--project-root', type=Path, default=Path.cwd(), help='业务项目根目录，默认当前目录')
@@ -574,6 +625,8 @@ def main() -> int:
     parser.add_argument('--example', action='append', default=[])
     parser.add_argument('--module', help='按模块名装载 design.md 片段（与 --pass module 组合使用）：提取闭环章节 + 相关页面 + 共用对象/权限部分')
     parser.add_argument('--pages', action='append', default=[], help='显式追加提取的页面名（模块名匹配不到闭环时按页面名兜底）')
+    parser.add_argument('--mapping-json', type=Path, default=None,
+                        help='闭环到页面的确定性映射 JSON；未指定时自动探测项目 .workflow/context/prd-module-map.json')
     parser.add_argument('--fragment-threshold', type=float, default=1 / 3,
                         help='Design 片段行数阈值占 design.md 全文比例，默认 1/3；超过时报错提示拆分模块')
     parser.add_argument('--applicability-json', type=Path)
@@ -612,10 +665,21 @@ def main() -> int:
         section_ids = [section_id for ids in pack_sections.values() for section_id in ids]
         section_data = build_sections(bundle_root, manifest, args.stage, section_ids)
         if args.module:
+            mapping: dict[str, list[str]] | None = None
+            mapping_path = args.mapping_json
+            if mapping_path is None:
+                auto_mapping = project_root / '.workflow' / 'context' / 'prd-module-map.json'
+                if auto_mapping.is_file():
+                    mapping_path = auto_mapping
+            if mapping_path is not None:
+                if not mapping_path.is_absolute():
+                    mapping_path = project_root / mapping_path
+                mapping = parse_closure_mapping(mapping_path)
             fragment = extract_design_fragment(
                 project_root, args.module,
                 threshold_fraction=args.fragment_threshold,
                 extra_pages=args.pages,
+                mapping=mapping,
             )
             section_data.append(fragment)
             selected_packs = list(dict.fromkeys(selected_packs + [DESIGN_FRAGMENT_PACK]))
