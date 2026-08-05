@@ -99,6 +99,22 @@ def main() -> int:
     style005_broken = [issue for issue in STYLE.run_lint(broken_ref) if issue.code == "STYLE005"]
     if not style005_broken or style005_broken[0].severity != "error":
         raise AssertionError(f"引用目标不存在应报 error: {style005_broken}")
+    # 裸引用回归：见 §6.8 / （§10.1） / 按 §13.5 被识别为裸引用问题；
+    # 目标不是当前 PRD 章节且未写 Design 前缀时报 error。
+    bare_refs = "## 总体说明\n订单：业务订单。\n\n## 功能需求\n查询规则见 §6.8；时间口径（§10.1）按 Design 处理；导出按 §13.5 限制。"
+    bare_issues = [issue for issue in STYLE.run_lint(bare_refs) if issue.code == "STYLE005" and issue.severity == "error"]
+    if len(bare_issues) < 3:
+        raise AssertionError(f"见 §6.8 /（§10.1）/ 按 §13.5 应被识别为裸引用: {bare_issues}")
+    # “Design §6.8” 显式上游引用不误报。
+    design_ref = "## 总体说明\n订单：业务订单。\n\n## 功能需求\n状态机见 Design §6.8。"
+    design_issues = [issue for issue in STYLE.run_lint(design_ref) if issue.code == "STYLE005"]
+    if design_issues:
+        raise AssertionError(f"Design §x.x 显式上游引用不应误报: {design_issues}")
+    # 裸引用目标是当前 PRD 真实章节时通过。
+    valid_bare_ref = "## 总体说明\n订单：业务订单。\n\n## 功能需求\n### 6.8 告警规则\n告警规则见 §6.8。"
+    valid_bare_issues = [issue for issue in STYLE.run_lint(valid_bare_ref) if issue.code == "STYLE005"]
+    if valid_bare_issues:
+        raise AssertionError(f"目标存在的裸引用不应误报: {valid_bare_issues}")
 
     # STYLE009 正向：模板合规的 H3「术语定义」章节应通过（不报 STYLE009）；
     # 旧名「名词说明」也应兼容通过。去掉「总体说明」别名后，无术语章节才报错。

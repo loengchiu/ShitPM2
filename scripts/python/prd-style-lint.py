@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """prd-style-lint.py — PRD 文风 lint 脚本
 
-职责：检查 PRD 正文中可机械识别的 9 类问题。
+职责：检查 PRD 正文中可机械识别的 12 类问题。
 不做业务语义判断，不做全文重写。
 
 用法：python prd-style-lint.py <prd_file_path> [--format text|json] [--output <path>]
@@ -11,7 +11,7 @@
   STYLE002 - 动作流水账特征
   STYLE003 - 表格主导
   STYLE004 - 重复页面编号
-  STYLE005 - 跨节引用
+  STYLE005 - 跨节引用（含 §x.x 裸引用）
   STYLE006 - 机读字段泄漏
   STYLE007 - AI 痕迹
   STYLE008 - 占位符
@@ -255,17 +255,30 @@ def check_cross_section_refs(lines: list) -> list:
     """STYLE005: 检查跨节引用——只对“引用目标在当前 PRD 不存在”报错。
 
     正常指向真实章节的编号引用不再产生提示（旧版对全部引用刷 info 属于低价值噪音）；
-    “Design §x.x”等上游引用不属于 PRD 内部引用，不检查。
+    “Design §x.x”等显式上游引用不属于 PRD 内部引用，不检查。
+
+    裸引用识别：
+    - “见 §6.8”“（§10.1）”“按 §13.5”等 §x.x 形式，目标是当前 PRD 真实章节则通过；
+    - 目标不是当前 PRD 章节且未写成 “Design §x.x” 时，判定为裸引用报 error
+      （上游引用必须明确写出 Design 来源，不能伪装成 PRD 自身章节）。
     """
     issues = []
     cross_ref_pattern = re.compile(r'(?:见|参见|详见)\s*(\d+(?:\.\d+)*)')
+    bare_ref_pattern = re.compile(r'(?<!Design)(?<!Design\s)§\s*(\d+(?:\.\d+)*)')
     heading_numbers = set()
     for line in lines:
         match = re.match(r'^#{1,6}\s+(\d+(?:\.\d+)*)\s+', line.strip())
         if match:
             heading_numbers.add(match.group(1))
 
+    in_fence = False
     for i, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped.startswith("```"):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
         for match in cross_ref_pattern.finditer(line):
             target = match.group(1)
             if target in heading_numbers:
@@ -276,6 +289,17 @@ def check_cross_section_refs(lines: list) -> list:
                 line=i + 1,
                 message=f"内部引用目标不存在：见 {target}",
                 suggestion="修正为当前 prd.md 中真实存在的章节编号，或明确写成 Design 上游来源",
+            ))
+        for match in bare_ref_pattern.finditer(line):
+            target = match.group(1)
+            if target in heading_numbers:
+                continue
+            issues.append(Issue(
+                code="STYLE005",
+                severity="error",
+                line=i + 1,
+                message=f"裸引用目标不存在：§{target}",
+                suggestion="若为当前 PRD 内部章节请修正编号；若引用 Design 上游章节，请明确写成 Design §" + target,
             ))
 
     return issues

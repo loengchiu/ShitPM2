@@ -281,6 +281,21 @@ def main() -> int:
     if not report["classification"]["deterministic_conflicts"]["fields"]:
         raise AssertionError("幻觉字段未进入 deterministic_conflict 分类")
 
+    # 回归：Design 没有的泛化字段「主题指标」继续被识别为确定性多出字段。
+    theme_index_prd = PRD_BASE.replace(
+        "| 订单编号 | 字符串 | 是 | 无 | 无 | 订单服务 | 订单唯一编号 |",
+        "| 订单编号 | 字符串 | 是 | 无 | 无 | 订单服务 | 订单唯一编号 |\n| 主题指标 | 枚举 | 否 | 无 | 无 | 统计服务 | 泛化指标字段 |",
+    )
+    code, report = run_case(theme_index_prd)
+    if code != 1 or report.get("exit_reason") != "deterministic_conflict":
+        raise AssertionError(f"主题指标应继续被识别为确定性多出字段: {code}, {report.get('exit_reason')}")
+    theme_items = [
+        f for f in report["classification"]["deterministic_conflicts"]["fields"]
+        if (f.get("name") if isinstance(f, dict) else f) == "主题指标"
+    ]
+    if not theme_items:
+        raise AssertionError(f"主题指标未进入确定性多出字段分类: {report['classification']['deterministic_conflicts']['fields']}")
+
     enum_conflict = PRD_BASE.replace("草稿、已完成", "草稿、已归档").replace("| 状态 | 枚举 | 是 | 草稿、已归档 |", "| 状态 | 枚举 | 是 | 草稿、已归档 |")
     code, report = run_case(enum_conflict)
     if code != 1 or report.get("exit_reason") != "deterministic_conflict":
@@ -331,10 +346,19 @@ def main() -> int:
 
     # 回归：页面"数据字典"与章节同名，不应被黑名单误过滤为缺失。
     code, report = run_case(DICT_PAGE_PRD, design=DICT_PAGE_DESIGN)
-    if code != 0 or report.get("exit_reason") != "ok":
-        raise AssertionError(f"数据字典页面样本应为 ok/0: {code}, {report.get('exit_reason')}\n{json.dumps(report.get('classification'), ensure_ascii=False)}")
+    if code != 0:
+        raise AssertionError(f"数据字典页面样本不应是确定性冲突: {code}, {report.get('exit_reason')}\n{json.dumps(report.get('classification'), ensure_ascii=False)}")
     if report["pages"]["missing"] or report["pages"]["hallucinated"]:
         raise AssertionError(f"数据字典页面被误报: {report['pages']}")
+    # 页面只在页面清单出现、未在 4.x.6 正文落点时，列为页面正文落点可能遗漏（退出码 0）。
+    if report.get("exit_reason") != "possible_omission":
+        raise AssertionError(f"只在清单出现的页面应列为可能遗漏: {code}, {report.get('exit_reason')}")
+    page_body_names = {
+        item.get("name")
+        for item in report["classification"]["possible_omissions"].get("page_body", [])
+    }
+    if "数据字典" not in page_body_names:
+        raise AssertionError(f"数据字典页面未进入页面正文落点候选: {report['classification']['possible_omissions']}")
 
     # 回归：同名"状态"字段按对象区分，不跨对象误配属性。
     code, report = run_case(SAME_NAME_PRD, design=SAME_NAME_DESIGN)
@@ -404,6 +428,82 @@ def main() -> int:
         raise AssertionError(f"新模板内联枚举未从类型/取值列解析: {status4}")
     if status4.get("has_required_column") is not False:
         raise AssertionError(f"新模板四列字段表应标记无必填列: {status4}")
+
+    # 回归：Design 页面只在页面清单出现、未在 4.x.6 正文落点 → 页面正文落点可能遗漏。
+    page_list_only_prd = """# PRD 正文
+
+## 总体说明
+
+### 页面清单
+
+| 页面/入口 | 终端 | 所属业务闭环 | 主要承接阶段 |
+|---|---|---|---|
+| 两客一危统计 | 管理端 | 两客一危核查与告警 | 统计与下钻 |
+| 车辆信息记录 | 管理端 | 车辆记录与离场 | 记录查询 |
+
+## 功能需求
+
+### 两客一危核查与告警
+
+#### 4.4.6 功能详细说明
+
+##### 4.4.6.1 两客一危车辆查看
+
+两客一危车辆查看展示比对状态和核查入口。
+"""
+    headings_pl = module.parse_headings(page_list_only_prd)
+    landing = module.find_page_body_landing_issues(
+        page_list_only_prd, headings_pl, ["两客一危统计", "车辆信息记录"]
+    )
+    omission_names = {item["name"] for item in landing["body_omissions"]}
+    if "两客一危统计" not in omission_names:
+        raise AssertionError(f"页面只在清单出现未列为可能遗漏: {landing}")
+    if landing["page_merges"]:
+        raise AssertionError(f"未出现合并时不应有合并候选: {landing}")
+    # 页面在 4.x.6 正文有落点时不误报。
+    landed_prd = page_list_only_prd.replace(
+        "##### 4.4.6.1 两客一危车辆查看",
+        "##### 4.4.6.1 两客一危统计\n\n两客一危统计展示统计指标。\n\n##### 4.4.6.2 两客一危车辆查看",
+    )
+    headings_lp = module.parse_headings(landed_prd)
+    landing_lp = module.find_page_body_landing_issues(landed_prd, headings_lp, ["两客一危统计", "车辆信息记录"])
+    if any(item["name"] == "两客一危统计" for item in landing_lp["body_omissions"]):
+        raise AssertionError(f"页面已在 4.x.6 落点仍被误报: {landing_lp}")
+
+    # 回归：页面在 4.x.6 正文明确写出合并关系时，不判为确定性错误，交 Review 判断。
+    merged_prd = """# PRD 正文
+
+## 总体说明
+
+### 页面清单
+
+| 页面/入口 | 终端 | 所属业务闭环 | 主要承接阶段 |
+|---|---|---|---|
+| 监控点列表 | 管理端 | 车流和车位实时监测 | 监控绑定 |
+| 监控点详情 | 管理端 | 车流和车位实时监测 | 监控绑定 |
+| 监控点位管理 | 管理端 | 车流和车位实时监测 | 监控绑定 |
+
+## 功能需求
+
+### 车流和车位实时监测
+
+#### 4.2.6 功能详细说明
+
+##### 4.2.6.1 监控点位管理
+
+监控点列表与监控点详情合并为监控点位管理，绑定结果在详情中展示。
+"""
+    headings_mp = module.parse_headings(merged_prd)
+    landing_mp = module.find_page_body_landing_issues(
+        merged_prd, headings_mp, ["监控点列表", "监控点详情", "监控点位管理"]
+    )
+    if any(item["name"] in {"监控点列表", "监控点详情"} for item in landing_mp["body_omissions"]):
+        raise AssertionError(f"明确合并页面不应列为可能遗漏: {landing_mp}")
+    merge_names = {item["name"] for item in landing_mp["page_merges"]}
+    if not {"监控点列表", "监控点详情"} <= merge_names:
+        raise AssertionError(f"合并页面未进入合并候选交 Review 判断: {landing_mp}")
+    if "监控点位管理" in merge_names:
+        raise AssertionError(f"有独立 4.x.6 子标题落点的合并结果页不应进入合并候选: {landing_mp}")
 
     # 回归：状态组合值拆分 + "下一状态"列 + 同章节箭头状态都应被提取。
     headings_cs = module.parse_headings(COMBINED_STATE_PRD)

@@ -37,6 +37,9 @@ python $BUNDLE/scripts/python/prd-consistency-check.py --project-root .
 
 引用 JSON 中的三类输出：①确定性冲突（`missing`、`hallucinated`、`attribute_mismatch`、权限反转）直接采用为问题；②可能遗漏（脚本标注可能冲突但需人工确认）逐条判定；③`needs_semantic_judgment` 语义判断项——含**结构适配差异**（Design 用枚举表达状态而 PRD 改写为独立状态字段、对象合并/拆分后字段归属不一致等结构性改法差异）——由 Review 按业务语义判定，不因脚本无法确认而默认通过。脚本返回 `0` 不代表 PRD 通过，返回 `1` 也不替代问题定位。
 4. 读取 `$BUNDLE/contracts/review-checklist.md`、`$BUNDLE/contracts/prd-review-checklist.md`、`$BUNDLE/references/prd-writing-rules.md` 和 `$BUNDLE/contracts/prd-writing.profile.json`。按取证需要读取 `$BUNDLE/references/prd-writing-examples.md`、`prd-glossary-format.md`、`prd-versioning.md` 或 `prd-scene-checklist.md`。重点审查：
+   - 审查顺序：先审最后一个业务模块，再向前审查，避免审查疲劳导致后半段被宽松放行；
+   - 统计页逐页验收：对每个统计页分别从前端和后端回答——前端能否确定页面区域、指标、筛选、空态、失败和下钻；后端能否确定对象、范围、时间、状态纳入、计算、写入和下游结果；
+   - 复杂动作逐项验收：对每个复杂动作分别检查角色、允许状态、输入、校验、成功后的对象和状态变化、失败保留和下一责任人；
    - 是否按业务闭环组织，模块边界和模块独立可读是否成立；
    - 管理端和移动端是否落在同一闭环的真实阶段；页面映射与正文落点是否一致；
    - 按模块检查 `4.x.6 功能详细说明` 是否存在且非空，页面是否在该章节落点，而不是只出现在页面清单；
@@ -60,7 +63,9 @@ python $BUNDLE/scripts/python/prd-consistency-check.py --project-root .
 
 - 共享契约的统一门槛：零 P0/P1 为“通过”；零 P0 且 1 个 P1 为“有问题需修改”；存在 P0 或至少 2 个 P1 为“阻塞”。
 - 有页面或业务动作的模块缺少 `4.x.6 功能详细说明`、`4.x.6` 为空、页面只出现在清单未落正文、或页面/动作被压缩成模块摘要时，按结构或内容层 P1 处理。
+- 页面只在清单出现、统计页只有指标名没有统计闭环、状态条件出现“或”但没有分支依据、或 Design 引用无法定位（裸 `§x.x` 未写 Design 来源）时，至少记录为 P1。
 - PRD 引入 Design 未授权字段、页面、状态、权限、流程、模块边界，或静默拍板 Design 的“待确认”事实时，必须作为高影响审查问题，并在需要时建议回上游。
+- 脚本没有评估的权限或语义项（无法提取、possible_omission、needs_semantic_judgment）必须在审查结论中明确写“未评估”，不能写成通过或“零冲突”。
 - 一致性校验是 Review 审查问题依据，不是阻止 Review 开始的门禁。
 - Review 通过不等于 Design confirmation，也不自动推进阶段。
 

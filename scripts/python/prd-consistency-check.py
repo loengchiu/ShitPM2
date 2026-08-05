@@ -1640,6 +1640,89 @@ def _compare_indexed_structure(index: dict, content: str, index_module) -> dict:
         },
     }
 
+
+def _find_function_detail_ranges(headings: list) -> list:
+    """定位所有“4.x.6 功能详细说明”类章节范围，返回 [(start, end, level), ...]。
+
+    - 新编号体系：`#### 4.1.6 功能详细说明`（章节号末段为 .6）；
+    - 旧结构：标题去掉编号后以“详细需求说明/详细需求/需求说明”等开头。
+    子页面（`##### 4.1.6.1 xxx`）与动作正文都落在该范围内。
+    """
+    aliases = SECTION_ALIASES.get("详细需求说明", ["详细需求说明"])
+    ranges = []
+    for h in headings:
+        title = h["title"].strip()
+        title_no_prefix = strip_heading_number(title)
+        is_new_46 = bool(re.match(r'^\d+\.\d+\.6($|\s|\.)', title))
+        is_old_detail = any(title_no_prefix.startswith(a) for a in aliases)
+        if not (is_new_46 or is_old_detail):
+            continue
+        start = h["line"]
+        end = None
+        for h2 in headings:
+            if h2["line"] > start and h2["level"] <= h["level"]:
+                end = h2["line"]
+                break
+        ranges.append((start, end, h["level"]))
+    return ranges
+
+
+def find_page_body_landing_issues(content: str, headings: list, expected_page_names: list) -> dict:
+    """Design 页面正文落点候选（possible_omission / needs_semantic_judgment，不判确定性冲突）。
+
+    - body_omissions：Design 页面名称出现在 PRD 其他位置（页面清单/总体说明），
+      但未出现在任何 4.x.6 功能详细说明正文，列为可能遗漏，交 Review 判断是否漏页；
+    - page_merges：页面在 4.x.6 正文中明确与另一页面合并/并入，不直接判错，
+      交 Review 判断合并是否丢失业务结果。
+
+    本检查不判断统计口径是否正确、状态迁移是否合理等语义内容。
+    """
+    ranges = _find_function_detail_ranges(headings)
+    body_lines = _lines_in_ranges(content, ranges).split("\n")
+    normalize = _normalize_indexed_value
+    norm_body = "".join(normalize(line) for line in body_lines)
+    norm_content = normalize(content)
+    # 4.x.6 内独立子页面标题（如 “##### 4.4.6.1 两客一危统计”）：有独立标题落点即视为已承接，
+    # 不再因出现在合并句中而误列为合并候选。
+    heading_page_names = set()
+    for line in body_lines:
+        m = re.match(r'^#{1,6}\s+(.+?)\s*$', line)
+        if m:
+            heading_page_names.add(normalize(strip_heading_number(m.group(1))))
+    body_omissions = []
+    page_merges = []
+    seen = set()
+    merge_words = ("合并", "并入")
+    for name in expected_page_names:
+        norm = normalize(name)
+        if not norm or norm in seen:
+            continue
+        seen.add(norm)
+        if norm in norm_body:
+            if norm in heading_page_names:
+                continue
+            merged_lines = [
+                line for line in body_lines
+                if norm in normalize(line) and any(w in line for w in merge_words)
+            ]
+            if merged_lines:
+                page_merges.append({
+                    "type": "page",
+                    "name": name,
+                    "issue": "page_merged",
+                    "note": "页面在 4.x.6 正文中与另一页面合并/并入，交 Review 判断合并是否丢失业务结果",
+                })
+            continue
+        if norm in norm_content:
+            body_omissions.append({
+                "type": "page",
+                "name": name,
+                "issue": "page_body_omission",
+                "note": "页面只在页面清单/总体说明出现，未在 4.x.6 功能详细说明正文落点，交 Review 判断是否漏页或需补正文",
+            })
+    return {"body_omissions": body_omissions, "page_merges": page_merges}
+
+
 # ── 主入口 ────────────────────────────────────────────────────
 
 def _load_design_entities_from_md(project_root: Path):
@@ -1754,6 +1837,19 @@ def main():
     prd_pages = extract_prd_pages(content, headings)
     prd_states = extract_prd_states(content, headings, tables)
     prd_perm_pages = extract_prd_permission_pages(headings, tables, content)
+
+    # Design 页面正文落点候选：页面只在清单/总体说明出现、未在 4.x.6 正文落点 → possible_omission；
+    # 页面在 4.x.6 正文明确合并/并入 → 交 Review 判断，不判确定性冲突。
+    if indexed_active:
+        expected_page_names = [
+            item["name"] for item in _indexed_expected_entities(design_index)
+            if item["type"] == "page"
+        ]
+    else:
+        expected_page_names = [
+            p["title"] for p in design_pages if isinstance(p, dict) and p.get("title")
+        ]
+    page_landing = find_page_body_landing_issues(content, headings, expected_page_names)
 
     # PRD 是研发交付物：Design 的页面字段和非页面内部字段都必须出现。
     # 非页面字段无需虚构页面落点，但必须在字段表保留来源和内部用途。
@@ -1879,6 +1975,7 @@ def main():
         + len(perm_pair_result["missing"])
         + len(role_result["missing"])
         + len(module_result["missing"])
+        + len(page_landing["body_omissions"])
     )
     total_hallucinated = (
         len(field_result["hallucinated"])
@@ -1907,7 +2004,7 @@ def main():
             "note": indexed_result["operations"]["note"],
             "expected_count": indexed_result["operations"].get("expected_count"),
         })
-    needs_semantic_judgment_count = len(needs_semantic_judgment_items)
+    needs_semantic_judgment_count = len(needs_semantic_judgment_items) + len(page_landing["page_merges"])
     total_deterministic_attribute_mismatch = len(field_result["deterministic_attribute_mismatch"]) + len(indexed_result["attribute_mismatch"])
     total_attribute_mismatch = total_deterministic_attribute_mismatch + needs_semantic_judgment_count
     total_internal_field_issues = len(field_result["internal_field_issues"])
@@ -1936,6 +2033,7 @@ def main():
         + len(perm_pair_result["missing"])
         + len(role_result["missing"])
         + len(module_result["missing"])
+        + len(page_landing["body_omissions"])
     )
     classification = {
         "deterministic_conflicts": {
@@ -1962,10 +2060,12 @@ def main():
             "roles": role_result["missing"],
             "modules": module_result["missing"],
             "design_index": indexed_result["missing"],
+            "page_body": page_landing["body_omissions"],
             "count": possible_omissions_count,
         },
         "needs_semantic_judgment": {
             "attribute_mismatches": needs_semantic_judgment_items,
+            "page_merges": page_landing["page_merges"],
             "count": needs_semantic_judgment_count,
             "hint": "字段类型等价性、同名字段对象归属、合并字段拆分碎片和状态枚举表达口径仍需语义判断；明确属性缺失和差异已归入确定性冲突。",
         },
