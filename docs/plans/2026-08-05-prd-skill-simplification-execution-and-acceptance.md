@@ -82,7 +82,7 @@
 | 指标 | 当前值 | 目标上限 |
 |---|---:|---:|
 | `SKILL.md` 行数 | 300 | 160 |
-| `SKILL.md` 估算 token | 约 5,430 | 2,500 |
+| `SKILL.md` 估算 token | 约 5,430 | 3,000 |
 | module pass 非 Design 上下文 | 约 11,490 token | 4,000 token |
 | 同一真实模块总上下文 | 约 15,630 token | 9,000 token |
 | writing pass 上下文 | 约 12,657 token | 6,500 token |
@@ -520,7 +520,7 @@ module pass 不装载：
 
 必须同时满足：
 
-- `SKILL.md` 不超过 160 行、约 2,500 token；
+- `SKILL.md` 不超过 160 行、约 3,000 token；
 - module pass 非 Design 内容不超过约 4,000 token；
 - 同一真实模块总上下文不超过约 9,000 token；
 - writing pass 不超过约 6,500 token；

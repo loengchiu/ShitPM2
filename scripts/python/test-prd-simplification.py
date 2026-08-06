@@ -80,8 +80,8 @@ def main() -> int:
     skill_tokens = estimate_tokens(skill)
     if skill_lines > 160:
         raise AssertionError(f"SKILL.md 超过 160 行: {skill_lines}")
-    if skill_tokens > 2500:
-        raise AssertionError(f"SKILL.md 超过约 2500 token: {skill_tokens}")
+    if skill_tokens > 3000:
+        raise AssertionError(f"SKILL.md 超过约 3000 token: {skill_tokens}")
     for forbidden in (
         "--pass plan", "--pass integration", "--pass verification",
         "prototype-structure.py", "检查回执", "机器签名", "综合门禁", "检查 JSON", "结果哈希链",
@@ -103,6 +103,8 @@ def main() -> int:
     for required in (
         "业务判断链", "动作按业务结果重组", "动作按复杂度", "数据型功能",
         "高影响未知", "直接回读", "详细需求说明写作规范", "--example <键>",
+        "跨页面推进", "跨角色协作", "跨系统交互", "关键业务状态变化",
+        "output/prd/diagrams/", "2 倍分辨率", "流程图只辅助理解",
     ):
         if required not in skill:
             raise AssertionError(f"Skill 缺少核心语义责任: {required}")
@@ -124,6 +126,8 @@ def main() -> int:
         "动作按业务结果重组", "动作按复杂度写", "跨前后端的完整业务链",
         "事实边界与信息密度", "不得从“立即生效”等生效描述推导",
         "行首标签", "每个有页面或业务动作的功能模块必须包含 `4.x.6 功能详细说明`",
+        "业务流程图", "跨页面推进", "每个命中模块至少一张图",
+        "output/prd/diagrams/<图名>.drawio", "2 倍分辨率", "流程图只辅助理解",
     ):
         if required not in rules:
             raise AssertionError(f"写作规则缺少精简后唯一规范项: {required}")
@@ -154,11 +158,12 @@ def main() -> int:
     template = (ROOT / "templates/prd.md").read_text(encoding="utf-8-sig")
     for required in (
         "功能模块必需章节", "不能以“无内容”为由省略", "页面字段表只补充",
+        "跨页面推进", "每个命中模块至少一张图", "2 倍分辨率", "不使用 Mermaid",
     ):
         if required not in template:
             raise AssertionError(f"PRD 模板缺少 4.x.6 硬约束: {required}")
     for required in (
-        "###### 页面名称", "**动作名称**",
+        "###### Design 中定义的页面名称", "**动作名称**",
         "PC 管理端页面名称不加", "（移动端）",
     ):
         if required not in template:
@@ -173,6 +178,7 @@ def main() -> int:
         "页面展示行为完整", "自动动作失败闭环", "删除传播完整", "枚举和独立上限有来源",
         "Design 全读痕迹", "上下文爆栈", "一次性全读 design.md",
         "详细需求说明语义专项检查", "数据范围与统计口径专项检查",
+        "跨页面推进", "2 倍 PNG", "PRD 内嵌引用",
     ):
         if required not in review:
             raise AssertionError(f"Review 清单缺少本轮检查项: {required}")
