@@ -13,116 +13,99 @@
 
 ## 多页面 shell 写法模板
 
-> 历史教训：曾经自造 `createShellApp`，把页面传入的 `extraData` 直接展开到 `data()` 返回对象里，导致 Vue 选项（data/methods/computed）被当作响应式数据属性，页面挂载时报 `Cannot read properties of undefined`，全部空白。
+> 历史教训：曾经自造 `createShellApp`，把页面传入的 `extraData` 直接展开到 `data()` 返回对象里，导致 Vue 选项被当作响应式数据属性，页面挂载时报错，全部空白。该框架已废弃。
 >
-> 本节给出正确模板，必须复用，不得自造 shell 框架。
+> 当前架构为 **React 18 + Ant Design 6**（无构建、本地 UMD）。本节给出正确模板，必须复用，不得自造 shell 框架。
 
 ### 核心原则
 
 1. **shell 定义路由 + 渲染容器**，不持有页面业务数据
-2. **每个页面是一个独立的 Vue 组件对象**（`{ template, data() {...}, methods: {...} }`）
-3. 通过 `<component :is="currentPage">` 动态渲染当前页
-4. **禁止**把页面传入的 Vue 选项展开到 shell 的 `data()` 里
+2. **每个页面是一个独立的 React 函数组件**（`function PageXxx() { return (...) }`）
+3. 页面切换用 `useState` 保存当前页 key，`PAGES` 对象做 key → 组件映射
+4. **禁止**把页面状态塞进 shell（如把列表数据、表单值放壳层组件里）
 
 ### 正确实现模板（单文件版本，多页可拆分）
 
 ```html
 <!DOCTYPE html>
-<html lang="zh-CN" data-theme="light">
+<html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
-  <link href="lib/daisyui-themes.css" rel="stylesheet" />
-  <link href="lib/daisyui.css" rel="stylesheet" />
-  <script src="lib/tailwind.js"></script>
-  <script src="lib/vue.global.prod.js"></script>
+  <link rel="stylesheet" href="lib/react-antd/reset.css" />
+  <link rel="stylesheet" href="lib/react-antd/antd.css" />
 </head>
 <body>
-  <div id="app">
-    <!-- 顶栏 / 导航省略，参考 templates/prototype.html -->
+  <div id="root"></div>
+  <!-- 八件套引用顺序不可变：react → react-dom → dayjs → locale → antd → babel -->
+  <script src="lib/react-antd/react.production.min.js"></script>
+  <script src="lib/react-antd/react-dom.production.min.js"></script>
+  <script src="lib/react-antd/dayjs.min.js"></script>
+  <script src="lib/react-antd/locale-zh-cn.js"></script>
+  <script src="lib/react-antd/antd-with-locales.min.js"></script>
+  <script src="lib/react-antd/babel.min.js"></script>
 
-    <!-- 主体区：动态渲染当前页组件 -->
-    <main>
-      <component :is="currentPageComponent"></component>
-    </main>
-  </div>
+  <script type="text/babel" data-presets="react">
+    const { useState } = React;
+    const { Layout, Menu, Table, Tag, Form, Input, Button, Space, Card, Divider } = window.antd;
+    const { Sider, Header, Content } = Layout;
 
-  <script>
-    // 1. 定义每个页面为独立组件对象
-    const PageList = {
-      template: `
-        <div class="p-6">
-          <h2 class="text-lg font-medium mb-4">周报列表</h2>
-          <table class="table">
-            <thead><tr><th>标题</th><th>状态</th></tr></thead>
-            <tbody>
-              <tr v-for="item in list" :key="item.id">
-                <td>{{ item.title }}</td>
-                <td><span class="badge" :class="item.status === 'submitted' ? 'badge-primary' : 'badge-ghost'">{{ item.status }}</span></td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      `,
-      data() {
-        return { list: [{ id: 1, title: '第 1 周', status: 'submitted' }] };
-      }
+    // 1. 定义每个页面为独立函数组件
+    function PageList() {
+      const columns = [
+        { title: '标题', dataIndex: 'title' },
+        { title: '状态', dataIndex: 'status', width: 120,
+          render: (v) => <Tag color={v === 'submitted' ? 'blue' : 'default'}>{v}</Tag> },
+      ];
+      const data = [{ key: 1, title: '第 1 周', status: 'submitted' }];
+      return (
+        <Card>
+          <Table columns={columns} dataSource={data} pagination={false} size="middle" />
+        </Card>
+      );
+    }
+
+    function PageEdit() {
+      return (
+        <Card style={{ maxWidth: 720 }}>
+          <Form layout="vertical">
+            <Form.Item label="标题" name="title"><Input /></Form.Item>
+            <Form.Item label="内容" name="content"><Input.TextArea rows={6} /></Form.Item>
+            <Button type="primary" htmlType="submit">提交</Button>
+          </Form>
+        </Card>
+      );
+    }
+
+    // 2. 页面注册表（key → 组件）
+    const PAGES = {
+      list: PageList,
+      edit: PageEdit,
     };
 
-    const PageEdit = {
-      template: `
-        <div class="p-6">
-          <h2 class="text-lg font-medium mb-4">填写周报</h2>
-          <form class="form-control gap-3 max-w-xl">
-            <label class="label"><span class="label-text">标题</span></label>
-            <input class="input input-bordered" v-model="form.title" />
-            <label class="label"><span class="label-text">内容</span></label>
-            <textarea class="textarea textarea-bordered" rows="6" v-model="form.content"></textarea>
-            <button class="btn btn-primary" @click="submit">提交</button>
-          </form>
-        </div>
-      `,
-      data() {
-        return { form: { title: '', content: '' } };
-      },
-      methods: {
-        submit() { alert('提交: ' + this.form.title); }
-      }
-    };
+    // 3. shell：只管当前页 + 导航
+    function App() {
+      const [current, setCurrent] = useState('list');
+      const Page = PAGES[current] || PageList;
+      const menuItems = Object.keys(PAGES).map((key) => ({
+        key,
+        label: key === 'list' ? '列表' : '编辑',
+      }));
+      return (
+        <Layout style={{ height: '100%' }}>
+          <Sider theme="dark" width={220}>
+            <Menu theme="dark" mode="inline" selectedKeys={[current]}
+              onClick={({ key }) => setCurrent(key)} items={menuItems} />
+          </Sider>
+          <Layout>
+            <Content style={{ padding: 24, background: '#f5f5f5' }}>
+              <Page />
+            </Content>
+          </Layout>
+        </Layout>
+      );
+    }
 
-    // 2. shell 只管路由 + 当前页
-    const App = {
-      data() {
-        return {
-          currentPage: 'PageList',
-          pages: {
-            'PageList': { label: '周报列表', component: PageList },
-            'PageEdit': { label: '填写周报', component: PageEdit }
-          }
-        };
-      },
-      computed: {
-        currentPageComponent() {
-          return this.pages[this.currentPage].component;
-        }
-      },
-      methods: {
-        go(pageKey) {
-          this.currentPage = pageKey;
-        }
-      },
-      template: `
-        <div>
-          <aside>
-            <ul>
-              <li v-for="(p, key) in pages" :key="key" @click="go(key)">{{ p.label }}</li>
-            </ul>
-          </aside>
-          <main><component :is="currentPageComponent"></component></main>
-        </div>
-      `
-    };
-
-    Vue.createApp(App).mount('#app');
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
   </script>
 </body>
 </html>
@@ -136,30 +119,28 @@
 output/prototype/
   index.html         # shell + 路由
   pages/
-    page-list.js     # window.SPM_PAGES.PageList = { template, data, methods }
+    page-list.js     # window.SPM_PAGES.PageList = function PageList() {...}
     page-edit.js
 ```
 
 index.html 引入顺序：
 
 ```html
-<script src="lib/vue.global.prod.js"></script>
+<script src="lib/react-antd/react.production.min.js"></script>
+<script src="lib/react-antd/react-dom.production.min.js"></script>
+<script src="lib/react-antd/dayjs.min.js"></script>
+<script src="lib/react-antd/locale-zh-cn.js"></script>
+<script src="lib/react-antd/antd-with-locales.min.js"></script>
+<script src="lib/react-antd/babel.min.js"></script>
 <script src="pages/page-list.js"></script>
 <script src="pages/page-edit.js"></script>
-<script>
-  const App = {
-    data() {
-      return {
-        currentPage: 'PageList',
-        pages: {
-          'PageList': { label: '周报列表', component: window.SPM_PAGES.PageList },
-          'PageEdit': { label: '填写周报', component: window.SPM_PAGES.PageEdit }
-        }
-      };
-    },
-    // ... 其余同上
+<script type="text/babel" data-presets="react">
+  const PAGES = {
+    'PageList': window.SPM_PAGES.PageList,
+    'PageEdit': window.SPM_PAGES.PageEdit,
   };
-  Vue.createApp(App).mount('#app');
+  // ... 其余同上
+  ReactDOM.createRoot(document.getElementById('root')).render(<App />);
 </script>
 ```
 
@@ -167,42 +148,29 @@ page-list.js 内容：
 
 ```javascript
 window.SPM_PAGES = window.SPM_PAGES || {};
-window.SPM_PAGES.PageList = {
-  template: `...`,
-  data() { return { ... }; },
-  methods: { ... }
+window.SPM_PAGES.PageList = function PageList() {
+  return (/* JSX 或 React.createElement */);
 };
 ```
+
+注意：独立 JS 文件如果含 JSX，必须以 `.jsx` 或由主页面 `<script type="text/babel">` 再编译；最稳的做法是把页面组件全部写在 index.html 的 text/babel 块里，或给独立文件也用 babel 处理。业务简单时优先单文件。
 
 ### 禁止的反模式
 
 ```javascript
-// ❌ 错误 1：把页面 extraData 展开到 shell 的 data() 里
-function createShellApp(pages) {
-  const mergedData = {};
-  pages.forEach(p => Object.assign(mergedData, p.extraData)); // extraData 含 data/methods 会被当响应式属性
-  Vue.createApp({ data() { return mergedData; } }).mount('#app');
+// ❌ 错误 1：把页面状态塞进 shell（列表数据、表单值属于页面组件）
+function App() {
+  const [list, setList] = useState([]);      // 这是 PageList 的数据
+  const [form, setForm] = useState({});      // 这是 PageEdit 的数据
+  // shell 不应持有任何页面业务状态
 }
 
-// ❌ 错误 2：在 shell 中混用页面级 data 和方法
-const App = {
-  data() {
-    return {
-      currentPage: 'list',
-      // 下面这些是 PageList 的数据，错误地塞到 shell 里
-      list: [],
-      searchKeyword: ''
-    };
-  },
-  methods: {
-    // 下面这些是 PageList 的方法
-    fetchList() { ... },
-    handleSearch() { ... }
-  }
-};
+// ❌ 错误 2：在 shell 里写死页面渲染逻辑而不是用 PAGES 映射
+function App() {
+  // if (current === 'list') return <PageList />;
+  // else return <PageEdit />;   // 页面一多就无法维护
+}
 
-// ❌ 错误 3：自造 createShellApp 函数封装上述反模式
-// 任何叫 createShellApp 的函数都必须按本节模板的"独立组件 + <component :is>"方式实现
+// ❌ 错误 3：自造 createShellApp 之类的框架函数封装上述反模式
+// 任何 shell 都必须按本节模板的"独立函数组件 + PAGES 映射 + <Page />"方式实现
 ```
-
----

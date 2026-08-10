@@ -234,7 +234,7 @@ python scripts/python/design-confirmation.py --project-root . show
 
 - 覆盖本轮指定的模块、页面、核心任务路径和关键状态
 - 业务流程、角色权限、核心状态和产品边界与 Design 一致
-- 沿用 HTML + Vue + Tailwind + daisyUI + 本地 `lib/` 的轻量基座
+- 沿用 HTML + React 18 + Ant Design 6 + 本地 `lib/` 的轻量基座（无构建、离线双击即用）
 - 正式交付前实际打开并检查渲染、交互可达性、关键状态和资源加载
 - 发现必须改变业务行为才能完成原型时返回 Design，不在页面中静默发明规则
 
