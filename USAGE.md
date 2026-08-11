@@ -107,9 +107,9 @@ spm-align（Design 必经的需求事实形成；材料可选）
 | `spm-prototype` | `design.md` 存在且已确认 | 根据交互和实现复杂度判断 |
 | `spm-design-review` | `design.md` 存在 | 深度推理模型 |
 | `spm-prd-review` | `prd.md` 存在 | 深度推理模型 |
-| `spm-prototype-review` | `prototype/index.html` 存在 | 深度推理模型 |
+| `spm-prototype-review` | 原型源码工程存在（`prototype/index.html` + `src/`） | 深度推理模型 |
 | `spm-fix` | 始终可用 | 根据变更影响判断 |
-| `spm-prototype-mark` | `prototype/index.html` 存在 | 轻量模型 |
+| `spm-prototype-mark` | 原型源码工程存在（`prototype/index.html` + `src/`） | 轻量模型 |
 
 关键原则：
 
@@ -228,14 +228,15 @@ python scripts/python/design-confirmation.py --project-root . show
 
 权威输入：当前确认版 `design.md`。已有 PRD 可作为页面、字段和动作细节的辅助参考，但不能成为产品事实源。
 
-产物：`output/prototype/index.html` 及本地运行资源。
+产物：`output/prototype/` 标准 Vite 源码工程（`src/` 唯一编辑源、`dist/` 可重建构建产物、`原型工具.bat` 用户唯一操作入口）。
 
 首次生成责任：
 
 - 覆盖本轮指定的模块、页面、核心任务路径和关键状态
 - 业务流程、角色权限、核心状态和产品边界与 Design 一致
-- 沿用 HTML + React 18 + Ant Design 6 + 本地 `lib/` 的轻量基座（无构建、离线双击即用）
-- 正式交付前实际打开并检查渲染、交互可达性、关键状态和资源加载
+- 使用标准 Vite + React 18 + Ant Design 6 源码工程；`src/` 是唯一编辑源，`dist/` 只由 `npm run build` 生成，不直接修改 dist
+- 正式交付前运行 `npm ci` + `npm run build`，分别用开发预览与构建预览检查渲染、交互可达性、关键状态和资源加载
+- 用户通过双击 `原型工具.bat` 完成本地预览、构建、重建；已配置 Cloudflare 时经确认后上传，不需要输入命令
 - 发现必须改变业务行为才能完成原型时返回 Design，不在页面中静默发明规则
 
 不要求 PRD 存在；Prototype-only 是合法状态。
@@ -266,7 +267,7 @@ Prototype Mark 收集的高影响反馈按 `$BUNDLE/templates/prototype-feedback
 
 ### 6.3 Prototype Mark
 
-`spm-prototype-mark` 复制原型到 `output/prototypemark/`，注入悬浮导航栏、关键点标记和内容备注弹窗。
+`spm-prototype-mark` 复制原型源码工程到 `output/prototypemark/`（排除 `node_modules/` 与旧 `dist/`），在副本 `src/` 中注入标注组件并重新构建，原始原型不变。
 
 - 不修改原始 Prototype
 - 不回写 Design 或 PRD
@@ -301,6 +302,7 @@ Prototype Mark 收集的高影响反馈按 `$BUNDLE/templates/prototype-feedback
 | `design-confirmation.py show` | 查看当前确认记录 |
 | `prd-consistency-check.py` | PRD 与 Design 确定性对比，输出 `hallucinated` / `missing` / `attribute_mismatch`；`--allow-no-prd` 支持 Prototype-only 项目 |
 | `prd-style-lint.py` | PRD 风格检查（坏味道、流水账、模糊表述等） |
+| `prototype-source-check.py` | Prototype 源码工程确定性检查（src/dist/package/BAT/README 契约，通过返回 0，失败返回 1，不自动修复） |
 | `design-analysis-protocol.md` | spm-design 生成前的分析责任协议（双模式、ABC 内部责任边界） |
 | `design-quality-rubric.md` | Design 成品质量分级标准（五维度 L0–L3，覆盖需求理解、业务建模、产品承接和跨层一致性） |
 | `stage-prep.py` | 旧版兼容：仅旧项目兼容诊断，ShitPM 主流程不依赖 |

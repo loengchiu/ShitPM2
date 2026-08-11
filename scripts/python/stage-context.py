@@ -93,7 +93,8 @@ MINIMAL_READ_SET = {
     ],
     "prototype": [
         "output/design/design.md",
-        "templates/prototype.html",
+        "templates/prototype-vite",
+        "scripts/python/prototype-source-check.py",
         "references/prototype-writing.md",
     ],
     "fix": [],

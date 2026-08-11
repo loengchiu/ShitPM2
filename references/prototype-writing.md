@@ -7,7 +7,7 @@
 
 - [常见错误](#常见错误)
 - [一、原型定位](#一原型定位)
-- [二、技术栈与加载](#二技术栈与加载)
+- [二、源码工程与构建边界](#二源码工程与构建边界)
 - [三、Ant Design 6 权威令牌](#三ant-design-6-权威令牌)
 - [四、通用后台基座](#四通用后台基座)
 - [五、组件使用约定](#五组件使用约定)
@@ -20,65 +20,77 @@
 
 | 级别 | 场景 | 识别信号 | 为什么错 | 首选修复 | 仍失败处理 |
 |---|---|---|---|---|---|
-| 失败处理 | 原型只有一个 HTML 无法维护 | 页面过多全塞在一个文件 | 命中该场景说明当前产物未满足对应要求 | 按模块拆分 HTML 文件 | 若文件超过 5000 行，必须拆分 |
-| 失败处理 | 原型重新定义业务规则 | HTML 中包含独立于 design 的业务规则 | 命中该场景说明当前产物未满足对应要求 | 检查原型中的业务规则是否与 design 一致 | 若不一致，回退到 fix 流程 |
-| 失败处理 | 原型拆分不当 | 按技术层拆而不是按业务模块 | 命中该场景说明当前产物未满足对应要求 | 一个子系统一个 HTML 文件，index.html 做入口 | 若模块间有共享组件，提取到公共 JS |
+| 失败处理 | 源码工程缺失 | 只有 dist、compiled.js 或构建后的 HTML，没有 package.json / src | 后续无法修改，改一次就要反编译或补丁生成物 | 停止，报告“Prototype 源码工程缺失”，提出一次性迁移方案 | 不修改 dist，不反编译，不补丁生成物 |
+| 失败处理 | 直接改 dist | 修改发生在 `dist/` 或带哈希资源文件 | dist 是可重建生成物，改了也会被下次 build 覆盖，且源码不同步 | 改 `src/` 后重新 `npm run build` | 构建失败时先修源码，不部署旧 dist |
+| 失败处理 | 原型重新定义业务规则 | src 中包含独立于 design 的业务规则 | 命中该场景说明当前产物未满足对应要求 | 检查原型中的业务规则是否与 design 一致 | 若不一致，回退到 fix 流程 |
 | 失败处理 | 表现问题被当成语义问题 | UI 布局问题被误判为业务错误 | 命中该场景说明当前产物未满足对应要求 | 先归类：表现问题 vs 语义问题 | 表现问题只改 prototype，语义问题才回写 design |
 | 失败处理 | 未归类就开始修改 | 读完 feedback 后直接改 | 命中该场景说明当前产物未满足对应要求 | 必须先输出归类结果，再开始修改 | 若无法归类，停在澄清，不直接改 |
-| 失败处理 | 原型依赖 lib/ 缺失 | `lib/react-antd/` 下 react/antd/babel/dayjs/echarts 缺失 | 命中该场景说明当前产物未满足对应要求 | 提示用户运行 `python scripts/python/download-prototype-libs.py` | 停下，不凭记忆生成 |
-| 失败处理 | 状态表达不完整 | 只有默认状态，缺异常/空/加载状态 | 命中该场景说明当前产物未满足对应要求 | 按 design 状态定义逐个补入原型 | 若状态过多，先补核心状态，其余在 output/prototype/decision-notes.md 中记录待补，不在原型中残留 [TODO] |
-| 失败处理 | 页面渲染空白 | 脚本加载顺序错 / lib 缺失 / babel 编译报错 / 路由解析到 undefined 组件 | 命中该场景说明当前产物未满足对应要求 | 1) 核对 lib/react-antd 八件套[^八件套]引用顺序 2) 检查 text/babel 块 JSX 语法 3) 打开浏览器 console 看报错 4) **路由必须 `PAGES[current] \|\| PAGES[DEFAULT_KEY]`，DEFAULT_KEY 取 `Object.keys(PAGES)[0]`，绝不让 `<Page/>` 为 undefined** | 回滚到上一可工作版本 |
-| 失败处理 | 路由无默认页兜底 | 无参数打开白屏（React #130）：默认页 key 取自已损菜单数据，菜单异常时变 undefined | 命中该场景说明路由未做防御 | **默认页 key 从 PAGES 派生（`Object.keys(PAGES)[0]`），不参与菜单数据解析**；`<Page/>` 永远落到合法组件 | 改路由默认解析 |
-| 失败处理 | 验收只测带参页面 | 只开 `?p=xxx` 验证，漏掉无参数默认页；默认页异常时假绿 | 命中该场景说明验证遗漏 | **验证必须分别打开"无参数默认页"与"带 `?p=` 参数页"，两者都渲染正常、console 无错才算通过** | 补开无参数页复验 |
-| 失败处理 | 页面无样式 | HTML 缺 antd.css/reset.css 引用 | 命中该场景说明当前产物未满足对应要求 | 给全部 HTML 补齐本地 lib 引用 | —— |
-| 反模式 | 把所有页面塞进一个 HTML | 出现该做法 | 无法维护，打开很慢 | 按模块拆分，用 index.html 做入口 | — |
+| 失败处理 | 依赖或构建失败 | `npm ci` / `npm run build` 报错 | 没有可运行的构建，就不能交付 | 按报错修 package.json 或源码，重新构建 | 依赖损坏用“修复依赖并重新构建”重装 |
+| 失败处理 | 页面渲染空白 | 路由未注册、组件导入路径错、构建报错 | 命中该场景说明当前产物未满足对应要求 | 检查 routes.jsx 注册、模块导入路径和构建输出 | 回滚到上一可工作版本 |
+| 失败处理 | 路由无默认页兜底 | 打开 `/#/unknown` 白屏 | 未注册 `*` 兜底路由 | routes.jsx 必须保留 `path: '*'` 的 NotFound 兜底 | 改路由默认解析 |
+| 失败处理 | 验收只测默认页 | 只验证 `/#/`，漏掉其他注册路由 | 路由组件可能各自报错 | **验证必须逐个打开全部注册路由，都渲染正常、console 无错才算通过** | 补开其余路由复验 |
+| 失败处理 | 把开发预览当部署证据 | 只跑 `npm run dev` 就交付 | 开发模式暴露的资源路径与构建产物不同 | 交付前必须 `npm run build` + 构建预览复验 | 构建预览异常时以构建结果为准修复 |
+| 失败处理 | 状态表达不完整 | 只有默认状态，缺异常/空/加载状态 | 命中该场景说明异常路径不可讨论 | 按 design 状态定义逐个补入原型 | 若状态过多，先补核心状态，其余在 output/prototype/decision-notes.md 中记录待补，不在原型中残留 [TODO] |
+| 反模式 | 把所有页面塞进一个组件 | 单个 jsx 文件几千行 | 无法维护，打开很慢 | 按业务模块拆分到 `src/modules/<模块>/` | — |
+| 反模式 | 按技术层拆分模块 | 按 hooks/components/utils 分目录而不是按业务模块 | 业务定位困难 | 一个业务模块一个目录，共享件放 `src/shared/` | — |
 | 反模式 | 原型独立定义业务规则 | 出现该做法 | 与 design 不一致，造成混乱 | 原型只做展示，业务规则以 design 为准 | — |
 | 反模式 | 跳过归类直接修改 | 出现该做法 | 表现问题和语义问题的传播路径完全不同 | 必须先归类再修改 | — |
 | 反模式 | 表现问题回写 design | 出现该做法 | 表现层反馈不应改变 design 业务定义 | 表现问题只改 prototype | — |
-| 反模式 | 使用外部 CDN | 出现该做法 | file:// 协议下加载失败，且原型不再离线可用 | 使用本地 lib/ 目录八件套[^八件套] | — |
+| 反模式 | 使用外部 CDN | 业务源码中引用 http(s) 资源 | 离线/内网不可用，且 Cloudflare 部署不可控 | 依赖统一走 package.json + npm | — |
 | 反模式 | 使用 Vue / daisyUI / Tailwind / `el-` 组件 | 出现该做法 | 已废弃，架构固定为 React + Ant Design 6 | 用 antd 组件（`<Button>`/`<Table>` 等） | — |
-| 反模式 | 引入 React 19 / 其他构建链 | 出现该做法 | React 19 无 UMD，无构建架构跑不起来 | 用 React 18.3.1 UMD | — |
+| 反模式 | 引入浏览器端 Babel 或第二套构建链 | 出现 text/babel、UMD lib、临时编译脚本 | 源码与运行结果被强行拆开，无法标准维护 | 只用标准 Vite 工程的 npm scripts | — |
 | 反模式 | 手写 CSS 模拟组件 | 出现该做法 | 与 antd 视觉不一致，且不可维护 | 用 antd 现成组件 | — |
 | 反模式 | 手写 SVG/CSS 模拟图表 | 出现该做法 | 与 Arco 风格图表观感不一致，且不可交互 | 数据看板用 ECharts + Arco 风格主题（见五、） | — |
+| 反模式 | 原型页面写解释性标注 | 页面出现“入口：…去向：…”、“（只读）/（必填）/（选填）”、操作说明（Design）、勾选规则（Design）等 | 既不是纯高保真原型，也不是规范标注，两边都不讨好；评审注释应走 prototypemark | 删除所有解释性文本；必填/只读/选填通过 UI 本身表达（红 asterisk / disabled / 无星） | — |
+| 失败处理 | 字段状态靠文字标注 | label 含“（只读）”“（必填）”而非用 antd 视觉表达 | 不是超高保真，且可能在不同角色/状态下失效 | `required` 出红 asterisk，`disabled` 出置灰，选填无星 | — |
+| 失败处理 | 空/异常/加载态缺失 | 列表/看板只有满数据 mock，无空态、加载失败、无权限表达 | 命中该场景说明异常路径不可讨论 | 每个列表页空 dataSource 显示 Table 内置"暂无数据"空态；关键页补"加载失败点击重试"与无权限置灰 | 按 Design 状态逐个补入原型，先补核心状态 |
+| 失败处理 | 配置页用占位代替真实交互 | 新增/编辑/停用/启用为 `message.info('…（示意）')` | 命中该场景说明配置交互不可评审 | 用真实 `Modal` + `Form`（字段按 Design 对应章节），二次确认用 `Modal.confirm` | 字段过多时先补核心字段，其余在 decision-notes 记录待补 |
+| 失败处理 | 多角色页面无角色视角 | Design 页面"适用角色"多于一个的页面无角色切换/置灰 | 命中该场景说明权限矩阵不可讨论 | 提供角色切换 `Select` 或"无权限置灰" | 无法判断时按 Design 角色清单逐个补 |
+| 反模式 | message.info 占位代替真实弹窗（"示意"） | 出现该做法 | 评审无法讨论真实交互与校验 | 用真实 Modal/Drawer/Form 实现，二次确认用 Modal.confirm | — |
+| 反模式 | 只有满数据 mock，无空态/异常态 | 出现该做法 | 异常路径不可讨论 | 补空态/加载失败/无权限表达 | — |
+| 反模式 | 让用户手动输入 npm 命令 | README 首屏或交付说明要求打开 PowerShell | 用户目标是双击预览，不是学命令 | 交付 `原型工具.bat` 中文菜单，README 首屏只写双击 BAT | — |
 
 ## 一、原型定位
 
 - 原型与 PRD 平级，均以 design 为基线
 - 原型只做展示，不重新定义业务规则
-- 第一版走最小原型，不追求重型系统
-- 技术栈固定为 **React 18 + Ant Design 6**（无构建、离线双击即用），不引入构建链、不引入其他组件库
+- 技术栈固定为 **标准 Vite + React 18 + Ant Design 6 源码工程**：`src/` 是唯一编辑源，`dist/` 是可重建构建产物
+- 用户通过一个 `原型工具.bat` 完成本地预览、构建、重建和条件式上传，不要求用户输入命令
 
-## 二、技术栈与加载
+## 二、源码工程与构建边界
 
-固定架构（对应 `templates/prototype.html` 的 head/body 引用顺序，不得改变顺序）：
+标准目录（对应 `templates/prototype-vite/`）：
 
-| 顺序 | 文件 | 说明 |
-|---|---|---|
-| 1 | `lib/react-antd/reset.css` | antd 官方样式重置 |
-| 2 | `lib/react-antd/antd.css` | antd 6 全量 CSS（CSS 变量主题，默认主色 `#1677ff`） |
-| 3 | `lib/react-antd/react.production.min.js` | React 18.3.1 UMD（全局 `React`） |
-| 4 | `lib/react-antd/react-dom.production.min.js` | ReactDOM 18.3.1 UMD（全局 `ReactDOM`） |
-| 5 | `lib/react-antd/dayjs.min.js` | 日期库（antd 依赖，全局 `dayjs`） |
-| 6 | `lib/react-antd/locale-zh-cn.js` | dayjs 中文 locale |
-| 7 | `lib/react-antd/antd-with-locales.min.js` | antd 6.5.4 UMD 全量+中文 locale（全局 `window.antd`） |
-| 8 | `lib/react-antd/echarts.min.js` | ECharts 5 UMD（全局 `echarts`），数据看板用 |
-| 9 | `lib/react-antd/babel.min.js` | babel-standalone（浏览器端编译 JSX） |
-
-页面代码写在 `<script type="text/babel" data-presets="react">` 块内，用 JSX 语法。挂载方式：
-
-```jsx
-const { useState, useMemo } = React;
-const { Layout, Menu, ... } = window.antd;
-// 解构出用到的组件，直接写 JSX
-ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+```text
+output/prototype/
+├─ 原型工具.bat         用户唯一操作入口（中文菜单）
+├─ index.html           应用入口页
+├─ package.json         依赖与 scripts（dev/build/preview）
+├─ package-lock.json    锁文件，安装一律 npm ci
+├─ vite.config.js       Vite 配置（base: './'，Hash 路由无需服务端重写）
+├─ src/
+│  ├─ main.jsx          挂载入口
+│  ├─ App.jsx           壳层（Sider/Header/Content）
+│  ├─ routes.jsx        路由注册表
+│  ├─ modules/<模块>/   业务页面组件（按 Design 模块组织）
+│  ├─ shared/           共享壳层、角色切换、异常页
+│  └─ styles/           全局样式
+├─ public/              静态资源（原样复制到 dist）
+└─ dist/                构建产物（只由 npm run build 生成，可删除重建）
 ```
+
+三种查看方式边界：
+
+1. **本地即时预览**（BAT 选项 1，`npm run dev`，固定端口 5173）：修改 `src/` 后立即更新，用于边改边看；不把开发服务器内容当作最终部署证据。
+2. **本地构建预览**（BAT 选项 2，`npm run build` + `npm run preview`，固定端口 4173）：预览 `dist/` 构建结果，必须在交付或部署前执行，能发现开发模式未暴露的资源路径和构建问题。
+3. **Cloudflare 在线预览**：部署对象只允许是 `dist/`，由用户通过 BAT 选项 4 确认后上传。
 
 约束：
 
-1. 不要改变脚本加载顺序（react 必须在 antd 前，dayjs 必须在 antd 前）
-2. 不要用 React 19（无 UMD）；不要引入 npm/vite/构建
-3. 不要用外部 CDN；所有资源走本地 `lib/react-antd/`
-4. 不要引入其他组件库（MUI、Element 等）；交互全部用 antd 组件实现
+1. 允许编辑 `src/`、`index.html`、`package.json`、`vite.config.js`、`public/`、`README.md`；禁止直接编辑 `dist/`、`node_modules/` 和带哈希资源文件。
+2. 依赖统一由 `package.json`/`package-lock.json` 定义，安装用 `npm ci`；不得复制旧原型 lib、引用外部 CDN、把 `node_modules/` 复制进 dist。
+3. 路由使用 Hash 模式（如 `/#/plan/list`），本地预览与静态托管共用同一套可分享地址，不依赖服务端重写规则。
+4. 用户只操作 `原型工具.bat`；命令行用法只面向 AI 和研发排障，不写进用户操作步骤。
 
 ## 三、Ant Design 6 权威令牌
 
@@ -164,7 +176,7 @@ box-shadow: 0 6px 16px 0 rgba(0,0,0,0.08),
 1. **侧栏（Sider）**：深色主题，宽 220px，可折叠；顶部 logo，下方 Menu 承载模块/页面切换
 2. **顶栏（Header）**：高 64px，白底；左侧 Breadcrumb，右侧用户区（头像+退出）
 3. **内容区（Content）**：`#f5f5f5` 底，内边距 24px；承载真正的业务内容
-4. 页面切换用 `useState` + Menu `items/onClick`，页面组件注册进 `PAGES` 对象
+4. 壳层只做路由 + 渲染容器；菜单从 `src/routes.jsx` 派生或与路由显式映射，页面组件注册进路由表
 
 版式方向：
 
@@ -197,9 +209,12 @@ box-shadow: 0 6px 16px 0 rgba(0,0,0,0.08),
 | 文本域 | `<Input.TextArea autoSize={{ minRows: 4, maxRows: 8 }} />` —— **强制用 `autoSize`，不要写 `rows` 固定高度**；用户输入自然撑开，超过 maxRows 内容滚动 |
 | **图表（数据看板）** | **用 ECharts + Arco 风格主题**（不用手写 SVG/CSS 模拟）。Arco 无官方图表库；Arco Design Pro 官方用的就是 ECharts，下面的配置复刻 Arco 观感 |
 
-ECharts React 封装 + Arco 主题（在 `<script type="text/babel">` 块里定义一次）：
+ECharts React 封装 + Arco 主题（放在 `src/shared/Chart.jsx`）：
 
 ```jsx
+import * as echarts from 'echarts';
+import { useEffect, useRef } from 'react';
+
 // Arco 风格图表主题（主色 #165DFF、浅灰网格、文字 #4E5969、极简无阴影）
 const ARCO_COLORS = ['#165DFF', '#0FC6C2', '#FFC72E', '#F53F3F', '#00B42A', '#FF7D00', '#722ED1', '#3491FA'];
 const ARCO_AXIS = {
@@ -208,7 +223,7 @@ const ARCO_AXIS = {
   axisLabel: { color: '#4E5969', fontSize: 12 },
   splitLine: { lineStyle: { color: '#E5E6EB', width: 1 } },
 };
-function Chart({ option, height = 260 }) {
+export function Chart({ option, height = 260 }) {
   const ref = useRef(null);
   useEffect(() => {
     const chart = echarts.init(ref.current);
@@ -343,12 +358,14 @@ option 必须 useMemo 包，Chart 组件内部依赖 [option]，否则反复 ini
 2. 再确定当前页面主任务，按第六节选页面骨架
 3. 再按 Design 填充字段、数据、状态
 4. 最后补弹窗、抽屉、空状态、分页等辅助区域
+5. 页面组件放 `src/modules/<模块>/`，并在 `src/routes.jsx` 注册；跨页面共享的壳层、角色切换、异常页放 `src/shared/`
 
 坏例子：
 
 - 每个页面重新发明一套导航
 - 页面结构临场发挥，同类页面长不一样
 - 主体内容还没写清，先花大量时间做装饰
+- 直接改 dist 或构建产物来“完成”修改
 
 ## 八、原型输入
 
@@ -361,5 +378,3 @@ option 必须 useMemo 包，Chart 组件内部依赖 [option]，否则反复 ini
 ## 九、反馈输入边界
 
 反馈分类、停止条件和语义变更传播由 `skills/spm-prototype/SKILL.md` 与 `contracts/fix-propagation-rules.md` 负责；本文件只保留原型生成和表现层写法。
-
-[^八件套]: 指 `lib/react-antd/` 目录下的 `reset.css`、`antd.css`、`react.production.min.js`、`react-dom.production.min.js`、`dayjs.min.js`、`locale-zh-cn.js`、`antd-with-locales.min.js`、`babel.min.js` 八个本地依赖文件，所有 HTML 通过相对路径 `./lib/react-antd/...` 引用。

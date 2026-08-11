@@ -57,20 +57,81 @@ class VisibleTextParser(html.parser.HTMLParser):
             self.parts.append(data)
 
 
+_EXCLUDED_DIRS = {"dist", "node_modules", "prototype-p0"}
+
+
+def _scan_html(path: Path) -> tuple[list[str], list[str], dict[str, list[str]]]:
+    parser = VisibleTextParser()
+    try:
+        parser.feed(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError):
+        return [], [], {}
+    return parser.parts + parser.candidates, parser.state_candidates, parser.explicit_entities
+
+
+def _scan_jsx_text(text: str) -> tuple[list[str], list[str], dict[str, list[str]]]:
+    """从 JSX/JS 源码提取人读文本线索：字符串字面量、JSX 文本节点、data-* 显式实体。"""
+    parts: list[str] = []
+    states: list[str] = []
+    explicit: dict[str, list[str]] = {"page": [], "block": [], "field": [], "operation": []}
+    text = re.sub(r"/\*.*?\*/", " ", text, flags=re.S)
+    text = re.sub(r"//[^\n]*", " ", text)
+    # 空字符串字面量会让引号配对错位（如 c4: '', c5: '' 把后续 "..." 吞掉），先归一为空格
+    text = re.sub(r"''", " ", text)
+    text = re.sub(r'""', " ", text)
+    for key, entity_type in (
+        ("data-page", "page"),
+        ("data-block", "block"),
+        ("data-section", "block"),
+        ("data-field", "field"),
+        ("data-operation", "operation"),
+    ):
+        for m in re.finditer(key + r'\s*=\s*["\']([^"\']+)["\']', text):
+            explicit[entity_type].append(m.group(1).strip())
+    for m in re.finditer(r'data-state\s*=\s*["\']([^"\']+)["\']', text):
+        states.append(m.group(1).strip())
+    # 同类型引号成对匹配，避免空串/撇号导致配对漂移
+    for m in re.finditer(r'(["\'"])([^"\']{1,120})\1', text):
+        value = m.group(2).strip()
+        if value:
+            parts.append(value)
+    for m in re.finditer(r">\s*([^<>{}]+?)\s*<", text):
+        value = re.sub(r"\s+", " ", m.group(1)).strip()
+        if value and len(value) <= 120:
+            parts.append(value)
+    return parts, states, explicit
+
+
 def _scan(root: Path) -> tuple[str, list[str], dict[str, list[str]]]:
-    parts = []
-    states = []
-    explicit = {"page": [], "block": [], "field": [], "operation": []}
-    for path in sorted((root / "output" / "prototype").rglob("*.html")):
-        parser = VisibleTextParser()
-        try:
-            parser.feed(path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeDecodeError):
-            continue
-        parts.extend(parser.parts + parser.candidates)
-        states.extend(parser.state_candidates)
-        for entity_type, names in parser.explicit_entities.items():
-            explicit[entity_type].extend(names)
+    parts: list[str] = []
+    states: list[str] = []
+    explicit: dict[str, list[str]] = {"page": [], "block": [], "field": [], "operation": []}
+    prototype_root = root / "output" / "prototype"
+    if prototype_root.is_dir():
+        for path in sorted(prototype_root.rglob("*.html")):
+            if any(part in _EXCLUDED_DIRS for part in path.parts):
+                continue
+            p, s, e = _scan_html(path)
+            parts.extend(p)
+            states.extend(s)
+            for entity_type, names in e.items():
+                explicit[entity_type].extend(names)
+        src_root = prototype_root / "src"
+        if src_root.is_dir():
+            for path in sorted(
+                list(src_root.rglob("*.js")) + list(src_root.rglob("*.jsx")) + list(src_root.rglob("*.mjs"))
+            ):
+                if any(part in _EXCLUDED_DIRS for part in path.parts):
+                    continue
+                try:
+                    text = path.read_text(encoding="utf-8")
+                except (OSError, UnicodeDecodeError):
+                    continue
+                p, s, e = _scan_jsx_text(text)
+                parts.extend(p)
+                states.extend(s)
+                for entity_type, names in e.items():
+                    explicit[entity_type].extend(names)
     return "\n".join(parts), states, explicit
 
 
@@ -143,7 +204,7 @@ def main() -> int:
         "source": {
             "design": "output/design/design.md",
             "design_index": {"path": ".workflow/runtime/context/design/index/design-index.json", "from_file": index_from_file},
-            "prototype": "output/prototype/**/*.html",
+            "prototype": "output/prototype/**/*.{html,js,jsx}（排除 dist/node_modules/prototype-p0）",
         },
         "pages": pages,
         "blocks": blocks,

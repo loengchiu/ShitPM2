@@ -16,3 +16,6 @@
 | 8. Design 优先于 PRD | Prototype 与 PRD/Design 冲突时以 Design 为准，不能使用 PRD 覆盖 Design | [Prototype 写作规则](../references/prototype-writing.md) | P1 | `consistency` / 审查问题 |
 | 9. 异常路径和关键反馈可讨论 | 网络、权限、空数据、失败、限制或恢复路径没有可观察表达 | [Prototype 写作规则](../references/prototype-writing.md) | P1 | `content` / 页面或动作 |
 | 10. 表现问题与语义问题分离 | 视觉布局问题与产品事实冲突被混在同一修改项，或 Review 自行修复语义 | [Prototype 写作规则](../references/prototype-writing.md)；[同步修复传播规则](fix-propagation-rules.md) | P2 | `content` / 审查问题 |
+| 11. 源码工程完整 | 只有 dist/compiled.js 没有 src；package.json、构建脚本或路由注册表缺失；src 引用 dist 或 prototype-p0；存在 module-*.compiled.js 补丁链 | [Prototype 源码工程检查](../scripts/python/prototype-source-check.py) | P1（不得通过） | `structure` / affected_objects |
+| 12. 构建与构建预览可用 | `npm run build` 失败；构建预览中默认页或注册路由白屏、console 报错 | [Prototype 写作规则](../references/prototype-writing.md) | P1 | `structure` / 页面或路由 |
+| 13. Review 只读边界 | Review 手工修改 src、dist 或其他原型文件，或把构建产物当作修改输入 | [Prototype 写作规则](../references/prototype-writing.md) | P1 | `structure` / 审查问题 |
