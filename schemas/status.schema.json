@@ -31,16 +31,6 @@
       },
       "additionalProperties": false
     },
-    "latest_reviews": {
-      "type": "object",
-      "description": "历史字段：最近一次 review 结果摘要。Review 在 ShitPM 为按需调用，旧记录不构成产物质量证明。",
-      "properties": {
-        "design": { "$ref": "#/$defs/review_summary" },
-        "prd": { "$ref": "#/$defs/review_summary" },
-        "prototype": { "$ref": "#/$defs/review_summary" }
-      },
-      "additionalProperties": false
-    },
     "align_notes": { "$ref": "align-notes.schema.json" },
     "next_recommended": {
       "type": ["string", "null"],
@@ -49,13 +39,5 @@
     }
   },
   "additionalProperties": false,
-  "$defs": {
-    "review_summary": {
-      "type": "object",
-      "properties": {
-        "verdict": { "$ref": "common.schema.json#/$defs/verdict_enum" },
-        "reviewed_at": { "type": "string", "format": "date-time" }
-      }
-    }
-  }
+  "$defs": {}
 }

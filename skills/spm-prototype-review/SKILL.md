@@ -31,10 +31,7 @@ python $BUNDLE/scripts/python/prototype-consistency-check.py --project-root .
 
 一致性检查结果作为审查问题，不把检查当作 Review 启动门禁。
 4. 读取 `$BUNDLE/contracts/review-checklist.md`、`$BUNDLE/contracts/prototype-review-checklist.md` 和 `$BUNDLE/references/prototype-writing.md`；发现多页面 shell、路由或空白页问题时再读取 `$BUNDLE/references/prototype-shell.md`；从 Design 的“页面清单”提取全部页面，逐项输出 `存在 / 缺失 / 幻觉`，并审查字段、状态、主路径、权限、操作限制、异常反馈和 Design 未授权高影响行为。
-5. 按 `$BUNDLE/schemas/review-result.schema.json` 输出：
-   - 机读：`.workflow/reviews/prototype-review-N.json`
-   - 人读：`.workflow/reviews/prototype-review-N.md`
-   - 必须包含逐页面检查项、`verdict`、`issues`、`issue_layer`、`affected_objects`、`needs_upstream_sync`、`reviewed_at`；P2 记录但不计入 `verdict`。
+5. 输出人读审查结果：`.workflow/reviews/prototype-review-N.md`，必须包含逐页面检查项、审查结论（通过 / 有问题需修改 / 阻塞）、问题清单（每条含编号、严重级别、位置、影响、建议）、三类问题分布（structure / content / consistency）、`needs_upstream_sync`、`affected_objects` 和下一步建议；P2 记录但不计入审查结论。
 6. 输出审查结论后停止，不修改任何原型文件。
 
 ## 判定与失败处理

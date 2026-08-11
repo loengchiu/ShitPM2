@@ -7,7 +7,7 @@
 <link rel="stylesheet" href="./lib/react-antd/reset.css" />
 <link rel="stylesheet" href="./lib/react-antd/antd.css" />
 <style>
-  html, body, #root { height: 100%; margin: 0; }
+  html, body, #root { min-height: 100%; margin: 0; }
   .sider-logo {
     height: 48px; display: flex; align-items: center; justify-content: center;
     color: #fff; font-weight: 600; font-size: 16px; letter-spacing: 1px;
@@ -278,13 +278,15 @@
 
   // ============ 壳层（一般不需要改） ============
   function App() {
-    const [current, setCurrent] = useState('workplace');
+    // 默认页从 PAGES（硬编码、可信）派生，绝不依赖 MENU_ITEMS；current 异常时兜底到合法组件，杜绝白屏
+    const DEFAULT_KEY = PAGES['workplace'] ? 'workplace' : Object.keys(PAGES)[0];
+    const [current, setCurrent] = useState(DEFAULT_KEY);
     const [collapsed, setCollapsed] = useState(false);
-    const Page = PAGES[current] || PageWorkplace;
+    const Page = PAGES[current] || PAGES[DEFAULT_KEY];
 
     return (
       <ConfigProvider locale={zhCN}>
-        <Layout style={{ height: '100%' }}>
+        <Layout style={{ minHeight: '100vh' }}>
           <Sider theme="dark" width={220} collapsible collapsed={collapsed} onCollapse={setCollapsed}>
             <div className="sider-logo">{collapsed ? 'SP' : '__PROJECT_NAME__'}</div>
             <Menu theme="dark" mode="inline" selectedKeys={[current]}

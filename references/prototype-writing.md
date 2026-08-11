@@ -27,7 +27,9 @@
 | 失败处理 | 未归类就开始修改 | 读完 feedback 后直接改 | 命中该场景说明当前产物未满足对应要求 | 必须先输出归类结果，再开始修改 | 若无法归类，停在澄清，不直接改 |
 | 失败处理 | 原型依赖 lib/ 缺失 | `lib/react-antd/` 下 react/antd/babel/dayjs/echarts 缺失 | 命中该场景说明当前产物未满足对应要求 | 提示用户运行 `python scripts/python/download-prototype-libs.py` | 停下，不凭记忆生成 |
 | 失败处理 | 状态表达不完整 | 只有默认状态，缺异常/空/加载状态 | 命中该场景说明当前产物未满足对应要求 | 按 design 状态定义逐个补入原型 | 若状态过多，先补核心状态，其余在 output/prototype/decision-notes.md 中记录待补，不在原型中残留 [TODO] |
-| 失败处理 | 页面渲染空白 | 脚本加载顺序错 / lib 缺失 / babel 编译报错 | 命中该场景说明当前产物未满足对应要求 | 1) 核对 lib/react-antd 八件套[^八件套]引用顺序 2) 检查 text/babel 块 JSX 语法 3) 打开浏览器 console 看报错 | 回滚到上一可工作版本 |
+| 失败处理 | 页面渲染空白 | 脚本加载顺序错 / lib 缺失 / babel 编译报错 / 路由解析到 undefined 组件 | 命中该场景说明当前产物未满足对应要求 | 1) 核对 lib/react-antd 八件套[^八件套]引用顺序 2) 检查 text/babel 块 JSX 语法 3) 打开浏览器 console 看报错 4) **路由必须 `PAGES[current] \|\| PAGES[DEFAULT_KEY]`，DEFAULT_KEY 取 `Object.keys(PAGES)[0]`，绝不让 `<Page/>` 为 undefined** | 回滚到上一可工作版本 |
+| 失败处理 | 路由无默认页兜底 | 无参数打开白屏（React #130）：默认页 key 取自已损菜单数据，菜单异常时变 undefined | 命中该场景说明路由未做防御 | **默认页 key 从 PAGES 派生（`Object.keys(PAGES)[0]`），不参与菜单数据解析**；`<Page/>` 永远落到合法组件 | 改路由默认解析 |
+| 失败处理 | 验收只测带参页面 | 只开 `?p=xxx` 验证，漏掉无参数默认页；默认页异常时假绿 | 命中该场景说明验证遗漏 | **验证必须分别打开"无参数默认页"与"带 `?p=` 参数页"，两者都渲染正常、console 无错才算通过** | 补开无参数页复验 |
 | 失败处理 | 页面无样式 | HTML 缺 antd.css/reset.css 引用 | 命中该场景说明当前产物未满足对应要求 | 给全部 HTML 补齐本地 lib 引用 | —— |
 | 反模式 | 把所有页面塞进一个 HTML | 出现该做法 | 无法维护，打开很慢 | 按模块拆分，用 index.html 做入口 | — |
 | 反模式 | 原型独立定义业务规则 | 出现该做法 | 与 design 不一致，造成混乱 | 原型只做展示，业务规则以 design 为准 | — |
@@ -189,9 +191,10 @@ box-shadow: 0 6px 16px 0 rgba(0,0,0,0.08),
 | 详情描述 | `<Descriptions bordered column={2} items={[{label, children}]} />` |
 | 分页 | Table 自带 `pagination={{ pageSize, showTotal }}` |
 | 结果/异常 | `<Result status="success/404/403/500" title sub-title extra />` |
-| 弹窗 | `<Modal open onOk onCancel />`（不用 window.confirm） |
+| 弹窗 | `<Modal open onOk onCancel width={560}>`（不用 window.confirm；宽度 560 起，可视需要调大） |
 | 空状态 | `<Empty />`（列表无数据时由 Table 自动展示） |
 | 提示 | `<message.success('...')>` / `<message.error('...')>`（antd 全局 message） |
+| 文本域 | `<Input.TextArea autoSize={{ minRows: 4, maxRows: 8 }} />` —— **强制用 `autoSize`，不要写 `rows` 固定高度**；用户输入自然撑开，超过 maxRows 内容滚动 |
 | **图表（数据看板）** | **用 ECharts + Arco 风格主题**（不用手写 SVG/CSS 模拟）。Arco 无官方图表库；Arco Design Pro 官方用的就是 ECharts，下面的配置复刻 Arco 观感 |
 
 ECharts React 封装 + Arco 主题（在 `<script type="text/babel">` 块里定义一次）：
@@ -269,6 +272,19 @@ const columns = [
 2. 交互（弹窗/抽屉/下拉）用 antd 组件 + React 状态，不用原生 `alert/confirm`
 3. 不要用 Vue 语法（`v-if`/`v-model`）、daisyUI 类、Tailwind 类
 4. 表格数据与字段以 design 为准，mock 数据要贴合业务
+
+**弹窗（Modal/Drawer）布局硬规则**：
+
+1. **不要在 Modal 内用 Row/Col 把 Form.Item 挤在 1/3 宽度**——Modal 本身宽度有限（默认 520），Col span 8 = 157px 太窄；Form layout="vertical" 下 Form.Item 直接放就 100% 宽度
+2. 弹窗默认 `width={560}`（简单表单）或 `width={720}`（多项/含描述），不要无 width 让它默认 520 文字挤
+3. OK/取消按钮文案：`okText="确定"` / `cancelText="取消"`（不是 antd 默认的英文）
+
+**文本域（TextArea）硬规则**：
+
+1. **必须用 `autoSize={{ minRows: 4, maxRows: 8 }}`**，不要写 `rows={N}` 固定高度
+2. 短文本（如备注）`minRows: 2`；审批意见/说明/final 描述类 `minRows: 4, maxRows: 8`
+3. 长文本（如富描述）`minRows: 6, maxRows: 12`，超过 maxRows 后内部滚动
+4. 配套一般加 `showCount maxLength={500}` 之类，提示剩余字数
 
 ## 六、7 类页面固定骨架
 

@@ -49,13 +49,13 @@ Review 不要求 metadata 存在，不要求先通过其他 Review。
 
 ### 结果结构
 
-`issue_layer` 必须包含 `structure`、`content`、`consistency` 三个整数；每条审查问题至少包含 `id`、`severity`、`description`，可附 `location` 和 `suggestion`。机读结果按 `$BUNDLE/schemas/review-result.schema.json` 组织：
+审查结果只输出人读 `.md` 文件，不生成机读 JSON：
 
-- `.workflow/reviews/design-review-N.json`
-- `.workflow/reviews/prd-review-N.json`
-- `.workflow/reviews/prototype-review-N.json`
+- `.workflow/reviews/design-review-N.md`
+- `.workflow/reviews/prd-review-N.md`
+- `.workflow/reviews/prototype-review-N.md`
 
-人读结果与机读结果同编号，写入对应 `.md` 文件，包含审查结论、主要问题、三类问题分类、`needs_upstream_sync`、`affected_objects` 和下一步建议。
+每条审查问题至少包含编号、严重级别（P0/P1/P2）、描述，可附位置和建议；正文必须包含审查结论（通过 / 有问题需修改 / 阻塞）、主要问题、三类问题分布（structure / content / consistency）、`needs_upstream_sync`、`affected_objects` 和下一步建议。P2 记录但不计入审查结论。
 
 ### 共同禁止事项
 

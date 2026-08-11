@@ -523,7 +523,6 @@ def collect_context(project_root: Path, stdin_status: bool = False, bundle_root:
         "artifacts_mirror": artifacts_mirror,
         # 历史字段保留兼容读取
         "metadata_paths": status_dict.get("metadata_paths", {}),
-        "latest_reviews": status_dict.get("latest_reviews", {}),
         "align_notes": align_notes if align_notes else {},
         # ShitPM 字段
         "design_confirmation": design_conf,

@@ -53,10 +53,7 @@ python $BUNDLE/scripts/python/prd-consistency-check.py --project-root .
    - 查询、统计、表单、配置、跨系统等适用场景是否写清产品结果，是否用经验补造数字；
    - 流程图是否使用 draw.io 源文件和 PNG，图文是否一致；
    - 是否有标签式正文（含“触发：”“处理：”“成功结果：”“失败与恢复：”等行首标签）、流水账、表格主导、模糊跨节引用、AI 痕迹和明确占位符。
-5. 按 `$BUNDLE/schemas/review-result.schema.json` 输出既有格式：
-   - 机读：`.workflow/reviews/prd-review-N.json`
-   - 人读：`.workflow/reviews/prd-review-N.md`
-   - 必须包含 `verdict`、`issues`、`issue_layer`、`affected_objects`、`needs_upstream_sync`、`reviewed_at`；P2 记录但不计入 `verdict`。
+5. 输出人读审查结果：`.workflow/reviews/prd-review-N.md`，必须包含审查结论（通过 / 有问题需修改 / 阻塞）、问题清单（每条含编号、严重级别、位置、影响、建议）、三类问题分布（structure / content / consistency）、`needs_upstream_sync`、`affected_objects` 和下一步建议；P2 记录但不计入审查结论。
 6. 输出审查结论后停止，不修改任何被审查产物。
 
 ## 判定规则

@@ -27,10 +27,7 @@ Review 是独立第二意见，不是生成门禁，也不承担计划内补全�
 2. 确认 `output/design/design.md` 存在、可读且可解析；缺失或不可读时停止，缺章节、冲突和质量问题继续作为审查问题。
 3. 读取 `$BUNDLE/contracts/review-checklist.md`、`$BUNDLE/contracts/design-review-checklist.md` 和 `$BUNDLE/references/design-quality-rubric.md` 的独立 Review 评分部分；再按具体检查项读取 `$BUNDLE/references/design-state-format.md`、`design-flow-format.md`、`design-writing.md` 等细则。只有检测到 `.workflow/metadata/design/` 时才读取 `$BUNDLE/contracts/metadata-anchor-rules.md`。按检查项审查字段密度、状态闭环、流程密度、权限、页面/字段落点、高影响缺口、横切能力和旧 metadata（仅存在时）。重点核对待办、提醒、编号、字典、文件/档案、审计侧/被审侧入口、自动动作失败、删除传播、枚举来源、独立上限以及页面展示状态。
 5. 从人读稿而不是 metadata 判断 Design 事实；不能确认的内容标记为产品风险或待用户决策，不擅自补全。
-6. 按 `$BUNDLE/schemas/review-result.schema.json` 输出结果：
-   - 机读：`.workflow/reviews/design-review-N.json`
-   - 人读：`.workflow/reviews/design-review-N.md`
-   - 必须包含 `verdict`、`issues`、`issue_layer`、`affected_objects`、`needs_upstream_sync`、`reviewed_at`；P2 记录但不计入 `verdict`。
+6. 输出人读审查结果：`.workflow/reviews/design-review-N.md`，必须包含审查结论（通过 / 有问题需修改 / 阻塞）、问题清单（每条含编号、严重级别、位置、影响、建议）、三类问题分布（structure / content / consistency）、`needs_upstream_sync`、`affected_objects` 和下一步建议；P2 记录但不计入审查结论。
 7. 输出审查结论后停止，等待用户决定是否修复或确认。
 
 ## 判定与停止

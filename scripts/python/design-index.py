@@ -665,7 +665,15 @@ def _extract_states(pages: list[dict[str, Any]]) -> list[dict[str, Any]]:
         raw = page.get("attributes", {}).get("states", "")
         for name in re.split(r"[,，、/；;|]+", raw):
             name = name.strip()
+            # 排除“无状态机（xx页）”等散文片段：表示该页无状态机，并非状态名；
+            # 同时排除括号不配对（被逗号切碎的句子残片）与纯描述文本。
             if not name or name in {"无", "无状态机", "不适用"} or name in seen:
+                continue
+            if name.startswith("无状态机"):
+                continue
+            if name.count("（") != name.count("）") or name.count("(") != name.count(")"):
+                continue
+            if any(kw in name for kw in ("状态操作按", "状态系统自动判定", "状态按", "保存触发", "展示态由", "借阅记录按", "资料状态按", "签署记录按", "检查项状态为", "条目状态为", "用户状态为", "角色状态为", "流程状态为", "公告状态为", "机构状态为", "仅展示已发布公告")):
                 continue
             seen.add(name)
             states.append({"name": name, "line": page.get("line"), "page_id": page.get("id")})

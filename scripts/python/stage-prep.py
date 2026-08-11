@@ -983,7 +983,6 @@ def update_status(stage: str, project_root: Path, dry_run: bool = False):
     - artifacts → 追加当前产物路径
     - metadata_paths → 追加当前 metadata 路径
     - next_recommended → 按阶段顺序映射
-    - latest_reviews → 从 reviews/ 读取最新 review 的 verdict 和 reviewed_at
     """
     if dry_run:
         return
@@ -1024,35 +1023,6 @@ def update_status(stage: str, project_root: Path, dry_run: bool = False):
     # 保留 base_next 计算仅用于潜在的诊断输出，不写入 status。
     _ = base_next  # noqa: F841（保留计算结果供调试，不写入 status）
     status["next_recommended"] = None
-
-    # 读取当前阶段的 review 文件，取最新的 verdict 和 reviewed_at
-    if stage in ("design", "prd", "prototype"):
-        reviews_dir = project_root / ".workflow" / "reviews"
-        if reviews_dir.exists():
-            review_prefix = f"{stage}-review"
-            matching_reviews = []
-            for review_file in reviews_dir.glob(f"{review_prefix}*.json"):
-                try:
-                    with open(review_file, encoding="utf-8") as f:
-                        review_data = json.load(f)
-                    matching_reviews.append({
-                        "file": review_file.name,
-                        "verdict": review_data.get("verdict"),
-                        "reviewed_at": review_data.get("reviewed_at"),
-                    })
-                except (json.JSONDecodeError, OSError):
-                    continue
-            if matching_reviews:
-                # 按 reviewed_at 排序，取最新
-                matching_reviews.sort(key=lambda r: r.get("reviewed_at") or "", reverse=True)
-                latest = matching_reviews[0]
-                status.setdefault("latest_reviews", {})[stage] = {
-                    "verdict": latest["verdict"],
-                    "reviewed_at": latest["reviewed_at"],
-                }
-            else:
-                # review 文件缺失时清空过期数据，避免基于过时 review 做错误判定
-                status.setdefault("latest_reviews", {}).pop(stage, None)
 
     with open(status_path, "w", encoding="utf-8") as f:
         json.dump(status, f, ensure_ascii=False, indent=2)

@@ -19,7 +19,7 @@ description: "ShitPM 项目启动与导航——只读扫描当前产物、Desig
 
 ## 执行流程
 
-1. 读取 `.workflow/status.json`、`output/` 产物和最近 Review（如存在）。
+1. 读取 `.workflow/status.json`、`output/` 产物和最近 Review 人读文件（`.workflow/reviews/<stage>-review-N.md`，如存在）。
 2. 有 `status.json` 时运行：
 
    ```text

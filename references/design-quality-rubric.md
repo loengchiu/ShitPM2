@@ -156,4 +156,4 @@ L0–L3 只用于独立 Review 的维度评分。生成自审使用同一证据�
 - 产品经理可读性，以及 PRD 和 Prototype 的承接完整性；
 - 审查结论、`needs_upstream_sync` 和受影响对象。
 
-机读 Review 只写公共 schema 允许的字段；五维评分保留在人读 Review 中，不得擅自扩展 schema，也不得把内部分析过程写入最终 Design。
+五维评分保留在人读 Review 中，不得把内部分析过程写入最终 Design。

@@ -41,7 +41,7 @@ python $BUNDLE/scripts/python/design-confirmation.py --project-root . check
 3. 正式写入前完成 Design → Prototype 语义对照：列出必须表达的页面、字段、状态、角色权限、主要路径和关键反馈；显式标出 Design 的“待确认”项，不静默拍板。
 4. 读取并执行 `$BUNDLE/references/prototype-writing.md` 的通用基座、Ant Design 6、页面组织和视觉规则；多页面或 shell 相关任务再读取 `$BUNDLE/references/prototype-shell.md`；以 `$BUNDLE/templates/prototype.html` 为基础生成或局部修改。确认版 Design 是唯一产品事实源，PRD 仅可选辅助，冲突时以 Design 为准。
 5. 将 `$BUNDLE/lib/` 所需文件复制到 `output/prototype/lib/`，保证原型目录自包含、可直接打开；至少核对 `lib/react-antd/` 九件套（`reset.css`、`antd.css`、`react.production.min.js`、`react-dom.production.min.js`、`dayjs.min.js`、`locale-zh-cn.js`、`antd-with-locales.min.js`、`echarts.min.js`、`babel.min.js`）。
-6. 生成后依次检查：浏览器是否正常渲染、浏览器 console 是否报错、页面和字段是否与 Design 一致、关键权限/状态/限制/主路径/异常反馈是否有表达。
+6. 生成后依次检查：浏览器是否正常渲染（**必须分别打开无参数默认页与带 `?p=` 参数页，两者都不得白屏**）、浏览器 console 是否报错、页面和字段是否与 Design 一致、关键权限/状态/限制/主路径/异常反馈是否有表达。
 7. 运行：
 
 ```text
