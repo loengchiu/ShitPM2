@@ -49,6 +49,11 @@
 | 反模式 | message.info 占位代替真实弹窗（"示意"） | 出现该做法 | 评审无法讨论真实交互与校验 | 用真实 Modal/Drawer/Form 实现，二次确认用 Modal.confirm | — |
 | 反模式 | 只有满数据 mock，无空态/异常态 | 出现该做法 | 异常路径不可讨论 | 补空态/加载失败/无权限表达 | — |
 | 反模式 | 让用户手动输入 npm 命令 | README 首屏或交付说明要求打开 PowerShell | 用户目标是双击预览，不是学命令 | 交付 `原型工具.bat` 中文菜单，README 首屏只写双击 BAT | — |
+| 反模式 | 页内放"演示角色切换" | 角色切换 Select 出现在页面内而非壳层 Header | 角色切换位置不统一，评审聚焦被分散 | 多角色项目角色切换统一放 Header，页内不渲染 | — |
+| 反模式 | 长文本字段用单行 Input | 审计范围/问题描述等多行字段用 `<Input>` 而非 TextArea | 多行内容无法完整表达 | 多行/长文本字段一律 `Input.TextArea`，编辑表单 `Col span={24}` 独占一行 | — |
+| 失败处理 | 列表操作列未冻结 | 列表设了 `scroll={{ x }}` 但操作列没有 `fixed:'right'` | 横向滚动时操作列看不见 | 操作列 `fixed: 'right'` 冻结 | antd v6 检测用 `position: sticky`，不是 v4 的 `ant-table-cell-fix-right` 类名 |
+| 失败处理 | 页面级操作散落卡片 extra | 保存/提交/返回等出现在卡片右上角或多处重复 | 主操作位置不统一，评审无法确认 | 页面级操作统一底部 sticky 操作栏，同一操作只出现一次 | 列表 toolbar"新建"入口、行内操作、配置入口除外 |
+| 失败处理 | 角色操作全显+disabled | 角色不满足的操作也渲染出来再置灰 | 与真实系统权限表达不一致 | 角色不满足的操作不渲染；状态不允许的才置灰 | 状态类操作保留"可见禁用"供评审 |
 
 ## 一、原型定位
 
@@ -173,8 +178,8 @@ box-shadow: 0 6px 16px 0 rgba(0,0,0,0.08),
 
 固定壳层（模板已实现，一般不需要改）：
 
-1. **侧栏（Sider）**：深色主题，宽 220px，可折叠；顶部 logo，下方 Menu 承载模块/页面切换
-2. **顶栏（Header）**：高 64px，白底；左侧 Breadcrumb，右侧用户区（头像+退出）
+1. **侧栏（Sider）**：深色主题，宽 220px，可折叠；顶部 logo，下方 Menu 承载模块/页面切换；**Sider 独立滚动，不随整页滚动**（`style={{ height:'100vh', overflow:'auto', position:'sticky', top:0 }}`），菜单长时只在侧栏内部滚动
+2. **顶栏（Header）**：高 64px，白底；左侧 Breadcrumb，右侧用户区（角色切换 + 头像 + 退出）；**角色切换统一放 Header**，页内不放"演示角色切换"；角色判断用全称（如"被审单位对接人"）
 3. **内容区（Content）**：`#f5f5f5` 底，内边距 24px；承载真正的业务内容
 4. 壳层只做路由 + 渲染容器；菜单从 `src/routes.jsx` 派生或与路由显式映射，页面组件注册进路由表
 
@@ -206,7 +211,7 @@ box-shadow: 0 6px 16px 0 rgba(0,0,0,0.08),
 | 弹窗 | `<Modal open onOk onCancel width={560}>`（不用 window.confirm；宽度 560 起，可视需要调大） |
 | 空状态 | `<Empty />`（列表无数据时由 Table 自动展示） |
 | 提示 | `<message.success('...')>` / `<message.error('...')>`（antd 全局 message） |
-| 文本域 | `<Input.TextArea autoSize={{ minRows: 4, maxRows: 8 }} />` —— **强制用 `autoSize`，不要写 `rows` 固定高度**；用户输入自然撑开，超过 maxRows 内容滚动 |
+| 文本域 | `<Input.TextArea autoSize={{ minRows: 4, maxRows: 8 }} />` —— 可编辑输入**强制用 `autoSize`**，不要写 `rows` 固定高度；只读展示用 `disabled` + `rows`（见下方硬规则） |
 | **图表（数据看板）** | **用 ECharts + Arco 风格主题**（不用手写 SVG/CSS 模拟）。Arco 无官方图表库；Arco Design Pro 官方用的就是 ECharts，下面的配置复刻 Arco 观感 |
 
 ECharts React 封装 + Arco 主题（放在 `src/shared/Chart.jsx`）：
@@ -278,8 +283,11 @@ const columns = [
 **表格列宽硬规则**：
 
 1. 操作列必须 `whiteSpace: 'nowrap'`（防"详情"被拆成"详/情"两行）
-2. 列数 ≥ 5 或总宽超卡片容宽时：每列必须显式 `width` + Table 配 `scroll={{ x: 总宽 }}`，**否则无 width 的列会被 antd 自动压缩成单字宽度**（如"直流充电桩 01"竖排）
-3. 推荐列宽：编号类 140、设备名 130、服务区/类型 100-140、状态 90、时间 160、操作 180-200
+2. **表头全局不换行**：`styles/global.css` 加 `.ant-table-thead th { white-space: nowrap }`（模板已带）
+3. 列数 ≥ 5 或总宽超卡片容宽时：每列必须显式 `width` + Table 配 `scroll={{ x: 总宽 }}`，**否则无 width 的列会被 antd 自动压缩成单字宽度**（如"直流充电桩 01"竖排）
+4. 列宽估算基准：**列宽 ≥ 中文字数 × 14 + 32（padding）+ 8（余量）**，否则表头/内容会被挤换行；优先按此设足 `width`
+5. 推荐列宽：编号类 140、设备名 130、服务区/类型 100-140、状态 90、时间 160、操作 180-200
+6. **列表宽于页面（`scroll={{ x }}` 生效）时，操作列 `fixed: 'right'` 冻结**，横向滚动时操作列始终可见；antd v6 检测冻结用 `position: sticky`，不是 v4 的 `ant-table-cell-fix-right` 类名
 
 约束：
 
@@ -296,10 +304,22 @@ const columns = [
 
 **文本域（TextArea）硬规则**：
 
-1. **必须用 `autoSize={{ minRows: 4, maxRows: 8 }}`**，不要写 `rows={N}` 固定高度
-2. 短文本（如备注）`minRows: 2`；审批意见/说明/final 描述类 `minRows: 4, maxRows: 8`
-3. 长文本（如富描述）`minRows: 6, maxRows: 12`，超过 maxRows 后内部滚动
-4. 配套一般加 `showCount maxLength={500}` 之类，提示剩余字数
+1. **多行/长文本字段一律用 `Input.TextArea`，不用单行 `Input`**：如审计范围/目标/重点/立项依据、问题描述、反馈意见等；编辑表单里该字段 `Col span={24}` 独占一行
+2. **可编辑 TextArea 必须用 `autoSize={{ minRows: 4, maxRows: 8 }}`**，不要写 `rows={N}` 固定高度
+3. 短文本（如备注）`minRows: 2`；审批意见/说明/描述类 `minRows: 4, maxRows: 8`
+4. 可编辑长文本（如富描述）`minRows: 6, maxRows: 12`，超过 maxRows 后内部滚动
+5. 配套一般加 `showCount maxLength={500}` 之类，提示剩余字数
+6. **只读富文本/长文本展示**：`<Input.TextArea disabled rows={6} autoSize={false} />` 整行表达（rows 取 6-8 视内容量），只读状态用 `disabled` 表达，不套 autoSize
+
+**详情描述（Descriptions）硬规则**：
+
+1. 详情页固定 `column={2}`（两组一行）；长文本字段 `span: 2` 整行独占
+2. 统计摘要区可例外用 `column={3}`
+
+**页面级操作按钮硬规则**：
+
+1. 详情/编辑/操作页的页面级按钮（保存/提交/发送/审批/下达/发起/转办/取消/返回等）统一放**页面底部 sticky 操作栏**（`position: sticky; bottom: 0`，模板 `global.css` 已带 `.page-action-bar`），不散落在卡片 `extra`
+2. 同一操作不重复出现；列表 toolbar"新建"入口、行内操作、配置管理入口除外
 
 ## 六、7 类页面固定骨架
 
@@ -313,7 +333,7 @@ B 端顶级页面固定 7 类，生成时按对应骨架搭，不临场发挥：
 
 **2. 列表页**
 ```
-页头 → Card[ 查询 Form(inline, style={{rowGap:12}}) → Divider → 工具栏(新增/批量操作) → Table(columns/width/scroll.x) ]
+页头 → Card[ 查询 Form(inline, style={{rowGap:12}}) → Divider → 工具栏(新增/批量操作) → Table(columns/width/scroll.x，操作列 fixed:'right') ]
 查询按钮（查询/重置）必须在 Form 内最后一项；工具栏只放增删改类操作，不放查询按钮。
 Form 换行时两行之间必须有 12px 间距（用 Form 的 rowGap），否则两行挨在一起视觉拥挤。
 ```
@@ -321,14 +341,14 @@ Form 换行时两行之间必须有 12px 间距（用 Form 的 rowGap），否�
 **3. 表单页**
 ```
 页头 → Form(vertical, max-width 960)
-→ Card[ 基本信息 ]（Row gutter24 + Col span8 三列，长字段 span 16/24 占满）
-→ 底部右对齐操作条（取消 + 保存 primary）
+→ Card[ 基本信息 ]（Row gutter24 + Col span8 三列；长文本/多行字段 Col span=24 独占一行）
+→ 底部 sticky 操作栏（取消 + 保存 primary）
 多步骤表单拆多个 Card 顺序排，不用 Tabs
 ```
 
 **4. 详情页**
 ```
-页头（含返回）→ Card[ Descriptions bordered column=2 ]
+页头（含返回）→ Card[ Descriptions bordered column=2，长文本字段 span:2 整行独占 ]
 → Card[ 关联明细 Table（pagination false）]
 ```
 

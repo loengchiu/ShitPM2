@@ -117,17 +117,19 @@ goto menu
 :upload
 call :checkenv
 if errorlevel 1 goto menu
-if not exist "cloudflare-project.txt" (
-  echo [提示] 尚未配置 Cloudflare 项目（缺少 cloudflare-project.txt）。
+if not exist "wrangler.toml" (
+  echo [提示] 尚未配置 Cloudflare 项目（缺少 wrangler.toml）。
   echo        请让 AI 完成配置后重试；本工具不会要求你手动输入部署命令。
   pause
   goto menu
 )
+REM 从 wrangler.toml 读取项目名用于展示（取 name = 这一行）
 set "CF_PROJECT="
-set /p "CF_PROJECT=<cloudflare-project.txt"
+for /f "tokens=2 delims==" %%i in ('findstr /i /b "name" wrangler.toml') do set "CF_PROJECT=%%i"
+set "CF_PROJECT=%CF_PROJECT:"=%"
 set "CF_PROJECT=%CF_PROJECT: =%"
 if "%CF_PROJECT%"=="" (
-  echo [错误] cloudflare-project.txt 为空，请让 AI 重新配置。
+  echo [错误] wrangler.toml 未配置 name，请让 AI 重新配置。
   pause
   goto menu
 )
@@ -145,13 +147,26 @@ if errorlevel 1 (
   pause
   goto menu
 )
-call npx --yes wrangler pages deploy "dist" --project-name "%CF_PROJECT%"
+echo 正在上传：首次使用会自动打开浏览器完成 Cloudflare 授权，请在弹出的页面中允许后回到本窗口...
+call npx --yes wrangler pages deploy "dist"
 if errorlevel 1 (
-  echo [错误] 上传失败，请把上方错误信息转交给 AI。
+  echo.
+  echo [错误] 上传失败。常见原因与处理：
+  echo   1) 未登录 Cloudflare：wrangler 会自动打开浏览器授权；若未弹出，请把上方错误信息转交 AI。
+  echo   2) 网络无法访问 Cloudflare：确认公司网络能打开 https://dash.cloudflare.com
+  echo   3) 项目名冲突：修改 wrangler.toml 里的 name 后重试。
+  echo   上方错误信息也请一并转交给 AI。
   pause
   goto menu
 )
-echo 上传完成。
+echo.
+echo 上传完成。Cloudflare Pages 控制台可查看部署地址与历史。
+echo.
+echo ── 访问/分享地址 ──────────────────────────────
+echo   请用「生产域名」（固定、公司网络已放行）：
+echo     https://%CF_PROJECT%.pages.dev
+echo   部署日志末尾打印的 hash 子域每次部署都会变化，不要用作分享地址。
+echo ───────────────────────────────────────────────
 pause
 goto menu
 

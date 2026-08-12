@@ -109,7 +109,8 @@ def test_template_has_single_menu_bat() -> None:
         check(label in text, f"BAT 菜单缺少: {label}")
     for call in ("npm run dev", "npm run build", "npm run preview"):
         check(call in text, f"BAT 未调用 {call}")
-    check("cloudflare-project.txt" in text, "BAT 缺少 Cloudflare 配置检查")
+    check("wrangler.toml" in text, "BAT 缺少 Cloudflare 配置检查")
+    check("audit-system" not in text, "模板 BAT 不得硬编码项目名")
     readme = TEMPLATE / "README.md"
     lines = readme.read_text(encoding="utf-8").splitlines()
     screen_lines = []

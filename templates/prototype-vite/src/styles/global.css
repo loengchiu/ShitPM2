@@ -45,3 +45,19 @@ body {
   font-size: 13px;
   margin: 0;
 }
+/* 表头不换行：避免表头文字被拆成两行 */
+.ant-table-thead th {
+  white-space: nowrap;
+}
+/* 页面级操作栏：详情/编辑/操作页的保存/提交/返回等按钮统一底部 sticky */
+.page-action-bar {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 12px 0;
+  background: #fff;
+  border-top: 1px solid #f0f0f0;
+  z-index: 10;
+}

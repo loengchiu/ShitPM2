@@ -14,7 +14,12 @@ export default function App() {
   const Page = route.component;
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider theme="dark" width={220}>
+      {/* Sider 独立滚动：菜单长时只在侧栏内部滚动，不随整页滚动 */}
+      <Sider
+        theme="dark"
+        width={220}
+        style={{ height: '100vh', overflow: 'auto', position: 'sticky', top: 0 }}
+      >
         <div className="sider-logo">{'原型系统' /* 生成时替换为项目名 */}</div>
         <Menu
           theme="dark"
