@@ -2,6 +2,7 @@
 .workflow/
 output/*
 .archive/
+design-rule-cache/
 
 # Python 缓存
 __pycache__/

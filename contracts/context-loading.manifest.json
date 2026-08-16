@@ -93,6 +93,7 @@
             "design-writing-common-errors",
             "design-writing-structure",
             "design-writing-final",
+            "design-writing-self-check",
             "design-verification-self-review-boundary",
             "design-verification-self-review"
           ]
@@ -102,12 +103,6 @@
           "sections": [
             "design-template",
             "decision-notes-template"
-          ]
-        },
-        "design-compatibility": {
-          "purpose": "旧项目 metadata 兼容规则，仅检测到旧 metadata 时显式装载",
-          "sections": [
-            "metadata-anchor-rules"
           ]
         }
       }
@@ -306,6 +301,11 @@
       "source": "references/design-quality-rubric.md",
       "selector": "marker"
     },
+    "design-writing-self-check": {
+      "stage": "design",
+      "source": "references/design-writing.md",
+      "selector": "marker"
+    },
     "design-template": {
       "stage": "design",
       "source": "templates/design.md",
@@ -315,11 +315,6 @@
       "stage": "design",
       "source": "templates/decision-notes.md",
       "selector": "marker"
-    },
-    "metadata-anchor-rules": {
-      "stage": "design",
-      "source": "contracts/metadata-anchor-rules.md",
-      "selector": "whole"
     },
     "prd-core-boundary": {
       "stage": "prd",

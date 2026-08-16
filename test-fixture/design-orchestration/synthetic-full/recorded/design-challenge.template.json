@@ -1,7 +1,0 @@
-{
-  "schema_version": "design-challenge/v1",
-  "provenance": {"design_model_hash": "__DESIGN_MODEL_HASH__", "material_revision": "__MATERIAL_REVISION__", "rule_hash": "__RULE_HASH__"},
-  "findings": [{"id": "challenge-conflict", "severity": "high", "summary": "审批通过与库存锁定的预占语义冲突", "evidence": ["external"], "can_resolve_from_existing_facts": true, "requires_user_confirmation": false, "blocks_writing": false}],
-  "blocking_questions": [{"question_id": "overdue-reapply", "question": "设备逾期后是否禁止员工再次申请？", "impact": "影响申请权限与状态规则", "invalidates": ["writing", "check"]}],
-  "source_refs": ["external", "state"]
-}

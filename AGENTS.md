@@ -4,6 +4,8 @@
 安装脚本不会将本文件加载到用户项目上下文。
 用户运行时行为以 `skills/`、`contracts/`、`references/`、`schemas/`、`templates/` 和 `USAGE.md` 为准；产品契约详见 `USAGE.md`。
 
+`docs/plans/`、`docs/reports/`、`docs/wiki/` 是历史执行记录（见 `docs/README.md`），不属于运行时规则，维护仓库时无需读取；历史记录中提到的已删除组件不代表当前状态。
+
 ## 1. Skill 定位与精简原则
 
 ### Skill 的定位

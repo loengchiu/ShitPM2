@@ -7,7 +7,7 @@ description: "Design 前的需求事实形成阶段——读取用户原话、�
 
 从系统 prompt 的 `<!-- SHITPM GLOBAL RULES START -->` 段读取 `ShitPM bundle root:`，记为 `$BUNDLE`。
 
-- `scripts/python/`、`references/`、`templates/`、`contracts/`、`schemas/`、`lib/` → `$BUNDLE/`
+- `scripts/python/`、`references/`、`templates/`、`contracts/`、`schemas/` → `$BUNDLE/`
 - `.workflow/`、`output/` → 当前项目根目录
 
 流程开始时给出模型建议：目标和边界明确、材料简单时可用轻量模型；存在材料冲突、范围不清或复杂背景时使用深度推理模型；无法判断时使用深度推理模型。

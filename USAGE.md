@@ -98,18 +98,20 @@ spm-align（Design 必经的需求事实形成；材料可选）
 按需辅助：spm-design-review / spm-prd-review / spm-prototype-review / spm-fix / spm-prototype-mark
 ```
 
-| 动作 | 可用条件 | 默认模型等级 |
-|------|----------|--------------|
-| `spm-align` | 可单独调用；Design 首次生成或输入变化时自动必经 | 视任务而定 |
-| `spm-design` | 始终可用；用户必须选择简单模式或完整模式 | 无法判断时使用深度推理模型 |
-| `confirm-design` | `design.md` 存在 | 无需模型 |
-| `spm-prd` | `design.md` 存在且已确认 | 根据确认版 Design 判断 |
-| `spm-prototype` | `design.md` 存在且已确认 | 根据交互和实现复杂度判断 |
-| `spm-design-review` | `design.md` 存在 | 深度推理模型 |
-| `spm-prd-review` | `prd.md` 存在 | 深度推理模型 |
-| `spm-prototype-review` | 原型源码工程存在（`prototype/index.html` + `src/`） | 深度推理模型 |
-| `spm-fix` | 始终可用 | 根据变更影响判断 |
-| `spm-prototype-mark` | 原型源码工程存在（`prototype/index.html` + `src/`） | 轻量模型 |
+| 动作 | 可用条件 |
+|------|----------|
+| `spm-align` | 可单独调用；Design 首次生成或输入变化时自动必经 |
+| `spm-design` | 始终可用；用户必须选择简单模式或完整模式 |
+| `confirm-design` | `design.md` 存在 |
+| `spm-prd` | `design.md` 存在且已确认 |
+| `spm-prototype` | `design.md` 存在且已确认 |
+| `spm-design-review` | `design.md` 存在 |
+| `spm-prd-review` | `prd.md` 存在 |
+| `spm-prototype-review` | 原型源码工程存在（`prototype/index.html` + `src/`） |
+| `spm-fix` | 始终可用 |
+| `spm-prototype-mark` | 原型源码工程存在（`prototype/index.html` + `src/`） |
+
+每个动作的默认模型建议见 `$BUNDLE/contracts/start-action-matrix.md`（唯一权威），运行时由 `spm-start` 输出动作级模型建议。
 
 关键原则：
 
@@ -276,19 +278,7 @@ Prototype Mark 收集的高影响反馈按 `$BUNDLE/templates/prototype-feedback
 
 ## 7. 模型选择建议
 
-模型选择发生在每个独立流程开始前，开始后不切换。
-
-| 动作 | 默认建议 | 可使用轻量模型的条件 |
-|------|----------|----------------------|
-| `spm-align` | 视任务而定 | 目标、范围和边界已明确，仅需整理 |
-| `spm-design` | 深度推理模型 | 业务确实简单、输入完整、无方案权衡、角色状态权限关系简单 |
-| `spm-prd` | 根据确认版 Design 判断 | Design 决策完整，主要按现有模板展开明确规格 |
-| `spm-prototype` | 根据交互和实现复杂度判断 | 页面少、路径单一、行为明确，主要做既定表达与实现 |
-| `spm-design-review` | 深度推理模型 | 仅做结构和明确规则检查时可改用轻量模型或脚本 |
-| `spm-prd-review` | 深度推理模型 | 仅做结构和一致性检查时可改用轻量模型或脚本 |
-| `spm-prototype-review` | 深度推理模型 | 仅做结构检查时可改用轻量模型或脚本 |
-| `spm-fix` | 根据变更影响判断 | 修改范围、正确结果和受影响位置都已明确 |
-| `spm-prototype-mark` | 轻量模型 | 主动发现产品或交互问题时应另行使用深度 Review |
+模型选择发生在每个独立流程开始前，开始后不切换。每个动作的默认模型建议和可使用轻量模型的条件以 `$BUNDLE/contracts/start-action-matrix.md` 为唯一权威；`spm-start` 会为每个可用动作输出动作级模型建议。
 
 无法判断任务复杂度时使用深度推理模型，优先保护首次产物质量。模型建议不写入业务产物正文，不构成强制门禁。
 
@@ -303,8 +293,6 @@ Prototype Mark 收集的高影响反馈按 `$BUNDLE/templates/prototype-feedback
 | `prd-consistency-check.py` | PRD 与 Design 确定性对比，输出 `hallucinated` / `missing` / `attribute_mismatch`；`--allow-no-prd` 支持 Prototype-only 项目 |
 | `prd-style-lint.py` | PRD 风格检查（坏味道、流水账、模糊表述等） |
 | `prototype-source-check.py` | Prototype 源码工程确定性检查（src/dist/package/BAT/README 契约，通过返回 0，失败返回 1，不自动修复） |
-| `design-analysis-protocol.md` | spm-design 生成前的分析责任协议（双模式、ABC 内部责任边界） |
-| `design-quality-rubric.md` | Design 成品质量分级标准（五维度 L0–L3，覆盖需求理解、业务建模、产品承接和跨层一致性） |
 | `stage-prep.py` | 旧版兼容：仅旧项目兼容诊断，ShitPM 主流程不依赖 |
 | `shitpm-host.py install/verify/remove` | 安装、验证、卸载宿主映射 |
 

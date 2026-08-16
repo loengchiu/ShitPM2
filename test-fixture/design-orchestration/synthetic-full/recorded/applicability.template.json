@@ -1,7 +1,0 @@
-{
-  "schema_version": "applicability/v1",
-  "provenance": {"input_hash": "__INPUT_HASH__", "material_revision": "__MATERIAL_REVISION__", "rule_hash": "__RULE_HASH__"},
-  "applicable": ["角色权限", "数据范围", "状态机", "跨系统失败", "重复申请"],
-  "not_applicable": ["付费结算"],
-  "source_refs": ["background", "roles", "state", "external"]
-}

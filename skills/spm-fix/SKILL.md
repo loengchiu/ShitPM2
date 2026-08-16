@@ -5,7 +5,7 @@ description: "同步修复——ShitPM：把变更影响沿链路传播到当前
 
 ## 路径与资源
 
-从系统 prompt 读取 `$BUNDLE`。bundle 资源位于 `$BUNDLE/references/`、`templates/`、`contracts/`、`schemas/`、`scripts/python/` 和 `lib/`；项目产物位于当前项目根目录的 `.workflow/` 和 `output/`。
+从系统 prompt 读取 `$BUNDLE`。bundle 资源位于 `$BUNDLE/references/`、`templates/`、`contracts/`、`schemas/`、`scripts/python/`；项目产物位于当前项目根目录的 `.workflow/` 和 `output/`。
 
 流程开始时输出模型建议：修改范围、正确结果和受影响位置都明确时可用轻量模型；需要判断跨层影响、业务归属或方案取舍时使用深度推理模型；无法判断时按高影响使用深度推理模型。
 
