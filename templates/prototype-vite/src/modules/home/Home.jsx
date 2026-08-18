@@ -1,11 +1,12 @@
-import { Button, Col, Row, Space } from 'antd';
 import { useMemo, useState } from 'react';
-import { IconChartBar, IconEye, IconInbox, IconList, IconPlus, IconRefresh, IconSearch } from '@tabler/icons-react';
+import { App as AntdApp, Button, Col, Row, Space } from 'antd';
+import { IconChartBar, IconEye, IconInbox, IconList, IconPlus, IconRefresh } from '@tabler/icons-react';
 import { TablerChart, tablerChartAxis, tablerChartPalette } from '../../shared/charts/TablerChart';
+import { navigate } from '../../shared/useHashRoute.js';
 import {
-  TablerActionBar,
   TablerDataTable,
   TablerMetricCard,
+  TablerRowActions,
   TablerSectionCard,
   TablerStatusTag,
   TablerToolbar,
@@ -13,15 +14,16 @@ import {
 
 // 模板占位页：展示共享 UI 与 Tabler 视觉的调用方式，生成原型时按 Design 替换
 const initialRows = [
-  { key: '1', name: '示例任务甲', status: 'progress', owner: '张工', createdAt: '2026-08-17 09:30' },
-  { key: '2', name: '示例任务乙', status: 'success', owner: '李工', createdAt: '2026-08-17 10:00' },
-  { key: '3', name: '示例任务丙', status: 'warning', owner: '王工', createdAt: '2026-08-17 11:20' },
-  { key: '4', name: '示例任务丁', status: 'error', owner: '赵工', createdAt: '2026-08-17 14:05' },
+  { id: '1', name: '示例任务甲', status: 'progress', owner: '张工', createdAt: '2026-08-17 09:30' },
+  { id: '2', name: '示例任务乙', status: 'success', owner: '李工', createdAt: '2026-08-17 10:00' },
+  { id: '3', name: '示例任务丙', status: 'warning', owner: '王工', createdAt: '2026-08-17 11:20' },
+  { id: '4', name: '示例任务丁', status: 'error', owner: '赵工', createdAt: '2026-08-17 14:05' },
 ];
 
 export default function Home() {
   const [rows, setRows] = useState(initialRows);
   const [loading, setLoading] = useState(false);
+  const { modal, message } = AntdApp.useApp();
   const chartOption = useMemo(
     () => ({
       color: tablerChartPalette,
@@ -61,6 +63,20 @@ export default function Home() {
     window.setTimeout(() => setLoading(false), 500);
   };
 
+  const removeRow = (record) => {
+    modal.confirm({
+      title: '确认删除任务？',
+      content: '删除后将从当前示例列表移除该任务。',
+      okText: '删除',
+      cancelText: '取消',
+      okButtonProps: { danger: true },
+      onOk: () => {
+        setRows((prev) => prev.filter((item) => item.id !== record.id));
+        message.success('任务已删除');
+      },
+    });
+  };
+
   const columns = [
     { title: '任务名称', dataIndex: 'name' },
     {
@@ -76,32 +92,24 @@ export default function Home() {
       key: 'actions',
       width: 160,
       render: (_, record) => (
-        <Space size={0} style={{ whiteSpace: 'nowrap' }}>
-          <Button type="link" size="small">查看</Button>
-          <Button type="link" size="small">编辑</Button>
-          <Button
-            type="link"
-            size="small"
-            danger
-            onClick={() => setRows((prev) => prev.filter((item) => item.key !== record.key))}
-          >
-            删除
-          </Button>
-        </Space>
+        <TablerRowActions
+          items={[
+            { key: 'view', label: '查看', onClick: () => navigate('/demo-form?mode=view&id=' + encodeURIComponent(record.id)) },
+            { key: 'edit', label: '编辑', onClick: () => navigate('/demo-form?mode=edit&id=' + encodeURIComponent(record.id)) },
+            { key: 'delete', label: '删除', danger: true, onClick: () => removeRow(record) },
+          ]}
+        />
       ),
     },
   ];
 
   return (
     <div>
-      {/* 不设页面大标题：壳层页签栏表达当前页面；顶部只放操作区 */}
+      {/* 不设页面大标题：页签栏表达当前页面；顶部只放有行为的主操作 */}
       <div className="page-actions">
-        <Space>
-          <Button icon={<IconSearch size={16} />}>查询</Button>
-          <Button type="primary" icon={<IconPlus size={16} />}>
-            新建任务
-          </Button>
-        </Space>
+        <Button type="primary" icon={<IconPlus size={16} />} onClick={() => navigate('/demo-form?mode=create')}>
+          新建任务
+        </Button>
       </div>
 
       <section className="dashboard-section dashboard-metrics" aria-label="关键指标">
@@ -122,10 +130,7 @@ export default function Home() {
       </section>
 
       <section className="dashboard-section">
-        <TablerSectionCard
-          title="近期趋势"
-          extra={<span style={{ color: 'var(--spm-color-text-secondary)' }}>最近五日</span>}
-        >
+        <TablerSectionCard title="近期趋势" extra={<span style={{ color: 'var(--spm-color-text-secondary)' }}>最近五日</span>}>
           <TablerChart option={chartOption} height={240} />
         </TablerSectionCard>
       </section>
@@ -151,23 +156,16 @@ export default function Home() {
           </TablerToolbar>
 
           <TablerDataTable
-            rowKey="key"
+            rowKey="id"
             columns={columns}
             dataSource={rows}
             loading={loading}
             emptyTitle="暂无任务"
-            emptyDescription="当前条件下没有数据，可调整查询条件后重试"
+            emptyDescription="当前条件下没有数据，可恢复示例数据后重试"
             pagination={false}
           />
         </TablerSectionCard>
       </section>
-
-      <TablerActionBar>
-        <Button icon={<IconRefresh size={16} />}>重置</Button>
-        <Button type="primary" icon={<IconPlus size={16} />}>
-          保存
-        </Button>
-      </TablerActionBar>
     </div>
   );
 }

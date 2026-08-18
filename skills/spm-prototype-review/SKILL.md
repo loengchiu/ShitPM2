@@ -33,7 +33,7 @@ python $BUNDLE/scripts/python/prototype-consistency-check.py --project-root . --
 5. 读取 `$BUNDLE/contracts/review-checklist.md`、`$BUNDLE/contracts/prototype-review-checklist.md` 和 `$BUNDLE/references/prototype-writing.md`；发现多页面 shell、导航、路由或空白页问题时再读取 `$BUNDLE/references/prototype-shell.md`。**完成条件**：专项契约的每个适用结构、内容和一致性检查项均有证据和结论。
 6. 从 Design 页面清单提取全部页面，与 `src/routes.jsx` 逐项对照 `存在 / 缺失 / 幻觉`；再核对字段、状态、主路径、权限、操作限制、异常反馈和 Design 未授权高影响行为。**完成条件**：每个页面和关键对象都有明确结论或待决策标记。
 7. 读取 `$BUNDLE/references/prototype-visual-spec.md`，按 Prototype 专项契约审查视觉事实源、共享 UI、状态矩阵、图标和图表。**完成条件**：每个适用视觉检查项均有证据和结论；表现问题与业务语义问题分开，Design 冲突已设置 `needs_upstream_sync`。
-8. 读取 `$BUNDLE/references/prototype-component-behavior.md`，按其中第 10 节验收清单审查组件行为：主标题唯一、Sider 独立滚动且细滚动条可见、表格默认不固定列、操作列 ≤3（多余收进“更多”下拉）、卡片间距、每视图一个 primary、状态用 `TablerStatusTag`。**完成条件**：每个行为规范项均有证据和结论；违反行为规范的项按表现问题输出位置、影响和建议，不修改源码。
+8. 根据被审源码的真实场景读取 `$BUNDLE/references/prototype-component-behavior.md` 中全部适用章节；至少覆盖命中的表格、Form/Modal、Portal/响应式、回退和跨层契约规则。**完成条件**：每个适用项均有证据和结论；不存在的场景标记不适用，不因生成路径变短而漏审；违反行为规范的项按表现问题输出位置、影响和建议，不修改源码。
 9. 按公共契约写入 `.workflow/reviews/prototype-review-N.md`。**完成条件**：结论符合三档门槛，每个 P0/P1 可追溯到位置、影响和建议，逐页面结果、三类问题分布及上游同步信息完整；未把验证副作用当作修复或交付修改，输出后停止。
 
 ## 判定与失败

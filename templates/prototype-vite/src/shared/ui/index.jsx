@@ -94,13 +94,15 @@ export function TablerDataTable({ emptyTitle, emptyDescription, pagination, clas
           showTotal: (total) => `共 ${total} 条`,
           ...pagination,
         };
+  const { scroll, locale, ...restTableProps } = tableProps;
+  const normalizedLocale = emptyText ? { ...locale, emptyText } : locale;
   return (
     <Table
-      {...tableProps}
+      {...restTableProps}
       className={`tabler-data-table ${className}`}
-      scroll={{ x: 'max-content', ...(tableProps.scroll || {}) }}
+      scroll={scroll === undefined ? { x: 'max-content' } : scroll}
       pagination={normalizedPagination}
-      locale={emptyText ? { emptyText } : undefined}
+      locale={normalizedLocale}
     />
   );
 }
@@ -114,7 +116,7 @@ const statusColorMap = {
 };
 
 export function TablerStatusTag({ status, text, color }) {
-  const mapped = statusColorMap[status] || { color: 'default', label: text || status };
+  const mapped = statusColorMap[status] || { color: 'error', label: text || '未知状态' };
   return <Tag color={color || mapped.color}>{text || mapped.label}</Tag>;
 }
 
@@ -139,7 +141,7 @@ export function TablerRowActions({ items, maxVisible = 3, className = '' }) {
   const visible = (items || []).slice(0, maxVisible);
   const more = (items || []).slice(maxVisible);
   const menuItems = more.map((it) => ({
-    key: it.key || it.label,
+    key: it.key,
     label: it.label,
     icon: it.icon,
     danger: it.danger,
@@ -149,21 +151,22 @@ export function TablerRowActions({ items, maxVisible = 3, className = '' }) {
   return (
     <Space size={0} wrap={false} className={`tabler-row-actions ${className}`}>
       {visible.map((it) => (
-        <TablerIconButton
-          key={it.key || it.label}
-          ariaLabel={it.label}
+        <Button
+          key={it.key}
+          type="text"
           title={it.label}
-          icon={it.icon}
           danger={it.danger}
           disabled={it.disabled}
           loading={it.loading}
           onClick={it.onClick}
-        />
+        >
+          {it.label}
+        </Button>
       ))}
       {menuItems.length > 0 ? (
         <Dropdown
           menu={{ items: menuItems, onClick: ({ key }) => {
-            const target = more.find((it) => (it.key || it.label) === key);
+            const target = more.find((it) => it.key === key);
             if (target && target.onClick) target.onClick();
           } }}
           trigger={['click']}
@@ -194,12 +197,12 @@ export function TablerEmptyState({ icon, title, description, action, compact, cl
         ) : null
       }
       description={
-        <span>
+        <div>
           <div style={{ color: 'var(--spm-color-text)', fontWeight: 500 }}>{title || '暂无数据'}</div>
           {description ? (
             <div style={{ color: 'var(--spm-color-text-secondary)' }}>{description}</div>
           ) : null}
-        </span>
+        </div>
       }
     >
       {action ? <div className="tabler-empty-state-actions">{action}</div> : null}

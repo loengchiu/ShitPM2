@@ -117,7 +117,7 @@
 | 画板基准 | 1440 | 向上 1920、向下 1280/1366 适配 |
 | 顶部导航高 | 56（Tabler 顶栏略矮于 antd 默认 64；与 `global.css` 的 `calc(100vh - 56px)` 唯一一致） | 二级导航 48 |
 | 侧边栏宽 | 200 | 移动端折叠为 0（`collapsedWidth=0`，Header 按钮展开） |
-| 内容区边距 | ≥ 16 / 24 | 不贴边；`.content-wrap` 默认 24，768px 以下 16，390px 以下 12 |
+| 内容区边距 | ≥ 16 / 24 | 不贴边；`.content-wrap` 默认 24，992px 以下 16，576px 以下 12 |
 | 内容区宽度策略 | 不设全局硬上限 | 表单 `max-width: 960`，结果 / 异常卡 `max-width: 720`（容器级） |
 | 弹窗 Modal | 480 / 640 / 800 | 小 / 默认 / 大（不用 Drawer 抽屉，见组件行为规范 §8） |
 | 表格行高 | 40（密集 36） | 表头 56，模板 `cellPaddingBlock: 10` |
@@ -175,14 +175,14 @@
 - 卡片内边距 24；区块间距 24。
 
 ### 2.2 列表页（List）
-1. 页头（`TablerPageHeader`）
+1. 壳层页签栏表达当前页面；只有 Design 要求上下文标题时才使用 `TablerPageHeader`
 2. 筛选区：`<Form>` 横向排列（`rowGap: 12`）或 `<Card>` 包裹的筛选条
 3. 操作栏：`TablerToolbar` 左侧主操作（`<Button type="primary">`）带 Tabler 图标 + 右侧刷新等图标按钮
 4. 表格：`TablerDataTable` 浅边框、固定表头、分页、空态；行末**文字操作列**（≤3 个文字按钮，查看 / 编辑 / 删除，不用图标；多余操作收进"更多"下拉；默认不固定列，与组件行为规范 §4 一致）
 5. 批量操作在勾选后浮出
 
 ### 2.3 表单页（Form）
-1. 页头（`TablerPageHeader`）→ `Form(layout=vertical, max-width 960)` → `TablerFormSection` 分区 Card
+1. 壳层页签栏表达当前页面 → `Form(layout=vertical, max-width 960)` → `TablerFormSection` 分区 Card；详情或需要上下文标题时才加 `TablerPageHeader`
 2. 必填项星标；错误内联提示，不靠弹窗
 3. 控件聚焦：蓝色边框 + 3px 浅蓝光圈（antd 由 `colorPrimary` 派生，`global.css` 提供 focus-visible ring）
 4. 动作区固定底部：`TablerActionBar`（取消 + 提交 primary）
@@ -230,9 +230,9 @@
 | `TablerSectionCard` | 浅边框 + 白底 | 轻上浮 + 阴影加深 | — | — | — | Card loading | — | — | 卡片宽度自适应 |
 | `TablerMetricCard` | 标题 + 数值 + 徽章 | 同卡片 hover | — | — | — | 可配 Spin | 无数据文案 | 异常趋势标红 | 2 列 → 4 列 |
 | `TablerToolbar` | 主区 + 操作区 | — | — | — | 批量按钮随禁用 | — | 无操作时隐藏操作区 | 批量操作禁用于未勾选 | 换行堆叠 |
-| `TablerDataTable` | 浅表头 / 浅边框 | 行 hover 高亮 | 单元格内控件 ring | 行选中 | 行级禁改 | `loading` Spin | 内置空态 | 错误态可重试（业务列表达） | 横向滚动 + 操作列固定 |
+| `TablerDataTable` | 浅表头 / 浅边框 | 行 hover 高亮 | 单元格内控件 ring | 行选中 | 行级禁改 | `loading` Spin | 内置空态 | 错误态可重试（业务列表达） | 横向滚动，默认不固定列 |
 | `TablerStatusTag` | 语义五档 | — | — | — | 弱状态灰 | — | — | 用 error 档 | 不换行 |
-| `TablerIconButton` | 文本按钮 | 浅底 | ring | pressed | `disabled` 置灰 | `loading` | — | `danger` 标红 | 窄屏不挤压文字 |
+| `TablerIconButton` | 图标按钮 | 浅底 | ring | pressed | `disabled` 置灰 | `loading` | — | `danger` 标红 | 窄屏保持可点击区域 |
 | `TablerFormSection` | 分区 Card | — | 字段内控件 ring | — | 系统字段 `disabled` | — | — | 校验错误红边 + 内联提示 | 三列 → 单列 |
 | `TablerEmptyState` | 图标 + 文案 + 操作 | — | 操作按钮 ring | — | 无权限时操作禁用 / 隐藏 | — | 主体即空态 | 失败可重试 | 居中自适应 |
 | `TablerActionBar` | 底部 sticky | — | 按钮 ring | — | 提交中整体禁用 | 按钮 `loading` | — | 校验错误阻止提交 | 窄屏铺满、不拆字 |
@@ -261,7 +261,7 @@
 - [ ] 第 4 节状态矩阵各项在页面中可观察（含 disabled/readonly、loading、empty、error、selected、responsive）
 - [ ] **图标统一 `@tabler/icons-react`**，默认 16px、线性描边、与文字间距 4–8px，无 Ant Icons 混用；优先复用 `shared/icons`
 - [ ] 图表使用 `shared/charts/TablerChart.jsx` 的色板与坐标轴，无 Arco 主题残留
-- [ ] 1440 宽度下无横向溢出、元素不贴边（边距 ≥ 16）；768px 可操作；390px 无页面级横向溢出
+- [ ] 1440 宽度下无横向溢出、元素不贴边（边距 ≥ 16）；575/576 与 991/992 边界可操作；390px 无页面级横向溢出
 - [ ] 对比度：正文 / 标题 vs 背景 ≥ 7:1
 - [ ] 页面内出现新颜色 / 圆角 / 阴影 / 字号 / 间距时，已按 1.8 记录 Token 来源与用途，不是现场拍值
 

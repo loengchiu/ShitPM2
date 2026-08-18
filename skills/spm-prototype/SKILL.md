@@ -23,8 +23,9 @@ Prototype 直接下游于 Design：
 2. 读取目标模块的 Design 事实闭包和现有 `output/prototype/`。**完成条件**：能列出本次必须表达的页面、字段、状态、角色权限、主路径、关键反馈和待确认项。
 3. 读取 `$BUNDLE/references/prototype-visual-spec.md`。**完成条件**：已为每个页面选择 7 类骨架之一，并知道所需共享 UI、状态矩阵和响应式要求。
 4. 读取 `$BUNDLE/references/prototype-writing.md`；只有多页面 shell、导航、路由或空白页任务才读取 `$BUNDLE/references/prototype-shell.md`。**完成条件**：已确定组件 API、源码目录、路由登记和构建边界。
-5. 读取 `$BUNDLE/references/prototype-component-behavior.md`。**完成条件**：已明确每个高频组件的默认行为、场景边界和禁止事项（页面标题层级、Sider 滚动条、表格固定列、操作列 ≤3、卡片间距、主按钮唯一等），并确认页面写法不与其中任何一条冲突。
-6. 如存在 `output/prototype/prototype-feedback.md`，读取并按 `$BUNDLE/templates/prototype-feedback-classification.md` 先归类。**完成条件**：每条反馈已分成表现问题、语义问题或待澄清项。
+5. 生成或修改页头、区块卡片、指标卡、工具栏、数据表格、状态、空态、图标按钮、行操作、表单分区和页面操作栏前，先读取当前模板 `src/shared/ui/` 的真实导出和目标组件实现。命中现有共享组件时直接复用，不在页面内复制它已经承担的 DOM、CSS 或默认行为；共享组件无法表达已确认 Design 要求时，允许组合 Ant Design 原生组件或页面特有结构，并说明回退原因。
+6. 仅在命中以下场景时读取 `$BUNDLE/references/prototype-component-behavior.md` 的对应章节：固定列、复杂表格、超过默认数量的行操作、自定义分页或空态，读取表格与操作边界；Form、普通 Modal、确认弹窗、回填、提交、重置或页面外 ActionBar，读取表单与弹层边界；Dropdown、Select、DatePicker、Modal、移动 Sider 或 sticky 层级，读取 Portal 与响应式契约；共享组件无法承接 Design，读取回退规则；新建共享组件或修改共享组件契约，读取完整 behavior 和目标源码调用方。完成条件：根据触发词得到组件选择、回退原因或跨层验收结果，不把 behavior 当作普通任务的必读全文。
+7. 如存在 `output/prototype/prototype-feedback.md`，读取并按 `$BUNDLE/templates/prototype-feedback-classification.md` 先归类。**完成条件**：每条反馈已分成表现问题、语义问题或待澄清项。
 
 缺少规则、模板、Design 输入或无法解析时，报告具体路径并停止；不凭记忆补写产品事实。
 
@@ -46,18 +47,18 @@ Prototype 直接下游于 Design：
 
 生成或修改完成前，按以下顺序自修并验证：
 
-1. 检查默认页和每个注册路由均可渲染，浏览器 console 无错误；页面、字段、状态、角色、权限、主路径和关键反馈与 Design 一致。
+1. 用真实浏览器打开默认页和每个注册路由，检查浏览器 console 无错误；对项目实际存在的关键交互至少各操作一次，包括 Modal、Form、Select、角色切换和响应式状态。没有对应场景时明确记录“模板/项目无此场景”，不能用静态检查代替浏览器验证。
 2. 检查加载、空数据、失败/重试、无权限、禁用/只读、选中和响应式状态可通过 UI 观察；列表/看板保留空态，配置操作使用真实 `Modal` + `Form`，状态机限制使用 `disabled`。
 3. 检查页面没有“入口：”“（只读）”“（必填）”等解释性标注代替真实 UI 状态；图标统一使用 Tabler，图表使用 `TablerChart`。
-4. 逐条核对 `prototype-component-behavior.md` 第 10 节验收清单：主标题唯一、Sider 独立滚动且细滚动条可见、表格默认不固定列、操作列 ≤3（多余收进“更多”下拉）、卡片间距、每视图一个 primary、状态用 `TablerStatusTag`。
-4. 运行：
+4. 对本任务命中的 behavior 章节逐条核对对应规则；跨任务通用的完成门槛以本 Skill 为准，不通过交付前再次完整读取 behavior 来替代。
+5. 运行：
 
 ```text
 python $BUNDLE/scripts/python/prototype-source-check.py --project-root .
-python $BUNDLE/scripts/python/prototype-consistency-check.py --project-root . --module <模块名>
+python $BUNDLE/scripts/python/prototype-consistency-check.py --project-root .
 ```
 
-**完成条件**：源码检查、构建、路由/浏览器验证和针对性一致性检查均通过；任何未验证项都已明确报告。随后更新 `.workflow/status.json` 的 `current_stage=prototype` 和 Prototype 产物路径，并按实际读取的 Design 文件记录 `design-set.py record-inputs`。
+**完成条件**：构建成功；默认页和全部注册路由可打开；实际存在的关键交互可操作；console 无运行时错误；适用 Portal/响应式场景已用真实浏览器检查；针对性一致性检查通过。任何未验证项都已明确报告。随后更新 `.workflow/status.json` 的 `current_stage=prototype` 和 Prototype 产物路径，并按实际读取的 Design 文件记录 `design-set.py record-inputs`。
 
 ## 反馈分类与停止条件
 

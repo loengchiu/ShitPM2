@@ -47,8 +47,8 @@ import NotFound from './shared/NotFound.jsx';
 export const routes = [
   { path: '/', title: '首页', component: Home, menu: true },
   { path: '/plan/list', title: '年度计划', component: PlanList, menu: true },
-  // menu: false 的页面不出现在侧栏，只能通过链接/按钮进入
-  { path: '/plan/detail/:id', title: '计划详情', component: PlanDetail, menu: false },
+  // menu: false 的页面不出现在侧栏，只能通过链接/按钮进入；对象 ID 放 query
+  { path: '/plan/detail', title: '计划详情', component: PlanDetail, menu: false },
   { path: '*', title: '页面不存在', component: NotFound, menu: false },
 ];
 ```
@@ -58,18 +58,24 @@ export const routes = [
 ```js
 import { useEffect, useState } from 'react';
 
-function readPath() {
+function readLocation() {
   const hash = window.location.hash.replace(/^#/, '');
-  return hash || '/';
+  const separator = hash.indexOf('?');
+  return {
+    path: (separator === -1 ? hash : hash.slice(0, separator)) || '/',
+    search: separator === -1 ? '' : hash.slice(separator + 1),
+  };
 }
 
 export function useHashRoute(routes) {
-  const [path, setPath] = useState(readPath);
+  const [location, setLocation] = useState(readLocation);
   useEffect(() => {
-    const onHashChange = () => setPath(readPath());
+    const onHashChange = () => setLocation(readLocation());
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
+  const { path, search } = location;
+  const query = useMemo(() => new URLSearchParams(search), [search]);
   const route =
     routes.find((item) => item.path === path) ||
     routes.find((item) => item.path === '*') || {
@@ -77,12 +83,13 @@ export function useHashRoute(routes) {
       title: '页面不存在',
       component: null,
     };
-  return { path, route };
+  return { path, query, route };
 }
 
 export function navigate(path) {
-  if (window.location.hash === `#${path}`) return;
-  window.location.hash = path;
+  const nextHash = path.startsWith('#') ? path : '#' + path;
+  if (window.location.hash === nextHash) return;
+  window.location.hash = nextHash;
 }
 ```
 
@@ -151,7 +158,7 @@ export default function PlanList() {
 2. 业务模块按 Design 模块组织目录：`src/modules/plan/`、`src/modules/project/` 等
 3. 共享壳层、角色切换、异常页放在 `src/shared/`
 4. 菜单从路由配置派生（`menu: true`）或与路由做显式映射，不在 App.jsx 里再写一份菜单数据
-5. 带参数的详情页路径（如 `/plan/detail/12`）由页面组件自行解析 hash，或拆成不带参数的页面状态切换；模板不引入路由参数解析库
+5. 带参数的详情页使用 query（如 `#/plan/detail?id=12`）；极简路由只做精确 path 匹配，不声称支持冒号形式的动态参数。页面通过 `URLSearchParams` 读取 query；同一路径 query 变化必须触发更新，`navigate()` 接受带 query 的 Hash 相对地址且不重复添加 `#`。
 
 ## 禁止的反模式
 

@@ -12,12 +12,21 @@ const menuItems = routes
   .map((item) => ({ key: item.path, label: item.title }));
 
 export default function App() {
-  const { path, route } = useHashRoute(routes);
+  const { path, query, route } = useHashRoute(routes);
   const Page = route.component;
   const [collapsed, setCollapsed] = useState(false);
 
+  const closeSiderOnMobile = () => {
+    if (window.matchMedia('(max-width: 991px)').matches) setCollapsed(true);
+  };
+
   return (
     <Layout style={{ minHeight: '100vh' }}>
+      <div
+        className={'app-sider-mask' + (collapsed ? '' : ' is-visible')}
+        aria-hidden={collapsed}
+        onClick={() => setCollapsed(true)}
+      />
       {/* 深色 Sider：只承载菜单，独立滚动；lg 断点以下自动折叠 */}
       <Sider
         className="app-sider"
@@ -28,6 +37,9 @@ export default function App() {
         collapsed={collapsed}
         onCollapse={setCollapsed}
         breakpoint="lg"
+        onBreakpoint={(broken) => {
+          if (broken) setCollapsed(true);
+        }}
         style={{ height: '100vh', position: 'sticky', top: 0 }}
       >
         <div className="sider-menu-scroll">
@@ -36,7 +48,10 @@ export default function App() {
             mode="inline"
             selectedKeys={[path]}
             items={menuItems}
-            onClick={({ key }) => navigate(key)}
+            onClick={({ key }) => {
+              navigate(key);
+              closeSiderOnMobile();
+            }}
           />
         </div>
       </Sider>
@@ -78,7 +93,7 @@ export default function App() {
           </div>
         </div>
         <Content className="content-wrap">
-          <Page />
+          <Page path={path} query={query} />
         </Content>
       </Layout>
     </Layout>

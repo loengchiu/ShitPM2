@@ -48,7 +48,8 @@ export const tablerTokens = {
     raisedHover: '0 4px 10px rgba(35,46,60,0.08)',
   },
   motion: { fast: '150ms', normal: '200ms' },
-  breakpoints: { mobile: 576, tablet: 768, desktop: 992, wide: 1200 },
+  breakpoints: { mobile: 576, tablet: 992, desktop: 992, wide: 1200 },
+  layers: { actionBar: 10, siderMask: 900, sider: 910, portal: 1000 },
   chart: {
     colors: ['#066fd1', '#2fb344', '#f59f00', '#d63939', '#4299e1', '#6f42c1'],
     axis: '#e5e7eb',
@@ -85,6 +86,10 @@ export const tablerCssVariables = {
   '--spm-shadow-raised-hover': tablerTokens.elevation.raisedHover,
   '--spm-motion-fast': tablerTokens.motion.fast,
   '--spm-motion-normal': tablerTokens.motion.normal,
+  '--spm-layer-action-bar': tablerTokens.layers.actionBar,
+  '--spm-layer-sider-mask': tablerTokens.layers.siderMask,
+  '--spm-layer-sider': tablerTokens.layers.sider,
+  '--spm-layer-portal': tablerTokens.layers.portal,
 };
 
 export default tablerTokens;
