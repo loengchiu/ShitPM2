@@ -3,9 +3,10 @@
 ## 项目状态
 
 - 当前阶段：
-- `status.json`：存在 / 不存在
-- Design 确认：已确认 / 未确认 / 已修改需重新确认 / 无确认记录
-- Design 哈希：一致 / 不一致 / 无记录
+- status.json：存在 / 不存在
+- Design 集合：存在（设计地图 + 设计集清单）/ 不存在
+- Design 修改状态：无活动事务 / 活动事务（mode、phase）
+- 下游受影响模块：无 / 列表
 
 ## 产物清单
 
@@ -24,17 +25,16 @@
 
 | 动作 | 可用 | 模型建议 | 原因 |
 |------|------|----------|------|
-| `/spm-align` | ✅ / ❌ |  |  |
-| `/spm-design` | ✅ / ❌ |  |  |
-| `confirm-design` | ✅ / ❌ | — |  |
-| `/spm-prd` | ✅ / ❌ |  |  |
-| `/spm-prototype` | ✅ / ❌ |  |  |
-| `/spm-design-review` | ✅ / ❌ |  |  |
-| `/spm-prd-review` | ✅ / ❌ |  |  |
-| `/spm-prototype-review` | ✅ / ❌ |  |  |
-| `/spm-fix` | ✅ / ❌ |  |  |
-| `/spm-prototype-mark` | ✅ / ❌ | 轻量模型 |  |
+| /spm-align | ✅ / ❌ |  |  |
+| /spm-design | ✅ / ❌ |  |  |
+| /spm-prd | ✅ / ❌ |  |  |
+| /spm-prototype | ✅ / ❌ |  |  |
+| /spm-design-review | ✅ / ❌ |  |  |
+| /spm-prd-review | ✅ / ❌ |  |  |
+| /spm-prototype-review | ✅ / ❌ |  |  |
+| /spm-fix | ✅ / ❌ |  |  |
+| /spm-prototype-mark | ✅ / ❌ | 轻量模型 |  |
 
 ## 建议
 
-不提供唯一下一步；根据可用动作和模型建议选择。
+不提供唯一下一步；根据可用动作和模型建议选择。Design 存在活动事务时，先执行 design-set.py recover 再继续下游动作。

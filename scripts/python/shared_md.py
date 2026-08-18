@@ -13,7 +13,8 @@ STABLE_ID_PATTERN = re.compile(r'(MODULE|PAGE|FIELD|RULE|FLOW|REL|PERM|STATE)-(d
 
 ARTIFACT_PATHS = {
     "align": "output/align/align.md",
-    "design": "output/design/design.md",
+    "design": "output/design/设计地图.md",
+    "design_manifest": "output/design/设计集清单.json",
     "prd": "output/prd/prd.md",
     "prototype": "output/prototype/index.html",
 }

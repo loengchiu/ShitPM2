@@ -35,7 +35,7 @@ def make_project() -> tuple[tempfile.TemporaryDirectory, Path]:
     holder = tempfile.TemporaryDirectory(prefix="spm-prototype-src-")
     root = Path(holder.name)
     target = root / "output" / "prototype"
-    shutil.copytree(TEMPLATE, target)
+    shutil.copytree(TEMPLATE, target, ignore=shutil.ignore_patterns("node_modules", "dist"))
     return holder, root
 
 
@@ -166,8 +166,29 @@ export default function Home() {
 | 测试名称 | 文本 | 名称 |
 | 测试字段二 | 文本 | 空串后字段 |
 """
-    (root / "output" / "design" / "design.md").parent.mkdir(parents=True)
-    (root / "output" / "design" / "design.md").write_text(design, encoding="utf-8")
+    import hashlib
+    design_dir = root / "output" / "design"
+    (design_dir / "模块设计" / "测试").mkdir(parents=True, exist_ok=True)
+    module_path = design_dir / "模块设计" / "测试" / "测试系统.md"
+    module_path.write_text(design, encoding="utf-8")
+    map_path = design_dir / "设计地图.md"
+    map_path.write_text("# 设计地图\n\n## 模块与职责\n\n- MOD-001 [测试](模块设计/测试/测试系统.md)：测试系统。\n", encoding="utf-8")
+    def sha(path: Path) -> str:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    manifest = {
+        "schema_version": "shitpm-design-set/v1",
+        "set_sha256": "",
+        "files": [
+            {"id": "MAP-001", "path": "设计地图.md", "type": "map", "module": None, "business_chains": [], "depends_on": [], "sha256": sha(map_path)},
+            {"id": "MOD-001", "path": "模块设计/测试/测试系统.md", "type": "module", "module": "测试", "business_chains": ["测试业务链"], "depends_on": [], "sha256": sha(module_path)},
+        ],
+        "decisions": [],
+    }
+    parts = []
+    for f in sorted(manifest["files"], key=lambda x: x["id"]):
+        parts.append(f["id"] + f["path"] + f["sha256"])
+    manifest["set_sha256"] = hashlib.sha256("".join(parts).encode("utf-8")).hexdigest()
+    (design_dir / "设计集清单.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     dist = proto / "dist"
     dist.mkdir(parents=True)
     (dist / "index.html").write_text("<html><body>仅存在于dist的页面</body></html>", encoding="utf-8")

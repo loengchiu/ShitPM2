@@ -160,8 +160,26 @@ class DesignIndexTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
         design_dir = self.root / "output" / "design"
-        design_dir.mkdir(parents=True)
-        (design_dir / "design.md").write_text(VALID_DESIGN, encoding="utf-8")
+        module_dir = design_dir / "模块设计" / "订单"
+        module_dir.mkdir(parents=True)
+        module_path = module_dir / "订单管理.md"
+        module_path.write_text(VALID_DESIGN, encoding="utf-8")
+        map_path = design_dir / "设计地图.md"
+        map_path.write_text("# 设计地图\n\n## 模块与职责\n\n- MOD-001 [订单](模块设计/订单/订单管理.md)：负责订单。\n", encoding="utf-8")
+        manifest = {
+            "schema_version": "shitpm-design-set/v1",
+            "set_sha256": "",
+            "files": [
+                {"id": "MAP-001", "path": "设计地图.md", "type": "map", "module": None, "business_chains": [], "depends_on": [], "sha256": hashlib.sha256(map_path.read_bytes()).hexdigest()},
+                {"id": "MOD-001", "path": "模块设计/订单/订单管理.md", "type": "module", "module": "订单", "business_chains": ["订单业务链"], "depends_on": [], "sha256": hashlib.sha256(module_path.read_bytes()).hexdigest()},
+            ],
+            "decisions": [],
+        }
+        parts = []
+        for f in sorted(manifest["files"], key=lambda x: x["id"]):
+            parts.append(f["id"] + f["path"] + f["sha256"])
+        manifest["set_sha256"] = hashlib.sha256("".join(parts).encode("utf-8")).hexdigest()
+        (design_dir / "设计集清单.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
         self.mod = load_module()
 
     def tearDown(self):
@@ -200,8 +218,8 @@ class DesignIndexTests(unittest.TestCase):
         first = self.mod.compile_index(self.root)
         second = self.mod.compile_index(self.root)
         self.assertEqual(first, second)
-        self.assertEqual(first["design_sha256"], hashlib.sha256((self.root / "output" / "design" / "design.md").read_bytes()).hexdigest())
-        self.assertEqual(first["summary"], {"pages": 1, "blocks": 1, "fields": 2, "operations": 1, "errors": 0})
+        self.assertEqual(first["file_sha256"]["MOD-001"], hashlib.sha256((self.root / "output" / "design" / "模块设计" / "订单" / "订单管理.md").read_bytes()).hexdigest())
+        self.assertEqual(first["summary"], {"files": 2, "pages": 1, "blocks": 1, "fields": 2, "operations": 1, "errors": 0})
         self.assertEqual(first["pages"][0]["blocks"][0]["fields"][0]["name"], "订单编号")
         self.assertEqual(first["pages"][0]["blocks"][0]["operations"][0]["attributes"]["success_result"], "刷新订单列表")
         self.assertEqual({item["name"] for item in first["states"]}, {"待处理", "已完成"})
@@ -215,7 +233,7 @@ class DesignIndexTests(unittest.TestCase):
 
     def test_missing_attribute_and_invalid_level_fail(self):
         bad = VALID_DESIGN.replace("校验反馈：格式错误时提示\n", "").replace("#### 区块：筛选条件", "### 区块：筛选条件")
-        (self.root / "output" / "design" / "design.md").write_text(bad, encoding="utf-8")
+        (self.root / "output" / "design" / "模块设计" / "订单" / "订单管理.md").write_text(bad, encoding="utf-8")
         data = self.mod.compile_index(self.root)
         codes = {item["code"] for item in data["errors"]}
         self.assertIn("missing_attribute", codes)
@@ -229,7 +247,7 @@ class DesignIndexTests(unittest.TestCase):
             "##### 字段：状态\n业务含义：订单当前处理状态",
             "##### 字段：状态\n业务含义：另一个含义\n来源：其他服务\n展示条件：始终展示\n输入编辑：可选择\n取值默认：默认全部\n交互：单选\n校验反馈：无\n\n##### 字段：状态\n业务含义：订单当前处理状态",
         )
-        (self.root / "output" / "design" / "design.md").write_text(duplicate, encoding="utf-8")
+        (self.root / "output" / "design" / "模块设计" / "订单" / "订单管理.md").write_text(duplicate, encoding="utf-8")
         data = self.mod.compile_index(self.root)
         codes = {item["code"] for item in data["errors"]}
         self.assertIn("duplicate_entity", codes)
@@ -238,12 +256,12 @@ class DesignIndexTests(unittest.TestCase):
     def test_check_rejects_hash_or_index_tampering(self):
         code, output = self.run_cli("compile")
         self.assertEqual(code, 0, output)
-        design_path = self.root / "output" / "design" / "design.md"
+        design_path = self.root / "output" / "design" / "模块设计" / "订单" / "订单管理.md"
         design_path.write_text(VALID_DESIGN.replace("订单列表", "我的订单列表", 1), encoding="utf-8")
         code, output = self.run_cli("check")
         self.assertEqual(code, 1, output)
         self.assertFalse(output["ok"])
-        self.assertIn("哈希", output.get("error", ""))
+        self.assertIn("指纹", output.get("error", ""))
 
         design_path.write_text(VALID_DESIGN, encoding="utf-8")
         index_path = self.root / self.mod.INDEX_RELATIVE_PATH
@@ -277,16 +295,16 @@ class DesignIndexTests(unittest.TestCase):
             "##### 操作表\n\n|",
             "##### 操作表\n\n以下操作用于完成订单查询。\n\n<!-- 操作说明 -->\n\n|",
         )
-        (self.root / "output" / "design" / "design.md").write_text(with_preamble, encoding="utf-8")
+        (self.root / "output" / "design" / "模块设计" / "订单" / "订单管理.md").write_text(with_preamble, encoding="utf-8")
         code, output = self.run_cli("compile", "--require-current-format")
         self.assertEqual(code, 0, output)
         self.assertTrue(output["ok"])
 
     def test_table_format_compiles_with_complete_field_and_operation_index(self):
-        (self.root / "output" / "design" / "design.md").write_text(TABLE_DESIGN, encoding="utf-8")
+        (self.root / "output" / "design" / "模块设计" / "订单" / "订单管理.md").write_text(TABLE_DESIGN, encoding="utf-8")
         code, output = self.run_cli("compile", "--require-current-format")
         self.assertEqual(code, 0, output)
-        self.assertEqual(output["summary"], {"pages": 1, "blocks": 2, "fields": 2, "operations": 1, "errors": 0})
+        self.assertEqual(output["summary"], {"files": 2, "pages": 1, "blocks": 2, "fields": 2, "operations": 1, "errors": 0})
         index = json.loads((self.root / self.mod.INDEX_RELATIVE_PATH).read_text(encoding="utf-8"))
         self.assertEqual([item["name"] for item in index["fields"]], ["订单编号", "状态"])
         self.assertEqual(index["operations"][0]["name"], "查询")
@@ -301,13 +319,13 @@ class DesignIndexTests(unittest.TestCase):
 
     def test_table_headers_and_page_summary_are_gated(self):
         invalid = TABLE_DESIGN.replace("| 字段名称 | 业务含义 | 字段来源 | 展示条件 | 输入与编辑规则 | 取值与默认规则 | 交互方式 | 校验与反馈 |", "| 字段名称 | 业务含义 | 字段来源 | 展示条件 | 交互方式 | 校验与反馈 |")
-        (self.root / "output" / "design" / "design.md").write_text(invalid, encoding="utf-8")
+        (self.root / "output" / "design" / "模块设计" / "订单" / "订单管理.md").write_text(invalid, encoding="utf-8")
         code, output = self.run_cli("compile", "--require-current-format")
         self.assertEqual(code, 1, output)
         self.assertTrue(any(item["code"] == "invalid_field_table_headers" for item in output["errors"]))
 
         mismatch = TABLE_DESIGN.replace("| 订单列表 | 查看和处理订单 | 运营人员 | 工作台进入 |", "| 其他页面 | 其他任务 | 运营人员 | 工作台进入 |")
-        (self.root / "output" / "design" / "design.md").write_text(mismatch, encoding="utf-8")
+        (self.root / "output" / "design" / "模块设计" / "订单" / "订单管理.md").write_text(mismatch, encoding="utf-8")
         code, output = self.run_cli("compile", "--require-current-format")
         self.assertEqual(code, 1, output)
         codes = {item["code"] for item in output["errors"]}
@@ -316,35 +334,16 @@ class DesignIndexTests(unittest.TestCase):
 
     def test_combined_field_and_empty_blocks_are_gated(self):
         combined = TABLE_DESIGN.replace("| 状态 | 订单当前处理状态 |", "| 状态 / 订单状态 | 订单当前处理状态 |")
-        (self.root / "output" / "design" / "design.md").write_text(combined, encoding="utf-8")
+        (self.root / "output" / "design" / "模块设计" / "订单" / "订单管理.md").write_text(combined, encoding="utf-8")
         code, output = self.run_cli("compile", "--require-current-format")
         self.assertEqual(code, 1, output)
         self.assertTrue(any(item["code"] == "combined_field_name" for item in output["errors"]))
 
         empty = TABLE_DESIGN.replace("#### 区块：筛选条件", "#### 区块：空区块\n\n- 区块目的：暂未定义\n\n#### 区块：筛选条件")
-        (self.root / "output" / "design" / "design.md").write_text(empty, encoding="utf-8")
+        (self.root / "output" / "design" / "模块设计" / "订单" / "订单管理.md").write_text(empty, encoding="utf-8")
         code, output = self.run_cli("compile", "--require-current-format")
         self.assertEqual(code, 1, output)
         self.assertTrue(any(item["code"] == "block_without_items" for item in output["errors"]))
-
-    def test_legacy_design_compile_is_explicitly_unsupported(self):
-        (self.root / "output" / "design" / "design.md").write_text(LEGACY_DESIGN, encoding="utf-8")
-        code, output = self.run_cli("compile")
-        self.assertEqual(code, 1, output)
-        self.assertFalse(output["ok"])
-        self.assertTrue(any(item.get("code") == "unsupported_format" for item in output["errors"]))
-
-    def test_legacy_design_downstream_uses_legacy_fallback(self):
-        (self.root / "output" / "design" / "design.md").write_text(LEGACY_DESIGN, encoding="utf-8")
-        path = self.root / "output" / "prd"
-        path.mkdir(parents=True, exist_ok=True)
-        (path / "prd.md").write_text("# PRD\n## 页面说明\n### page-1 订单列表\n## 字段定义\n| 字段 | 类型 | 必填 | 取值约束 | 默认值 | 业务来源 | 说明 |\n|---|---|---|---|---|---|---|\n| 订单编号 | 文本 | 是 | — | — | 订单服务 | 订单编号 |\n", encoding="utf-8")
-        run = self.run_downstream("prd-consistency-check.py")
-        self.assertNotEqual(run.returncode, 2, run.stdout + run.stderr)
-        result = json.loads(run.stdout)
-        structure = result["design_index"]["structure"]
-        self.assertFalse(structure["enabled"])
-        self.assertEqual(structure["hallucinated"], [])
 
     def test_prd_and_prototype_accept_complete_structure(self):
         self.write_downstream(VALID_PRD, VALID_HTML)

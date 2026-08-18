@@ -1,102 +1,78 @@
 ---
 name: spm-prototype
-description: "Prototype 阶段——根据已确认的 Design 生成可运行、可讨论的源码工程原型。用于用户要求生成、修改或查看原型时；直接读取 Design，不依赖 PRD；必须使用标准 Vite + React 18 + Ant Design 6 源码工程，src 是唯一编辑源、dist 是可重建构建产物、用户通过 原型工具.bat 完成本地预览/构建/条件式上传；缺少源码工程时停止。"
+description: "Prototype 生成与修改：根据 Design 事实闭包创建或更新可运行的 Vite + React 18 + Ant Design 6 源码原型。触发于生成原型或修改原型；评审原型使用 spm-prototype-review；源码工程缺失时停止。"
 ---
 
-## 路径与资源
+## 运行前提
 
-从系统 prompt 读取 `$BUNDLE`。bundle 资源使用 `$BUNDLE/templates/`、`$BUNDLE/references/` 和 `$BUNDLE/scripts/python/`；项目产物使用当前项目根目录的 `output/` 和 `.workflow/`。
+从系统 prompt 读取 `ShitPM bundle root:`，记为 `$BUNDLE`。项目文件使用当前项目根目录；规则、模板和脚本使用 `$BUNDLE/`。流程开始时给出一次模型建议：跨页面任务、复杂交互或高影响表达使用深度推理模型；只有明确的结构或格式检查才使用轻量模型；无法判断时使用深度推理模型。
 
-流程开始时输出模型建议：页面少且行为明确、主要做既定表达与实现时可用轻量或代码模型；涉及跨页面任务路径、复杂交互或高影响表达时使用深度推理模型；无法判断时使用深度推理模型。
+Prototype 直接下游于 Design：
 
-## 职责与准入
+- 设计地图、设计集清单和目标模块 Design 事实闭包是唯一产品事实输入；PRD 只能辅助发现表达差异，冲突时以 Design 为准。
+- `output/prototype/src/` 是唯一编辑源；`dist/` 只由 `npm run build` 生成，不能作为产品事实或编辑入口。
+- 工程使用标准 Vite + React 18 + Ant Design 6；依赖由 `package.json` 和 `package-lock.json` 管理，安装使用 `npm ci`。
+- 用户入口只有 `output/prototype/原型工具.bat`；它调用 `package.json` 的 `dev`、`build`、`preview` scripts。
+- 页面只表达 Design 已定义的字段、状态、权限、流程、异常和责任边界，不补写高影响事实。
 
-- Prototype 是 Design 的直接下游，不依赖 PRD、Design metadata、`page-fields`、分页流水线或逐页字段计数。
-- `output/design/design.md` 必须存在、可读且通过 Design confirmation gate；失败时停止，不生成或覆盖 Prototype。
-- 技术契约固定为**标准 Vite + React 18 + Ant Design 6 源码工程**：
-  1. `output/prototype/src/` 是唯一业务编辑源；`output/prototype/dist/` 是构建产物，只由 `npm run build` 生成，可删除重建，不是产品事实源，AI 不直接编辑。
-  2. 本地即时预览使用开发服务器（`npm run dev`）；本地交付预览和 Cloudflare 部署都使用同一份构建产物 `dist/`（`npm run preview`）。
-  3. 依赖统一由 `package.json` 和 `package-lock.json` 定义，安装用 `npm ci`；不引入浏览器端 Babel、本地 UMD lib、外部 CDN 或第二套构建链。
-  4. 面向用户只提供一个 `output/prototype/原型工具.bat`：双击后通过中文菜单完成本地预览、构建预览、重建、依赖修复和条件式 Cloudflare 上传；不得要求用户打开 PowerShell 或手动输入 npm 命令。
-  5. `原型工具.bat` 只调用 `package.json` 中的标准 scripts（dev/build/preview），不在 BAT 中另写一套构建逻辑。
-- 原型只表达 Design，不重新定义业务规则、权限、状态、跨系统责任、模块边界或其他高影响行为。
+## 每次任务先读取
 
-确认检查：
+按以下顺序读取，且每一步完成后再进入下一步：
 
-```text
-python $BUNDLE/scripts/python/design-confirmation.py --project-root . check
-```
+1. 运行 `python $BUNDLE/scripts/python/stage-context.py --project-root .`。**完成条件**：确认 Design 清单可读，且 `design_change.active` 不为 `true`；有活动事务先恢复或停止。
+2. 读取目标模块的 Design 事实闭包和现有 `output/prototype/`。**完成条件**：能列出本次必须表达的页面、字段、状态、角色权限、主路径、关键反馈和待确认项。
+3. 读取 `$BUNDLE/references/prototype-visual-spec.md`。**完成条件**：已为每个页面选择 7 类骨架之一，并知道所需共享 UI、状态矩阵和响应式要求。
+4. 读取 `$BUNDLE/references/prototype-writing.md`；只有多页面 shell、导航、路由或空白页任务才读取 `$BUNDLE/references/prototype-shell.md`。**完成条件**：已确定组件 API、源码目录、路由登记和构建边界。
+5. 读取 `$BUNDLE/references/prototype-component-behavior.md`。**完成条件**：已明确每个高频组件的默认行为、场景边界和禁止事项（页面标题层级、Sider 滚动条、表格固定列、操作列 ≤3、卡片间距、主按钮唯一等），并确认页面写法不与其中任何一条冲突。
+6. 如存在 `output/prototype/prototype-feedback.md`，读取并按 `$BUNDLE/templates/prototype-feedback-classification.md` 先归类。**完成条件**：每条反馈已分成表现问题、语义问题或待澄清项。
 
-退出码非 0 或 Design 未确认/哈希不一致时停止，用自然语言询问用户是否确认当前 Design；仅在用户明确确认后，由你运行 `confirm` 记录哈希，再继续。不得在用户未明确确认前运行 `confirm`，也不要求用户输入命令行。不要求 PRD、metadata 或 Prototype Review 存在。
+缺少规则、模板、Design 输入或无法解析时，报告具体路径并停止；不凭记忆补写产品事实。
 
-## 输入资源
+## 首次生成
 
-1. `output/design/design.md`：唯一产品事实源，必须直接读取。
-2. `$BUNDLE/templates/prototype-vite/`：标准 Vite 源码工程模板（应用壳、Hash 路由、`原型工具.bat`、README、标准 npm scripts）。
-3. `$BUNDLE/references/prototype-writing.md`：通用后台基座、Ant Design 6、页面组织和视觉细则。多页面 shell、共享布局、导航激活、路由或空白页问题才读取 `$BUNDLE/references/prototype-shell.md`。
-4. `$BUNDLE/templates/prototype-feedback-classification.md`：有反馈时的归类格式。
-5. 如存在 `output/prototype/prototype-feedback.md`，读取后先归类；如 PRD 存在，只能作为辅助参考，与 Design 冲突时以 Design 为准。
-6. 不读取 `.workflow/metadata/design/` 或 `output/design/decision-notes.md` 作为产品事实输入。
+1. 检查 `$BUNDLE/templates/prototype-vite/` 完整。将模板复制到 `output/prototype/`；若目标是旧静态 HTML + compiled.js 原型，先报告迁移边界并等待确认，不直接覆盖。**完成条件**：目标包含 `package.json`、`src/`、入口、路由表和 `原型工具.bat`。
+2. 先完成 Design → Prototype 语义对照，再在 `src/modules/<模块>/` 创建页面并在 `src/routes.jsx` 登记；共享 shell、角色区、异常页放在 `src/shared/`。**完成条件**：Design 页面与路由逐项对应，未确认事实没有被静默拍板。
+3. 先按视觉规范选择页面骨架，再组合 `src/shared/ui/`、`src/shared/icons/` 和 `src/shared/charts/`，最后填入 Design 字段和状态。新颜色、间距、字号、圆角或阴影先按视觉规范 1.8 进入 Token，不在页面现场拍值。**完成条件**：页面没有复制一套局部视觉规则，且高频结构来自共享 UI。
+4. 只编辑 `src/`、`index.html`、`package.json`、`vite.config.js`、`public/`、README 等源码工程文件；不编辑 `dist/`、`node_modules/` 或带哈希资源。**完成条件**：所有业务改动都能在源码中定位。
+5. 在 `output/prototype/` 执行 `npm ci` 和 `npm run build`。**完成条件**：构建成功，且没有用旧 `dist/` 冒充新版本。
 
-## 首次生成流程
+## 修改已有原型
 
-1. 检查 Design confirmation 和 `templates/prototype-vite/` 模板；缺失时报告具体路径并停止。
-2. 读取 Design 的模块、页面、字段、状态、权限、流程、操作限制和异常要求。
-3. 正式写入前完成 Design → Prototype 语义对照：列出必须表达的页面、字段、状态、角色权限、主要路径和关键反馈；显式标出 Design 的“待确认”项，不静默拍板。
-4. 从 `$BUNDLE/templates/prototype-vite/` 复制标准工程到 `output/prototype/`。若 `output/prototype/` 已存在旧静态原型（HTML + compiled.js 形态），先与用户确认迁移方案，不直接覆盖；迁移只允许把旧产物作为一次性参考，不得把 compiled.js 当作长期源码。
-5. 生成 `原型工具.bat` 和面向用户的首屏说明（模板已带，按项目名微调即可），README 首屏只写“请双击 `原型工具.bat` 并选择操作”。
-6. 读取并执行 `$BUNDLE/references/prototype-writing.md` 的通用基座、Ant Design 6、页面组织和视觉细则；多页面或 shell 相关任务再读取 `$BUNDLE/references/prototype-shell.md`。按 Design 在 `src/modules/<模块>/` 创建业务页面组件并注册到 `src/routes.jsx`；共享壳层、角色切换、异常页放在 `src/shared/`。确认版 Design 是唯一产品事实源，PRD 仅可选辅助，冲突时以 Design 为准。
-7. 允许编辑 `src/`、`index.html`、`package.json`、`vite.config.js`、`public/`、`README.md`；禁止直接编辑 `dist/`、`node_modules/` 和 Vite 生成的带哈希资源文件。
-8. 依赖与构建：运行 `npm ci`，再运行 `npm run build`；构建失败先修复源码，不部署旧 dist 冒充新版本。
-9. 验证 `原型工具.bat` 的三个本地选项（“启动本地即时预览”“构建并预览发布版本”“重新构建部署包”）实际可用，并分别用开发预览与构建预览打开默认页和全部路由，两者都不得白屏、console 不得报错。
-10. 生成后依次检查：
-   - 浏览器是否正常渲染（**必须分别验证默认页与每个注册路由，均不得白屏**）、浏览器 console 是否报错、页面和字段是否与 Design 一致；
-   - **空/异常/加载态可观察**：每个列表/看板页空 dataSource 时显示 Table 内置"暂无数据"空态（不得移除空态表达）；关键页必须能表达"加载失败点击重试"与无权限拦截，不允许只展示满数据 mock 而不交代异常态；
-   - **多角色页面必须有角色视角**：Design 页面清单"适用角色"多于一个角色的项目，角色切换统一放壳层 Header（Select，角色用全称如"被审单位对接人"），页内不放"演示角色切换"；角色不满足的操作不渲染；不得静默只按单一角色渲染；
-   - **配置管理页不得用占位**：新增/编辑/停用/启用等操作必须用真实 `Modal` + `Form`（字段按 Design 对应页面章节），二次确认用 `Modal.confirm`，禁止 `message.info('…（示意）')` 占位；
-   - **状态驱动操作必须可见禁用**：Design 状态机要求的操作可用条件必须用 antd `disabled` 属性（或等价置灰）表达，不得只写文字说明或全部可点；**与角色规则区分：角色不满足 → 不渲染；状态机不允许 → 置灰禁用**；关键权限/状态/限制/主路径/异常反馈必须有表达。
-   - **超高保真，禁止页面内解释性标注**：原型页面内不得出现“入口：…去向：…”、“（只读）/（必填）/（选填）”、操作说明（Design）、勾选规则（Design）等解释性文本；字段的必填/只读/选填状态通过 UI 本身表达（必填项用 `Form.Item required` 红 asterisk、只读/系统判定用 `disabled`、选填无星）。所有评审注释统一走 `prototypemark` 流程，不在 base 原型页面里写注解。
-11. 运行：
+1. 先运行 `prototype-source-check.py`，确认 `package.json`、`src/`、入口、build script 和业务页面都存在。**完成条件**：源码检查通过；只有 dist/compiled.js 时停止并报告“Prototype 源码工程缺失”。
+2. 从 `src/routes.jsx` 和 `src/modules/` 定位受影响页面，只改源码；语义问题先回到 Design/Fix，表现问题只改 Prototype。**完成条件**：变更范围与反馈分类一致，没有混改业务事实。
+3. 运行开发预览观察修改，再用 `npm run build` 生成构建产物并复验构建预览。**完成条件**：开发预览与构建预览都能打开默认页和全部注册路由。
+
+## 统一验证与完成判据
+
+生成或修改完成前，按以下顺序自修并验证：
+
+1. 检查默认页和每个注册路由均可渲染，浏览器 console 无错误；页面、字段、状态、角色、权限、主路径和关键反馈与 Design 一致。
+2. 检查加载、空数据、失败/重试、无权限、禁用/只读、选中和响应式状态可通过 UI 观察；列表/看板保留空态，配置操作使用真实 `Modal` + `Form`，状态机限制使用 `disabled`。
+3. 检查页面没有“入口：”“（只读）”“（必填）”等解释性标注代替真实 UI 状态；图标统一使用 Tabler，图表使用 `TablerChart`。
+4. 逐条核对 `prototype-component-behavior.md` 第 10 节验收清单：主标题唯一、Sider 独立滚动且细滚动条可见、表格默认不固定列、操作列 ≤3（多余收进“更多”下拉）、卡片间距、每视图一个 primary、状态用 `TablerStatusTag`。
+4. 运行：
 
 ```text
 python $BUNDLE/scripts/python/prototype-source-check.py --project-root .
-python $BUNDLE/scripts/python/prototype-consistency-check.py --project-root .
+python $BUNDLE/scripts/python/prototype-consistency-check.py --project-root . --module <模块名>
 ```
 
-确定性检查或浏览器检查失败时先修复并重新验证，不交付未验证的原型。
-12. 更新 `.workflow/status.json`：`current_stage=prototype`，`artifacts.prototype=output/prototype/index.html`；不使用 `current_stage=done` 表达线性完成。
+**完成条件**：源码检查、构建、路由/浏览器验证和针对性一致性检查均通过；任何未验证项都已明确报告。随后更新 `.workflow/status.json` 的 `current_stage=prototype` 和 Prototype 产物路径，并按实际读取的 Design 文件记录 `design-set.py record-inputs`。
 
-## 修改流程
+## 反馈分类与停止条件
 
-1. 修改开始前先验证源码工程完整：`output/prototype/package.json` 存在、`src/` 存在并包含入口、`npm run build` 已定义、当前业务页面能在 `src/` 中定位。如果只有 `dist/`、静态 compiled.js 或构建后的 HTML：停止，报告“Prototype 源码工程缺失”，提出源码恢复或一次性迁移方案；不修改 dist、不反编译构建资源、不用字符串锚点补丁生成物。
-2. 从 `src/routes.jsx` 和 `src/modules/` 定位业务页面，只修改 `src/`。
-3. 运行开发预览核对修改效果，然后 `npm run build` 重新构建。
-4. 用构建预览复验，确认与开发预览一致；复验 `原型工具.bat` 的相关菜单选项。
-5. 重新运行 `prototype-source-check.py` 与 `prototype-consistency-check.py`，通过后再交付。
+- **表现问题**：布局、视觉层级、间距、颜色、字体、响应式或组件呈现；只改 Prototype。
+- **语义问题**：字段、状态、权限、流程、异常、责任边界或模块缺失/冲突；停止静默修改，转入 Design/Fix。
+- **待澄清项**：用户反馈无法判断属于哪一类；停止并请求澄清。
 
-## 反馈处理
+发现幻觉页面、字段、状态、权限或未授权高影响行为时，删除未授权表达并报告；发现活动 Design 事务、清单不可读、源码工程缺失、构建失败、白屏或 console 错误时，停止交付并给出具体原因。
 
-读取反馈后必须先按 `$BUNDLE/templates/prototype-feedback-classification.md` 输出归类，再开始修改。表现问题只改 Prototype；语义问题不得静默改动字段、状态、权限、流程或模块边界，必须停止并转入 Design/Fix；表现问题与语义问题不能混改。
-
-- **表现问题**：布局、视觉层级、间距、颜色、字体、响应式或组件呈现问题；只改 Prototype，不改变 Design 事实。
-- **语义问题**：缺少 Design 要求，或与 Design 的对象、字段、状态、权限、交互、异常和责任边界冲突；先回写 Design，使旧 confirmation 失效，用户重新确认后再按影响范围生成下游。
-- 同时包含两类时拆成独立处理项；空类别保留并写“无”。
-
-## 失败与停止
-
-- 模板、写法参考或 Design 缺失：报告具体路径，不凭记忆生成完整产物。
-- Design confirmation 失败：停止，不覆盖原型。
-- 只有 dist 没有 src、`package.json` 或构建脚本缺失、业务页面只能在构建产物中找到、构建失败、或需要通过直接修改 dist 才能完成用户要求：停止，报告源码工程缺失或构建错误，不修改 dist。
-- 页面渲染空白、console 报错、确定性检查失败：先修复并重新验证；必要时回滚到上一个可工作版本。
-- 发现幻觉字段、页面、状态、权限或 Design 未授权高影响行为：删除或不写入，并报告；不静默拍板。
-- 用户反馈无法归类：停止澄清，不直接修改。
-- 不依赖 PRD 存在，不依赖 metadata，不使用外部 CDN、Vue/daisyUI/`el-` 组件、浏览器端 Babel 或临时项目级编译脚本来替代标准工程。
+Review 使用 `spm-prototype-review`，不会由本 Skill 自动修复或推进。
 
 ## 产物
 
-- `output/prototype/src/`：唯一业务编辑源（`main.jsx`、`App.jsx`、`routes.jsx`、`modules/`、`shared/`、`styles/`）。
-- `output/prototype/原型工具.bat`：用户唯一操作入口（中文菜单：本地即时预览、构建并预览发布版本、重新构建部署包、条件式上传 Cloudflare、修复依赖并重新构建）。
-- `output/prototype/index.html`、`package.json`、`package-lock.json`、`vite.config.js`、`README.md`：源码工程组成。
-- `output/prototype/dist/`：可删除、可重建的构建产物（Cloudflare 部署目录）。
-- `output/prototype/prototype-feedback.md`：可选反馈记录。
-- `.workflow/status.json`：导航状态和产物路径。
+- `output/prototype/src/`：源码编辑源。
+- `output/prototype/原型工具.bat`：用户操作入口。
+- `output/prototype/index.html`、`package.json`、`package-lock.json`、`vite.config.js`、README：工程文件。
+- `output/prototype/dist/`：可重建构建产物。
+- `.workflow/status.json`：阶段与产物导航状态。

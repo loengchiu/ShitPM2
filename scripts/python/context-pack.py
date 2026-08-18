@@ -15,7 +15,6 @@ ROOT = Path(__file__).resolve().parents[2]
 MANIFEST_REL = Path('contracts/context-loading.manifest.json')
 GENERATED_PACK_RE = re.compile(r'^\d{3}-[A-Za-z0-9_.-]+\.md$')
 DESIGN_FRAGMENT_PACK = 'design-fragment'
-DESIGN_REL = Path('output/design/design.md')
 # 大 Design 阈值：与 SKILL 阶段 A “约 1000 行”一致；只有超过该规模才启用片段比例约束。
 LARGE_DESIGN_LINES = 1000
 # 标题锚点：Design 按“### 闭环X：名称 / ### 页面：名称 / ## 共用章节”组织，按锚点确定性切分。
@@ -194,7 +193,7 @@ def build_sections(bundle_root: Path, manifest: dict[str, Any], stage: str,
 
 
 def _design_headings(text: str) -> list[dict[str, Any]]:
-    """解析 design.md 标题：记录所有标题用于边界计算；只对“闭环X：/编号闭环/页面：/共用章节”打锚点标记。"""
+    """解析 Design 文件标题：记录所有标题用于边界计算。"""
     headings = []
     section_title = ''
     for line_no, line in enumerate(text.splitlines(), 1):
@@ -291,7 +290,7 @@ def _related_pages(headings: list[dict[str, Any]], closure: dict[str, Any] | Non
 
     显式映射来源为 --mapping-json 或项目 .workflow/context/prd-module-map.json；
     不使用最长公共子串等标题词猜测，避免把短公共词关联到无关页面。
-    返回 (匹配到的页面标题, 映射中未在 design.md 命中的页面名)。
+    返回 (匹配到的页面标题, 映射中未在 Design 文件命中的页面名)。
     """
     names = sorted({h['name'] for h in headings if h['kind'] == 'page'}, key=len, reverse=True)
     unresolved: list[str] = []
@@ -319,110 +318,89 @@ def extract_design_fragment(project_root: Path, module: str,
                             threshold_fraction: float = 1 / 3,
                             extra_pages: list[str] | None = None,
                             mapping: dict[str, list[str]] | None = None) -> dict[str, Any]:
-    """按标题锚点从 output/design/design.md 确定性提取模块片段（原文，不做语义检索、不做概括）。
+    """按设计集清单装载目标模块的事实闭包（原文，不做语义检索、不做概括）。
 
-    提取范围：目标闭环章节全文 + 闭环正文引用的页面章节 + 共用章节（业务对象/权限/页面清单/待确认）。
-    页面关联优先使用显式映射（--mapping-json / 项目映射文件）；无映射时只接受闭环正文的页面名显式引用。
-    匹配不到模块时报错并列出标题清单；片段行数超过全文阈值时报错提示拆分模块。
+    读取设计集清单，按模块名定位目标 Design 文件 ID，沿 depends_on 计算正向依赖闭包，
+    再按清单路径读取闭包内全部正式 Design 文件。系统级基线、跨模块契约与目标模块正文
+    一起返回；不读取闭包外的无关模块。
+
+    旧单体 design.md 不再是日常装载来源；清单缺失时明确报错，不做旧格式回退。
     """
-    design_path = project_root / DESIGN_REL
-    if not design_path.is_file():
-        raise RuntimeError(f'Design 文件不存在: {design_path}')
-    text = design_path.read_text(encoding='utf-8-sig')
-    lines = text.splitlines()
-    headings = _design_headings(text)
-    closure = _match_module(headings, module)
-    matched_pages: list[dict[str, Any]] = []
-    closure_text = ''
-    if closure is None:
-        matched_pages = _match_pages(headings, [module] + list(extra_pages or []))
-        if not matched_pages:
-            available = '\n'.join(
-                f'  {h["title"]}' for h in headings
-                if h['kind'] in ('closure', 'page')
-            ) or '  （design.md 无闭环/页面标题锚点）'
-            raise RuntimeError(
-                f'模块名 “{module}” 匹配不到任何闭环或页面章节，不静默返回空。'
-                f'design.md 可用闭环/页面标题：\n{available}'
-            )
+    project_root = Path(project_root)
+    manifest_path = project_root / 'output' / 'design' / '设计集清单.json'
+    if not manifest_path.is_file():
+        raise RuntimeError(
+            f'设计集清单不存在: {manifest_path}。'
+            '旧单体 Design 不再是日常装载来源，请先按迁移提示词转为多文件 Design。'
+        )
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding='utf-8-sig'))
+    except Exception as exc:
+        raise RuntimeError(f'设计集清单无法解析: {manifest_path}: {exc}') from exc
+    files = manifest.get('files', [])
+    if not isinstance(files, list) or not files:
+        raise RuntimeError(f'设计集清单缺少 files: {manifest_path}')
+    # 定位目标模块
+    module_files = [e for e in files if isinstance(e, dict) and e.get('module') == module]
+    if not module_files:
+        module_files = [e for e in files if isinstance(e, dict)
+                        and e.get('type') == 'module'
+                        and module in e.get('path', '')]
+    if not module_files:
+        available = ', '.join(
+            e.get('module', '') for e in files
+            if isinstance(e, dict) and e.get('module')
+        ) or '（清单中无模块登记）'
+        raise RuntimeError(
+            f'模块名 “{module}” 在设计集清单中找不到对应模块文件。'
+            f'清单中已登记的模块：{available}'
+        )
+    # 计算依赖闭包（含目标模块自身）
+    import importlib.util as _ilu
+    ds_spec = _ilu.spec_from_file_location('design_set', Path(__file__).with_name('design-set.py'))
+    ds_mod = _ilu.module_from_spec(ds_spec)
+    ds_spec.loader.exec_module(ds_mod)
+    target_ids = sorted({e['id'] for e in module_files})
+    ordered, missing = ds_mod.closure_ids(manifest, target_ids)
+    id_to_entry = {e['id']: e for e in files if isinstance(e, dict)}
     parts: list[str] = []
     included_lines = 0
-    if closure is not None:
-        index = headings.index(closure)
-        end = _scope_end(lines, headings, index)
-        closure_text = _heading_text(lines, closure['line'], end)
-        parts.append(f'## 模块闭环：{closure["title"]}\n\n{closure_text}')
-        included_lines += end - closure['line'] + 1
-        matched_pages, unresolved_pages = _related_pages(
-            headings, closure, closure_text, module, mapping=mapping,
-        )
-        # --pages 显式追加页面：闭环匹配成功后仍生效（补充标题词关联漏掉的页面），按名称精确匹配去重。
-        for page in _match_pages(headings, list(extra_pages or [])):
-            if page['name'] not in {p['name'] for p in matched_pages}:
-                matched_pages.append(page)
-    else:
-        # 模块名即页面名：目标页面已从 [module]+extra_pages 精确匹配，直接作为相关页面输出。
-        matched_pages = _match_pages(headings, [module] + list(extra_pages or []))
-        unresolved_pages = []
-    page_lines = 0
-    for page in matched_pages:
-        index = headings.index(page)
-        end = _scope_end(lines, headings, index)
-        parts.append(f'\n## 相关页面：{page["name"]}\n\n{_heading_text(lines, page["line"], end)}')
-        page_lines += end - page['line'] + 1
-    included_lines += page_lines
-    shared_parts: list[str] = []
-    page_names = {p['name'] for p in matched_pages}
-    for heading in headings:
-        if heading['kind'] != 'shared':
+    loaded: list[dict[str, Any]] = []
+    for fid in ordered:
+        entry = id_to_entry.get(fid)
+        if entry is None:
             continue
-        index = headings.index(heading)
-        end = _scope_end(lines, headings, index)
-        section_text = _heading_text(lines, heading['line'], end)
-        if heading['title'].startswith('页面清单') and page_names:
-            # 页面清单只保留与本模块页面匹配的数据行（表头/分隔行保留），避免每个模块都携带全量页面清单。
-            kept = []
-            for raw in section_text.splitlines():
-                line = raw.strip()
-                if line.startswith('|'):
-                    cells = [c.strip() for c in line.strip('|').split('|')]
-                    first = cells[0] if cells else ''
-                    if first in page_names or first in ('页面', '页面/入口', '页面名称') or set(first) <= {'-', ' ', ''}:
-                        kept.append(raw)
-                    continue
-                kept.append(raw)
-            section_text = '\n'.join(kept)
-        shared_parts.append(f'\n## 共用部分：{heading["title"]}\n\n{section_text}')
-        included_lines += len(section_text.splitlines())
-    fragment_text = '\n'.join(parts)
-    if shared_parts:
-        fragment_text += '\n' + '\n'.join(shared_parts)
-    # 片段比例只约束大 Design（防止爆上下文）；小 Design 可接近全文，不误伤。
-    if len(lines) >= LARGE_DESIGN_LINES and included_lines > max(1, int(len(lines) * threshold_fraction)):
-        raise RuntimeError(
-            f'模块 “{module}” 的 Design 片段 {included_lines} 行超过阈值 '
-            f'（design.md 全文 {len(lines)} 行的 {threshold_fraction:.0%}）。'
-            f'模块边界过大，请按子闭环或页面拆分模块后再分片。'
-        )
+        rel = entry.get('path')
+        if not isinstance(rel, str):
+            continue
+        path = (project_root / 'output' / 'design' / rel).resolve()
+        if not path.is_file():
+            raise RuntimeError(f'闭包文件不存在: {rel}')
+        content = path.read_text(encoding='utf-8-sig')
+        parts.append(f'## Design 文件：{fid}（{rel}）\n\n{content.strip()}')
+        included_lines += len(content.splitlines()) + 2
+        loaded.append({'id': fid, 'path': rel})
+    fragment_text = '\n\n---\n\n'.join(parts)
     section_id = f'design-fragment:{module}'
     return {
         'id': section_id,
-        'source': DESIGN_REL.as_posix(),
-        'source_hash': sha256_text(text),
+        'source': 'output/design/设计集清单.json',
+        'source_hash': sha256_text(manifest_path.read_text(encoding='utf-8-sig')),
         'content_hash': sha256_text(fragment_text),
         'selector': 'fragment',
         'content': fragment_text,
         'characters': len(fragment_text),
         'lines': included_lines,
         'module': module,
+        'closure_files': loaded,
         'fragment_meta': {
-            'design_lines': len(lines),
+            'design_lines': included_lines,
             'fragment_lines': included_lines,
-            'threshold_fraction': threshold_fraction,
-            'mapping_unresolved_pages': unresolved_pages,
+            'closure_ids': ordered,
+            'module_files': sorted(target_ids),
+            'unresolved_pages': [],
         },
     }
-
 
 
 def render_pack(stage: str, pack_name: str, sections: list[dict[str, Any]]) -> str:
@@ -552,7 +530,7 @@ def verify_run(project_root: Path, stage: str, run_path: Path | None = None,
                 'expected': expected_manifest_hash,
                 'actual': actual_manifest_hash,
             })
-    # --module 装载的 design.md 片段按 selector=fragment 判定为项目级来源，从项目根解析；
+    # --module 装载的 Design 闭包片段按 selector=fragment 判定为项目级来源，从项目根解析；
     # 其余 source 一律从 bundle 解析（bundle 内的同名输出文件不参与校验）。
     project_sources = {
         item.get('source')
@@ -623,12 +601,12 @@ def main() -> int:
     parser.add_argument('--pack', action='append', default=[])
     parser.add_argument('--card', action='append', default=[])
     parser.add_argument('--example', action='append', default=[])
-    parser.add_argument('--module', help='按模块名装载 design.md 片段（与 --pass module 组合使用）：提取闭环章节 + 相关页面 + 共用对象/权限部分')
+    parser.add_argument('--module', help='按模块名装载 Design 事实闭包（与 --pass module 组合使用）：读取系统基线、契约和目标模块')
     parser.add_argument('--pages', action='append', default=[], help='显式追加提取的页面名（模块名匹配不到闭环时按页面名兜底）')
     parser.add_argument('--mapping-json', type=Path, default=None,
                         help='闭环到页面的确定性映射 JSON；未指定时自动探测项目 .workflow/context/prd-module-map.json')
     parser.add_argument('--fragment-threshold', type=float, default=1 / 3,
-                        help='Design 片段行数阈值占 design.md 全文比例，默认 1/3；超过时报错提示拆分模块')
+                        help='Design 闭包行数阈值，默认 1/3；超过时报错提示拆分模块')
     parser.add_argument('--applicability-json', type=Path)
     parser.add_argument('--output-dir', type=Path)
     parser.add_argument('--list-packs', action='store_true')

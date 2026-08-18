@@ -44,6 +44,9 @@ def check_markdown_links() -> None:
     for base in RESOURCE_DIRS:
         for path in base.glob("*.md"):
             text = path.read_text(encoding="utf-8")
+            # 跳过 fenced code block 内的链接（模板示例链接不指向真实资源）
+            text = re.sub(r"~~~.*?~~~", "", text, flags=re.S)
+            text = re.sub(r"```.*?```", "", text, flags=re.S)
             headings = {slug(m.group(1)) for m in re.finditer(r"(?m)^#{1,6}\s+(.+?)\s*$", text)}
             for target in link_pattern.findall(text):
                 target = target.strip()

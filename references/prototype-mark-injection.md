@@ -156,7 +156,7 @@ export default function MarkLayer() {
             <span className="pm-popup-close" onClick={() => setOpenId(null)}>×</span>
           </div>
           <div className="pm-popup-body">{PM_ANNOTATIONS[openId].content}</div>
-          <div className="pm-popup-source">内容来源：design.md 或 prd.md（由标注时标注）</div>
+          <div className="pm-popup-source">内容来源：Design 文件或 prd.md（由标注时标注）</div>
         </div>
       )}
     </>,
@@ -236,11 +236,11 @@ body.pm-modal-open .pm-badge.pm-badge-in-page {
 3. 弹窗：点击角标打开（非 hover），再次点击同一角标关闭；X 按钮关闭；点击页面空白处关闭所有
 4. 浮窗默认 `top: badgeRect.bottom + 8; left: badgeRect.left`；右超左移、下超上移、不够贴顶 16px
 5. 抽屉/弹窗打开时隐藏主页角标（body class 控制），同一编号只能开一个浮窗
-6. 浮窗内容必须标注“内容来源：design.md”或“内容来源：prd.md”，不承诺脱离源文件后仍是权威规格
+6. 浮窗内容必须标注“内容来源：Design 文件”或“内容来源：prd.md”，不承诺脱离源文件后仍是权威规格
 
 ## 硬规则
 
-- 不反写 prd.md / design.md；编号 [N] 只存在于 prototypemark 副本
+- 不反写 prd.md / Design 文件；编号 [N] 只存在于 prototypemark 副本
 - 不修改 `output/prototype/`；只操作 `output/prototypemark/`
 - 不引入外部 CDN；标注组件全部本地实现
 - 不进入 review 链路；不生成 metadata

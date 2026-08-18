@@ -7,7 +7,7 @@
 材料事实分两层落盘：按来源提取的事实文件供 `material-merge` 读取；合并后的
 `.workflow/runtime/materials/facts.json` 供 Align、A/B/C 和 Design 读取。两层格式都必须绑定当前 `material_revision`。
 
-材料事实是证据资产，不是最终产品事实源。最终产品事实只能进入确认前的 `output/design/design.md`，不能以事实文件数量或格式完整代替语义判断。
+材料事实是证据资产，不是最终产品事实源。最终产品事实只能进入设计集清单登记的正式 Design 文件，不能以事实文件数量或格式完整代替语义判断。
 
 ## 分来源事实文件
 

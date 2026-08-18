@@ -149,15 +149,29 @@ def main() -> int:
     parser.add_argument("--project-root", required=True)
     args = parser.parse_args()
     root = Path(args.project_root).resolve()
-    design_path = root / "output" / "design" / "design.md"
+    manifest_path = root / "output" / "design" / "设计集清单.json"
     prototype_root = root / "output" / "prototype"
-    if not design_path.is_file():
-        print(json.dumps({"ok": False, "error": "design.md 不存在"}, ensure_ascii=False))
+    if not manifest_path.is_file():
+        print(json.dumps({"ok": False, "error": "设计集清单不存在"}, ensure_ascii=False))
         return 2
     if not prototype_root.is_dir() or not list(prototype_root.rglob("*.html")):
         print(json.dumps({"ok": False, "error": "prototype HTML 不存在"}, ensure_ascii=False))
         return 2
-    design_text = design_path.read_text(encoding="utf-8")
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
+    except Exception as exc:
+        print(json.dumps({"ok": False, "error": f"设计集清单无法解析: {exc}"}, ensure_ascii=False))
+        return 2
+    parts = []
+    for entry in manifest.get("files", []):
+        rel = entry.get("path")
+        if not isinstance(rel, str):
+            continue
+        path = (root / "output" / "design" / rel).resolve()
+        if not path.is_file():
+            continue
+        parts.append(path.read_text(encoding="utf-8-sig"))
+    design_text = chr(10).join(parts)
     design = _load_design_parser().generate_design_metadata(design_text, "design", root)
     index_module = _load_design_index_module()
     index, index_error, index_from_file = index_module.load_verified_index(root)
@@ -202,7 +216,7 @@ def main() -> int:
     result = {
         "ok": not (total_missing or total_hallucinated),
         "source": {
-            "design": "output/design/design.md",
+            "design": "output/design/设计集清单.json",
             "design_index": {"path": ".workflow/runtime/context/design/index/design-index.json", "from_file": index_from_file},
             "prototype": "output/prototype/**/*.{html,js,jsx}（排除 dist/node_modules/prototype-p0）",
         },

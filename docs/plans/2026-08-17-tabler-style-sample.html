@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ShitPM 原型 · Tabler 设计语言样张（含图标）</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.34.0/dist/tabler-icons.min.css" />
+<style>
+  :root{
+    --tblr-primary:#066fd1;
+    --tblr-primary-hover:#0559a8;
+    --tblr-success:#2fb344;
+    --tblr-info:#4299e1;
+    --tblr-warning:#f59f00;
+    --tblr-danger:#d63939;
+    --tblr-bg:#f9fafb;
+    --tblr-card:#ffffff;
+    --tblr-border:#e5e7eb;
+    --tblr-text:#232e3c;
+    --tblr-text-2:#626976;
+    --tblr-text-3:#959dac;
+    --tblr-radius:6px;
+    --tblr-radius-sm:4px;
+    --tblr-radius-lg:8px;
+    --tblr-font:'Inter Var','Inter','Noto Sans SC','Source Han Sans SC','思源黑体',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:var(--tblr-font);
+    font-size:14px;
+    line-height:1.5;
+    color:var(--tblr-text);
+    background:var(--tblr-bg);
+    -webkit-font-smoothing:antialiased;
+  }
+  /* 顶栏 */
+  .topbar{
+    height:56px;
+    background:var(--tblr-card);
+    border-bottom:1px solid var(--tblr-border);
+    display:flex;align-items:center;gap:16px;
+    padding:0 20px;
+    position:sticky;top:0;z-index:10;
+  }
+  .logo{
+    display:flex;align-items:center;gap:10px;
+    font-weight:600;font-size:15px;color:var(--tblr-text);
+  }
+  .logo .mark{
+    width:28px;height:28px;border-radius:6px;background:var(--tblr-primary);
+    color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px;
+  }
+  .menu{display:flex;gap:4px;margin-left:8px;}
+  .menu a{
+    display:flex;align-items:center;gap:7px;
+    text-decoration:none;color:var(--tblr-text-2);font-size:14px;font-weight:500;
+    padding:6px 12px;border-radius:var(--tblr-radius);
+  }
+  .menu a.active{color:var(--tblr-primary);background:rgba(6,111,209,.08);}
+  .menu a:hover{color:var(--tblr-text);background:#f0f2f5;}
+  .menu a .ti{font-size:17px;}
+  .search{
+    margin-left:auto;display:flex;align-items:center;gap:8px;
+    background:var(--tblr-bg);border:1px solid var(--tblr-border);border-radius:var(--tblr-radius);
+    padding:6px 12px;width:240px;color:var(--tblr-text-3);font-size:13px;
+  }
+  .search .ti{font-size:15px;}
+  .avatar{
+    width:32px;height:32px;border-radius:50%;background:#dbe4ee;color:var(--tblr-text-2);
+    display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;
+  }
+  /* 容器 */
+  .wrap{max-width:1200px;margin:0 auto;padding:24px 20px 48px;}
+  .crumb{color:var(--tblr-text-3);font-size:13px;margin-bottom:4px;display:flex;align-items:center;gap:6px;}
+  .crumb .ti{font-size:14px;}
+  .page-title{font-size:22px;font-weight:600;margin:0 0 20px;letter-spacing:-.01em;display:flex;align-items:center;gap:10px;}
+  .page-title .ti{font-size:24px;color:var(--tblr-primary);}
+  /* 卡片 */
+  .card{
+    background:var(--tblr-card);
+    border:1px solid var(--tblr-border);
+    border-radius:var(--tblr-radius);
+    box-shadow:0 2px 4px rgba(35,46,60,.04);
+  }
+  .card-head{
+    padding:14px 20px;border-bottom:1px solid var(--tblr-border);
+    font-weight:600;font-size:15px;display:flex;align-items:center;justify-content:space-between;
+  }
+  .card-head .title{display:flex;align-items:center;gap:8px;}
+  .card-head .title .ti{font-size:18px;color:var(--tblr-primary);}
+  .card-body{padding:20px;}
+  /* 指标卡 */
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px;}
+  .stat .card-body{padding:18px 20px;display:flex;gap:14px;align-items:flex-start;}
+  .icon-badge{
+    flex:none;width:42px;height:42px;border-radius:8px;
+    display:flex;align-items:center;justify-content:center;font-size:20px;
+  }
+  .icon-badge.primary{background:rgba(6,111,209,.1);color:var(--tblr-primary);}
+  .icon-badge.success{background:rgba(47,179,68,.1);color:var(--tblr-success);}
+  .icon-badge.warning{background:rgba(245,159,0,.12);color:var(--tblr-warning);}
+  .icon-badge.info{background:rgba(66,153,225,.12);color:var(--tblr-info);}
+  .stat .meta{flex:1;min-width:0;}
+  .stat .label{color:var(--tblr-text-2);font-size:13px;margin-bottom:6px;}
+  .stat .num{font-size:26px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.1;}
+  .stat .sub{margin-top:8px;font-size:12px;display:flex;align-items:center;gap:4px;}
+  .up{color:var(--tblr-success);font-weight:600;}
+  .down{color:var(--tblr-danger);font-weight:600;}
+  /* 表格 */
+  table{width:100%;border-collapse:collapse;font-size:14px;}
+  thead th{
+    text-align:left;color:var(--tblr-text-2);font-weight:600;font-size:13px;
+    padding:10px 16px;background:#fafbfc;border-bottom:1px solid var(--tblr-border);
+  }
+  tbody td{padding:12px 16px;border-bottom:1px solid var(--tblr-border);}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:hover{background:#fafbfc;}
+  .mono{font-variant-numeric:tabular-nums;}
+  .row-actions{display:flex;gap:6px;}
+  .icon-btn{
+    width:30px;height:30px;border-radius:6px;border:1px solid var(--tblr-border);
+    background:#fff;color:var(--tblr-text-2);display:inline-flex;align-items:center;justify-content:center;
+    cursor:pointer;transition:.15s;
+  }
+  .icon-btn:hover{color:var(--tblr-primary);border-color:var(--tblr-primary);}
+  .icon-btn .ti{font-size:16px;}
+  /* 标签 */
+  .tag{
+    display:inline-flex;align-items:center;gap:5px;
+    padding:2px 9px;border-radius:100px;font-size:12px;font-weight:500;line-height:18px;
+  }
+  .tag::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;}
+  .tag.success{color:var(--tblr-success);background:rgba(47,179,68,.12);}
+  .tag.warning{color:var(--tblr-warning);background:rgba(245,159,0,.12);}
+  .tag.danger{color:var(--tblr-danger);background:rgba(214,57,57,.12);}
+  .tag.info{color:var(--tblr-info);background:rgba(66,153,225,.12);}
+  /* 表单 */
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  .field{margin-bottom:16px;}
+  .field label{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:500;color:var(--tblr-text);margin-bottom:6px;}
+  .field label .ti{font-size:15px;color:var(--tblr-text-3);}
+  .input,.select{
+    width:100%;padding:7px 12px;font-size:14px;font-family:inherit;color:var(--tblr-text);
+    border:1px solid #dadcde;border-radius:var(--tblr-radius);background:#fff;outline:none;
+    transition:border-color .15s,box-shadow .15s;
+  }
+  .input:focus,.select:focus{border-color:var(--tblr-primary);box-shadow:0 0 0 3px rgba(6,111,209,.15);}
+  /* 模拟 antd Select：圆角 6px + 箭头右侧间距 + 弹出面板圆角 */
+  .select-mock{
+    position:relative;width:100%;padding:7px 34px 7px 12px;font-size:14px;font-family:inherit;
+    color:var(--tblr-text);border:1px solid #dadcde;border-radius:var(--tblr-radius);background:#fff;
+    cursor:pointer;user-select:none;
+  }
+  .select-mock:focus,.select-mock.open{border-color:var(--tblr-primary);box-shadow:0 0 0 3px rgba(6,111,209,.15);}
+  .select-mock .arrow{position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--tblr-text-3);font-size:16px;pointer-events:none;}
+  .select-panel{
+    position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:20;
+    border:1px solid var(--tblr-border);border-radius:var(--tblr-radius);
+    box-shadow:0 2px 4px rgba(35,46,60,.04);background:#fff;overflow:hidden;
+  }
+  .select-panel .opt{padding:8px 12px;font-size:14px;cursor:pointer;}
+  .select-panel .opt:hover{background:rgba(35,46,60,.04);}
+  .select-panel .opt.sel{background:rgba(6,111,209,.09);color:var(--tblr-primary);font-weight:500;}
+  .actions{display:flex;gap:10px;margin-top:8px;}
+  .btn{
+    display:inline-flex;align-items:center;gap:7px;
+    padding:7px 16px;font-size:14px;font-weight:500;font-family:inherit;
+    border-radius:var(--tblr-radius);border:1px solid transparent;cursor:pointer;
+  }
+  .btn .ti{font-size:16px;}
+  .btn-primary{background:var(--tblr-primary);color:#fff;}
+  .btn-primary:hover{background:var(--tblr-primary-hover);}
+  .btn-sub{background:#fff;color:var(--tblr-text);border-color:var(--tblr-border);}
+  .btn-sub:hover{background:#f6f8fa;}
+  /* 布局 */
+  .row2{display:grid;grid-template-columns:1.6fr 1fr;gap:20px;align-items:start;}
+  .hint{
+    margin-top:28px;font-size:12px;color:var(--tblr-text-3);text-align:center;
+    border-top:1px dashed var(--tblr-border);padding-top:16px;
+  }
+  @media(max-width:920px){.stats{grid-template-columns:repeat(2,1fr);}.row2{grid-template-columns:1fr;}.grid2{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="logo"><span class="mark"><i class="ti ti-bolt"></i></span> ShitPM 控制台</div>
+    <nav class="menu">
+      <a class="active"><i class="ti ti-layout-dashboard"></i>概览</a>
+      <a><i class="ti ti-charging-pile"></i>充电桩</a>
+      <a><i class="ti ti-receipt"></i>订单</a>
+      <a><i class="ti ti-chart-bar"></i>运营</a>
+    </nav>
+    <div class="search"><i class="ti ti-search"></i> 搜索…</div>
+    <div class="avatar">运</div>
+  </div>
+
+  <div class="wrap">
+    <div class="crumb"><i class="ti ti-home"></i> 首页 / 运营概览</div>
+    <h1 class="page-title"><i class="ti ti-chart-bar"></i> 运营概览</h1>
+
+    <!-- 聚合页：指标卡 -->
+    <div class="stats">
+      <div class="card stat"><div class="card-body">
+        <div class="icon-badge primary"><i class="ti ti-charging-pile"></i></div>
+        <div class="meta">
+          <div class="label">在线充电桩</div>
+          <div class="num mono">1,284</div>
+          <div class="sub up"><i class="ti ti-arrow-up-right"></i> 5.2% 较上周</div>
+        </div>
+      </div></div>
+      <div class="card stat"><div class="card-body">
+        <div class="icon-badge success"><i class="ti ti-bolt"></i></div>
+        <div class="meta">
+          <div class="label">今日充电量 (kWh)</div>
+          <div class="num mono">38,502</div>
+          <div class="sub up"><i class="ti ti-arrow-up-right"></i> 3.1% 较昨日</div>
+        </div>
+      </div></div>
+      <div class="card stat"><div class="card-body">
+        <div class="icon-badge warning"><i class="ti ti-alert-triangle"></i></div>
+        <div class="meta">
+          <div class="label">异常工单</div>
+          <div class="num mono">17</div>
+          <div class="sub down"><i class="ti ti-arrow-down-right"></i> 2 待处理</div>
+        </div>
+      </div></div>
+      <div class="card stat"><div class="card-body">
+        <div class="icon-badge info"><i class="ti ti-activity"></i></div>
+        <div class="meta">
+          <div class="label">在线率</div>
+          <div class="num mono">98.6%</div>
+          <div class="sub up"><i class="ti ti-arrow-up-right"></i> 0.3%</div>
+        </div>
+      </div></div>
+    </div>
+
+    <div class="row2">
+      <!-- 列表页：表格 -->
+      <div class="card">
+        <div class="card-head"><div class="title"><i class="ti ti-charging-pile"></i> 充电桩列表</div> <span style="font-size:13px;color:var(--tblr-text-3);font-weight:400;">共 1284 台</span></div>
+        <table>
+          <thead><tr><th>桩编号</th><th>位置</th><th>功率</th><th>状态</th><th>今日订单</th><th>操作</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">CD-0012</td><td>服务区 A 区</td><td class="mono">120 kW</td><td><span class="tag success">正常运行</span></td><td class="mono">42</td><td><div class="row-actions"><span class="icon-btn" title="查看"><i class="ti ti-eye"></i></span><span class="icon-btn" title="编辑"><i class="ti ti-edit"></i></span></div></td></tr>
+            <tr><td class="mono">CD-0013</td><td>服务区 A 区</td><td class="mono">120 kW</td><td><span class="tag warning">离线</span></td><td class="mono">0</td><td><div class="row-actions"><span class="icon-btn" title="查看"><i class="ti ti-eye"></i></span><span class="icon-btn" title="编辑"><i class="ti ti-edit"></i></span></div></td></tr>
+            <tr><td class="mono">CD-0048</td><td>服务区 B 区</td><td class="mono">60 kW</td><td><span class="tag success">正常运行</span></td><td class="mono">31</td><td><div class="row-actions"><span class="icon-btn" title="查看"><i class="ti ti-eye"></i></span><span class="icon-btn" title="编辑"><i class="ti ti-edit"></i></span></div></td></tr>
+            <tr><td class="mono">CD-0091</td><td>服务区 C 区</td><td class="mono">180 kW</td><td><span class="tag danger">故障</span></td><td class="mono">3</td><td><div class="row-actions"><span class="icon-btn" title="查看"><i class="ti ti-eye"></i></span><span class="icon-btn" title="编辑"><i class="ti ti-edit"></i></span></div></td></tr>
+            <tr><td class="mono">CD-0102</td><td>服务区 C 区</td><td class="mono">60 kW</td><td><span class="tag info">维护中</span></td><td class="mono">0</td><td><div class="row-actions"><span class="icon-btn" title="查看"><i class="ti ti-eye"></i></span><span class="icon-btn" title="编辑"><i class="ti ti-edit"></i></span></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 表单页 -->
+      <div class="card">
+        <div class="card-head"><div class="title"><i class="ti ti-plus"></i> 新增充电桩</div></div>
+        <div class="card-body">
+          <div class="field">
+            <label><i class="ti ti-hash"></i> 桩编号</label>
+            <input class="input" placeholder="例如 CD-0205" />
+          </div>
+          <div class="grid2">
+            <div class="field">
+              <label><i class="ti ti-gauge"></i> 功率</label>
+              <div class="select-mock open" tabindex="0">120 kW <i class="ti ti-chevron-down arrow"></i>
+                <div class="select-panel">
+                  <div class="opt">60 kW</div>
+                  <div class="opt sel">120 kW</div>
+                  <div class="opt">180 kW</div>
+                </div>
+              </div>
+            </div>
+            <div class="field">
+              <label><i class="ti ti-map-pin"></i> 所属服务区</label>
+              <div class="select-mock" tabindex="0">服务区 A <i class="ti ti-chevron-down arrow"></i></div>
+            </div>
+          </div>
+          <div class="field">
+            <label><i class="ti ti-map-2"></i> 安装位置</label>
+            <input class="input" placeholder="例如 A 区停车场东" />
+          </div>
+          <div class="actions">
+            <button class="btn btn-primary"><i class="ti ti-check"></i> 提交</button>
+            <button class="btn btn-sub"><i class="ti ti-x"></i> 取消</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="hint">样张：Ant Design 组件 + Tabler 设计语言 + Tabler 图标（静态视觉模拟，含 聚合 / 列表 / 表单 三类页面）。判断观感后告诉我：定这套，还是调主色 / 圆角 / 密度。注：样张图标走 Tabler webfont CDN，落地版将装 <code>@tabler/icons-react</code> 实现离线一致。</div>
+  </div>
+</body>
+</html>

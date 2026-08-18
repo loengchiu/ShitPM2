@@ -99,10 +99,12 @@
           ]
         },
         "design-output": {
-          "purpose": "Design 输出模板和审计记录模板",
+          "purpose": "Design 多文件输出模板：地图、系统基线、跨模块契约、模块设计",
           "sections": [
-            "design-template",
-            "decision-notes-template"
+            "design-map-template",
+            "design-system-template",
+            "design-contract-template",
+            "design-module-template"
           ]
         }
       }
@@ -306,16 +308,6 @@
       "source": "references/design-writing.md",
       "selector": "marker"
     },
-    "design-template": {
-      "stage": "design",
-      "source": "templates/design.md",
-      "selector": "marker"
-    },
-    "decision-notes-template": {
-      "stage": "design",
-      "source": "templates/decision-notes.md",
-      "selector": "marker"
-    },
     "prd-core-boundary": {
       "stage": "prd",
       "source": "references/prd-writing-rules.md",
@@ -413,6 +405,26 @@
     "align-template": {
       "stage": "align",
       "source": "templates/align.md",
+      "selector": "marker"
+    },
+    "design-map-template": {
+      "stage": "design",
+      "source": "templates/design-map.md",
+      "selector": "marker"
+    },
+    "design-system-template": {
+      "stage": "design",
+      "source": "templates/design-system.md",
+      "selector": "marker"
+    },
+    "design-contract-template": {
+      "stage": "design",
+      "source": "templates/design-contract.md",
+      "selector": "marker"
+    },
+    "design-module-template": {
+      "stage": "design",
+      "source": "templates/design-module.md",
       "selector": "marker"
     }
   },

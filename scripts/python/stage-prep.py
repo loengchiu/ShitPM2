@@ -3,10 +3,10 @@
 
 ShitPM 状态：此脚本标记为 legacy compatibility。
 - 新主流程不再默认调用此脚本生成 metadata。
-- ShitPM 主流程直接基于人读稿（design.md/prd.md/prototype）工作，不依赖 metadata。
+- ShitPM 主流程直接基于正式 Design 文件、prd.md 和 prototype 工作，不依赖 metadata。
 - 旧项目仍可显式调用此脚本生成或刷新 metadata，用于兼容诊断。
 - 生成的 metadata 仅作为参考，不作为新流程的硬门禁或产物质量证明。
-- generate_design_metadata 函数仍可被其他脚本（如 prd-consistency-check.py）复用以从 design.md 提取实体。
+- generate_design_metadata 函数仍可被其他脚本（如 prd-consistency-check.py）复用，从正式 Design 文件提取实体。
 
 职责：从当前人读稿中抽取并生成 metadata anchor。
 不判断是否允许进入该阶段，不修改人读稿正文。
@@ -222,7 +222,7 @@ def _build_field_attributes(row: list, headers: list) -> dict:
 
 
 def extract_entities_from_tables(content: str, headings: list, stage: str, counter: dict, title_to_id: dict = None) -> tuple:
-    """从 design.md 的表格中提取页面和字段实体
+    """从 Design 文件的表格中提取页面和字段实体
 
     ID 策略：优先按标题匹配已有 ID，无匹配时从 max+1 分配新 ID。
     返回 (pages, fields, states, permissions) 四个列表
@@ -778,7 +778,7 @@ def _build_page_field_relations(page_fields: list, stage: str, counter: dict) ->
 
 
 def _extract_numbered_rules_from_design(content: str, stage: str, counter: dict, title_to_id: dict) -> list:
-    """从 design.md 的"规则"章节提取编号规则实体
+    """从 Design 文件的"规则"章节提取编号规则实体
 
     设计稿中规则通常以编号列表形式出现在 ### 规则 标题下：
     1. 每人每周仅可创建一份周报...

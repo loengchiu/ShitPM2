@@ -1,6 +1,6 @@
 # Prototype Review 检查项
 
-> 本文件只保存 Prototype 专项检查项映射。通用审查结论、预检查、输出、独立性和停止规则见 [Review 公共执行契约](review-checklist.md)。Prototype 以确认版 Design 为唯一产品事实源；PRD 只作为冲突线索。
+> 本文件只保存 Prototype 专项检查项映射。通用审查结论、预检查、输出、独立性和停止规则见 [Review 公共执行契约](review-checklist.md)。Prototype 以 Design 集合为唯一产品事实体系；PRD 只作为冲突线索。
 
 ## 检查项映射
 
@@ -19,3 +19,8 @@
 | 11. 源码工程完整 | 只有 dist/compiled.js 没有 src；package.json、构建脚本或路由注册表缺失；src 引用 dist 或 prototype-p0；存在 module-*.compiled.js 补丁链 | [Prototype 源码工程检查](../scripts/python/prototype-source-check.py) | P1（不得通过） | `structure` / affected_objects |
 | 12. 构建与构建预览可用 | `npm run build` 失败；构建预览中默认页或注册路由白屏、console 报错 | [Prototype 写作规则](../references/prototype-writing.md) | P1 | `structure` / 页面或路由 |
 | 13. Review 只读边界 | Review 手工修改 src、dist 或其他原型文件，或把构建产物当作修改输入 | [Prototype 写作规则](../references/prototype-writing.md) | P1 | `structure` / 审查问题 |
+| 14. 视觉事实源被读取执行 | 页面视觉值、页面骨架未按 [Prototype 视觉规范](../references/prototype-visual-spec.md) 与 `tablerTokens.ts` 执行，页面现场拍值 | [Prototype 视觉规范](../references/prototype-visual-spec.md)；[Prototype 写作规则](../references/prototype-writing.md) | P2 | `content` / 页面或元素 |
+| 15. 共享 UI 使用与局部硬编码 | 高频结构未复用 `src/shared/ui/`，页面复制整套局部 Tabler CSS 或 style 硬编码视觉值 | [Prototype 视觉规范](../references/prototype-visual-spec.md) | P2 | `content` / 页面或元素 |
+| 16. 状态矩阵可观察 | 视觉规范组件状态矩阵中的 default/hover/focus/active/selected/disabled/readonly/loading/empty/error/forbidden 有应有状态不可观察，或仍用“（只读）/（必填）”文字代替 UI 状态 | [Prototype 视觉规范](../references/prototype-visual-spec.md) | P2 | `content` / 页面或动作 |
+| 17. 图标与图表统一 | 混用 `@ant-design/icons`，未用 `@tabler/icons-react`；图表残留 Arco 色板 / 主题命名，未用 `shared/charts/TablerChart.jsx` | [Prototype 视觉规范](../references/prototype-visual-spec.md) | P2 | `content` / 页面或图表 |
+| 18. 组件行为规范执行 | 主标题不唯一或层级缺失；Sider 整体滚动/隐藏滚动条；表格默认固定列；操作列 >3 个按钮并排平铺；卡片间距 <16；每视图多个 primary；状态未用 `TablerStatusTag` | [组件行为规范](../references/prototype-component-behavior.md) 第 10 节 | P2 | `content` / 页面或元素 |

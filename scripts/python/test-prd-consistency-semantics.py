@@ -251,7 +251,7 @@ def run_case(prd: str, design: str = DESIGN):
         root = Path(temp_dir)
         (root / "output/design").mkdir(parents=True)
         (root / "output/prd").mkdir(parents=True)
-        (root / "output/design/design.md").write_text(design, encoding="utf-8")
+        write_design_set(root, design)
         (root / "output/prd/prd.md").write_text(prd, encoding="utf-8")
         result = subprocess.run(
             [sys.executable, str(SCRIPT), "--project-root", str(root)],
@@ -265,6 +265,34 @@ def run_case(prd: str, design: str = DESIGN):
             raise AssertionError(f"检查输出不是 JSON: {result.stdout}\n{result.stderr}") from exc
         return result.returncode, report
 
+
+def write_design_set(root: Path, design_text: str) -> None:
+    """构造最小多文件 Design 集：地图 + 清单 + 一个模块文件。"""
+    import hashlib
+    design_dir = root / "output/design"
+    module_dir = design_dir / "模块设计" / "订单"
+    module_dir.mkdir(parents=True, exist_ok=True)
+    module_path = module_dir / "订单管理.md"
+    module_path.write_text(design_text, encoding="utf-8")
+    map_path = design_dir / "设计地图.md"
+    map_path.write_text("# 设计地图\n\n## 模块与职责\n\n- MOD-001 [订单](模块设计/订单/订单管理.md)：负责订单。\n", encoding="utf-8")
+
+    def sha(p: Path) -> str:
+        return hashlib.sha256(p.read_bytes()).hexdigest()
+    manifest = {
+        "schema_version": "shitpm-design-set/v1",
+        "set_sha256": "",
+        "files": [
+            {"id": "MAP-001", "path": "设计地图.md", "type": "map", "module": None, "business_chains": [], "depends_on": [], "sha256": sha(map_path)},
+            {"id": "MOD-001", "path": "模块设计/订单/订单管理.md", "type": "module", "module": "订单", "business_chains": ["订单业务链"], "depends_on": [], "sha256": sha(module_path)},
+        ],
+        "decisions": [],
+    }
+    parts = []
+    for f in sorted(manifest["files"], key=lambda x: x["id"]):
+        parts.append(f["id"] + f["path"] + f["sha256"])
+    manifest["set_sha256"] = hashlib.sha256("".join(parts).encode("utf-8")).hexdigest()
+    (design_dir / "设计集清单.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
 
 def main() -> int:
     code, report = run_case(PRD_BASE)
@@ -516,7 +544,7 @@ def main() -> int:
         root = Path(temp_dir)
         (root / "output/design").mkdir(parents=True)
         (root / "output/prd").mkdir(parents=True)
-        (root / "output/design/design.md").write_text(DESIGN, encoding="utf-8")
+        write_design_set(root, DESIGN)
         missing = subprocess.run(
             [sys.executable, str(SCRIPT), "--project-root", str(root)],
             capture_output=True,

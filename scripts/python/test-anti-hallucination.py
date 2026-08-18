@@ -23,6 +23,9 @@ FIXTURE_DIR = PROJECT_ROOT / "test-fixture"
 FIXTURE_PRD = FIXTURE_DIR / "output" / "prd" / "prd.md"
 FIXTURE_META_DIR = FIXTURE_DIR / ".workflow" / "metadata" / "design"
 HALLUCINATION_PRD = FIXTURE_DIR / "output" / "prd" / "prd-hallucination.md"
+FIXTURE_DESIGN_DIR = FIXTURE_DIR / "output" / "design"
+FIXTURE_MANIFEST = FIXTURE_DESIGN_DIR / "设计集清单.json"
+FIXTURE_MODULE_DIR = FIXTURE_DESIGN_DIR / "模块设计" / "审计"
 
 # 预期注入的幻觉项（section → 关键词列表）
 EXPECTED_HALLUCINATIONS = {
@@ -126,12 +129,44 @@ def _gen_design_metadata():
     states = [{"id": f"STATE-design-{i+1:03d}", "type": "state", "title": t} for i, t in enumerate(prd_states)]
     perms = [{"id": f"PERM-design-{i+1:03d}", "type": "permission", "page": t} for i, t in enumerate(prd_perm_pages)]
 
-    FIXTURE_META_DIR.mkdir(parents=True, exist_ok=True)
-    (FIXTURE_META_DIR / "fields.json").write_text(json.dumps(fields, ensure_ascii=False, indent=2), encoding="utf-8")
-    (FIXTURE_META_DIR / "pages.json").write_text(json.dumps(pages, ensure_ascii=False, indent=2), encoding="utf-8")
-    (FIXTURE_META_DIR / "states.json").write_text(json.dumps(states, ensure_ascii=False, indent=2), encoding="utf-8")
-    (FIXTURE_META_DIR / "permissions.json").write_text(json.dumps(perms, ensure_ascii=False, indent=2), encoding="utf-8")
+    # 生成多文件 Design 集（不再写旧 metadata）：从 PRD 提取的实体反推 Design 文本
+    design_text = _build_design_text(fields, pages, states, perms)
+    FIXTURE_MODULE_DIR.mkdir(parents=True, exist_ok=True)
+    module_path = FIXTURE_MODULE_DIR / "审计系统.md"
+    module_path.write_text(design_text, encoding="utf-8")
+    map_path = FIXTURE_DESIGN_DIR / "设计地图.md"
+    map_path.write_text("# 设计地图\n\n## 模块与职责\n\n- MOD-001 [审计系统](模块设计/审计/审计系统.md)：负责审计管理。\n", encoding="utf-8")
+    import hashlib as _hl
+    def _sha(p): return _hl.sha256(p.read_bytes()).hexdigest()
+    manifest = {
+        "schema_version": "shitpm-design-set/v1",
+        "set_sha256": "",
+        "files": [
+            {"id": "MAP-001", "path": "设计地图.md", "type": "map", "module": None, "business_chains": [], "depends_on": [], "sha256": _sha(map_path)},
+            {"id": "MOD-001", "path": "模块设计/审计/审计系统.md", "type": "module", "module": "审计", "business_chains": ["审计业务链"], "depends_on": [], "sha256": _sha(module_path)},
+        ],
+        "decisions": [],
+    }
+    parts = []
+    for f in sorted(manifest["files"], key=lambda x: x["id"]):
+        parts.append(f["id"] + f["path"] + f["sha256"])
+    manifest["set_sha256"] = _hl.sha256("".join(parts).encode("utf-8")).hexdigest()
+    FIXTURE_MANIFEST.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     return len(fields), len(pages), len(states), len(perms)
+
+
+def _build_design_text(fields, pages, states, perms):
+    """把提取的实体反推为模块 Design 文本（表格格式，供一致性检查读取）。"""
+    lines = ['# 模块设计：审计系统', '', '## 一、模块职责与边界', '负责审计管理。', '', '## 四、页面、区块、字段与操作设计', '', '### 页面清单（可选速览）', '', '| 页面 | 用户任务 | 适用角色 | 主要入口/去向 |', '| --- | --- | --- | --- |']
+    for p in pages:
+        title = p["title"] if isinstance(p, dict) else p
+        lines.append(f'| {title} | {title}相关 | 审计用户 | 工作台进入 |')
+    lines += ['', '### 页面：[审计列表]', '', '- 页面目的：审计管理', '- 适用角色：审计用户', '- 进入条件：已登录', '- 数据范围：全部', '- 主要状态：无状态机', '', '#### 区块：[主表]', '', '- 区块目的：展示审计数据', '', '##### 字段表', '', '| 字段名称 | 业务含义 | 字段来源 | 展示条件 | 输入与编辑规则 | 取值与默认规则 | 交互方式 | 校验与反馈 |', '| --- | --- | --- | --- | --- | --- | --- | --- |']
+    for f in fields:
+        title = f["title"] if isinstance(f, dict) else f
+        lines.append(f'| {title} | {title} | 审计服务 | 始终展示 | 可读 | 默认空 | 文本展示 | 无 |')
+    lines += ['', '## 六、成功与验收', '', '无。', '']
+    return "\n".join(lines)
 
 
 def _inject_hallucinations():
@@ -256,9 +291,16 @@ def clean():
     """清理测试产物（metadata + 幻觉 PRD），保留固定 PRD 和 design"""
     if HALLUCINATION_PRD.exists():
         HALLUCINATION_PRD.unlink()
+    if FIXTURE_MANIFEST.exists():
+        FIXTURE_MANIFEST.unlink()
+    if FIXTURE_MODULE_DIR.exists():
+        shutil.rmtree(FIXTURE_MODULE_DIR)
+    map_path = FIXTURE_DESIGN_DIR / "设计地图.md"
+    if map_path.exists():
+        map_path.unlink()
     if FIXTURE_META_DIR.exists():
         shutil.rmtree(FIXTURE_META_DIR)
-    print("测试产物已清理（固定 PRD 和 design 保留）")
+    print("测试产物已清理（固定 PRD 和 design.md 保留）")
 
 
 if __name__ == "__main__":

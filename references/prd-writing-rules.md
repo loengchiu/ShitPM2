@@ -1,6 +1,6 @@
 # PRD 写作规则
 
-> 本文件的“详细需求说明写作规范”是 `4.x.6 功能详细说明` 的唯一规范源；`templates/prd.md` 只提供骨架，`references/prd-writing-examples.md` 提供表达对照，确认版 `output/design/design.md` 是产品事实源。
+> 本文件的“详细需求说明写作规范”是 `4.x.6 功能详细说明` 的唯一规范源；`templates/prd.md` 只提供骨架，`references/prd-writing-examples.md` 提供表达对照，设计集清单登记的正式 Design 文件是产品事实源。
 <!-- context:prd-writing-structure:start -->
 ## 最小结构规则（writing pass 装载）
 
@@ -90,10 +90,10 @@ Design 是唯一事实源，PRD 只承接已确认事实，不静默新增页面
 <!-- context:prd-core-boundary:start -->
 ## 事实边界（writing / module pass 装载）
 
-1. 唯一事实源是确认版 `output/design/design.md`；Prototype、旧 PRD、示例和通用经验只能帮助理解，不能覆盖或补造事实。
+1. 唯一事实源是设计集清单登记的正式 Design 文件；Prototype、旧 PRD、示例和通用经验只能帮助理解，不能覆盖或补造事实。
 2. 高影响未知（权限、数据范围、角色、状态机、流程、删除/作废/归档传播、外部系统、历史数据、统计口径）必须列为待确认并回到 Design；低影响展示细节只能承接 Design confirmation 已拍板的推断值。
 3. Design 冲突不得由 PRD 拍板：保留冲突事实、说明冲突位置和影响对象、列为待确认，并在无法确认前停止对应模块写作，建议回到 Design Fix。
 4. 生成后直接回读真实 `prd.md` 与 Design：检查承接、遗漏和擅自增加，发现问题直接修正；不生成承接矩阵、覆盖率报告、验证回执或机器签名替代回读。
-5. 交付 PRD 必须自包含。不得写 `Design §x.x`、`output/design/design.md`、`按 Design 规则` 或其他跨文件指针；确认后的规则直接写入当前 PRD，重复使用时只引用当前 PRD 已存在的章节或页面。未确认事实只写“待确认”及影响，不用外部引用掩盖缺口。
+5. 交付 PRD 必须自包含。不得写 `Design §x.x`、`output/design/设计地图.md`、`按 Design 规则` 或其他跨文件指针；确认后的规则直接写入当前 PRD，重复使用时只引用当前 PRD 已存在的章节或页面。未确认事实只写“待确认”及影响，不用外部引用掩盖缺口。
 6. 流程图是 PRD 交付包内的辅助资产，不替代正文事实。图中的角色、动作、判断、分支、异常和结果必须能在当前 PRD 正文中定位。
 <!-- context:prd-core-boundary:end -->

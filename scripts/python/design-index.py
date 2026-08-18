@@ -1,8 +1,15 @@
 #!/usr/bin/env python3
-"""从 output/design/design.md 确定性编译和检查 Design 结构索引。
+"""从设计集清单列出的正式 Design 文件确定性编译和检查 Design 结构索引。
 
 索引是 Design 的只读派生物，不是产品事实源。编译不读取旧 metadata、运行状态或模型输出，
-也不写入时间字段；相同的 design.md 必须得到相同的 JSON 内容。
+也不写入时间字段；相同输入文件必须得到相同的 JSON 内容。
+
+多文件规则：
+- 模块 Design（type=module）解析页面、区块、字段、操作和状态；
+- 系统级基线和跨模块契约（type=system/contract）只解析其实际存在的结构，不要求伪造页面；
+- 设计地图（type=map）不进入页面实体索引；
+- 每个实体记录来源文件 ID、路径和章节；
+- 不再使用整篇 design_sha256，改用文件级指纹 file_sha256。
 """
 
 from __future__ import annotations
@@ -18,6 +25,8 @@ from typing import Any
 
 INDEX_RELATIVE_PATH = Path(".workflow/runtime/context/design/index/design-index.json")
 SCHEMA_VERSION = "design-index/v1"
+MANIFEST_RELATIVE_PATH = Path("output/design/设计集清单.json")
+DESIGN_ROOT = Path("output/design")
 
 # 固定结构的必填属性。值为“无”或“不适用”时视为明确声明，不视为缺失。
 REQUIRED_ATTRIBUTES = {
@@ -508,7 +517,7 @@ def _parse_design(content: str, design_sha256: str, require_current_format: bool
         _add_error(
             errors,
             "unsupported_format",
-            "design.md 未发现固定的页面/区块/字段/操作标题结构；不能编译为 Design v1 索引，请由下游兼容解析器处理旧格式",
+            "Design 文件未发现固定的页面/区块/字段/操作标题结构；不能编译为 Design v1 索引",
         )
 
     if require_current_format:
@@ -630,7 +639,7 @@ def _parse_design(content: str, design_sha256: str, require_current_format: bool
 
     return {
         "schema_version": SCHEMA_VERSION,
-        "artifact_path": "output/design/design.md",
+        "artifact_path": "output/design/设计集清单.json",
         "design_sha256": design_sha256,
         "pages": pages_public,
         "blocks": [_node_public(block) | {"page_id": block["page_id"]} for block in blocks],
@@ -711,12 +720,110 @@ def _ancestor_name(node: dict[str, Any] | None, entity_type: str) -> str | None:
         current = current.get("parent")
     return None
 def compile_index(project_root: Path, require_current_format: bool = False) -> dict[str, Any]:
-    design_path = project_root / "output" / "design" / "design.md"
-    if not design_path.is_file():
-        raise FileNotFoundError(f"design.md 不存在: {design_path}")
-    raw = design_path.read_bytes()
-    content = raw.decode("utf-8")
-    return _parse_design(content, _sha256(raw), require_current_format=require_current_format)
+    """从设计集清单列出的正式 Design 文件编译结构索引。
+
+    模块文件解析页面/区块/字段/操作/状态；系统基线、跨模块契约只解析实际存在的结构；
+    设计地图只登记指纹，不进入页面实体。每个实体记录来源文件 ID、路径和章节。
+    """
+    manifest_path = project_root / MANIFEST_RELATIVE_PATH
+    if not manifest_path.is_file():
+        raise FileNotFoundError(f"设计集清单不存在: {manifest_path}")
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError(f"设计集清单无法解析: {manifest_path}: {exc}") from exc
+    if not isinstance(manifest, dict):
+        raise ValueError("设计集清单顶层必须是对象")
+    files = manifest.get("files")
+    if not isinstance(files, list):
+        raise ValueError("设计集清单缺少 files 数组")
+
+    merged: dict[str, Any] = {
+        "schema_version": SCHEMA_VERSION,
+        "manifest_path": MANIFEST_RELATIVE_PATH.as_posix(),
+        "file_sha256": {},
+        "pages": [],
+        "blocks": [],
+        "fields": [],
+        "operations": [],
+        "states": [],
+        "errors": [],
+        "summary": {"files": 0, "pages": 0, "blocks": 0, "fields": 0, "operations": 0, "errors": 0},
+    }
+    id_seen: dict[str, str] = {}
+    for entry in files:
+        if not isinstance(entry, dict):
+            continue
+        fid = entry.get("id")
+        ftype = entry.get("type")
+        rel = entry.get("path")
+        if not isinstance(fid, str) or not isinstance(rel, str):
+            merged["errors"].append({"code": "invalid_manifest_entry", "message": f"清单条目缺少 id/path: {entry}", "file_id": None})
+            continue
+        if fid in id_seen:
+            merged["errors"].append({"code": "duplicate_file_id", "message": f"重复文件 ID: {fid}", "file_id": fid})
+        id_seen[fid] = rel
+        path = (project_root / DESIGN_ROOT / rel).resolve()
+        if not path.is_file():
+            merged["errors"].append({"code": "design_file_missing", "message": f"Design 文件不存在: {rel}", "file_id": fid})
+            continue
+        raw = path.read_bytes()
+        digest = _sha256(raw)
+        merged["file_sha256"][fid] = digest
+        content = raw.decode("utf-8")
+        try:
+            if ftype == "module":
+                parsed = _parse_design(content, digest, require_current_format=require_current_format)
+            else:
+                parsed = _parse_nonmodule(content, digest, ftype)
+        except ValueError as exc:
+            merged["errors"].append({"code": "parse_error", "message": f"{rel}: {exc}", "file_id": fid})
+            continue
+        _merge_parsed(merged, parsed, fid, rel)
+    merged["summary"]["files"] = len(id_seen)
+    merged["summary"]["errors"] = len(merged["errors"])
+    return merged
+
+
+def _merge_parsed(merged: dict[str, Any], parsed: dict[str, Any], fid: str, rel: str) -> None:
+    """把单个文件的解析结果合并进总索引，并给实体附加来源文件信息。"""
+    for key in ("pages", "blocks", "fields", "operations", "states"):
+        for item in parsed.get(key, []):
+            if isinstance(item, dict):
+                item["source_file_id"] = fid
+                item["source_path"] = rel
+            merged[key].append(item)
+    for err in parsed.get("errors", []):
+        if isinstance(err, dict) and "file_id" not in err:
+            err["file_id"] = fid
+        merged["errors"].append(err)
+    merged["summary"]["pages"] += len(parsed.get("pages", []))
+    merged["summary"]["blocks"] += len(parsed.get("blocks", []))
+    merged["summary"]["fields"] += len(parsed.get("fields", []))
+    merged["summary"]["operations"] += len(parsed.get("operations", []))
+
+
+def _parse_nonmodule(content: str, digest: str, ftype: str) -> dict[str, Any]:
+    """解析系统基线、跨模块契约或设计地图的结构。
+
+    只登记文件级指纹和章节标题；不要求页面/区块/字段/操作结构，不伪造页面。
+    标题结构可被地图引用检查和章节导航使用。
+    """
+    headings = _split_heading_lines(content)
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "file_sha256": digest,
+        "pages": [],
+        "blocks": [],
+        "fields": [],
+        "operations": [],
+        "states": [],
+        "errors": [],
+        "headings": [
+            {"level": h["level"], "title": h["title"], "line": h["line"]}
+            for h in headings
+        ],
+    }
 
 
 def _canonical_index(value: dict[str, Any]) -> str:
@@ -754,10 +861,10 @@ def validate_index(project_root: Path, stored: dict[str, Any] | None = None, req
         except (OSError, ValueError) as exc:
             return False, expected, str(exc)
     if stored != expected:
-        if stored.get("design_sha256") != expected.get("design_sha256"):
-            reason = "Design 哈希不一致"
+        if stored.get("file_sha256") != expected.get("file_sha256"):
+            reason = "Design 文件指纹不一致"
         else:
-            reason = "索引内容与 design.md 的确定性编译结果不一致"
+            reason = "索引内容与 Design 文件的确定性编译结果不一致"
         return False, expected, reason
     if expected.get("errors"):
         if _is_unsupported_format(expected):
@@ -772,9 +879,9 @@ def _is_unsupported_format(data: dict[str, Any] | None) -> bool:
 
 
 def load_verified_index(project_root: Path) -> tuple[dict[str, Any] | None, str | None, bool]:
-    """下游读取入口：有索引时先校验；无索引时从 design.md 内存编译。
+    """下游读取入口：有索引时先校验；无索引时从 Design 集合内存编译。
 
-    返回 (index, error, from_file)。索引永远不能绕过 design.md 哈希和结构校验。
+    返回 (index, error, from_file)。索引永远不能绕过 Design 文件指纹和结构校验。
     """
     try:
         stored = load_index(project_root)
@@ -823,7 +930,7 @@ def main() -> int:
             "ok": not bool(data["errors"]),
             "command": "compile",
             "index_path": str(target),
-            "design_sha256": data["design_sha256"],
+            "file_sha256": data["file_sha256"],
             "summary": data["summary"],
             "errors": data["errors"],
         }
@@ -840,7 +947,7 @@ def main() -> int:
         "ok": valid,
         "command": "check",
         "index_path": str(index_path(root)),
-        "design_sha256": expected.get("design_sha256"),
+        "file_sha256": expected.get("file_sha256", {}),
         "summary": expected.get("summary", {}),
         "errors": expected.get("errors", []),
     }

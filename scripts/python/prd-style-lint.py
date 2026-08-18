@@ -516,7 +516,7 @@ def check_glossary_section(lines: list) -> list:
             severity="error",
             line=1,
             message="缺少名词说明章节",
-            suggestion="补充术语定义章节（### x.x 术语定义），按确认版 Design 列出业务术语",
+            suggestion="补充术语定义章节（### x.x 术语定义），按正式 Design 文件列出业务术语",
         ))
     return issues
 

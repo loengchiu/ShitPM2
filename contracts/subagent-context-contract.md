@@ -46,6 +46,6 @@ Sub-agent 请求上下文包时必须同时通过 `context-pack.py --role <role>
 - 没有来源路径的输出拒绝采纳。
 - Sub-agent 之间结论冲突时，主 Agent 回到原始证据判断，不能用多数投票替代业务证据和用户确认。
 - 材料事实提取结果进入 `.workflow/runtime/materials/facts.json`，必须绑定当前 `material_revision`；Design Challenger 等阶段交接仍只能进入 `.workflow/runtime/context/<stage>/handoff/`，不得进入最终产品事实目录。主 Agent 采纳交接时必须核对来源、版本和体量；`context-runtime-check.py` 仅在当前动作明确需要时作为确定性校验工具使用，不构成独立的 Review 门禁。
-- 最终写作必须以项目级材料事实资产、必要的定点原始证据、确认版 Design 和适用规则为依据；运行交接文件不是产品事实源。
+- 最终写作必须以项目级材料事实资产、必要的定点原始证据、Design 事实闭包和适用规则为依据；运行交接文件不是产品事实源。
 - 交接体量上限只用于阻止隔离上下文膨胀，不代表产品完整性、字段数量或业务复杂度门槛。
 - Sub-agent 不能绕过确定性检查、confirmation 门或待确认边界。

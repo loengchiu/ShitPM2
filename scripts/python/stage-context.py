@@ -2,8 +2,8 @@
 """stage-context.py — ShitPM 轻量导航和上下文脚本
 
 职责：
-- 优先探测 canonical 文件：output/align/align.md、output/design/design.md、output/prd/prd.md、output/prototype/
-- 检查 Design 确认标记（.workflow/confirmations/design.json）的哈希是否仍然有效
+- 优先探测 canonical 文件：output/align/align.md、设计地图与设计集清单、output/prd/prd.md、output/prototype/
+- 以设计地图和设计集清单判断 Design 是否存在；不再使用确认标记或哈希确认
 - 输出 available_actions 列表（PRD 与 Prototype 是 Design 的两个独立下游）
 - 输出每个动作的模型等级和推理深度建议（来自批准稿 ShitPM PRD §6）
 - status.json 只作为兼容镜像，不得覆盖真实文件判断
@@ -23,13 +23,17 @@ from pathlib import Path
 
 VALID_STAGES = ["align", "design", "design-review", "prd", "prd-review", "prototype", "prototype-review", "fix", "done"]
 
-DESIGN_ARTIFACT = "output/design/design.md"
-CONFIRMATION_FILE = ".workflow/confirmations/design.json"
+DESIGN_MAP = "output/design/设计地图.md"
+DESIGN_MANIFEST = "output/design/设计集清单.json"
+DESIGN_CHANGE_SINGLE = ".workflow/runtime/design-change/single/active.json"
+DESIGN_CHANGE_MULTI = ".workflow/runtime/design-change/active.json"
+PRD_PROVENANCE = ".workflow/provenance/prd.json"
+PROTO_PROVENANCE = ".workflow/provenance/prototype.json"
 
 # canonical 文件相对路径（ShitPM：真实文件判断优先于 status.artifacts 镜像）
 CANONICAL_FILES = {
     "align": "output/align/align.md",
-    "design": "output/design/design.md",
+    "design": "output/design/设计地图.md",
     "prd": "output/prd/prd.md",
     "prototype": "output/prototype/index.html",
 }
@@ -53,21 +57,19 @@ REASONING_DEPTH = {
     "spm-prototype-review": "结构检查可浅；交互主路径挑战需深。",
     "spm-fix": "范围明确可浅；跨模块或语义变更需深。",
     "spm-prototype-mark": "默认浅；主动发现高影响问题时另行使用深度 Review。",
-    "confirm-design": "无需模型。",
 }
 
 # 各动作默认模型等级建议（ShitPM PRD §6.3）
 DEFAULT_MODEL_TIER = {
     "spm-align": "视任务而定（探索型用深度推理模型，整理型可用轻量模型）",
     "spm-design": MODEL_TIER_DEEP,
-    "spm-prd": "根据确认版 Design 判断（决策完整可用轻量模型）",
+    "spm-prd": "Design 决策完整可用轻量模型；含未决问题或冲突需深",
     "spm-prototype": "根据交互和实现复杂度判断",
     "spm-design-review": MODEL_TIER_DEEP,
     "spm-prd-review": MODEL_TIER_DEEP,
     "spm-prototype-review": MODEL_TIER_DEEP,
     "spm-fix": "根据变更影响判断",
     "spm-prototype-mark": MODEL_TIER_LIGHT,
-    "confirm-design": "—",
 }
 
 
@@ -83,35 +85,42 @@ MINIMAL_READ_SET = {
         "scripts/python/context-budget.py",
         "scripts/python/context-runtime-check.py",
         "output/align/align.md",  # Design 必经的需求事实输入；原始材料可选
+        "output/design/设计地图.md",
+        "output/design/设计集清单.json",
     ],
     "prd": [
         "contracts/context-loading.manifest.json",
         "scripts/python/context-pack.py",
         "scripts/python/context-budget.py",
         "contracts/subagent-context-contract.md",
-        "output/design/design.md",
+        "output/design/设计地图.md",
+        "output/design/设计集清单.json",
     ],
     "prototype": [
-        "output/design/design.md",
+        "output/design/设计地图.md",
+        "output/design/设计集清单.json",
         "templates/prototype-vite",
         "scripts/python/prototype-source-check.py",
         "references/prototype-writing.md",
     ],
     "fix": [],
     "design-review": [
-        "output/design/design.md",
+        "output/design/设计地图.md",
+        "output/design/设计集清单.json",
         "contracts/review-checklist.md",
         "contracts/design-review-checklist.md",
         "references/design-quality-rubric.md",
     ],
     "prd-review": [
-        "output/design/design.md",
+        "output/design/设计地图.md",
+        "output/design/设计集清单.json",
         "output/prd/prd.md",
         "contracts/review-checklist.md",
         "contracts/prd-review-checklist.md",
     ],
     "prototype-review": [
-        "output/design/design.md",
+        "output/design/设计地图.md",
+        "output/design/设计集清单.json",
         "output/prototype/index.html",
         "contracts/review-checklist.md",
         "contracts/prototype-review-checklist.md",
@@ -172,111 +181,56 @@ def _compute_sha256(path: Path) -> str | None:
     return h.hexdigest()
 
 
-def load_design_confirmation(project_root: Path) -> dict | None:
-    """读取确认标记。ShitPM：JSON 损坏时返回稳定错误标记。"""
-    path = project_root / CONFIRMATION_FILE
-    if not path.exists():
-        return None
-    try:
-        with open(path, encoding="utf-8") as f:
-            return json.load(f)
-    except (json.JSONDecodeError, OSError) as e:
-        return {"__corrupted__": True, "source": str(path), "error": str(e)}
-
-
-def _validate_confirmation_payload(payload: dict) -> list[str]:
-    """对确认标记做必要字段校验，返回问题列表（空列表表示通过）。
-
-    ShitPM：确认 Schema 进入执行路径，不依赖可选 jsonschema 库。
-    """
-    problems: list[str] = []
-    if not isinstance(payload, dict):
-        return ["confirmation payload 不是对象"]
-    artifact = payload.get("artifact")
-    if artifact != DESIGN_ARTIFACT:
-        problems.append(f"artifact 必须固定为 {DESIGN_ARTIFACT}，实际为 {artifact!r}")
-    digest = payload.get("content_sha256")
-    if not isinstance(digest, str) or len(digest) != 64:
-        problems.append("content_sha256 必须是 64 位十六进制字符串")
-    else:
+def design_change_status(project_root: Path) -> dict:
+    """检查 Design 修改状态（活动事务）。返回 {active, mode, phase}。"""
+    for mode, rel in (("single", DESIGN_CHANGE_SINGLE), ("multi", DESIGN_CHANGE_MULTI)):
+        path = project_root / rel
+        if not path.is_file():
+            continue
         try:
-            int(digest, 16)
-        except ValueError:
-            problems.append("content_sha256 必须是十六进制字符串")
-    confirmed_at = payload.get("confirmed_at")
-    if not isinstance(confirmed_at, str) or not confirmed_at:
-        problems.append("confirmed_at 必须是非空字符串")
-    confirmed_by = payload.get("confirmed_by")
-    if confirmed_by is not None and not isinstance(confirmed_by, str):
-        problems.append("confirmed_by 必须是字符串或 null")
-    note = payload.get("note")
-    if note is not None and not isinstance(note, str):
-        problems.append("note 必须是字符串或 null")
-    return problems
+            data = json.loads(path.read_text(encoding="utf-8-sig"))
+            return {
+                "active": True,
+                "mode": mode,
+                "phase": data.get("phase", "unknown"),
+                "hint": f"存在 {mode} 事务（{data.get('phase', 'unknown')}）。"
+                        "PRD、Prototype、Review 和 fix 不应读取正在变化的 Design 集合；"
+                        "请先执行 design-set.py recover。",
+            }
+        except (json.JSONDecodeError, OSError) as e:
+            return {
+                "active": True,
+                "mode": mode,
+                "phase": "corrupted",
+                "error": str(e),
+                "hint": f"{mode} 事务 active.json 损坏。请先执行 design-set.py recover。",
+            }
+    return {"active": False, "mode": None, "phase": None}
 
 
-def design_confirmation_status(project_root: Path) -> dict:
-    """检查 Design 确认状态。返回 {confirmed, reason, current_sha256, confirmed_sha256, confirmed_at, problems}
-
-    ShitPM：JSON 损坏或字段不合法时输出稳定错误，不抛 traceback。
-    """
-    design_path = project_root / DESIGN_ARTIFACT
-    confirmation = load_design_confirmation(project_root)
-
-    if not design_path.exists():
-        return {
-            "confirmed": False,
-            "reason": "design_not_found",
-            "hint": "output/design/design.md 不存在，请先生成 Design。",
-        }
-
-    current_digest = _compute_sha256(design_path)
-
-    if confirmation is None:
-        return {
-            "confirmed": False,
-            "reason": "no_confirmation_record",
-            "current_sha256": current_digest,
-            "hint": "用户尚未确认当前 Design。请由用户明确确认后下游才能继续。",
-        }
-
-    if isinstance(confirmation, dict) and confirmation.get("__corrupted__"):
-        return {
-            "confirmed": False,
-            "reason": "confirmation_corrupted",
-            "current_sha256": current_digest,
-            "hint": "确认标记 JSON 损坏。请用 design-confirmation.py confirm 重新写入。",
-            "error": confirmation.get("error", ""),
-            "source": confirmation.get("source", ""),
-        }
-
-    problems = _validate_confirmation_payload(confirmation)
-    if problems:
-        return {
-            "confirmed": False,
-            "reason": "confirmation_invalid",
-            "current_sha256": current_digest,
-            "hint": "确认标记字段不合法。请用 design-confirmation.py confirm 重新写入。",
-            "problems": problems,
-        }
-
-    stored_digest = confirmation.get("content_sha256", "")
-    if current_digest == stored_digest:
-        return {
-            "confirmed": True,
-            "reason": "hash_match",
-            "current_sha256": current_digest,
-            "confirmed_sha256": stored_digest,
-            "confirmed_at": confirmation.get("confirmed_at"),
-        }
-    return {
-        "confirmed": False,
-        "reason": "hash_mismatch",
-        "current_sha256": current_digest,
-        "confirmed_sha256": stored_digest,
-        "confirmed_at": confirmation.get("confirmed_at"),
-        "hint": "design.md 在上次确认后被修改。需要用户重新确认后下游才能继续。",
-    }
+def downstream_impact_status(project_root: Path) -> list[dict]:
+    """读取 PRD / Prototype 下游依据中的受影响状态。"""
+    result: list[dict] = []
+    for artifact, rel in (("prd", PRD_PROVENANCE), ("prototype", PROTO_PROVENANCE)):
+        path = project_root / rel
+        if not path.is_file():
+            continue
+        try:
+            data = json.loads(path.read_text(encoding="utf-8-sig"))
+        except (json.JSONDecodeError, OSError):
+            result.append({"artifact": artifact, "corrupted": True})
+            continue
+        for target in data.get("targets", []):
+            if target.get("status") in ("affected", "incomplete"):
+                result.append({
+                    "artifact": artifact,
+                    "target_id": target.get("target_id"),
+                    "target_name": target.get("target_name"),
+                    "status": target.get("status"),
+                    "check_status": target.get("check_status"),
+                    "affected_by": target.get("affected_by", []),
+                })
+    return result
 
 
 def determine_actual_stage(canonical: dict) -> str:
@@ -309,19 +263,16 @@ def recommend_model_for_action(action: str) -> dict:
 def build_available_actions(
     project_root: Path,
     canonical: dict,
-    design_conf: dict,
 ) -> list[dict]:
     """构建 available_actions 列表：每个动作是否可用 + 原因 + 模型建议。
 
-    ShitPM：优先用 canonical 文件探测结果，不依赖 status.artifacts 镜像。
+    ShitPM：优先用 canonical 文件探测结果，不依赖 status.artifacts 镜像；
+    Design 不存在确认动作或确认门槛，PRD 与 Prototype 是 Design 的两个独立下游。
     """
     has_align = canonical.get("align", False)
     has_design = canonical.get("design", False)
     has_prd = canonical.get("prd", False)
     has_prototype = canonical.get("prototype", False)
-
-    design_confirmed = design_conf.get("confirmed", False)
-    design_conf_reason = design_conf.get("reason", "")
 
     actions: list[dict] = []
 
@@ -341,57 +292,35 @@ def build_available_actions(
         **recommend_model_for_action("spm-design"),
     })
 
-    # confirm-design：只有 design.md 存在才可用
-    actions.append({
-        "action": "confirm-design",
-        "available": has_design,
-        "reason": "design.md 存在，可由用户明确确认。" if has_design else "design.md 不存在，无法确认。",
-        **recommend_model_for_action("confirm-design"),
-    })
-
-    # spm-prd：需 design.md 存在 + 已确认
+    # spm-prd：需设计地图存在（Design 集合已生成）
     if not has_design:
         actions.append({
             "action": "spm-prd",
             "available": False,
-            "reason": "design.md 不存在。",
-            **recommend_model_for_action("spm-prd"),
-        })
-    elif not design_confirmed:
-        actions.append({
-            "action": "spm-prd",
-            "available": False,
-            "reason": f"Design 未确认（{design_conf_reason}）。请先由用户确认当前 Design。",
+            "reason": "设计地图不存在，Design 未生成。",
             **recommend_model_for_action("spm-prd"),
         })
     else:
         actions.append({
             "action": "spm-prd",
             "available": True,
-            "reason": "Design 已确认，可直接生成 PRD。",
+            "reason": "Design 集合存在，可直接生成 PRD；无需确认动作。",
             **recommend_model_for_action("spm-prd"),
         })
 
-    # spm-prototype：需 design.md 存在 + 已确认
+    # spm-prototype：需设计地图存在
     if not has_design:
         actions.append({
             "action": "spm-prototype",
             "available": False,
-            "reason": "design.md 不存在。",
-            **recommend_model_for_action("spm-prototype"),
-        })
-    elif not design_confirmed:
-        actions.append({
-            "action": "spm-prototype",
-            "available": False,
-            "reason": f"Design 未确认（{design_conf_reason}）。请先由用户确认当前 Design。",
+            "reason": "设计地图不存在，Design 未生成。",
             **recommend_model_for_action("spm-prototype"),
         })
     else:
         actions.append({
             "action": "spm-prototype",
             "available": True,
-            "reason": "Design 已确认，可直接生成 Prototype。",
+            "reason": "Design 集合存在，可直接生成 Prototype；无需确认动作。",
             **recommend_model_for_action("spm-prototype"),
         })
 
@@ -420,7 +349,7 @@ def build_available_actions(
     actions.append({
         "action": "spm-fix",
         "available": True,
-        "reason": "高影响修改需回写 Design 并使旧确认失效；表现层修改可只改对应下游。",
+        "reason": "高影响修改需回写 Design 并同步实际受影响的现有下游；无确认停顿。",
         **recommend_model_for_action("spm-fix"),
     })
 
@@ -477,8 +406,9 @@ def collect_context(project_root: Path, stdin_status: bool = False, bundle_root:
     """ShitPM：无 status.json 时仍能正常输出，优先用 canonical 文件探测。"""
     status = load_status(project_root, stdin_status=stdin_status)
     canonical = probe_canonical_files(project_root)
-    design_conf = design_confirmation_status(project_root)
-    available_actions = build_available_actions(project_root, canonical, design_conf)
+    design_change = design_change_status(project_root)
+    downstream_impact = downstream_impact_status(project_root)
+    available_actions = build_available_actions(project_root, canonical)
     actual_stage = determine_actual_stage(canonical)
 
     status_corrupted = isinstance(status, dict) and status.get("__corrupted__")
@@ -526,7 +456,8 @@ def collect_context(project_root: Path, stdin_status: bool = False, bundle_root:
         "metadata_paths": status_dict.get("metadata_paths", {}),
         "align_notes": align_notes if align_notes else {},
         # ShitPM 字段
-        "design_confirmation": design_conf,
+        "design_change": design_change,
+        "downstream_impact": downstream_impact,
         "available_actions": available_actions,
         "next_recommended": next_recommended,
         "minimal_read_set": resolved_read_set,

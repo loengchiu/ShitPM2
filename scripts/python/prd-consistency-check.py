@@ -3,8 +3,8 @@
 
 ShitPM 变更：
 - 不再依赖 .workflow/metadata/design/ 下的 metadata 文件。
-- 直接读取 output/design/design.md 和 output/prd/prd.md，从人读稿中提取实体做集合对比。
-- 复用 stage-prep.py 的 generate_design_metadata 函数从 design.md 提取实体（不写入 metadata 文件）。
+- 直接读取设计集清单列出的正式 Design 文件和 output/prd/prd.md，从人读稿中提取实体做集合对比。
+- 复用 stage-prep.py 的 generate_design_metadata 函数从正式 Design 文件提取实体（不写入 metadata 文件）。
 - 多模板兼容：支持业务模块内分散字段、系统全景页面映射和旧模板章节。
 - 只做确定性提取和集合对比，不做语义判断。
 - 可靠结构事实（字段属性、内部字段交付、明确权限允许/禁止反转）由脚本检查；复杂业务语义仍由 Review 判断。
@@ -12,7 +12,7 @@ ShitPM 变更：
 退出码：
 - 0: 无明确冲突；可能遗漏和需要语义判断的分类仍会输出，或 skipped（Prototype-only + --allow-no-prd）
 - 1: 发现 deterministic_conflict，调用方必须修正后重新检查
-- 2: 致命错误（design.md 或 prd.md 不存在等）
+- 2: 致命错误（设计集清单、Design 文件或 prd.md 不存在等）
 
 用法：
   python prd-consistency-check.py --project-root .
@@ -1417,9 +1417,9 @@ def _compare_field_sets(
 
 
 def _design_field_objects(project_root: Path, design_fields: list) -> list:
-    """为 design_fields 补充所属对象（来自 design.md 字段表所在章节标题）。"""
+    """为 design_fields 补充所属对象（来自正式 Design 文件字段表所在章节标题）。"""
     try:
-        content = (project_root / "output" / "design" / "design.md").read_text(encoding="utf-8")
+        content = _read_design_set_text(project_root)
     except Exception:
         return []
     headings = parse_headings(content)
@@ -1439,9 +1439,9 @@ def _design_field_objects(project_root: Path, design_fields: list) -> list:
 
 
 def _design_enum_state_values(project_root: Path) -> set:
-    """从 design.md 字段表提取状态类字段的枚举值（Design 数据字典口径）。"""
+    """从正式 Design 文件字段表提取状态类字段的枚举值（Design 数据字典口径）。"""
     try:
-        content = (project_root / "output" / "design" / "design.md").read_text(encoding="utf-8")
+        content = _read_design_set_text(project_root)
     except Exception:
         return set()
     headings = parse_headings(content)
@@ -1452,7 +1452,7 @@ def _design_enum_state_values(project_root: Path) -> set:
 def _design_context_titles(project_root: Path) -> set:
     """收集 Design 的对象/章节标题，用于识别 PRD 字段名中的对象引用变体。"""
     try:
-        content = (project_root / "output" / "design" / "design.md").read_text(encoding="utf-8")
+        content = _read_design_set_text(project_root)
     except Exception:
         return set()
     titles = set()
@@ -1505,7 +1505,7 @@ def compare_permission_pages(
 
 
 def _load_verified_design_index(project_root: Path):
-    """优先读取并校验 Design 索引；索引缺失时仅在内存中从 design.md 编译。"""
+    """优先读取并校验 Design 索引；索引缺失时仅在内存中从 Design 集合编译。"""
     path = Path(__file__).with_name("design-index.py")
     spec = importlib.util.spec_from_file_location("design_index", path)
     module = importlib.util.module_from_spec(spec)
@@ -1725,18 +1725,49 @@ def find_page_body_landing_issues(content: str, headings: list, expected_page_na
 
 # ── 主入口 ────────────────────────────────────────────────────
 
-def _load_design_entities_from_md(project_root: Path):
-    """ShitPM: 从 output/design/design.md 直接提取实体（不依赖 metadata）
+def _load_design_entities_from_md(project_root: Path, module_name: str | None = None):
+    """ShitPM: 从设计集清单列出的正式 Design 文件提取实体（不依赖 metadata）。
 
-    复用 stage-prep.py 的 generate_design_metadata 函数。
-    返回 (design_data, error_message)；成功时 error_message 为 None。
+    --module 指定时只读取该模块及其依赖闭包对应的 Design 文件；
+    未指定时读取全部正式 Design 文件。复用 stage-prep.py 的
+    generate_design_metadata 函数。返回 (design_data, error_message)。
     """
-    design_path = project_root / "output" / "design" / "design.md"
-    if not design_path.exists():
-        return None, f"design.md not found: {design_path}"
+    manifest_path = project_root / "output" / "design" / "设计集清单.json"
+    if not manifest_path.exists():
+        return None, f"设计集清单不存在: {manifest_path}"
     try:
-        with open(design_path, encoding="utf-8") as f:
-            content = f.read()
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
+    except Exception as exc:
+        return None, f"设计集清单无法解析: {exc}"
+    files = manifest.get("files")
+    if not isinstance(files, list) or not files:
+        return None, "设计集清单缺少 files 数组"
+    selected = list(files)
+    if module_name and selected:
+        # 按 --module 过滤：模块文件自身 + 其 depends_on 闭包
+        scripts_dir = os.path.dirname(os.path.abspath(__file__))
+        ds_spec = importlib.util.spec_from_file_location("design_set", os.path.join(scripts_dir, "design-set.py"))
+        ds_mod = importlib.util.module_from_spec(ds_spec)
+        ds_spec.loader.exec_module(ds_mod)
+        module_ids = {e["id"] for e in selected if e.get("module") == module_name}
+        if not module_ids:
+            return None, f"设计集清单中没有模块: {module_name}"
+        ordered, missing = ds_mod.closure_ids(manifest, sorted(module_ids))
+        selected = [e for e in selected if e.get("id") in set(ordered)]
+    parts = []
+    for entry in selected:
+        rel = entry.get("path")
+        if not isinstance(rel, str):
+            continue
+        path = (project_root / "output" / "design" / rel).resolve()
+        if not path.is_file():
+            continue
+        parts.append(f"\n<!-- 来源文件: {entry.get('id')} {rel} -->\n")
+        parts.append(path.read_text(encoding="utf-8-sig"))
+    if not parts:
+        return None, "设计集清单列出的正式 Design 文件均不存在"
+    try:
+        content = "\n".join(parts)
         scripts_dir = os.path.dirname(os.path.abspath(__file__))
         spec = importlib.util.spec_from_file_location("stage_prep", os.path.join(scripts_dir, "stage-prep.py"))
         mod = importlib.util.module_from_spec(spec)
@@ -1744,12 +1775,30 @@ def _load_design_entities_from_md(project_root: Path):
         data = mod.generate_design_metadata(content, "design", project_root)
         return data, None
     except Exception as e:
-        return None, f"从 design.md 解析实体失败: {e}"
+        return None, f"从 Design 文件解析实体失败: {e}"
+
+
+def _read_design_set_text(project_root: Path) -> str:
+    """读取设计集清单列出的全部正式 Design 文件并拼接（带来源注释）。"""
+    manifest_path = project_root / "output" / "design" / "设计集清单.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
+    parts = []
+    for entry in manifest.get("files", []):
+        rel = entry.get("path")
+        if not isinstance(rel, str):
+            continue
+        path = (project_root / "output" / "design" / rel).resolve()
+        if not path.is_file():
+            continue
+        parts.append(f"\n<!-- 来源文件: {entry.get('id')} {rel} -->\n")
+        parts.append(path.read_text(encoding="utf-8-sig"))
+    return "\n".join(parts)
 
 
 def main():
     parser = argparse.ArgumentParser(description="PRD 与 design 确定性结构对比（ShitPM: 直接读人读稿，多模板兼容）")
     parser.add_argument("--project-root", type=Path, default=Path.cwd(), help="项目根目录")
+    parser.add_argument("--module", type=str, default=None, help="只按该业务模块的 Design 依据运行")
     parser.add_argument(
         "--allow-no-prd",
         action="store_true",
@@ -1784,14 +1833,14 @@ def main():
         with open(prd_path, encoding="utf-8") as f:
             content = f.read()
 
-    # ShitPM: 从 design.md 直接提取实体（不依赖 metadata）
-    design_data, err = _load_design_entities_from_md(project_root)
+    # ShitPM: 从设计集清单列出的正式 Design 文件直接提取实体（不依赖 metadata）
+    design_data, err = _load_design_entities_from_md(project_root, args.module)
     if design_data is None:
         print(json.dumps({"error": err or "无法加载 design 实体"}, ensure_ascii=False))
         sys.exit(2)
 
-    # 阶段 9：优先读取与 design.md 哈希绑定的索引；缺失时只在内存中编译，绝不把索引当事实源。
-    # ShitPM: 索引不可用时优雅降级为 legacy 模式，不阻塞一致性检查。
+    # 阶段 9：优先读取与 Design 文件指纹绑定的索引；缺失时只在内存中编译，绝不把索引当事实源。
+    # ShitPM: 索引不可用时按确定性结构对比降级（不再有旧单体 legacy 模式）。
     design_index_from_file = False
     try:
         design_index_module, design_index, design_index_error, design_index_from_file = _load_verified_design_index(project_root)
@@ -1799,7 +1848,7 @@ def main():
         design_index = None
         design_index_error = str(exc)
     if design_index is None or design_index_error:
-        # 索引编译失败（如旧格式/格式变体），降级为 legacy 模式
+        # 索引编译失败（如清单缺失/文件缺失），降级为确定性结构对比
         indexed_result = {"enabled": False, "expected_count": 0, "matched_count": 0,
                           "missing": [], "hallucinated": [], "attribute_mismatch": []}
         indexed_active = False
@@ -1810,12 +1859,10 @@ def main():
     design_fields = design_data.get("fields", []) or []
     design_pages = design_data.get("pages", []) or []
     design_states = design_data.get("states", []) or []
-    # 旧 Design 表格可能使用“进入条件/下一状态”而不是 stage-prep
-    # 旧版要求的“触发动作”列；此时从确认版 Design 的状态章节回读状态名。
+    # Design 表格可能使用“进入条件/下一状态”等列名变体；此时从正式 Design 文件
+    # 的状态章节回读状态名（无旧单体回退）。
     if not design_states:
-        design_path = project_root / "output" / "design" / "design.md"
-        with open(design_path, encoding="utf-8") as design_file:
-            design_content = design_file.read()
+        design_content = _read_design_set_text(project_root)
         design_headings = parse_headings(design_content)
         design_tables = parse_tables_with_context(design_content, design_headings)
         design_state_names = extract_prd_states(design_content, design_headings, design_tables)
@@ -2103,7 +2150,7 @@ def main():
 
     result = {
         "source": {
-            "design": "output/design/design.md (human-readable)",
+            "design": "output/design/设计集清单.json (design set manifest)",
             "prd": "output/prd/prd.md (human-readable)",
         },
         "extracted": {

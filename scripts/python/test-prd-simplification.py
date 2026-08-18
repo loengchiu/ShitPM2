@@ -86,7 +86,7 @@ def main() -> int:
         "--pass plan", "--pass integration", "--pass verification",
         "prototype-structure.py", "检查回执", "机器签名", "综合门禁", "检查 JSON", "结果哈希链",
         "承接矩阵", "普通 PRD 只执行一次", "只用于超大型 PRD",
-        "模块草稿只写入", "主 Agent 最终只写入一次完整 PRD", "先完整读取确认版 Design",
+        "模块草稿只写入", "主 Agent 最终只写入一次完整 PRD", "先完整读取 Design 事实闭包",
     ):
         if forbidden in skill:
             raise AssertionError(f"Skill 仍包含废弃路径或复杂度: {forbidden}")
@@ -95,7 +95,7 @@ def main() -> int:
     for required in (
         "全量分片", "不再根据 Design 大小", "阶段 A：全局扫描", "阶段 B：建立最终 PRD 骨架",
         "阶段 C：模块分片写入", "阶段 D：有限范围整合", "4.x.6 功能详细说明",
-        "中断恢复", "不依赖 subagent", "Design confirmation",
+        "中断恢复", "不依赖 subagent", "无活动事务",
         "重新生成", "局部修复",
     ):
         if required not in skill:
@@ -109,8 +109,8 @@ def main() -> int:
         if required not in skill:
             raise AssertionError(f"Skill 缺少核心语义责任: {required}")
     for required in (
-        "design-index.py compile", "不一次性读 design.md 正文",
-        "--module <模块名>", "禁止一次性全读 design.md",
+        "设计集清单", "目标业务模块",
+        "--module <模块名>", "禁止一次性全读整套 Design",
         "片段不得包含无关模块内容", "sed 1,$p",
     ):
         if required not in skill:
@@ -176,7 +176,7 @@ def main() -> int:
     for required in (
         "无效引用", "时间范围", "页面操作承接与合并", "检查后修改", "格式统一",
         "页面展示行为完整", "自动动作失败闭环", "删除传播完整", "枚举和独立上限有来源",
-        "Design 全读痕迹", "上下文爆栈", "一次性全读 design.md",
+        "Design 全读痕迹", "上下文爆栈", "一次性全读整套 Design",
         "详细需求说明语义专项检查", "数据范围与统计口径专项检查",
         "跨页面推进", "2 倍 PNG", "PRD 内嵌引用",
     ):
