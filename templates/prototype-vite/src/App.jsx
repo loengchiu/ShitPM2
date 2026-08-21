@@ -1,46 +1,141 @@
-import { Avatar, Breadcrumb, Layout, Menu, Space } from 'antd';
-import { routes } from './routes.jsx';
+import { useEffect, useMemo, useState } from 'react';
+import { Avatar, Layout, Menu, Space, Tabs } from 'antd';
+import { routes, groupIcons, moduleIcons } from './routes.jsx';
 import { navigate, useHashRoute } from './shared/useHashRoute.js';
 
-const { Header, Sider, Content } = Layout;
+const { Header, Sider } = Layout;
 
-// 侧栏菜单从路由注册表派生；业务页面不在这里登记
-const menuItems = routes
-  .filter((item) => item.menu)
-  .map((item) => ({ key: item.path, label: item.title }));
+// 主模块聚合（保持路由注册顺序；module 为 null 的不算主模块）
+const moduleList = [];
+routes.forEach((r) => {
+  if (r.menu && r.module && !moduleList.some((m) => m.key === r.module)) {
+    moduleList.push({ key: r.module, title: r.module, icon: moduleIcons[r.module] });
+  }
+});
+
+const HOME_TAB = { key: '/', title: '首页' };
+
+function buildMenuItems(module) {
+  const items = [];
+  routes
+    .filter((r) => r.menu && r.module === module)
+    .forEach((r) => {
+      if (r.group) {
+        let sub = items.find((i) => i.key === r.group);
+        if (!sub) {
+          sub = { key: r.group, label: r.group, icon: groupIcons[r.group], children: [] };
+          items.push(sub);
+        }
+        sub.children.push({ key: r.path, label: r.title, icon: r.icon });
+      } else {
+        items.push({ key: r.path, label: r.title, icon: r.icon });
+      }
+    });
+  return items;
+}
 
 export default function App() {
-  const { path, route } = useHashRoute(routes);
-  const Page = route.component;
+  const { path } = useHashRoute(routes);
+  const [activeModule, setActiveModule] = useState(moduleList[0]);
+  const [tabs, setTabs] = useState([HOME_TAB]);
+
+  const activeRoute = useMemo(
+    () => routes.find((r) => r.path === path) || routes.find((r) => r.path === '*'),
+    [path],
+  );
+
+  useEffect(() => {
+    if (activeRoute && !activeRoute.pinned && !tabs.some((t) => t.key === path)) {
+      setTabs((prev) => [...prev, { key: path, title: activeRoute.title }]);
+    }
+  }, [path, activeRoute, tabs]);
+
+  const switchModule = (m) => {
+    setActiveModule(m.key);
+    const first = routes.find((r) => r.menu && r.module === m.key);
+    if (first) navigate(first.path);
+  };
+
+  const closeTab = (key) => {
+    if (key === '/') return;
+    setTabs((prev) => {
+      const idx = prev.findIndex((t) => t.key === key);
+      const next = prev.filter((t) => t.key !== key);
+      if (key === path && next.length) {
+        const neighbor = next[Math.max(0, idx - 1)];
+        navigate(neighbor.key);
+      }
+      return next;
+    });
+  };
+
+  const menuItems = buildMenuItems(activeModule);
+  const Page = activeRoute.component;
+
   return (
-    <Layout style={{ minHeight: '100vh' }}>
-      {/* Sider 独立滚动：菜单长时只在侧栏内部滚动，不随整页滚动 */}
+    <>
+      <Header className="app-header" style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100 }}>
+        <div className="brand">
+          <img src="/logo.png" alt="logo" className="brand-logo" />
+          <span>{'原型系统'}</span>
+        </div>
+        <div className="module-tabs">
+          {moduleList.map((m) => (
+            <button
+              key={m.key}
+              type="button"
+              className={`module-tab${m.key === activeModule ? ' active' : ''}`}
+              onClick={() => switchModule(m)}
+            >
+              {m.icon}
+              <span>{m.title}</span>
+            </button>
+          ))}
+        </div>
+        <Space>
+          <Avatar style={{ background: '#cc785c' }}>{'示'}</Avatar>
+          <span>{'演示用户'}</span>
+        </Space>
+      </Header>
       <Sider
-        theme="dark"
         width={220}
-        style={{ height: '100vh', overflow: 'auto', position: 'sticky', top: 0 }}
+        style={{
+          position: 'fixed',
+          top: 56,
+          left: 0,
+          bottom: 0,
+          overflow: 'hidden',
+          background: '#faf9f5',
+          borderRight: '1px solid #e6dfd8',
+          zIndex: 90,
+        }}
       >
-        <div className="sider-logo">{'原型系统' /* 生成时替换为项目名 */}</div>
         <Menu
-          theme="dark"
           mode="inline"
           selectedKeys={[path]}
           items={menuItems}
           onClick={({ key }) => navigate(key)}
+          style={{ borderInlineEnd: 'none', background: 'transparent', height: '100%', overflow: 'hidden' }}
         />
       </Sider>
-      <Layout>
-        <Header className="header-bar">
-          <Breadcrumb items={[{ title: route.title }]} />
-          <Space>
-            <Avatar style={{ background: '#1677ff' }}>{'示'}</Avatar>
-            <span>{'演示用户'}</span>
-          </Space>
-        </Header>
-        <Content className="content-wrap">
-          <Page />
-        </Content>
-      </Layout>
-    </Layout>
+      <div className="page-tabs-bar" style={{ position: 'fixed', top: 56, left: 220, right: 0, zIndex: 95 }}>
+        <Tabs
+          type="editable-card"
+          hideAdd
+          size="small"
+          activeKey={path}
+          onChange={navigate}
+          onEdit={(key, action) => {
+            if (action === 'remove') closeTab(key);
+          }}
+          items={tabs.map((t) => ({ key: t.key, label: t.title, closable: t.key !== '/' }))}
+        />
+      </div>
+      <main className="content-wrap">
+        <div className="page-content">
+          <Page {...(activeRoute.placeholder ? { placeholder: activeRoute.placeholder } : {})} />
+        </div>
+      </main>
+    </>
   );
 }

@@ -99,23 +99,30 @@ output/prototype/
 
 ## 三、Ant Design 6 权威令牌
 
-以下数值直接取自 antd 源码（`components/theme/themes/seed.ts` 与 `shared/gen*.ts`），是 v6 默认主题的权威值，原型生成时不得另造一套。
+以下数值是 v6 默认主题的权威值；**模板当前使用 Claude 主题（`templates/prototype-vite/src/theme/claudeTheme.ts`），生成原型时一律走主题 token，不得在页面里另造颜色**。观感来源：getdesign.md 的 Claude 设计分析（暖米底 + 珊瑚橙强调，克制、B 端沉稳）。
 
-**颜色（默认主题）**
+**颜色（Claude 主题，模板默认）**
 
 | 令牌 | 值 | 用途 |
 |---|---|---|
-| 主色 colorPrimary | `#1677ff` | 主按钮、选中态、链接 |
-| 成功 colorSuccess | `#52c41a` | 成功状态 |
-| 警告 colorWarning | `#faad14` | 警告状态 |
-| 错误 colorError | `#ff4d4f` | 错误/危险状态 |
-| 页面背景 colorBgLayout | `#f5f5f5` | content 区底色 |
+| 主色 colorPrimary | `#cc785c`（珊瑚橙） | 主按钮、选中态、链接、顶栏激活模块 |
+| hover / active | `#d98f76` / `#a9583e` | 主色交互态（antd 自动派生） |
+| 成功 colorSuccess | `#5db872` | 成功状态 |
+| 警告 colorWarning | `#d4a017` | 警告状态 |
+| 错误 colorError | `#c64545` | 错误/危险状态 |
+| 页面背景 colorBgLayout | `#faf9f5`（暖米） | content 区、侧栏底 |
 | 容器背景 colorBgContainer | `#ffffff` | 卡片/表格底 |
-| 边框 colorBorder | `#d9d9d9` | 输入框/卡片边框 |
-| 次级边框 colorBorderSecondary | `#f0f0f0` | 表格行分隔等 |
-| 正文文字 colorText | `rgba(0,0,0,0.88)` | 主要文字 |
-| 次级文字 colorTextSecondary | `rgba(0,0,0,0.65)` | 次要说明 |
-| 弱化文字 colorTextTertiary | `rgba(0,0,0,0.45)` | 占位/弱化 |
+| 边框 colorBorder | `#e6dfd8`（hairline） | 输入框/卡片边框 |
+| 次级边框 colorBorderSecondary | `#ebe6df` | 表格行分隔等 |
+| 正文 colorText | `#3d3d3a` | 主要文字 |
+| 次级 colorTextSecondary | `#6c6a64` | 次要说明 |
+| 弱化 colorTextTertiary | `#8e8b82` | 占位/弱化 |
+| 标题 colorTextHeading | `#141413` | 标题 |
+| 表格表头 | 底 `#f5f0e8` + 字 `#141413` | Table headerBg/headerColor |
+| 菜单选中 | 字 `#a9583e` + 底 `#f0e3da` | Menu itemSelected |
+| 圆角 borderRadius | 8px（按钮/输入框） | 卡片 12px |
+
+antd v6 默认值（未在 Claude 主题覆盖的尺度类，以下仍权威）：间距 4px 基准（4/8/12/16/20/24/32/48）、控件高 24/32/40（SM/默认/LG）、字体 14 基准（12/14/16/20/24）、阴影用 antd 默认 elevation、字体栈系统无衬线（苹方/微软雅黑回退，不要强制指定思源黑体）。
 
 **间距标尺**（4px 基准，`sizeUnit=4, sizeStep=4`，padding/margin 直接映射）
 
@@ -176,18 +183,22 @@ box-shadow: 0 6px 16px 0 rgba(0,0,0,0.08),
 
 ## 四、通用后台基座
 
-固定壳层（模板已实现，一般不需要改）：
+固定壳层（模板已实现，参考 `templates/prototype-vite/src/App.jsx`）：
 
-1. **侧栏（Sider）**：深色主题，宽 220px，可折叠；顶部 logo，下方 Menu 承载模块/页面切换；**Sider 独立滚动，不随整页滚动**（`style={{ height:'100vh', overflow:'auto', position:'sticky', top:0 }}`），菜单长时只在侧栏内部滚动
-2. **顶栏（Header）**：高 64px，白底；左侧 Breadcrumb，右侧用户区（角色切换 + 头像 + 退出）；**角色切换统一放 Header**，页内不放"演示角色切换"；角色判断用全称（如"被审单位对接人"）
-3. **内容区（Content）**：`#f5f5f5` 底，内边距 24px；承载真正的业务内容
-4. 壳层只做路由 + 渲染容器；菜单从 `src/routes.jsx` 派生或与路由显式映射，页面组件注册进路由表
+1. **顶栏通栏（Header，fixed 顶部，高 56px）**：左=品牌区（广西交投 logo + 系统名），中=**主模块 Tab**（带图标；选中态=重点色 `#cc785c` + 加粗，不涂底），右=用户区（头像 + 用户名）。角色切换如有，统一放顶栏右侧
+2. **侧栏（Sider，fixed 左侧，宽 220px，暖米底）**：显示**当前主模块的一二级菜单**（`routes.jsx` 的 `group` 分组 + 每项带图标）；无滚动条（overflow hidden）
+3. **标签页栏（fixed 顶栏下方）**：可关闭页面标签条替代面包屑/标题——点菜单项打开新标签并激活，点 × 关闭（关激活标签时激活左邻），"首页"常驻不可关；标签字号 12px
+4. **内容区（Content，body 自然滚动）**：暖米底 `#faf9f5`，让出顶栏+标签栏+侧栏；页面内容用白色 Card 承载
+5. **三栏全部 fixed 钉住，只有内容区随 body 滚动**；不要用 antd Layout 的嵌套滚动容器
 
-版式方向：
+**布局与按钮规则（项目组约定，硬规则）**
 
-- 侧栏深色、顶栏白底、内容区浅灰
-- 内容用白色 Card 承载
-- 层级靠间距、Card、标题和按钮优先级表达，不靠花哨装饰
+- **默认页（侧栏菜单直接进入的页面）不显示大标题**——标签条就是标题；**内页（从列表/按钮跳转进入的业务页）有显式标题 + 右上角返回按钮**（返回按钮与标题同一行、右对齐，可带 ← 图标）
+- **页面级操作按钮统一放底部操作栏**：通栏白底 + 顶边线（样式同标签页栏），靠右；**始终贴视口底**——短内容由内容区 flex 推到视口底，长内容 `sticky bottom:0` 悬浮；按钮**统一带图标**
+- **内页底部版权**：`研发单位：广西计算中心`，14px，`#606266`，居中，作为页面内容最底部一行（放操作栏之前，不是页脚栏），用 `shared/ui/PageFooter.jsx`
+- 壳层只做路由 + 渲染容器；菜单从 `src/routes.jsx` 派生（`module`/`group`/`icon` 字段），不在 App.jsx 里再写一份菜单数据
+
+**版式方向**：暖米底 + 白 Card + 珊瑚橙单强调色；层级靠间距、Card、标题和按钮优先级表达，不靠花哨装饰；不得引入第二强调色。
 
 ## 五、组件使用约定
 
@@ -205,16 +216,32 @@ box-shadow: 0 6px 16px 0 rgba(0,0,0,0.08),
 | 表格 | `<Table columns={cols} dataSource={data} pagination={...} />` |
 | 状态标签 | `<Tag color="blue/green/red/orange/default">` |
 | 统计卡片 | `<Card><Statistic title="..." value={...} /></Card>` |
-| 详情描述 | `<Descriptions bordered column={2} items={[{label, children}]} />` |
+| 详情描述 | 用 `shared/ui/DetailList.jsx`（antd Descriptions 封装），列宽规则见下方「详情列表与操作栏细则」 |
 | 分页 | Table 自带 `pagination={{ pageSize, showTotal }}` |
 | 结果/异常 | `<Result status="success/404/403/500" title sub-title extra />` |
 | 弹窗 | `<Modal open onOk onCancel width={560}>`（不用 window.confirm；宽度 560 起，可视需要调大） |
 | 空状态 | `<Empty />`（列表无数据时由 Table 自动展示） |
 | 提示 | `<message.success('...')>` / `<message.error('...')>`（antd 全局 message） |
-| 文本域 | `<Input.TextArea autoSize={{ minRows: 4, maxRows: 8 }} />` —— 可编辑输入**强制用 `autoSize`**，不要写 `rows` 固定高度；只读展示用 `disabled` + `rows`（见下方硬规则） |
+| 文本域 | `<Input.TextArea autoSize={{ minRows: 4, maxRows: 8 }} />` —— 可编辑输入**强制用 `autoSize`**，不要写 `rows` 固定高度；只读展示用 `disabled` + `rows`（见下方硬规则）；**文本域字段必须单独占一行（整行宽）** |
 | **图表（数据看板）** | **用 ECharts + Arco 风格主题**（不用手写 SVG/CSS 模拟）。Arco 无官方图表库；Arco Design Pro 官方用的就是 ECharts，下面的配置复刻 Arco 观感 |
 
 ECharts React 封装 + Arco 主题（放在 `src/shared/Chart.jsx`）：
+
+**详情列表与操作栏细则（项目组约定）**
+
+**详情列表（`shared/ui/DetailList.jsx`）**——项目组约定列宽：
+- 普通字段：`variant="pair"`，**一行两对**，label:value = **17%:33% / 17%:33%**（CSS `table-layout: fixed` + td 宽 17%/33% 实现，不要用 labelStyle/contentStyle——td 百分比作用域是整行，不是 item）
+- 文本域/多行：`variant="text"`，**一行一对** label:value = **17%:83%**
+- 页面级操作按钮不放进详情列表
+
+**表格**：**首列与操作列必须固定**（`fixed: 'left'/'right'` + `scroll={{ x: 1400 }}`），操作列放最后一列；行操作用 icon 按钮 + title，删除类操作配 danger
+
+**操作栏（`.page-action-bar`）**：
+- 位置：页面内容末尾，`margin-top:auto` 推底 + `sticky bottom:0` 悬浮（内容区须是 flex column、且 `padding-bottom: 0`，否则滚到底会向上跳）
+- 样式：通栏白底 + 顶边线（同标签页栏）、靠右、按钮带图标
+- 内页底部版权 `<PageFooter/>`（研发单位：广西计算中心，14px #606266）放操作栏之前
+
+**表单**：`<Form layout="vertical">`（label 在上、控件在下，一行两列，文本域整行）——与样张页表单控件一致，不要用左右布局。
 
 ```jsx
 import * as echarts from 'echarts';

@@ -9,6 +9,7 @@
     "preview": "vite preview --port 4173 --strictPort"
   },
   "dependencies": {
+    "@ant-design/icons": "^6.3.2",
     "antd": "^6.6.0",
     "dayjs": "^1.11.13",
     "echarts": "^6.1.0",
