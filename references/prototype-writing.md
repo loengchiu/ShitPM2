@@ -99,29 +99,30 @@ output/prototype/
 
 ## 三、Ant Design 6 权威令牌
 
-以下数值是 v6 默认主题的权威值；**模板当前使用 Claude 主题（`templates/prototype-vite/src/theme/claudeTheme.ts`），生成原型时一律走主题 token，不得在页面里另造颜色**。观感来源：Trae 导出的 Claude-2 设计系统（`references/design-sources/claude-2-design-system/`，含 colors_and_type.css / preview / ui_kits）+ getdesign.md 的 Claude 分析（暖米底 + 深陶土强调，克制、B 端沉稳）。
+以下数值是 v6 默认主题的权威值；**模板当前使用 Claude 主题（`templates/prototype-vite/src/theme/claudeTheme.ts`），生成原型时一律走主题 token，不得在页面里另造颜色**。观感来源：Claude 官方设计系统（`D:\LiangchaosBook\Downloads\DESIGN-claude(1).md`，亮珊瑚 #cc785c + 暖米画布 + 白卡片；2026-08-21 用户拍板回退此版，取代 Trae 深陶土版）。
 
 **颜色（Claude 主题，模板默认）**
 
 | 令牌 | 值 | 用途 |
 |---|---|---|
-| 主色 colorPrimary | `#c96442`（深陶土 terra-cotta） | 主按钮、选中态、链接、顶栏激活模块、系统名 |
-| hover / active | `#d6866a` / `#b0562f` | 主色交互态 |
+| 主色 colorPrimary | `#cc785c`（亮珊瑚 coral） | 主按钮、选中态、链接、顶栏激活模块、系统名 |
+| hover / active | `#d98f76` / `#a9583e` | 主色交互态 |
 | 成功 colorSuccess | `#5db872` | 成功状态（业务鲜绿，不用 Trae 苔藓绿） |
 | 警告 colorWarning | `#d4a017` | 警告状态 |
-| 错误 colorError | `#d64545` | 错误/危险状态 |
-| 页面背景 colorBgLayout | `#faf9f5`（暖米） | content 区、侧栏底 |
-| 容器背景 colorBgContainer | `#f5f4ef`（卡片暖米） | 卡片/表格底（色调分离，非纯白） |
+| 错误 colorError | `#c64545` | 错误/危险状态 |
+| 页面背景 colorBgLayout | `#fcfbf9`（接近白的微暖） | content 区、侧栏底 |
+| 容器背景 colorBgContainer | `#ffffff`（白） | 卡片/表格底（白卡片，不靠深米） |
 | 浮层 colorBgElevated | `#ffffff` | 弹窗/下拉 |
-| 边框 colorBorder | `#dad9d4` | 输入框/卡片边框 |
-| 次级边框 colorBorderSecondary | `#e3e0d4` | 表格行分隔等 |
-| 正文 colorText | `#3d3929` | 主要文字 |
-| 次级 colorTextSecondary | `#6e6d68` | 次要说明 |
-| 弱化 colorTextTertiary | `#908e84` | 占位/弱化 |
-| 标题 colorTextHeading | `#3d3929` | 标题 |
-| 表格表头 | 底 `#e9e6dc` + 字 `#3d3929` | Table headerBg/headerColor |
-| 菜单选中 | 字 `#b0562f` + 底 `#f0e3da` | Menu itemSelected |
-| 圆角 | 控件/按钮 10px、**卡片 16px** | 控件不要 16（32px 高会胶囊化）；圆滑感由卡片承担 |
+| 边框 colorBorder | `#e6dfd8`（hairline 柔） | 输入框/卡片边框 |
+| 次级边框 colorBorderSecondary | `#ebe6df` | 表格行分隔等 |
+| 正文 colorText | `#3d3d3a` | 主要文字 |
+| 次级 colorTextSecondary | `#6c6a64` | 次要说明 |
+| 弱化 colorTextTertiary | `#8e8b82` | 占位/弱化 |
+| 标题 colorTextHeading | `#141413` | 标题 |
+| 表格表头 | 底 `#faf8f4` + 字 `#141413` | Table headerBg/headerColor（浅米，比页面底深半档） |
+| 菜单选中 | 字 `#a9583e` + 底 `#f7ede7` | Menu itemSelected（浅珊瑚） |
+| 详情 label 列 | 底 `#faf8f4`（**与表格表头统一**）+ 字 `#6c6a64` | detail-list label 单元格 |
+| 圆角 | 控件/按钮 8px、**卡片 12px** | 克制圆角（官方值）；控件不要 16（32px 高会胶囊化） |
 
 antd v6 默认值（未在 Claude 主题覆盖的尺度类，以下仍权威）：间距 4px 基准（4/8/12/16/20/24/32/48）、控件高 24/32/40（SM/默认/LG）、字体 14 基准（12/14/16/20/24）、阴影用 antd 默认 elevation、字体栈系统无衬线（苹方/微软雅黑回退；Trae 规范的 Poppins/Newsreader/Lora 为编辑式衬线风，中后台不用）。
 
@@ -132,7 +133,7 @@ antd v6 默认值（未在 Claude 主题覆盖的尺度类，以下仍权威）�
 **选择时机（生成流程第一步）**：每次生成新原型、或原型观感需要重新定调时，**在 spm-prototype 生成动作开始前**先确认设计语言——优先问用户或按项目惯例；拿不准时用已收录品牌做双预览对比（同一样张页两个端口并排）再定，不要在原型生成到一半时才换主题（布局与项目组习惯已与主题解耦，但换主题本身应在页面开始前定）。
 
 切换流程：
-1. 按评审需求选定品牌（Claude 暖陶土 / Trae 靛蓝 / Linear 极简紫 / IBM 企业蓝…）
+1. 按评审需求选定品牌（Claude 亮珊瑚 / Trae 靛蓝 / Linear 极简紫 / IBM 企业蓝…）
 2. 读 `references/design-sources/<品牌>/` 的 DESIGN.md 或 colors_and_type.css，取 token（主色/背景/文字/边框/圆角/状态色）
 3. 复制 `theme/claudeTheme.ts` → `theme/<品牌>Theme.ts`，替换色板与圆角体系（保留 token + components + cssVars 结构）
 4. `main.jsx` 改引用 `<品牌>Theme` + `<品牌>CssVars`
@@ -142,7 +143,7 @@ antd v6 默认值（未在 Claude 主题覆盖的尺度类，以下仍权威）�
 
 不变（项目组习惯，所有语言通用，见四、五章）：三栏布局、操作栏贴底、按钮带图标、版权、详情列宽 17:33、表单 vertical、表格钉列、页面标题规则。
 
-已收录品牌：claude（Claude 暖陶土，`design-sources/claude-2-design-system/`，当前默认）、traework（Trae 靛蓝科技 `#4B3FE3`，`design-sources/traework/`）。
+已收录品牌：claude（Claude 亮珊瑚 `#cc785c`，来源 DESIGN-claude(1).md，当前默认）、traework（Trae 靛蓝科技 `#4B3FE3`，`design-sources/traework/`）。
 
 **间距标尺**（4px 基准，`sizeUnit=4, sizeStep=4`，padding/margin 直接映射）
 
@@ -205,10 +206,10 @@ box-shadow: 0 6px 16px 0 rgba(0,0,0,0.08),
 
 固定壳层（模板已实现，参考 `templates/prototype-vite/src/App.jsx`）：
 
-1. **顶栏通栏（Header，fixed 顶部，高 56px）**：左=品牌区（广西交投 logo 高 32px + 系统名**品牌色 `#c96442`、24px、600 加粗**），中=**主模块 Tab**（带图标，**16px**；选中态=重点色 `#c96442` + 加粗，不涂底），右=用户区（头像 + 用户名 **14px、`#6c6a64`**）。角色切换如有，统一放顶栏右侧
-2. **侧栏（Sider，fixed 左侧，宽 220px，暖米底）**：显示**当前主模块的一二级菜单**（`routes.jsx` 的 `group` 分组 + 每项带图标）；无滚动条（overflow hidden）
+1. **顶栏通栏（Header，fixed 顶部，高 56px）**：左=品牌区（广西交投 logo 高 32px + 系统名**品牌色 `#cc785c`、24px、600 加粗**），中=**主模块 Tab**（带图标，**16px**；选中态=重点色 `#cc785c` + 加粗，不涂底），右=用户区（头像 + 用户名 **14px、`#6c6a64`**）。角色切换如有，统一放顶栏右侧
+2. **侧栏（Sider，fixed 左侧，宽 220px，微暖底 `#fcfbf9`）**：显示**当前主模块的一二级菜单**（`routes.jsx` 的 `group` 分组 + 每项带图标）；无滚动条（overflow hidden）
 3. **标签页栏（fixed 顶栏下方）**：可关闭页面标签条替代面包屑/标题——点菜单项打开新标签并激活，点 × 关闭（关激活标签时激活左邻），"首页"常驻不可关；标签字号 12px
-4. **内容区（Content，body 自然滚动）**：暖米底 `#faf9f5`，让出顶栏+标签栏+侧栏；页面内容用白色 Card 承载
+4. **内容区（Content，body 自然滚动）**：微暖底 `#fcfbf9`，让出顶栏+标签栏+侧栏；页面内容用白色 Card 承载
 5. **三栏全部 fixed 钉住，只有内容区随 body 滚动**；不要用 antd Layout 的嵌套滚动容器
 
 **布局与按钮规则（项目组约定，硬规则）**
@@ -218,7 +219,7 @@ box-shadow: 0 6px 16px 0 rgba(0,0,0,0.08),
 - **内页底部版权**：`研发单位：广西计算中心`，14px，`#606266`，居中，作为页面内容最底部一行（放操作栏之前，不是页脚栏），用 `shared/ui/PageFooter.jsx`
 - 壳层只做路由 + 渲染容器；菜单从 `src/routes.jsx` 派生（`module`/`group`/`icon` 字段），不在 App.jsx 里再写一份菜单数据
 
-**版式方向**：暖米底 + 白 Card + 珊瑚橙单强调色；层级靠间距、Card、标题和按钮优先级表达，不靠花哨装饰；不得引入第二强调色。
+**版式方向**：微暖底 `#fcfbf9` + 白 Card + 珊瑚橙单强调色；层级靠间距、Card、标题和按钮优先级表达，不靠花哨装饰；不得引入第二强调色。
 
 ## 五、组件使用约定
 
@@ -251,10 +252,10 @@ ECharts React 封装 + Claude 暖色主题（放在 `src/shared/Chart.jsx`）：
 import * as echarts from 'echarts';
 import { useEffect, useRef } from 'react';
 
-// Claude 暖色图表主题（对齐 #c96442 珊瑚橙主色、暖灰网格、文字 #6c6a64）
-const CHART_COLORS = ['#c96442', '#b0562f', '#e8a55a', '#5db8a6', '#8e8b82', '#6c6a64', '#5db872', '#d4a017'];
+// Claude 暖色图表主题（对齐 #cc785c 珊瑚主色、暖灰网格、文字 #6c6a64）
+const CHART_COLORS = ['#cc785c', '#a9583e', '#e8a55a', '#5db8a6', '#8e8b82', '#6c6a64', '#5db872', '#d4a017'];
 const CHART_AXIS = {
-  axisLine: { lineStyle: { color: '#dad9d4' } },
+  axisLine: { lineStyle: { color: '#e6dfd8' } },
   axisTick: { show: false },
   axisLabel: { color: '#6c6a64', fontSize: 12 },
   splitLine: { lineStyle: { color: '#ebe6df', width: 1 } },
@@ -282,7 +283,7 @@ const trendOption = useMemo(() => ({
   xAxis: { type: 'category', data: ['D1','D2','D3',...], ...CHART_AXIS },
   yAxis: { type: 'value', ...CHART_AXIS },
   series: [{ name: '趋势', type: 'line', smooth: true, data: [...],
-    itemStyle: { color: '#c96442' }, lineStyle: { width: 2 },
+    itemStyle: { color: '#cc785c' }, lineStyle: { width: 2 },
     areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
       colorStops: [{ offset: 0, color: 'rgba(204,120,92,0.25)' }, { offset: 1, color: 'rgba(204,120,92,0.02)' }] } } }],
 }), []);
@@ -304,7 +305,7 @@ const pieOption = useMemo(() => ({
 **详情列表（`shared/ui/DetailList.jsx`）**——项目组约定列宽：
 - 普通字段：`variant="pair"`，**一行两对**，label:value = **17%:33% / 17%:33%**（CSS `table-layout: fixed` + td 宽 17%/33% 实现；td 百分比作用域是整行，不是 item，**所以列宽写在 CSS 类上，不写 labelStyle/contentStyle**）
 - 文本域/多行：`variant="text"`，**一行一对** label:value = **17%:83%**
-- **label 单元格背景用暖米卡色 `#f5f0e8`、文字 `#6c6a64`**（对齐 Claude 主题）
+- **label 单元格背景 `#faf8f4`（与表格表头统一，一条"标签米色"规则）、文字 `#6c6a64`**（对齐 Claude 主题）
 - 页面级操作按钮不放进详情列表
 
 **表格**：**首列与操作列固定**（`fixed: 'left'/'right'` + `scroll={{ x: 1400 }}`），操作列放最后一列；行操作用 icon 按钮 + title，删除类操作配 danger

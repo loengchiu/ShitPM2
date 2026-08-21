@@ -145,11 +145,11 @@ export default function App() {
               onClick={() => switchModule(m)}>{m.icon}<span>{m.title}</span></button>
           ))}
         </div>
-        <Space><Avatar style={{ background: '#c96442' }}>示</Avatar><span>演示用户</span></Space>
+        <Space><Avatar style={{ background: 'var(--avatar-bg)' }}>示</Avatar><span>演示用户</span></Space>
       </Header>
       {/* 侧栏：fixed，当前主模块一二级菜单 */}
       <Sider width={220} style={{ position: 'fixed', top: 56, left: 0, bottom: 0, overflow: 'hidden',
-        background: '#faf9f5', borderRight: '1px solid #dad9d4', zIndex: 90 }}>
+        background: 'var(--layout-bg)', borderRight: '1px solid var(--border)', zIndex: 90 }}>
         <Menu mode="inline" selectedKeys={[path]} items={menuItems}
           onClick={({ key }) => navigate(key)}
           style={{ borderInlineEnd: 'none', background: 'transparent', height: '100%', overflow: 'hidden' }} />
