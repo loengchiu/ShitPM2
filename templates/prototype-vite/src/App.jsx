@@ -98,15 +98,15 @@ export default function App() {
         </Space>
       </Header>
       <Sider
-        width={220}
+        width={240}
         style={{
           position: 'fixed',
           top: 56,
           left: 0,
           bottom: 0,
           overflow: 'hidden',
-          background: 'var(--layout-bg)',
-          borderRight: '1px solid var(--border)',
+          background: 'var(--sider-bg, var(--layout-bg))',
+          borderRight: '1px solid var(--border-soft)',
           zIndex: 90,
         }}
       >
@@ -118,7 +118,7 @@ export default function App() {
           style={{ borderInlineEnd: 'none', background: 'transparent', height: '100%', overflow: 'hidden' }}
         />
       </Sider>
-      <div className="page-tabs-bar" style={{ position: 'fixed', top: 56, left: 220, right: 0, zIndex: 95 }}>
+      <div className="page-tabs-bar" style={{ position: 'fixed', top: 56, left: 240, right: 0, zIndex: 95 }}>
         <Tabs
           type="editable-card"
           hideAdd

@@ -83,6 +83,7 @@ export const claudeCssVars: Record<string, string> = {
   '--brand-hover': '#a9583e', // primary-active（官方无 hover）
   '--brand-active': '#a9583e', // primary-active
   '--layout-bg': '#faf9f5', // canvas
+  '--sider-bg': '#faf9f5', // 侧栏与页面同色（Claude 布局惯例，用户拍板）
   '--card-bg': '#ffffff', // 白容器（用户拍板例外）
   '--surface-elevated': '#ffffff', // 顶栏/标签栏/操作栏（用户拍板例外）
   '--border': '#e6dfd8', // hairline

@@ -1,5 +1,5 @@
 /* 全局样式：颜色一律引用 CSS 变量（--brand 等由主题文件注入 main.jsx，随设计语言走）
-   主题变量定义见 src/theme/claudeTheme.ts / traeTheme.ts 的 cssVars 导出 */
+   主题变量定义见 src/theme/tablerTheme.ts / claudeTheme.ts 的 cssVars 导出 */
 html,
 body,
 #root {
@@ -8,6 +8,17 @@ body,
 }
 body {
   background: var(--layout-bg);
+}
+/* 卡片阴影：由主题 --card-shadow 注入（Tabler 官方极淡阴影 0 0 4px；Claude 默认 none） */
+.ant-card {
+  box-shadow: var(--card-shadow, none);
+}
+/* 输入框静态微阴影：antd Input 静态 boxShadow 被内部 none 覆盖，走 CSS 变量（Tabler --tblr-shadow-input） */
+.ant-input,
+.ant-select-selector,
+.ant-picker,
+.ant-input-affix-wrapper {
+  box-shadow: var(--control-shadow, none) !important;
 }
 /* 顶栏通栏：品牌区 + 主模块 Tab + 用户区 */
 .app-header {
@@ -88,7 +99,7 @@ body {
 .content-wrap {
   display: flex;
   flex-direction: column;
-  margin-left: 220px;
+  margin-left: 240px;
   padding: 113px 24px 0;
   min-height: 100vh;
   background: var(--layout-bg);

@@ -133,7 +133,7 @@ antd v6 默认值（未在 Claude 主题覆盖的尺度类，以下仍权威）�
 **选择时机（生成流程第一步）**：每次生成新原型、或原型观感需要重新定调时，**在 spm-prototype 生成动作开始前**先确认设计语言——优先问用户或按项目惯例；拿不准时用已收录品牌做双预览对比（同一样张页两个端口并排）再定，不要在原型生成到一半时才换主题（布局与项目组习惯已与主题解耦，但换主题本身应在页面开始前定）。
 
 切换流程：
-1. 按评审需求选定品牌（Claude 亮珊瑚 / Trae 靛蓝 / Linear 极简紫 / IBM 企业蓝…）
+1. 按评审需求选定品牌（Tabler 蓝 / Claude 亮珊瑚 / Linear 极简紫 / IBM 企业蓝…）
 2. 读 `references/design-sources/<品牌>/` 的 DESIGN.md 或 colors_and_type.css，取 token（主色/背景/文字/边框/圆角/状态色）
 3. 复制 `theme/claudeTheme.ts` → `theme/<品牌>Theme.ts`，替换色板与圆角体系（保留 token + components + cssVars 结构）
 4. `main.jsx` 改引用 `<品牌>Theme` + `<品牌>CssVars`
@@ -143,7 +143,7 @@ antd v6 默认值（未在 Claude 主题覆盖的尺度类，以下仍权威）�
 
 不变（项目组习惯，所有语言通用，见四、五章）：三栏布局、操作栏贴底、按钮带图标、版权、详情列宽 17:33、表单 vertical、表格钉列、页面标题规则。
 
-已收录品牌：claude（Claude 亮珊瑚 `#cc785c`，来源 DESIGN-claude(1).md，当前默认）、traework（Trae 靛蓝科技 `#4B3FE3`，`design-sources/traework/`）。
+已收录品牌：tabler（Tabler 蓝 `#066fd1`，官方 CSS 逐元素转译，**当前默认**）、claude（Claude 亮珊瑚 `#cc785c`，来源 DESIGN-claude(1).md）。traework 主题已删除（2026-08-21 用户拍板）。
 
 **间距标尺**（4px 基准，`sizeUnit=4, sizeStep=4`，padding/margin 直接映射）
 
