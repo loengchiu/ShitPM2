@@ -40,7 +40,7 @@
 | 反模式 | 使用 Vue / daisyUI / Tailwind / `el-` 组件 | 出现该做法 | 已废弃，架构固定为 React + Ant Design 6 | 用 antd 组件（`<Button>`/`<Table>` 等） | — |
 | 反模式 | 引入浏览器端 Babel 或第二套构建链 | 出现 text/babel、UMD lib、临时编译脚本 | 源码与运行结果被强行拆开，无法标准维护 | 只用标准 Vite 工程的 npm scripts | — |
 | 反模式 | 手写 CSS 模拟组件 | 出现该做法 | 与 antd 视觉不一致，且不可维护 | 用 antd 现成组件 | — |
-| 反模式 | 手写 SVG/CSS 模拟图表 | 出现该做法 | 与 Arco 风格图表观感不一致，且不可交互 | 数据看板用 ECharts + Arco 风格主题（见五、） | — |
+| 反模式 | 手写 SVG/CSS 模拟图表 | 出现该做法 | 与 Claude 暖色主题图表观感不一致，且不可交互 | 数据看板用 ECharts + Claude 暖色主题（见五、） | — |
 | 反模式 | 原型页面写解释性标注 | 页面出现“入口：…去向：…”、“（只读）/（必填）/（选填）”、操作说明（Design）、勾选规则（Design）等 | 既不是纯高保真原型，也不是规范标注，两边都不讨好；评审注释应走 prototypemark | 删除所有解释性文本；必填/只读/选填通过 UI 本身表达（红 asterisk / disabled / 无星） | — |
 | 失败处理 | 字段状态靠文字标注 | label 含“（只读）”“（必填）”而非用 antd 视觉表达 | 不是超高保真，且可能在不同角色/状态下失效 | `required` 出红 asterisk，`disabled` 出置灰，选填无星 | — |
 | 失败处理 | 空/异常/加载态缺失 | 列表/看板只有满数据 mock，无空态、加载失败、无权限表达 | 命中该场景说明异常路径不可讨论 | 每个列表页空 dataSource 显示 Table 内置"暂无数据"空态；关键页补"加载失败点击重试"与无权限置灰 | 按 Design 状态逐个补入原型，先补核心状态 |
@@ -49,10 +49,10 @@
 | 反模式 | message.info 占位代替真实弹窗（"示意"） | 出现该做法 | 评审无法讨论真实交互与校验 | 用真实 Modal/Drawer/Form 实现，二次确认用 Modal.confirm | — |
 | 反模式 | 只有满数据 mock，无空态/异常态 | 出现该做法 | 异常路径不可讨论 | 补空态/加载失败/无权限表达 | — |
 | 反模式 | 让用户手动输入 npm 命令 | README 首屏或交付说明要求打开 PowerShell | 用户目标是双击预览，不是学命令 | 交付 `原型工具.bat` 中文菜单，README 首屏只写双击 BAT | — |
-| 反模式 | 页内放"演示角色切换" | 角色切换 Select 出现在页面内而非壳层 Header | 角色切换位置不统一，评审聚焦被分散 | 多角色项目角色切换统一放 Header，页内不渲染 | — |
+| 反模式 | 页内放"演示角色切换" | 角色切换 Select 出现在页面内而非壳层顶栏用户区 | 角色切换位置不统一，评审聚焦被分散 | 多角色项目角色切换统一放顶栏用户区，页内不渲染 | — |
 | 反模式 | 长文本字段用单行 Input | 审计范围/问题描述等多行字段用 `<Input>` 而非 TextArea | 多行内容无法完整表达 | 多行/长文本字段一律 `Input.TextArea`，编辑表单 `Col span={24}` 独占一行 | — |
 | 失败处理 | 列表操作列未冻结 | 列表设了 `scroll={{ x }}` 但操作列没有 `fixed:'right'` | 横向滚动时操作列看不见 | 操作列 `fixed: 'right'` 冻结 | antd v6 检测用 `position: sticky`，不是 v4 的 `ant-table-cell-fix-right` 类名 |
-| 失败处理 | 页面级操作散落卡片 extra | 保存/提交/返回等出现在卡片右上角或多处重复 | 主操作位置不统一，评审无法确认 | 页面级操作统一底部 sticky 操作栏，同一操作只出现一次 | 列表 toolbar"新建"入口、行内操作、配置入口除外 |
+| 失败处理 | 页面级操作散落卡片 extra | 保存/提交/返回等出现在卡片右上角或多处重复 | 主操作位置不统一，评审无法确认 | 页面级操作统一底部通栏操作栏贴底，同一操作只出现一次 | 列表 toolbar"新建"入口、行内操作、配置入口除外 |
 | 失败处理 | 角色操作全显+disabled | 角色不满足的操作也渲染出来再置灰 | 与真实系统权限表达不一致 | 角色不满足的操作不渲染；状态不允许的才置灰 | 状态类操作保留"可见禁用"供评审 |
 
 ## 一、原型定位
@@ -208,7 +208,7 @@ box-shadow: 0 6px 16px 0 rgba(0,0,0,0.08),
 |---|---|
 | 按钮 | `<Button type="primary">保存</Button>`（primary 主操作/ danger 危险/ 默认普通） |
 | 查询区 | `<Form layout="inline">` + `<Form.Item label="字段">` |
-| 表单 | `<Form layout="vertical">` + `<Form.Item label rules>`，栅格用 `<Row gutter={24}>` + `<Col span={8}>` |
+| 表单 | `<Form layout="vertical">` + `<Form.Item label rules>`，栅格用 `<Row gutter={24}>` + `<Col span={12}>`（一行两列） |
 | 下拉 | `<Select options={[{value,label}]} />` |
 | 日期 | `<DatePicker />`（dayjs 已配中文） |
 | 数字输入 | `<InputNumber min={0} />` |
@@ -223,38 +223,21 @@ box-shadow: 0 6px 16px 0 rgba(0,0,0,0.08),
 | 空状态 | `<Empty />`（列表无数据时由 Table 自动展示） |
 | 提示 | `<message.success('...')>` / `<message.error('...')>`（antd 全局 message） |
 | 文本域 | `<Input.TextArea autoSize={{ minRows: 4, maxRows: 8 }} />` —— 可编辑输入**强制用 `autoSize`**，不要写 `rows` 固定高度；只读展示用 `disabled` + `rows`（见下方硬规则）；**文本域字段必须单独占一行（整行宽）** |
-| **图表（数据看板）** | **用 ECharts + Arco 风格主题**（不用手写 SVG/CSS 模拟）。Arco 无官方图表库；Arco Design Pro 官方用的就是 ECharts，下面的配置复刻 Arco 观感 |
+| **图表（数据看板）** | **用 ECharts + Claude 暖色主题**（见下方 Chart 封装，CHART_COLORS/CHART_AXIS） |
 
-ECharts React 封装 + Arco 主题（放在 `src/shared/Chart.jsx`）：
-
-**详情列表与操作栏细则（项目组约定）**
-
-**详情列表（`shared/ui/DetailList.jsx`）**——项目组约定列宽：
-- 普通字段：`variant="pair"`，**一行两对**，label:value = **17%:33% / 17%:33%**（CSS `table-layout: fixed` + td 宽 17%/33% 实现，不要用 labelStyle/contentStyle——td 百分比作用域是整行，不是 item）
-- 文本域/多行：`variant="text"`，**一行一对** label:value = **17%:83%**
-- **label 单元格背景用暖米卡色 `#f5f0e8`、文字 `#6c6a64`**（对齐 Claude 主题，不用 antd 原始冷灰 `#fafafa`）
-- 页面级操作按钮不放进详情列表
-
-**表格**：**首列与操作列必须固定**（`fixed: 'left'/'right'` + `scroll={{ x: 1400 }}`），操作列放最后一列；行操作用 icon 按钮 + title，删除类操作配 danger
-
-**操作栏（`.page-action-bar`）**：
-- 位置：页面内容末尾，`margin-top:auto` 推底 + `sticky bottom:0` 悬浮（内容区须是 flex column、且 `padding-bottom: 0`，否则滚到底会向上跳）
-- 样式：通栏白底 + 顶边线（同标签页栏）、靠右、按钮带图标
-- 内页底部版权 `<PageFooter/>`（研发单位：广西计算中心，14px #606266）放操作栏之前
-
-**表单**：`<Form layout="vertical">`（label 在上、控件在下，一行两列，文本域整行）——与样张页表单控件一致，不要用左右布局。
+ECharts React 封装 + Claude 暖色主题（放在 `src/shared/Chart.jsx`）：
 
 ```jsx
 import * as echarts from 'echarts';
 import { useEffect, useRef } from 'react';
 
-// Arco 风格图表主题（主色 #165DFF、浅灰网格、文字 #4E5969、极简无阴影）
-const ARCO_COLORS = ['#165DFF', '#0FC6C2', '#FFC72E', '#F53F3F', '#00B42A', '#FF7D00', '#722ED1', '#3491FA'];
-const ARCO_AXIS = {
-  axisLine: { lineStyle: { color: '#E5E6EB' } },
+// Claude 暖色图表主题（对齐 #cc785c 珊瑚橙主色、暖灰网格、文字 #6c6a64）
+const CHART_COLORS = ['#cc785c', '#a9583e', '#e8a55a', '#5db8a6', '#8e8b82', '#6c6a64', '#5db872', '#d4a017'];
+const CHART_AXIS = {
+  axisLine: { lineStyle: { color: '#e6dfd8' } },
   axisTick: { show: false },
-  axisLabel: { color: '#4E5969', fontSize: 12 },
-  splitLine: { lineStyle: { color: '#E5E6EB', width: 1 } },
+  axisLabel: { color: '#6c6a64', fontSize: 12 },
+  splitLine: { lineStyle: { color: '#ebe6df', width: 1 } },
 };
 export function Chart({ option, height = 260 }) {
   const ref = useRef(null);
@@ -273,28 +256,48 @@ export function Chart({ option, height = 260 }) {
 
 ```jsx
 const trendOption = useMemo(() => ({
-  color: ARCO_COLORS,
+  color: CHART_COLORS,
   tooltip: { trigger: 'axis' },
   grid: { left: 12, right: 16, top: 24, bottom: 8, containLabel: true },
-  xAxis: { type: 'category', data: ['D1','D2','D3',...], ...ARCO_AXIS },
-  yAxis: { type: 'value', ...ARCO_AXIS },
+  xAxis: { type: 'category', data: ['D1','D2','D3',...], ...CHART_AXIS },
+  yAxis: { type: 'value', ...CHART_AXIS },
   series: [{ name: '趋势', type: 'line', smooth: true, data: [...],
-    itemStyle: { color: '#165DFF' }, lineStyle: { width: 2 },
+    itemStyle: { color: '#cc785c' }, lineStyle: { width: 2 },
     areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
-      colorStops: [{ offset: 0, color: 'rgba(22,93,255,0.25)' }, { offset: 1, color: 'rgba(22,93,255,0.02)' }] } } }],
+      colorStops: [{ offset: 0, color: 'rgba(204,120,92,0.25)' }, { offset: 1, color: 'rgba(204,120,92,0.02)' }] } } }],
 }), []);
 
 const pieOption = useMemo(() => ({
-  color: ARCO_COLORS,
+  color: CHART_COLORS,
   tooltip: { trigger: 'item' },
-  legend: { bottom: 0, icon: 'circle', itemWidth: 8, itemHeight: 8, textStyle: { color: '#4E5969', fontSize: 12 } },
+  legend: { bottom: 0, icon: 'circle', itemWidth: 8, itemHeight: 8, textStyle: { color: '#6c6a64', fontSize: 12 } },
   series: [{ type: 'pie', radius: ['45%', '70%'], center: ['50%', '42%'],
-    label: { color: '#4E5969', fontSize: 12 },
+    label: { color: '#6c6a64', fontSize: 12 },
     data: [{ name: '小程序', value: 42 }, { name: 'App', value: 28 }, ...] }],
 }), []);
 ```
 
 调用：`<Chart option={trendOption} height={260} />`。**option 必须用 useMemo 保持引用稳定**（Chart 内部依赖 [option]，否则会反复 init/dispose）。
+
+**详情列表与操作栏细则（项目组约定）**
+
+**详情列表（`shared/ui/DetailList.jsx`）**——项目组约定列宽：
+- 普通字段：`variant="pair"`，**一行两对**，label:value = **17%:33% / 17%:33%**（CSS `table-layout: fixed` + td 宽 17%/33% 实现；td 百分比作用域是整行，不是 item，**所以列宽写在 CSS 类上，不写 labelStyle/contentStyle**）
+- 文本域/多行：`variant="text"`，**一行一对** label:value = **17%:83%**
+- **label 单元格背景用暖米卡色 `#f5f0e8`、文字 `#6c6a64`**（对齐 Claude 主题）
+- 页面级操作按钮不放进详情列表
+
+**表格**：**首列与操作列固定**（`fixed: 'left'/'right'` + `scroll={{ x: 1400 }}`），操作列放最后一列；行操作用 icon 按钮 + title，删除类操作配 danger
+
+**操作栏（`.page-action-bar`）与版权（单一事实源，此处为准）**：
+- 位置：页面内容末尾，`margin-top:auto` 推底 + `sticky bottom:0` 悬浮（内容区 flex column 且 `padding-bottom: 0`，否则滚到底会向上跳）
+- 样式：通栏白底 + 顶边线（同标签页栏）、靠右、按钮带图标
+- 内页底部版权 `<PageFooter/>`（研发单位：广西计算中心，14px #606266）放操作栏之前
+- 返回按钮在右上角与标题对齐，不进操作栏
+
+**表单**：`<Form layout="vertical">`（label 在上、控件在下），字段 `Col span={12}` 一行两列，文本域 `span={24}` 整行独占
+
+**交付前自检（每页必过）**：无页面级横向滚动；无裸文字状态（空态/加载/错误都有反馈）；无重复主行动；状态标签语义色正确；操作栏贴视口底且滚到底不跳；内页有标题+返回，默认页无大标题。
 
 Table 列定义示例：
 
@@ -319,15 +322,15 @@ const columns = [
 
 约束：
 
-1. 先查 antd 有无现成组件满足需求，不要手写 CSS 模拟
-2. 交互（弹窗/抽屉/下拉）用 antd 组件 + React 状态，不用原生 `alert/confirm`
-3. 不要用 Vue 语法（`v-if`/`v-model`）、daisyUI 类、Tailwind 类
+1. 优先用 antd 现成组件满足需求，再考虑手写
+2. 交互（弹窗/抽屉/下拉）用 antd 组件 + React 状态管理
+3. 只用 JSX/React 语法（`onClick`/`useState`），页面风格统一 JSX
 4. 表格数据与字段以 design 为准，mock 数据要贴合业务
 
 **弹窗（Modal/Drawer）布局硬规则**：
 
-1. **不要在 Modal 内用 Row/Col 把 Form.Item 挤在 1/3 宽度**——Modal 本身宽度有限（默认 520），Col span 8 = 157px 太窄；Form layout="vertical" 下 Form.Item 直接放就 100% 宽度
-2. 弹窗默认 `width={560}`（简单表单）或 `width={720}`（多项/含描述），不要无 width 让它默认 520 文字挤
+1. **Modal 内 Form.Item 直接 100% 宽度**（Form vertical 下天然整宽），按需 `Col span={24}`；Modal 宽度有限（默认 520），不做多列挤压
+2. 弹窗默认 `width={560}`（简单表单）或 `width={720}`（多项/含描述）
 3. OK/取消按钮文案：`okText="确定"` / `cancelText="取消"`（不是 antd 默认的英文）
 
 **文本域（TextArea）硬规则**：
@@ -339,58 +342,49 @@ const columns = [
 5. 配套一般加 `showCount maxLength={500}` 之类，提示剩余字数
 6. **只读富文本/长文本展示**：`<Input.TextArea disabled rows={6} autoSize={false} />` 整行表达（rows 取 6-8 视内容量），只读状态用 `disabled` 表达，不套 autoSize
 
-**详情描述（Descriptions）硬规则**：
+**详情描述**：用 `shared/ui/DetailList.jsx`（列宽/背景见上方「详情列表与操作栏细则」，此处为准）
 
-1. 详情页固定 `column={2}`（两组一行）；长文本字段 `span: 2` 整行独占
-2. 统计摘要区可例外用 `column={3}`
-
-**页面级操作按钮硬规则**：
-
-1. 详情/编辑/操作页的页面级按钮（保存/提交/发送/审批/下达/发起/转办/取消/返回等）统一放**页面底部 sticky 操作栏**（`position: sticky; bottom: 0`，模板 `global.css` 已带 `.page-action-bar`），不散落在卡片 `extra`
-2. 同一操作不重复出现；列表 toolbar"新建"入口、行内操作、配置管理入口除外
+**页面级操作按钮**：规则见上方「操作栏（`.page-action-bar`）与版权」（单一事实源）；同一操作不重复出现（列表 toolbar"新建"入口、行内操作除外）
 
 ## 六、7 类页面固定骨架
 
 B 端顶级页面固定 7 类，生成时按对应骨架搭，不临场发挥：
 
-**1. 聚合页（工作台）**
+**1. 聚合页（工作台）**（通常为默认页，无大标题，标签条替代）
 ```
-页头（标题+副标题）→ KPI 统计卡 Row（4 列，gutter 16）
-→ 待办/列表 Card（Table 或 List）
+KPI 统计卡 Row（4 列，gutter 16）→ 待办/列表 Card（Table 或 List）
 ```
 
-**2. 列表页**
+**2. 列表页**（默认页，无大标题）
 ```
-页头 → Card[ 查询 Form(inline, style={{rowGap:12}}) → Divider → 工具栏(新增/批量操作) → Table(columns/width/scroll.x，操作列 fixed:'right') ]
+Card[ 查询 Form(inline, style={{rowGap:12}}) → Divider → 工具栏(新增/批量操作) → Table(columns/width/scroll.x，操作列 fixed:'right') ]
 查询按钮（查询/重置）必须在 Form 内最后一项；工具栏只放增删改类操作，不放查询按钮。
 Form 换行时两行之间必须有 12px 间距（用 Form 的 rowGap），否则两行挨在一起视觉拥挤。
 ```
 
-**3. 表单页**
+**3. 表单页**（内页：标题 + 右上返回）
 ```
-页头 → Form(vertical, max-width 960)
-→ Card[ 基本信息 ]（Row gutter24 + Col span8 三列；长文本/多行字段 Col span=24 独占一行）
-→ 底部 sticky 操作栏（取消 + 保存 primary）
+标题+返回 → Steps（有审批流时）→ Card[ 表单 ]（Form vertical，Row gutter24 + Col span12 两列；长文本/多行字段 Col span=24 独占一行）
+→ 底部操作栏（取消 + 提交 primary，按钮带图标）
 多步骤表单拆多个 Card 顺序排，不用 Tabs
 ```
 
-**4. 详情页**
+**4. 详情页**（内页：标题 + 右上返回）
 ```
-页头（含返回）→ Card[ Descriptions bordered column=2，长文本字段 span:2 整行独占 ]
-→ Card[ 关联明细 Table（pagination false）]
+标题+返回 → Card[ DetailList（pair 17:33，长文本 text 17:83）] → Card[ 关联明细 Table（pagination false）] → 底部操作栏 + 版权
 ```
 
-**5. 数据看板页**
+**5. 数据看板页**（默认页或内页按是否菜单项）
 ```
-页头 → KPI 统计卡 Row（4 列）→ Row[ 主图 Col span16 + 侧图 Col span8 ]
-主图：折线图（趋势/时间序列），ECharts + Arco 风格主题（ARCO_COLORS + ARCO_AXIS）
+KPI 统计卡 Row（4 列）→ Row[ 主图 Col span16 + 侧图 Col span8 ]
+主图：折线图（趋势/时间序列），ECharts + Claude 暖色主题（CHART_COLORS + CHART_AXIS）
 侧图：饼图或环形图（占比/分布），数据少用环形 radius: ['45%','70%']
 option 必须 useMemo 包，Chart 组件内部依赖 [option]，否则反复 init/dispose
 ```
 
-**6. 结果页**
+**6. 结果页**（内页）
 ```
-居中 Card（max-width 720）→ Result(status=success/error) + 操作按钮
+标题+返回 → 居中 Card（max-width 720）→ Result(status=success/error) + 操作按钮
 ```
 
 **7. 异常页**
