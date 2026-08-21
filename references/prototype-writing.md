@@ -99,30 +99,30 @@ output/prototype/
 
 ## 三、Ant Design 6 权威令牌
 
-以下数值是 v6 默认主题的权威值；**模板当前使用 Claude 主题（`templates/prototype-vite/src/theme/claudeTheme.ts`），生成原型时一律走主题 token，不得在页面里另造颜色**。观感来源：Claude 官方设计系统（`D:\LiangchaosBook\Downloads\DESIGN-claude(1).md`，亮珊瑚 #cc785c + 暖米画布 + 白卡片；2026-08-21 用户拍板回退此版，取代 Trae 深陶土版）。
+以下数值是 v6 默认主题的权威值；**模板当前使用 Claude 主题（`templates/prototype-vite/src/theme/claudeTheme.ts`），生成原型时一律走主题 token，不得在页面里另造颜色**。观感来源：Claude 官方设计系统（`D:\LiangchaosBook\Downloads\DESIGN-claude(1).md`，亮珊瑚 #cc785c + 暖米画布 + 白卡片；2026-08-21 用户拍板回退此版，取代 Trae 深陶土版）。**映射原则：每个 token 优先取官方色值，不造新色**（官方无定义处见下表"例外"）。
 
 **颜色（Claude 主题，模板默认）**
 
-| 令牌 | 值 | 用途 |
+| 令牌 | 值 | 官方 token / 用途 |
 |---|---|---|
-| 主色 colorPrimary | `#cc785c`（亮珊瑚 coral） | 主按钮、选中态、链接、顶栏激活模块、系统名 |
-| hover / active | `#d98f76` / `#a9583e` | 主色交互态 |
-| 成功 colorSuccess | `#5db872` | 成功状态（业务鲜绿，不用 Trae 苔藓绿） |
-| 警告 colorWarning | `#d4a017` | 警告状态 |
-| 错误 colorError | `#c64545` | 错误/危险状态 |
-| 页面背景 colorBgLayout | `#fcfbf9`（接近白的微暖） | content 区、侧栏底 |
-| 容器背景 colorBgContainer | `#ffffff`（白） | 卡片/表格底（白卡片，不靠深米） |
-| 浮层 colorBgElevated | `#ffffff` | 弹窗/下拉 |
-| 边框 colorBorder | `#e6dfd8`（hairline 柔） | 输入框/卡片边框 |
-| 次级边框 colorBorderSecondary | `#ebe6df` | 表格行分隔等 |
-| 正文 colorText | `#3d3d3a` | 主要文字 |
-| 次级 colorTextSecondary | `#6c6a64` | 次要说明 |
-| 弱化 colorTextTertiary | `#8e8b82` | 占位/弱化 |
-| 标题 colorTextHeading | `#141413` | 标题 |
-| 表格表头 | 底 `#faf8f4` + 字 `#141413` | Table headerBg/headerColor（浅米，比页面底深半档） |
-| 菜单选中 | 字 `#a9583e` + 底 `#f7ede7` | Menu itemSelected（浅珊瑚） |
-| 详情 label 列 | 底 `#faf8f4`（**与表格表头统一**）+ 字 `#6c6a64` | detail-list label 单元格 |
-| 圆角 | 控件/按钮 8px、**卡片 12px** | 克制圆角（官方值）；控件不要 16（32px 高会胶囊化） |
+| 主色 colorPrimary | `#cc785c` | primary coral——主按钮、选中态、链接、顶栏激活模块、系统名 |
+| hover / active | `#a9583e` / `#a9583e` | primary-active——官方**不定义 hover**（"按压即深，其余不变"），hover 直接用按压色 |
+| 成功 colorSuccess | `#5db872` | 官方 success |
+| 警告 colorWarning | `#d4a017` | 官方 warning |
+| 错误 colorError | `#c64545` | 官方 error |
+| 页面背景 colorBgLayout | `#faf9f5` | 官方 canvas——页面底（微暖米，非纯白） |
+| 容器背景 colorBgContainer | `#ffffff` | **例外**：官方无白色 token（最浅 canvas）；白容器为 2026-08-21 用户实机拍板（bc35d84 观感） |
+| 浮层 colorBgElevated | `#ffffff` | **例外**：同上，弹窗/下拉白 |
+| 边框 colorBorder | `#e6dfd8` | 官方 hairline——输入框/卡片边框 |
+| 次级边框 colorBorderSecondary | `#ebe6df` | 官方 hairline-soft——表格行分隔等 |
+| 正文 colorText | `#3d3d3a` | 官方 body |
+| 次级 colorTextSecondary | `#6c6a64` | 官方 muted |
+| 弱化 colorTextTertiary | `#8e8b82` | 官方 muted-soft |
+| 标题 colorTextHeading | `#141413` | 官方 ink |
+| 表格表头 | 底 `#f5f0e8` + 字 `#141413` | 官方 surface-soft（软带背景）+ ink |
+| 菜单选中 | 字 `#141413` + 底 `#efe9de` | 官方 surface-card（category-tab-active 语义）+ ink |
+| 详情 label 列 | 底 `#f5f0e8`（**与表格表头统一**）+ 字 `#6c6a64` | 官方 surface-soft——**必须走 antd `Descriptions.labelBg` token**（antd v6 默认 #fafafa 会被它覆盖，CSS 覆盖优先级不够） |
+| 圆角 | 控件/按钮 8px、**卡片 12px** | 官方 rounded.md / rounded.lg；控件不要 16（32px 高会胶囊化） |
 
 antd v6 默认值（未在 Claude 主题覆盖的尺度类，以下仍权威）：间距 4px 基准（4/8/12/16/20/24/32/48）、控件高 24/32/40（SM/默认/LG）、字体 14 基准（12/14/16/20/24）、阴影用 antd 默认 elevation、字体栈系统无衬线（苹方/微软雅黑回退；Trae 规范的 Poppins/Newsreader/Lora 为编辑式衬线风，中后台不用）。
 
@@ -207,9 +207,9 @@ box-shadow: 0 6px 16px 0 rgba(0,0,0,0.08),
 固定壳层（模板已实现，参考 `templates/prototype-vite/src/App.jsx`）：
 
 1. **顶栏通栏（Header，fixed 顶部，高 56px）**：左=品牌区（广西交投 logo 高 32px + 系统名**品牌色 `#cc785c`、24px、600 加粗**），中=**主模块 Tab**（带图标，**16px**；选中态=重点色 `#cc785c` + 加粗，不涂底），右=用户区（头像 + 用户名 **14px、`#6c6a64`**）。角色切换如有，统一放顶栏右侧
-2. **侧栏（Sider，fixed 左侧，宽 220px，微暖底 `#fcfbf9`）**：显示**当前主模块的一二级菜单**（`routes.jsx` 的 `group` 分组 + 每项带图标）；无滚动条（overflow hidden）
+2. **侧栏（Sider，fixed 左侧，宽 220px，canvas 米底 `#faf9f5`）**：显示**当前主模块的一二级菜单**（`routes.jsx` 的 `group` 分组 + 每项带图标）；无滚动条（overflow hidden）
 3. **标签页栏（fixed 顶栏下方）**：可关闭页面标签条替代面包屑/标题——点菜单项打开新标签并激活，点 × 关闭（关激活标签时激活左邻），"首页"常驻不可关；标签字号 12px
-4. **内容区（Content，body 自然滚动）**：微暖底 `#fcfbf9`，让出顶栏+标签栏+侧栏；页面内容用白色 Card 承载
+4. **内容区（Content，body 自然滚动）**：canvas 米底 `#faf9f5`，让出顶栏+标签栏+侧栏；页面内容用白色 Card 承载
 5. **三栏全部 fixed 钉住，只有内容区随 body 滚动**；不要用 antd Layout 的嵌套滚动容器
 
 **布局与按钮规则（项目组约定，硬规则）**
@@ -219,7 +219,7 @@ box-shadow: 0 6px 16px 0 rgba(0,0,0,0.08),
 - **内页底部版权**：`研发单位：广西计算中心`，14px，`#606266`，居中，作为页面内容最底部一行（放操作栏之前，不是页脚栏），用 `shared/ui/PageFooter.jsx`
 - 壳层只做路由 + 渲染容器；菜单从 `src/routes.jsx` 派生（`module`/`group`/`icon` 字段），不在 App.jsx 里再写一份菜单数据
 
-**版式方向**：微暖底 `#fcfbf9` + 白 Card + 珊瑚橙单强调色；层级靠间距、Card、标题和按钮优先级表达，不靠花哨装饰；不得引入第二强调色。
+**版式方向**：canvas 米底 `#faf9f5` + 白 Card + 珊瑚橙单强调色；层级靠间距、Card、标题和按钮优先级表达，不靠花哨装饰；不得引入第二强调色。
 
 ## 五、组件使用约定
 
@@ -305,7 +305,7 @@ const pieOption = useMemo(() => ({
 **详情列表（`shared/ui/DetailList.jsx`）**——项目组约定列宽：
 - 普通字段：`variant="pair"`，**一行两对**，label:value = **17%:33% / 17%:33%**（CSS `table-layout: fixed` + td 宽 17%/33% 实现；td 百分比作用域是整行，不是 item，**所以列宽写在 CSS 类上，不写 labelStyle/contentStyle**）
 - 文本域/多行：`variant="text"`，**一行一对** label:value = **17%:83%**
-- **label 单元格背景 `#faf8f4`（与表格表头统一，一条"标签米色"规则）、文字 `#6c6a64`**（对齐 Claude 主题）
+- **label 单元格背景 `#f5f0e8`（surface-soft，与表格表头统一）、文字 `#6c6a64`**（对齐 Claude 主题）——**必须走 `Descriptions.labelBg` 主题 token**（antd v6 bordered 默认 #fafafa，CSS 覆盖优先级不够会失效）
 - 页面级操作按钮不放进详情列表
 
 **表格**：**首列与操作列固定**（`fixed: 'left'/'right'` + `scroll={{ x: 1400 }}`），操作列放最后一列；行操作用 icon 按钮 + title，删除类操作配 danger
