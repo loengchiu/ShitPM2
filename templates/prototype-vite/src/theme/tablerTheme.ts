@@ -89,10 +89,15 @@ export const tablerTheme: ThemeConfig = {
     },
     Menu: {
       itemBg: 'transparent',
-      itemSelectedBg: 'transparent', // 官方浅色侧栏选中无底色，仅文字加深
-      itemSelectedColor: '#374151', // 官方 gray-700 选中文字（deepened）
+      // 选中：品牌蓝字 + 官方 --tblr-active-bg 淡蓝底（0.04 太淡几乎不可见，用 0.09 语义接近且能一眼看出当前页；
+      // 用户明确要求"表示当前所在页的选中效果"，v3 曾改透明底灰字导致看不出选中，已回退）
+      itemSelectedBg: 'rgba(6,111,209,0.09)',
+      itemSelectedColor: '#066fd1',
       itemColor: '#6b7280', // gray-500 未选中
       itemHoverColor: '#1f2937',
+      itemHoverBg: 'rgba(4,32,69,0.03)',
+      // 父级 submenu 标题：子项选中时同步品牌蓝（+700 加粗由 CSS 强化，见 global.css）
+      subMenuItemSelectedColor: '#066fd1',
       itemBorderRadius: 6,
     },
     Tabs: {
@@ -140,7 +145,7 @@ export const tablerCssVars: Record<string, string> = {
   '--text-secondary': '#6b7280',
   '--text-tertiary': '#9ca3af',
   '--detail-label-bg': '#f9fafb',
-  '--menu-selected-bg': 'transparent',
-  '--menu-selected-text': '#374151',
+  '--menu-selected-bg': 'rgba(6,111,209,0.09)',
+  '--menu-selected-text': '#066fd1',
   '--avatar-bg': '#f9fafb', // 官方头像底 gray-50（非品牌色）
 };
