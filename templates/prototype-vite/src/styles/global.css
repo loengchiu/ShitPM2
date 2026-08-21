@@ -1,3 +1,5 @@
+/* 全局样式：颜色一律引用 CSS 变量（--brand 等由主题文件注入 main.jsx，随设计语言走）
+   主题变量定义见 src/theme/claudeTheme.ts / traeTheme.ts 的 cssVars 导出 */
 html,
 body,
 #root {
@@ -5,7 +7,7 @@ body,
   margin: 0;
 }
 body {
-  background: #faf9f5;
+  background: var(--layout-bg);
 }
 /* 顶栏通栏：品牌区 + 主模块 Tab + 用户区 */
 .app-header {
@@ -14,8 +16,8 @@ body {
   gap: 24px;
   height: 56px;
   padding: 0 16px;
-  background: #ffffff;
-  border-bottom: 1px solid #ebe6df;
+  background: var(--surface-elevated);
+  border-bottom: 1px solid var(--border-soft);
   line-height: normal;
 }
 .brand {
@@ -24,7 +26,7 @@ body {
   gap: 10px;
   font-weight: 600;
   font-size: 24px;
-  color: #c96442; /* 品牌色（深陶土，对齐 Trae Claude 规范） */
+  color: var(--brand);
   white-space: nowrap;
   line-height: 1;
 }
@@ -35,7 +37,7 @@ body {
 /* 顶栏用户区 */
 .user-info {
   font-size: 14px;
-  color: #6c6a64;
+  color: var(--text-secondary);
 }
 .module-tabs {
   display: flex;
@@ -53,25 +55,25 @@ body {
   padding: 6px 12px;
   border-radius: 8px;
   font-size: 16px;
-  color: #6c6a64;
+  color: var(--text-secondary);
   cursor: pointer;
   white-space: nowrap;
   transition: all 0.2s;
 }
 .module-tab:hover {
-  color: #a9583e;
-  background: #f5f0e8;
+  color: var(--brand-active);
+  background: var(--menu-selected-bg);
 }
 .module-tab.active {
-  color: #cc785c;
+  color: var(--brand);
   font-weight: 600;
   background: transparent;
 }
 /* 已打开页面标签条：替代页面标题 */
 .page-tabs-bar {
-  background: #ffffff;
+  background: var(--surface-elevated);
   padding: 8px 16px 0;
-  border-bottom: 1px solid #ebe6df;
+  border-bottom: 1px solid var(--border-soft);
 }
 .page-tabs-bar .ant-tabs-nav {
   margin: 0;
@@ -89,7 +91,7 @@ body {
   margin-left: 220px;
   padding: 113px 24px 0;
   min-height: 100vh;
-  background: #faf9f5;
+  background: var(--layout-bg);
   box-sizing: border-box;
 }
 .page-content {
@@ -121,7 +123,7 @@ body {
   margin: 0 0 4px;
 }
 .page-sub {
-  color: #8e8b82;
+  color: var(--text-tertiary);
   font-size: 13px;
   margin: 0;
 }
@@ -141,21 +143,21 @@ body {
   align-items: center;
   gap: 12px;
   padding: 12px 16px;
-  background: #ffffff;
-  border-top: 1px solid #ebe6df;
+  background: var(--surface-elevated);
+  border-top: 1px solid var(--border-soft);
   z-index: 50;
 }
-/* 详情列表：固定表格布局 + td 宽度按行（20/30/20/30 或 20/80） */
+/* 详情列表：固定表格布局 + td 宽度按行（17:33 或 17:83） */
 .detail-list table,
 .detail-list-textarea table {
   table-layout: fixed;
 }
-/* 一行两对 label:value=2:3（整体 20%/30%/20%/30%），列宽直接作用在 td */
+/* label 单元格：背景用主题浅面色（色调分离），文字次级色 */
 .detail-list .ant-descriptions-item-label,
 .detail-list-textarea .ant-descriptions-item-label {
   min-width: 120px;
-  background: #f5f0e8; /* 暖米卡色，对齐 Claude 主题（不用 antd 原始冷灰） */
-  color: #6c6a64;
+  background: var(--detail-label-bg);
+  color: var(--text-secondary);
 }
 .detail-list .ant-descriptions-item-label {
   width: 17% !important;

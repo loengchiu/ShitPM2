@@ -69,3 +69,22 @@ export const claudeTheme: ThemeConfig = {
     },
   },
 };
+
+// CSS 变量：供 global.css / 壳层硬编码引用（顶栏、标签栏、操作栏、系统名等随主题走）
+export const claudeCssVars: Record<string, string> = {
+  '--brand': '#c96442',
+  '--brand-hover': '#d6866a',
+  '--brand-active': '#b0562f',
+  '--layout-bg': '#faf9f5',
+  '--card-bg': '#f5f4ef',
+  '--surface-elevated': '#ffffff', // 顶栏/标签栏/操作栏/弹层
+  '--border': '#dad9d4',
+  '--border-soft': '#e3e0d4',
+  '--text': '#3d3929',
+  '--text-secondary': '#6e6d68',
+  '--text-tertiary': '#908e84',
+  '--detail-label-bg': '#f5f0e8',
+  '--menu-selected-bg': '#f0e3da',
+  '--menu-selected-text': '#b0562f',
+  '--avatar-bg': '#c96442',
+};

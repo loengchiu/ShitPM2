@@ -93,7 +93,7 @@ export default function App() {
           ))}
         </div>
         <Space className="user-info">
-          <Avatar style={{ background: '#cc785c' }}>{'示'}</Avatar>
+          <Avatar style={{ background: 'var(--avatar-bg)' }}>{'示'}</Avatar>
           <span>{'演示用户'}</span>
         </Space>
       </Header>
@@ -105,8 +105,8 @@ export default function App() {
           left: 0,
           bottom: 0,
           overflow: 'hidden',
-          background: '#faf9f5',
-          borderRight: '1px solid #e6dfd8',
+          background: 'var(--layout-bg)',
+          borderRight: '1px solid var(--border)',
           zIndex: 90,
         }}
       >

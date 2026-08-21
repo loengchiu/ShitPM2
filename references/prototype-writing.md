@@ -129,12 +129,16 @@ antd v6 默认值（未在 Claude 主题覆盖的尺度类，以下仍权威）�
 
 原型在**生成前**选定设计语言，不做运行时换肤。每套语言 = 一个 `theme/<品牌>Theme.ts`（antd ConfigProvider token）+ 参考资产（`references/design-sources/<品牌>/`）。
 
+**选择时机（生成流程第一步）**：每次生成新原型、或原型观感需要重新定调时，**在 spm-prototype 生成动作开始前**先确认设计语言——优先问用户或按项目惯例；拿不准时用已收录品牌做双预览对比（同一样张页两个端口并排）再定，不要在原型生成到一半时才换主题（布局与项目组习惯已与主题解耦，但换主题本身应在页面开始前定）。
+
 切换流程：
 1. 按评审需求选定品牌（Claude 暖陶土 / Trae 靛蓝 / Linear 极简紫 / IBM 企业蓝…）
 2. 读 `references/design-sources/<品牌>/` 的 DESIGN.md 或 colors_and_type.css，取 token（主色/背景/文字/边框/圆角/状态色）
-3. 复制 `theme/claudeTheme.ts` → `theme/<品牌>Theme.ts`，替换色板与圆角体系（保留 token + components 结构）
-4. `main.jsx` 改引用 `<品牌>Theme`
-5. 微调三处：系统名品牌色（global.css `.brand`）、success 语义色、控件圆角防胶囊（控件圆角 ≤ 控件高一半，如 32px 高用 ≤ 16）
+3. 复制 `theme/claudeTheme.ts` → `theme/<品牌>Theme.ts`，替换色板与圆角体系（保留 token + components + cssVars 结构）
+4. `main.jsx` 改引用 `<品牌>Theme` + `<品牌>CssVars`
+5. 微调三处：系统名品牌色（走 `--brand`，无需改代码）、success 语义色、控件圆角防胶囊（控件圆角 ≤ 控件高一半，如 32px 高用 ≤ 16）
+
+**硬编码收敛约定**：顶栏/标签栏/操作栏/侧栏等壳层色一律引用 CSS 变量（`--brand` 等，主题文件 cssVars 导出、main.jsx 注入），**不在 global.css / 组件里写死颜色**——否则换主题时壳层不跟随。
 
 不变（项目组习惯，所有语言通用，见四、五章）：三栏布局、操作栏贴底、按钮带图标、版权、详情列宽 17:33、表单 vertical、表格钉列、页面标题规则。
 
