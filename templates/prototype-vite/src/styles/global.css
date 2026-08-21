@@ -24,13 +24,18 @@ body {
   gap: 10px;
   font-weight: 600;
   font-size: 24px;
-  color: #141413;
+  color: #cc785c; /* 品牌色（珊瑚橙） */
   white-space: nowrap;
   line-height: 1;
 }
 .brand-logo {
   height: 32px;
   width: auto;
+}
+/* 顶栏用户区 */
+.user-info {
+  font-size: 14px;
+  color: #6c6a64;
 }
 .module-tabs {
   display: flex;
@@ -47,7 +52,7 @@ body {
   background: transparent;
   padding: 6px 12px;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: 16px;
   color: #6c6a64;
   cursor: pointer;
   white-space: nowrap;
@@ -149,6 +154,8 @@ body {
 .detail-list .ant-descriptions-item-label,
 .detail-list-textarea .ant-descriptions-item-label {
   min-width: 120px;
+  background: #f5f0e8; /* 暖米卡色，对齐 Claude 主题（不用 antd 原始冷灰） */
+  color: #6c6a64;
 }
 .detail-list .ant-descriptions-item-label {
   width: 17% !important;

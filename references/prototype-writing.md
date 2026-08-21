@@ -185,7 +185,7 @@ box-shadow: 0 6px 16px 0 rgba(0,0,0,0.08),
 
 固定壳层（模板已实现，参考 `templates/prototype-vite/src/App.jsx`）：
 
-1. **顶栏通栏（Header，fixed 顶部，高 56px）**：左=品牌区（广西交投 logo + 系统名），中=**主模块 Tab**（带图标；选中态=重点色 `#cc785c` + 加粗，不涂底），右=用户区（头像 + 用户名）。角色切换如有，统一放顶栏右侧
+1. **顶栏通栏（Header，fixed 顶部，高 56px）**：左=品牌区（广西交投 logo 高 32px + 系统名**品牌色 `#cc785c`、24px、600 加粗**），中=**主模块 Tab**（带图标，**16px**；选中态=重点色 `#cc785c` + 加粗，不涂底），右=用户区（头像 + 用户名 **14px、`#6c6a64`**）。角色切换如有，统一放顶栏右侧
 2. **侧栏（Sider，fixed 左侧，宽 220px，暖米底）**：显示**当前主模块的一二级菜单**（`routes.jsx` 的 `group` 分组 + 每项带图标）；无滚动条（overflow hidden）
 3. **标签页栏（fixed 顶栏下方）**：可关闭页面标签条替代面包屑/标题——点菜单项打开新标签并激活，点 × 关闭（关激活标签时激活左邻），"首页"常驻不可关；标签字号 12px
 4. **内容区（Content，body 自然滚动）**：暖米底 `#faf9f5`，让出顶栏+标签栏+侧栏；页面内容用白色 Card 承载
@@ -232,6 +232,7 @@ ECharts React 封装 + Arco 主题（放在 `src/shared/Chart.jsx`）：
 **详情列表（`shared/ui/DetailList.jsx`）**——项目组约定列宽：
 - 普通字段：`variant="pair"`，**一行两对**，label:value = **17%:33% / 17%:33%**（CSS `table-layout: fixed` + td 宽 17%/33% 实现，不要用 labelStyle/contentStyle——td 百分比作用域是整行，不是 item）
 - 文本域/多行：`variant="text"`，**一行一对** label:value = **17%:83%**
+- **label 单元格背景用暖米卡色 `#f5f0e8`、文字 `#6c6a64`**（对齐 Claude 主题，不用 antd 原始冷灰 `#fafafa`）
 - 页面级操作按钮不放进详情列表
 
 **表格**：**首列与操作列必须固定**（`fixed: 'left'/'right'` + `scroll={{ x: 1400 }}`），操作列放最后一列；行操作用 icon 按钮 + title，删除类操作配 danger

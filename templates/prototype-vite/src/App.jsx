@@ -92,7 +92,7 @@ export default function App() {
             </button>
           ))}
         </div>
-        <Space>
+        <Space className="user-info">
           <Avatar style={{ background: '#cc785c' }}>{'示'}</Avatar>
           <span>{'演示用户'}</span>
         </Space>
