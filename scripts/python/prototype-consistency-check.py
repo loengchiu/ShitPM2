@@ -9,6 +9,8 @@ import re
 import sys
 from pathlib import Path
 
+from shared_md import parse_headings, parse_tables_with_context
+
 
 def _load_design_parser():
     path = Path(__file__).with_name("stage-prep.py")
@@ -139,9 +141,81 @@ def _names(items):
     return sorted({item.get("title", "").strip() for item in items if isinstance(item, dict) and item.get("title")})
 
 
+def _normalize_name(value):
+    """归一化名字用于匹配：去空白、去括号补充内容，容忍表达差异（与 prd 检查一致）。"""
+    text = re.sub(r"[（(][^）)]*[）)]", "", str(value or ""))
+    return re.sub(r"s+", "", text)
+
+
 def _compare(expected, text):
-    missing = [name for name in expected if name not in text]
+    normalized_text = _normalize_name(text)
+    missing = []
+    for name in expected:
+        if name in text:
+            continue
+        if _normalize_name(name) and _normalize_name(name) in normalized_text:
+            continue
+        missing.append(name)
     return {"expected": expected, "missing": missing, "matched_count": len(expected) - len(missing)}
+
+
+_DESIGN_SET_MANIFEST = "设计集清单.json"
+
+
+def _load_design_set_expected(root):
+    """design-set（shitpm-design-set/v1）下从模块设计文件提取页面/字段/操作/状态名。
+
+    经典 design.md 的替代事实源：清单不存在或解析失败返回 None，调用方保留经典路径。
+    只取 type=module 的文件（页面/字段/操作/状态只定义在模块设计里），避免系统级
+    基线与跨模块契约的字段混入期望集造成误报。
+    """
+    manifest_path = root / "output" / "design" / _DESIGN_SET_MANIFEST
+    if not manifest_path.is_file():
+        return None
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    design_dir = manifest_path.parent
+    texts = []
+    for entry in manifest.get("files", []):
+        if isinstance(entry, dict) and entry.get("type") == "module" and entry.get("path"):
+            path = (design_dir / entry["path"]).resolve()
+            if path.is_file():
+                try:
+                    texts.append(path.read_text(encoding="utf-8"))
+                except (OSError, UnicodeDecodeError):
+                    continue
+    text = "\n".join(texts)
+    if not text.strip():
+        return None
+    return _extract_design_set_names(text)
+
+
+def _extract_design_set_names(text):
+    """从模块设计 md 表格提取名字：页面（页面 ID 表）、字段（字段名称表）、
+    操作（操作表）、状态（状态机表）。表头按首列名判定，均为 design-set 模板固定语法。
+    """
+    expected = {"pages": [], "blocks": [], "fields": [], "operations": [], "states": []}
+    for table in parse_tables_with_context(text, parse_headings(text)):
+        headers = table.get("headers", [])
+        if not headers:
+            continue
+        if headers[0] == "页面" and "页面 ID" in headers:
+            key = "pages"
+        elif headers[0] == "字段名称":
+            key = "fields"
+        elif headers[0] == "操作":
+            key = "operations"
+        elif headers[0] == "状态":
+            key = "states"
+        else:
+            continue
+        for row in table.get("rows", []):
+            first = (row[0] or "").strip()
+            if first and first not in expected[key]:
+                expected[key].append(first)
+    return expected
 
 
 def main() -> int:
@@ -150,47 +224,67 @@ def main() -> int:
     args = parser.parse_args()
     root = Path(args.project_root).resolve()
     design_path = root / "output" / "design" / "design.md"
+    design_set_expected = _load_design_set_expected(root)
+    use_design_set = design_set_expected is not None
     prototype_root = root / "output" / "prototype"
-    if not design_path.is_file():
-        print(json.dumps({"ok": False, "error": "design.md 不存在"}, ensure_ascii=False))
+    if not design_path.is_file() and not use_design_set:
+        print(json.dumps({"ok": False, "error": "design.md 与 设计集清单.json 均不存在"}, ensure_ascii=False))
         return 2
     if not prototype_root.is_dir() or not list(prototype_root.rglob("*.html")):
         print(json.dumps({"ok": False, "error": "prototype HTML 不存在"}, ensure_ascii=False))
         return 2
-    design_text = design_path.read_text(encoding="utf-8")
-    design = _load_design_parser().generate_design_metadata(design_text, "design", root)
-    index_module = _load_design_index_module()
-    index, index_error, index_from_file = index_module.load_verified_index(root)
-    if index is None or index_error:
-        print(json.dumps({"ok": False, "error": index_error or "Design 索引解析失败"}, ensure_ascii=False))
-        return 2
+    index_from_file = False
+    if not use_design_set:
+        design_text = design_path.read_text(encoding="utf-8")
+        design = _load_design_parser().generate_design_metadata(design_text, "design", root)
+        index_module = _load_design_index_module()
+        index, index_error, index_from_file = index_module.load_verified_index(root)
+        if index is None or index_error:
+            print(json.dumps({"ok": False, "error": index_error or "Design 索引解析失败"}, ensure_ascii=False))
+            return 2
 
     text, explicit_states, explicit_entities = _scan(root)
-    indexed_active = bool(index.get("pages") or index.get("blocks") or index.get("fields") or index.get("operations"))
-    if indexed_active:
-        pages = _compare([item.get("name", "") for item in index.get("pages", [])], text)
-        blocks = _compare([item.get("name", "") for item in index.get("blocks", [])], text)
-        fields = _compare([item.get("name", "") for item in index.get("fields", [])], text)
-        operations = _compare([item.get("name", "") for item in index.get("operations", [])], text)
+    if use_design_set:
+        pages = _compare(design_set_expected["pages"], text)
+        blocks = {"expected": [], "missing": [], "matched_count": 0}
+        fields = _compare(design_set_expected["fields"], text)
+        operations = _compare(design_set_expected["operations"], text)
         expected_explicit = {
-            "page": set(pages["expected"]),
-            "block": set(blocks["expected"]),
-            "field": set(fields["expected"]),
-            "operation": set(operations["expected"]),
+            "page": set(design_set_expected["pages"]),
+            "field": set(design_set_expected["fields"]),
+            "operation": set(design_set_expected["operations"]),
         }
     else:
-        pages = _compare(_names(design.get("pages", [])), text)
-        blocks = {"expected": [], "missing": [], "matched_count": 0}
-        fields = _compare(_names(design.get("fields", [])), text)
-        operations = {"expected": [], "missing": [], "matched_count": 0}
-        expected_explicit = {"page": set(pages["expected"]), "block": set(), "field": set(fields["expected"]), "operation": set()}
+        indexed_active = bool(index.get("pages") or index.get("blocks") or index.get("fields") or index.get("operations"))
+        if indexed_active:
+            pages = _compare([item.get("name", "") for item in index.get("pages", [])], text)
+            blocks = _compare([item.get("name", "") for item in index.get("blocks", [])], text)
+            fields = _compare([item.get("name", "") for item in index.get("fields", [])], text)
+            operations = _compare([item.get("name", "") for item in index.get("operations", [])], text)
+            expected_explicit = {
+                "page": set(pages["expected"]),
+                "block": set(blocks["expected"]),
+                "field": set(fields["expected"]),
+                "operation": set(operations["expected"]),
+            }
+        else:
+            pages = _compare(_names(design.get("pages", [])), text)
+            blocks = {"expected": [], "missing": [], "matched_count": 0}
+            fields = _compare(_names(design.get("fields", [])), text)
+            operations = {"expected": [], "missing": [], "matched_count": 0}
+            expected_explicit = {"page": set(pages["expected"]), "block": set(), "field": set(fields["expected"]), "operation": set()}
 
     index_hallucinated = {
         entity_type: sorted(set(names) - expected_explicit[entity_type])
         for entity_type, names in explicit_entities.items()
+        if entity_type in expected_explicit
     }
-    design_states = _names(design.get("states", []))
-    indexed_states = [item.get("name", "") for item in index.get("states", []) if isinstance(item, dict)]
+    if use_design_set:
+        design_states = design_set_expected["states"]
+        indexed_states = []
+    else:
+        design_states = _names(design.get("states", []))
+        indexed_states = [item.get("name", "") for item in index.get("states", []) if isinstance(item, dict)]
     states = _compare(indexed_states or design_states, text)
     design_state_names = set(states["expected"])
     states["hallucinated"] = sorted(set(explicit_states) - design_state_names)
@@ -202,8 +296,8 @@ def main() -> int:
     result = {
         "ok": not (total_missing or total_hallucinated),
         "source": {
-            "design": "output/design/design.md",
-            "design_index": {"path": ".workflow/runtime/context/design/index/design-index.json", "from_file": index_from_file},
+            "design": ("output/design/设计集清单.json + 模块设计文件" if use_design_set else "output/design/design.md"),
+            "design_index": {"path": (None if use_design_set else ".workflow/runtime/context/design/index/design-index.json"), "from_file": index_from_file},
             "prototype": "output/prototype/**/*.{html,js,jsx}（排除 dist/node_modules/prototype-p0）",
         },
         "pages": pages,

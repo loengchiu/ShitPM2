@@ -48,9 +48,11 @@ python $BUNDLE/scripts/python/design-confirmation.py --project-root . check
 6. 读取并执行 `$BUNDLE/references/prototype-writing.md` 的通用基座、Ant Design 6、页面组织和视觉细则；多页面或 shell 相关任务再读取 `$BUNDLE/references/prototype-shell.md`。按 Design 在 `src/modules/<模块>/` 创建业务页面组件并注册到 `src/routes.jsx`；共享壳层、角色切换、异常页放在 `src/shared/`。确认版 Design 是唯一产品事实源，PRD 仅可选辅助，冲突时以 Design 为准。
 7. 允许编辑 `src/`、`index.html`、`package.json`、`vite.config.js`、`public/`、`README.md`；禁止直接编辑 `dist/`、`node_modules/` 和 Vite 生成的带哈希资源文件。
 8. 依赖与构建：运行 `npm ci`，再运行 `npm run build`；构建失败先修复源码，不部署旧 dist 冒充新版本。
-9. 验证 `原型工具.bat` 的三个本地选项（“启动本地即时预览”“构建并预览发布版本”“重新构建部署包”）实际可用；开发预览（dev）只抽查默认页 + 1 个代表页即可，不逐路由验证。
+9. 验证 `原型工具.bat` 的三个本地选项（“启动本地即时预览”“构建并预览发布版本”“重新构建部署包”）实际可用：双击能打开中文菜单并进入选项（选项只调用 package.json 标准 scripts，读文件确认映射即可）；不做 dev 浏览器抽查、不逐路由验证。
 10. 生成后检查（浏览器验证只跑一遍构建预览，不再 dev/preview 双份全路由）：
    - **浏览器渲染**：构建预览（`npm run preview` 或静态服务 dist）逐一打开默认页与每个注册路由，均不得白屏（`#root` 非空）、console 不得报错；等待策略用 `domcontentloaded` + 短等待（≤2s/页）查 `#root` 与 console，禁止无脑 `networkidle` 长等（vite 下会空等 5-30s/页，路由多时整体拖到数十分钟）；
+   - **交互回显分级验证（浏览器只走一条代表性主链路）**：完整交互回显（操作后状态/数据回写、跨页/跨角色联动）只挑一条代表性主链路在浏览器内完整走通（如 修正→重算→确认应收→确认缴纳→返回列表验证回显）；其余页面、字段和操作的联动回显不逐条开浏览器点验，改为源码逻辑核对（store 重算函数、状态机/权限分支、Design 字段与页面映射）并靠确定性检查覆盖；只有“全部路由白屏 + console 无报错”仍按上一条逐一检查。
+   - **验证不依赖截图**：文字模型无视觉能力，禁止以截图作为检查证据或“验证过程存档”；渲染、白屏、console 与回显检查一律用 DOM/页面文本/console 文本断言（`#root` 非空、关键文本与状态可见）；仅当用户明确索要截图时才拍摄，不为检查拍摄。
    - **空/异常/加载态可观察**：每个列表/看板页空 dataSource 时显示 Table 内置"暂无数据"空态（不得移除空态表达）；关键页必须能表达"加载失败点击重试"与无权限拦截，不允许只展示满数据 mock 而不交代异常态；
    - **多角色页面必须有角色视角**：Design 页面清单"适用角色"多于一个角色的项目，角色切换统一放壳层 Header（Select，角色用全称如"被审单位对接人"），页内不放"演示角色切换"；角色不满足的操作不渲染；不得静默只按单一角色渲染；
    - **配置管理页不得用占位**：新增/编辑/停用/启用等操作必须用真实 `Modal` + `Form`（字段按 Design 对应页面章节），二次确认用 `Modal.confirm`，禁止 `message.info('…（示意）')` 占位；
@@ -64,6 +66,7 @@ python $BUNDLE/scripts/python/prototype-consistency-check.py --project-root .
 ```
 
 确定性检查或浏览器检查失败时先修复并重新验证，不交付未验证的原型。
+design-set 格式项目（无 `output/design/design.md`）由脚本直接支持：从 `output/design/设计集清单.json` 的模块设计文件提取页面/字段/操作/状态，执行与经典 design.md 同一套对账，不再报 "design.md 不存在"。
 12. 更新 `.workflow/status.json`：`current_stage=prototype`，`artifacts.prototype=output/prototype/index.html`；不使用 `current_stage=done` 表达线性完成。
 
 ## 修改流程
@@ -72,7 +75,9 @@ python $BUNDLE/scripts/python/prototype-consistency-check.py --project-root .
 2. 从 `src/routes.jsx` 和 `src/modules/` 定位业务页面，只修改 `src/`。
 3. 运行开发预览核对修改效果，然后 `npm run build` 重新构建。
 4. 用构建预览复验（只验证本次改动的页面 + 默认页，不再全路由双份），确认与开发预览一致；复验 `原型工具.bat` 的相关菜单选项。
+   - 交互回显只重验本次改动涉及的链路（浏览器一遍即可）；未改动页面的回显逻辑改由源码核对与确定性检查覆盖，不逐条重开浏览器。
 5. 重新运行 `prototype-source-check.py` 与 `prototype-consistency-check.py`，通过后再交付。
+   - design-set 项目同上处理（consistency-check 已支持设计集清单，正常参与检查）。
 
 ## 反馈处理
 
