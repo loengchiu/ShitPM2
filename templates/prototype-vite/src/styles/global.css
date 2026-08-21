@@ -24,7 +24,7 @@ body {
   gap: 10px;
   font-weight: 600;
   font-size: 24px;
-  color: #cc785c; /* 品牌色（珊瑚橙） */
+  color: #c96442; /* 品牌色（深陶土，对齐 Trae Claude 规范） */
   white-space: nowrap;
   line-height: 1;
 }

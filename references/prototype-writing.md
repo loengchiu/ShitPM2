@@ -99,30 +99,31 @@ output/prototype/
 
 ## 三、Ant Design 6 权威令牌
 
-以下数值是 v6 默认主题的权威值；**模板当前使用 Claude 主题（`templates/prototype-vite/src/theme/claudeTheme.ts`），生成原型时一律走主题 token，不得在页面里另造颜色**。观感来源：getdesign.md 的 Claude 设计分析（暖米底 + 珊瑚橙强调，克制、B 端沉稳）。
+以下数值是 v6 默认主题的权威值；**模板当前使用 Claude 主题（`templates/prototype-vite/src/theme/claudeTheme.ts`），生成原型时一律走主题 token，不得在页面里另造颜色**。观感来源：Trae 导出的 Claude-2 设计系统（`references/design-sources/claude-2-design-system/`，含 colors_and_type.css / preview / ui_kits）+ getdesign.md 的 Claude 分析（暖米底 + 深陶土强调，克制、B 端沉稳）。
 
 **颜色（Claude 主题，模板默认）**
 
 | 令牌 | 值 | 用途 |
 |---|---|---|
-| 主色 colorPrimary | `#cc785c`（珊瑚橙） | 主按钮、选中态、链接、顶栏激活模块 |
-| hover / active | `#d98f76` / `#a9583e` | 主色交互态（antd 自动派生） |
-| 成功 colorSuccess | `#5db872` | 成功状态 |
+| 主色 colorPrimary | `#c96442`（深陶土 terra-cotta） | 主按钮、选中态、链接、顶栏激活模块、系统名 |
+| hover / active | `#d6866a` / `#b0562f` | 主色交互态 |
+| 成功 colorSuccess | `#5db872` | 成功状态（业务鲜绿，不用 Trae 苔藓绿） |
 | 警告 colorWarning | `#d4a017` | 警告状态 |
-| 错误 colorError | `#c64545` | 错误/危险状态 |
+| 错误 colorError | `#d64545` | 错误/危险状态 |
 | 页面背景 colorBgLayout | `#faf9f5`（暖米） | content 区、侧栏底 |
-| 容器背景 colorBgContainer | `#ffffff` | 卡片/表格底 |
-| 边框 colorBorder | `#e6dfd8`（hairline） | 输入框/卡片边框 |
-| 次级边框 colorBorderSecondary | `#ebe6df` | 表格行分隔等 |
-| 正文 colorText | `#3d3d3a` | 主要文字 |
-| 次级 colorTextSecondary | `#6c6a64` | 次要说明 |
-| 弱化 colorTextTertiary | `#8e8b82` | 占位/弱化 |
-| 标题 colorTextHeading | `#141413` | 标题 |
-| 表格表头 | 底 `#f5f0e8` + 字 `#141413` | Table headerBg/headerColor |
-| 菜单选中 | 字 `#a9583e` + 底 `#f0e3da` | Menu itemSelected |
-| 圆角 borderRadius | 8px（按钮/输入框） | 卡片 12px |
+| 容器背景 colorBgContainer | `#f5f4ef`（卡片暖米） | 卡片/表格底（色调分离，非纯白） |
+| 浮层 colorBgElevated | `#ffffff` | 弹窗/下拉 |
+| 边框 colorBorder | `#dad9d4` | 输入框/卡片边框 |
+| 次级边框 colorBorderSecondary | `#e3e0d4` | 表格行分隔等 |
+| 正文 colorText | `#3d3929` | 主要文字 |
+| 次级 colorTextSecondary | `#6e6d68` | 次要说明 |
+| 弱化 colorTextTertiary | `#908e84` | 占位/弱化 |
+| 标题 colorTextHeading | `#3d3929` | 标题 |
+| 表格表头 | 底 `#e9e6dc` + 字 `#3d3929` | Table headerBg/headerColor |
+| 菜单选中 | 字 `#b0562f` + 底 `#f0e3da` | Menu itemSelected |
+| 圆角 | 控件/按钮 10px、**卡片 16px** | 控件不要 16（32px 高会胶囊化）；圆滑感由卡片承担 |
 
-antd v6 默认值（未在 Claude 主题覆盖的尺度类，以下仍权威）：间距 4px 基准（4/8/12/16/20/24/32/48）、控件高 24/32/40（SM/默认/LG）、字体 14 基准（12/14/16/20/24）、阴影用 antd 默认 elevation、字体栈系统无衬线（苹方/微软雅黑回退，不要强制指定思源黑体）。
+antd v6 默认值（未在 Claude 主题覆盖的尺度类，以下仍权威）：间距 4px 基准（4/8/12/16/20/24/32/48）、控件高 24/32/40（SM/默认/LG）、字体 14 基准（12/14/16/20/24）、阴影用 antd 默认 elevation、字体栈系统无衬线（苹方/微软雅黑回退；Trae 规范的 Poppins/Newsreader/Lora 为编辑式衬线风，中后台不用）。
 
 **间距标尺**（4px 基准，`sizeUnit=4, sizeStep=4`，padding/margin 直接映射）
 
@@ -185,7 +186,7 @@ box-shadow: 0 6px 16px 0 rgba(0,0,0,0.08),
 
 固定壳层（模板已实现，参考 `templates/prototype-vite/src/App.jsx`）：
 
-1. **顶栏通栏（Header，fixed 顶部，高 56px）**：左=品牌区（广西交投 logo 高 32px + 系统名**品牌色 `#cc785c`、24px、600 加粗**），中=**主模块 Tab**（带图标，**16px**；选中态=重点色 `#cc785c` + 加粗，不涂底），右=用户区（头像 + 用户名 **14px、`#6c6a64`**）。角色切换如有，统一放顶栏右侧
+1. **顶栏通栏（Header，fixed 顶部，高 56px）**：左=品牌区（广西交投 logo 高 32px + 系统名**品牌色 `#c96442`、24px、600 加粗**），中=**主模块 Tab**（带图标，**16px**；选中态=重点色 `#c96442` + 加粗，不涂底），右=用户区（头像 + 用户名 **14px、`#6c6a64`**）。角色切换如有，统一放顶栏右侧
 2. **侧栏（Sider，fixed 左侧，宽 220px，暖米底）**：显示**当前主模块的一二级菜单**（`routes.jsx` 的 `group` 分组 + 每项带图标）；无滚动条（overflow hidden）
 3. **标签页栏（fixed 顶栏下方）**：可关闭页面标签条替代面包屑/标题——点菜单项打开新标签并激活，点 × 关闭（关激活标签时激活左邻），"首页"常驻不可关；标签字号 12px
 4. **内容区（Content，body 自然滚动）**：暖米底 `#faf9f5`，让出顶栏+标签栏+侧栏；页面内容用白色 Card 承载
@@ -231,10 +232,10 @@ ECharts React 封装 + Claude 暖色主题（放在 `src/shared/Chart.jsx`）：
 import * as echarts from 'echarts';
 import { useEffect, useRef } from 'react';
 
-// Claude 暖色图表主题（对齐 #cc785c 珊瑚橙主色、暖灰网格、文字 #6c6a64）
-const CHART_COLORS = ['#cc785c', '#a9583e', '#e8a55a', '#5db8a6', '#8e8b82', '#6c6a64', '#5db872', '#d4a017'];
+// Claude 暖色图表主题（对齐 #c96442 珊瑚橙主色、暖灰网格、文字 #6c6a64）
+const CHART_COLORS = ['#c96442', '#b0562f', '#e8a55a', '#5db8a6', '#8e8b82', '#6c6a64', '#5db872', '#d4a017'];
 const CHART_AXIS = {
-  axisLine: { lineStyle: { color: '#e6dfd8' } },
+  axisLine: { lineStyle: { color: '#dad9d4' } },
   axisTick: { show: false },
   axisLabel: { color: '#6c6a64', fontSize: 12 },
   splitLine: { lineStyle: { color: '#ebe6df', width: 1 } },
@@ -262,7 +263,7 @@ const trendOption = useMemo(() => ({
   xAxis: { type: 'category', data: ['D1','D2','D3',...], ...CHART_AXIS },
   yAxis: { type: 'value', ...CHART_AXIS },
   series: [{ name: '趋势', type: 'line', smooth: true, data: [...],
-    itemStyle: { color: '#cc785c' }, lineStyle: { width: 2 },
+    itemStyle: { color: '#c96442' }, lineStyle: { width: 2 },
     areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
       colorStops: [{ offset: 0, color: 'rgba(204,120,92,0.25)' }, { offset: 1, color: 'rgba(204,120,92,0.02)' }] } } }],
 }), []);
