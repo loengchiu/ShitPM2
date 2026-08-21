@@ -43,8 +43,15 @@ export const claudeTheme: ThemeConfig = {
   components: {
     Button: {
       fontWeight: 500,
-      controlHeight: 32,
+      controlHeight: 40, // 官方 button height: 40px（此前误设 32）
       borderRadius: 8, // rounded.md
+      // 官方按钮 Flat：无阴影无边框（primary 无阴影、secondary 无边框）
+      primaryShadow: 'none',
+      defaultShadow: 'none',
+      // 官方 button-secondary：canvas 底 + ink 字（替代 antd 默认白底+primary 描边）
+      defaultBg: '#faf9f5', // canvas
+      defaultColor: '#141413', // ink
+      defaultBorderColor: 'transparent', // Flat 无边框
     },
     Card: {
       borderRadiusLG: 12, // rounded.lg
