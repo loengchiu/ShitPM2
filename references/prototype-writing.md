@@ -125,6 +125,21 @@ output/prototype/
 
 antd v6 默认值（未在 Claude 主题覆盖的尺度类，以下仍权威）：间距 4px 基准（4/8/12/16/20/24/32/48）、控件高 24/32/40（SM/默认/LG）、字体 14 基准（12/14/16/20/24）、阴影用 antd 默认 elevation、字体栈系统无衬线（苹方/微软雅黑回退；Trae 规范的 Poppins/Newsreader/Lora 为编辑式衬线风，中后台不用）。
 
+**品牌主题接入（生成原型前选择设计语言）**
+
+原型在**生成前**选定设计语言，不做运行时换肤。每套语言 = 一个 `theme/<品牌>Theme.ts`（antd ConfigProvider token）+ 参考资产（`references/design-sources/<品牌>/`）。
+
+切换流程：
+1. 按评审需求选定品牌（Claude 暖陶土 / Trae 靛蓝 / Linear 极简紫 / IBM 企业蓝…）
+2. 读 `references/design-sources/<品牌>/` 的 DESIGN.md 或 colors_and_type.css，取 token（主色/背景/文字/边框/圆角/状态色）
+3. 复制 `theme/claudeTheme.ts` → `theme/<品牌>Theme.ts`，替换色板与圆角体系（保留 token + components 结构）
+4. `main.jsx` 改引用 `<品牌>Theme`
+5. 微调三处：系统名品牌色（global.css `.brand`）、success 语义色、控件圆角防胶囊（控件圆角 ≤ 控件高一半，如 32px 高用 ≤ 16）
+
+不变（项目组习惯，所有语言通用，见四、五章）：三栏布局、操作栏贴底、按钮带图标、版权、详情列宽 17:33、表单 vertical、表格钉列、页面标题规则。
+
+已收录品牌：claude（Claude 暖陶土，`design-sources/claude-2-design-system/`，当前默认）、traework（Trae 靛蓝科技 `#4B3FE3`，`design-sources/traework/`）。
+
 **间距标尺**（4px 基准，`sizeUnit=4, sizeStep=4`，padding/margin 直接映射）
 
 | 令牌 | 值 |
