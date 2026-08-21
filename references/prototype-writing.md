@@ -119,9 +119,9 @@ output/prototype/
 | 次级 colorTextSecondary | `#6c6a64` | 官方 muted |
 | 弱化 colorTextTertiary | `#8e8b82` | 官方 muted-soft |
 | 标题 colorTextHeading | `#141413` | 官方 ink |
-| 表格表头 | 底 `#f5f0e8` + 字 `#141413` | 官方 surface-soft（软带背景）+ ink |
+| 表格表头 | 底 `#faf9f5`（canvas，与页面底同色）+ 字 `#141413` | 用户拍板 2026-08-21：表头不深，靠边框/字重区分；ink 字 |
 | 菜单选中 | 字 `#141413` + 底 `#efe9de` | 官方 surface-card（category-tab-active 语义）+ ink |
-| 详情 label 列 | 底 `#f5f0e8`（**与表格表头统一**）+ 字 `#6c6a64` | 官方 surface-soft——**必须走 antd `Descriptions.labelBg` token**（antd v6 默认 #fafafa 会被它覆盖，CSS 覆盖优先级不够） |
+| 详情 label 列 | 底 `#faf9f5`（**与表头/页面底统一**）+ 字 `#6c6a64` | canvas——**必须走 antd `Descriptions.labelBg` token**（antd v6 默认 #fafafa 会被它覆盖，CSS 覆盖优先级不够） |
 | 圆角 | 控件/按钮 8px、**卡片 12px** | 官方 rounded.md / rounded.lg；控件不要 16（32px 高会胶囊化） |
 
 antd v6 默认值（未在 Claude 主题覆盖的尺度类，以下仍权威）：间距 4px 基准（4/8/12/16/20/24/32/48）、控件高 24/32/40（SM/默认/LG）、字体 14 基准（12/14/16/20/24）、阴影用 antd 默认 elevation、字体栈系统无衬线（苹方/微软雅黑回退；Trae 规范的 Poppins/Newsreader/Lora 为编辑式衬线风，中后台不用）。
@@ -305,7 +305,7 @@ const pieOption = useMemo(() => ({
 **详情列表（`shared/ui/DetailList.jsx`）**——项目组约定列宽：
 - 普通字段：`variant="pair"`，**一行两对**，label:value = **17%:33% / 17%:33%**（CSS `table-layout: fixed` + td 宽 17%/33% 实现；td 百分比作用域是整行，不是 item，**所以列宽写在 CSS 类上，不写 labelStyle/contentStyle**）
 - 文本域/多行：`variant="text"`，**一行一对** label:value = **17%:83%**
-- **label 单元格背景 `#f5f0e8`（surface-soft，与表格表头统一）、文字 `#6c6a64`**（对齐 Claude 主题）——**必须走 `Descriptions.labelBg` 主题 token**（antd v6 bordered 默认 #fafafa，CSS 覆盖优先级不够会失效）
+- **label 单元格背景 `#faf9f5`（canvas，与表头/页面底统一）、文字 `#6c6a64`**（对齐 Claude 主题）——**必须走 `Descriptions.labelBg` 主题 token**（antd v6 bordered 默认 #fafafa，CSS 覆盖优先级不够会失效）
 - 页面级操作按钮不放进详情列表
 
 **表格**：**首列与操作列固定**（`fixed: 'left'/'right'` + `scroll={{ x: 1400 }}`），操作列放最后一列；行操作用 icon 按钮 + title，删除类操作配 danger

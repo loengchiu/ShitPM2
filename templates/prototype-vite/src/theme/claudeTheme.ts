@@ -50,9 +50,9 @@ export const claudeTheme: ThemeConfig = {
       borderRadiusLG: 12, // rounded.lg
     },
     Table: {
-      headerBg: '#f5f0e8', // surface-soft：软带背景
+      headerBg: '#faf9f5', // canvas：用户拍板表头=页面底色（2026-08-21）
       headerColor: '#141413', // ink
-      rowHoverBg: '#f5f0e8', // surface-soft
+      rowHoverBg: '#f5f0e8', // surface-soft（仅行悬停交互态，静态不显）
     },
     Layout: {
       siderBg: '#faf9f5', // canvas
@@ -71,7 +71,7 @@ export const claudeTheme: ThemeConfig = {
       itemSelectedColor: '#a9583e',
     },
     Descriptions: {
-      labelBg: '#f5f0e8', // surface-soft：详情 label 列与表头统一（antd v6 用 labelBg token，默认 #fafafa 会被覆盖）
+      labelBg: '#faf9f5', // canvas：详情 label 列与表头统一（用户拍板同页面底；antd v6 默认 #fafafa 会被覆盖）
     },
   },
 };
@@ -90,7 +90,7 @@ export const claudeCssVars: Record<string, string> = {
   '--text': '#3d3d3a', // body
   '--text-secondary': '#6c6a64', // muted
   '--text-tertiary': '#8e8b82', // muted-soft
-  '--detail-label-bg': '#f5f0e8', // surface-soft（与表头统一）
+  '--detail-label-bg': '#faf9f5', // canvas（与表头统一，用户拍板）
   '--menu-selected-bg': '#efe9de', // surface-card（category-tab-active）
   '--menu-selected-text': '#141413', // ink
   '--avatar-bg': '#cc785c', // primary
