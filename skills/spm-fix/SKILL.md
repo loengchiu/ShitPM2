@@ -36,7 +36,7 @@ description: "同步修复——ShitPM：把变更影响沿链路传播到当前
 4. 读取 $BUNDLE/contracts/fix-propagation-rules.md，判定受影响的最深阶段和实际存在的下游分支。
 5. 修改 Design 时按事务写入：单文件用 design-set.py stage-single/commit-single，多文件用 begin/commit；检查失败或中断用 recover。纯组织变化只更新 ID/路径/指纹和依据，下游保持 current。
 6. 计算受影响下游：用 design-set.py check-inputs --artifact prd|prototype 检查当前依据；返回 incomplete（provenance_missing）时说明下游产物存在但无依据记录，先补 record-inputs 再继续；用户明确修改事实时连续同步所有实际存在且受影响的 PRD / Prototype 模块，无确认停顿。
-7. 仅对实际存在且受影响的分支运行针对性检查：prd-consistency-check.py --module <模块名>、prototype-consistency-check.py --module <模块名>。PRD 不存在时不伪造 PRD 检查，Prototype-only 项目仍需走合法原型检查路径。
+7. 仅对实际存在且受影响的分支运行针对性检查：PRD 使用 `prd-consistency-check.py --module <模块名>`；Prototype 使用全量 `prototype-consistency-check.py --project-root .`。Prototype 的模块级判断由语义审查结合全量结果和对应 Design 模块完成。PRD 不存在时不伪造 PRD 检查，Prototype-only 项目仍需走合法原型检查路径。
 8. 针对性检查通过后更新下游依据：record-inputs 更新 design_inputs 指纹，status 置 current、check_status 置 passed、清空 affected_by；检查失败时保留 affected 或 incomplete，不得伪装通过。
 
 完成判据：修改对象与影响范围已判定；唯一事实归属已定位；Design 修改已按事务提交；所有实际存在且受影响的下游已同步；针对性检查已运行；下游依据与结果一致。

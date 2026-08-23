@@ -1,18 +1,20 @@
 ---
 name: spm-prototype
-description: "Prototype 生成与修改：根据 Design 事实闭包创建或更新可运行的 Vite + React 18 + Ant Design 6 源码原型。触发于生成原型或修改原型；评审原型使用 spm-prototype-review；源码工程缺失时停止。"
+description: "Prototype 生成与修改：根据多文件 Design 事实闭包创建或更新可运行的 Vite + React 18 + Ant Design 6 源码原型。触发于生成原型或修改原型；评审原型使用 spm-prototype-review；源码工程缺失时停止。"
 ---
 
 ## 运行前提
 
 从系统 prompt 读取 `ShitPM bundle root:`，记为 `$BUNDLE`。项目文件使用当前项目根目录；规则、模板和脚本使用 `$BUNDLE/`。流程开始时给出一次模型建议：跨页面任务、复杂交互或高影响表达使用深度推理模型；只有明确的结构或格式检查才使用轻量模型；无法判断时使用深度推理模型。
 
-Prototype 直接下游于 Design：
+Prototype 直接下游于 Design 事实闭包：
 
 - 设计地图、设计集清单和目标模块 Design 事实闭包是唯一产品事实输入；PRD 只能辅助发现表达差异，冲突时以 Design 为准。
 - `output/prototype/src/` 是唯一编辑源；`dist/` 只由 `npm run build` 生成，不能作为产品事实或编辑入口。
 - 工程使用标准 Vite + React 18 + Ant Design 6；依赖由 `package.json` 和 `package-lock.json` 管理，安装使用 `npm ci`。
 - 用户入口只有 `output/prototype/原型工具.bat`；它调用 `package.json` 的 `dev`、`build`、`preview` scripts。
+- 每次生成前从项目的设计地图、设计集清单和目标 Design 文件读取事实闭包；不依赖单体 `design.md`、人工确认脚本或旧确认哈希流程。
+- 生成前选择一套品牌主题：Claude 或 Tabler。一个原型内只使用一套品牌主题；当前模板默认 Tabler，项目组的壳层、交互和代码习惯与品牌主题分离。
 - 页面只表达 Design 已定义的字段、状态、权限、流程、异常和责任边界，不补写高影响事实。
 
 ## 每次任务先读取
@@ -20,7 +22,7 @@ Prototype 直接下游于 Design：
 按以下顺序读取，且每一步完成后再进入下一步：
 
 1. 运行 `python $BUNDLE/scripts/python/stage-context.py --project-root .`。**完成条件**：确认 Design 清单可读，且 `design_change.active` 不为 `true`；有活动事务先恢复或停止。
-2. 读取目标模块的 Design 事实闭包和现有 `output/prototype/`。**完成条件**：能列出本次必须表达的页面、字段、状态、角色权限、主路径、关键反馈和待确认项。
+2. 读取设计地图、设计集清单、目标模块的 Design 事实闭包和现有 `output/prototype/`。**完成条件**：能列出本次必须表达的页面、字段、状态、角色权限、主路径、关键反馈和待确认项。
 3. 读取 `$BUNDLE/references/prototype-visual-spec.md`。**完成条件**：已为每个页面选择 7 类骨架之一，并知道所需共享 UI、状态矩阵和响应式要求。
 4. 读取 `$BUNDLE/references/prototype-writing.md`；只有多页面 shell、导航、路由或空白页任务才读取 `$BUNDLE/references/prototype-shell.md`。**完成条件**：已确定组件 API、源码目录、路由登记和构建边界。
 5. 生成或修改页头、区块卡片、指标卡、工具栏、数据表格、状态、空态、图标按钮、行操作、表单分区和页面操作栏前，先读取当前模板 `src/shared/ui/` 的真实导出和目标组件实现。命中现有共享组件时直接复用，不在页面内复制它已经承担的 DOM、CSS 或默认行为；共享组件无法表达已确认 Design 要求时，允许组合 Ant Design 原生组件或页面特有结构，并说明回退原因。
@@ -49,7 +51,7 @@ Prototype 直接下游于 Design：
 
 1. 用真实浏览器打开默认页和每个注册路由，检查浏览器 console 无错误；对项目实际存在的关键交互至少各操作一次，包括 Modal、Form、Select、角色切换和响应式状态。没有对应场景时明确记录“模板/项目无此场景”，不能用静态检查代替浏览器验证。
 2. 检查加载、空数据、失败/重试、无权限、禁用/只读、选中和响应式状态可通过 UI 观察；列表/看板保留空态，配置操作使用真实 `Modal` + `Form`，状态机限制使用 `disabled`。
-3. 检查页面没有“入口：”“（只读）”“（必填）”等解释性标注代替真实 UI 状态；图标统一使用 Tabler，图表使用 `TablerChart`。
+3. 检查页面没有“入口：”“（只读）”“（必填）”等解释性标注代替真实 UI 状态；图标统一使用 Tabler，图表使用 `TablerChart`；品牌主题只使用本轮选择的 Claude 或 Tabler 之一。
 4. 对本任务命中的 behavior 章节逐条核对对应规则；跨任务通用的完成门槛以本 Skill 为准，不通过交付前再次完整读取 behavior 来替代。
 5. 运行：
 
@@ -58,7 +60,9 @@ python $BUNDLE/scripts/python/prototype-source-check.py --project-root .
 python $BUNDLE/scripts/python/prototype-consistency-check.py --project-root .
 ```
 
-**完成条件**：构建成功；默认页和全部注册路由可打开；实际存在的关键交互可操作；console 无运行时错误；适用 Portal/响应式场景已用真实浏览器检查；针对性一致性检查通过。任何未验证项都已明确报告。随后更新 `.workflow/status.json` 的 `current_stage=prototype` 和 Prototype 产物路径，并按实际读取的 Design 文件记录 `design-set.py record-inputs`。
+一致性脚本只提供全量检查，结果必须按三类阅读：`deterministic_conflicts` 是可确定冲突，`possible_omissions` 是需要结合 Design 和源码逐项判断的可能遗漏，`needs_semantic_judgment` 是脚本不能可靠裁决的语义项。只有确定性冲突返回 1；输入或源码工程等致命错误返回 2；返回 0 不代表事实完整、无幻觉或视觉通过。
+
+**完成条件**：构建成功；默认页和全部注册路由可打开；实际存在的关键交互可操作；console 无运行时错误；适用 Portal/响应式场景已用真实浏览器检查；三类一致性结果已逐项处理，未把可能遗漏或语义判断写成自动通过。任何未验证项都已明确报告。随后更新 `.workflow/status.json` 的 `current_stage=prototype` 和 Prototype 产物路径，并按实际读取的 Design 文件记录 `design-set.py record-inputs`。
 
 ## 反馈分类与停止条件
 

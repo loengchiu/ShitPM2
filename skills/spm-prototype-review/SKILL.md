@@ -26,8 +26,10 @@ python $BUNDLE/scripts/python/prototype-source-check.py --project-root .
 4. 运行：
 
 ```text
-python $BUNDLE/scripts/python/prototype-consistency-check.py --project-root . --module <被审模块>
+python $BUNDLE/scripts/python/prototype-consistency-check.py --project-root .
 ```
+
+一致性检查只有全量入口，模块级判断由 Review 根据全量结果和 Design 分模块完成。`deterministic_conflicts` 必须作为确定性问题处理；`possible_omissions` 和 `needs_semantic_judgment` 必须逐项给出结论、未评估说明或上游同步建议，不能因为退出码为 0 而视为通过。无视觉模型时，只记录 DOM、计算样式、浏览器交互和截图等可观察证据；信息层级、密度、品牌感觉和审美标记为人工/视觉模型验收或未评估。
 
 **完成条件**：一致性结果已作为审查证据记录；脚本结果不是 Review 启动门禁。
 5. 读取 `$BUNDLE/contracts/review-checklist.md`、`$BUNDLE/contracts/prototype-review-checklist.md` 和 `$BUNDLE/references/prototype-writing.md`；发现多页面 shell、导航、路由或空白页问题时再读取 `$BUNDLE/references/prototype-shell.md`。**完成条件**：专项契约的每个适用结构、内容和一致性检查项均有证据和结论。

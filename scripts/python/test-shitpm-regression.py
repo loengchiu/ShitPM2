@@ -30,6 +30,12 @@ RETIRED_DOCS = (
     ("templates", "design.md"),
 )
 RETIRED_DIRS = ("test-fixture/design-orchestration", "design-rule-cache", ".tmp-fusion")
+DIRECT_REGRESSION_SCRIPTS = (
+    "test-design-index.py",
+    "test-design-set.py",
+    "test-prototype-consistency-check.py",
+    "test-prototype-source-check.py",
+)
 
 
 def check(condition: bool, message: str) -> None:
@@ -108,8 +114,27 @@ def test_retained_tools_still_exist() -> None:
         check((ROOT / "scripts/python" / name).is_file(), f"应保留工具缺失: {name}")
 
 
+def test_direct_regression_scripts() -> None:
+    failures = []
+    for name in DIRECT_REGRESSION_SCRIPTS:
+        script = ROOT / "scripts/python" / name
+        proc = run(script, cwd=ROOT)
+        if proc.returncode == 0:
+            continue
+        detail = proc.stdout.strip()
+        if proc.stderr.strip():
+            detail = (detail + "\n" + proc.stderr.strip()).strip()
+        failures.append(f"{name} (exit {proc.returncode})\n{detail}")
+    check(not failures, "直接回归脚本失败:\n" + "\n".join(failures))
+
+
 def main() -> int:
-    tests = [test_design_set_manifest_lifecycle, test_retired_assets_are_removed, test_retained_tools_still_exist]
+    tests = [
+        test_design_set_manifest_lifecycle,
+        test_retired_assets_are_removed,
+        test_retained_tools_still_exist,
+        test_direct_regression_scripts,
+    ]
     failures = []
     for test in tests:
         try:
@@ -121,7 +146,10 @@ def main() -> int:
         for item in failures:
             print(f"- {item}")
         return 1
-    print(f"ShitPM 回归测试通过：{len(tests)} 个用例")
+    print(
+        f"ShitPM 回归测试通过：{len(tests)} 个回归层用例；"
+        f"直接测试脚本 {len(DIRECT_REGRESSION_SCRIPTS)} 个"
+    )
     return 0
 
 

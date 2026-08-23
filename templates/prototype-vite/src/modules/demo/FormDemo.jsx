@@ -1,148 +1,107 @@
-import { useEffect, useMemo, useState } from 'react';
-import { App as AntdApp, Button, Col, Form, Input, Row, Select } from 'antd';
-import { IconCheck, IconRefresh, IconX } from '@tabler/icons-react';
+import { App, Button, Card, Col, DatePicker, Form, Input, InputNumber, Radio, Row, Select, Steps, Typography } from 'antd';
+import { IconArrowLeft, IconRefresh, IconSend, IconX } from '@tabler/icons-react';
+import PageFooter from '../../shared/ui/PageFooter.jsx';
 import { navigate } from '../../shared/useHashRoute.js';
-import {
-  TablerActionBar,
-  TablerFormSection,
-  TablerPageHeader,
-} from '../../shared/ui';
 
-const defaultValues = {
-  taskName: '',
-  owner: undefined,
-  priority: undefined,
-  description: '',
-  creator: '系统管理员',
-  createdAt: '2026-08-18 09:30',
-};
+const { Title } = Typography;
 
-function getInitialValues(mode, id) {
-  if (mode === 'create') return defaultValues;
-  return {
-    taskName: '示例任务' + (id || '1'),
-    owner: 'zhang',
-    priority: 'high',
-    description: '这是模板示例数据，用于验证编辑态和只读态的回填行为。',
-    creator: '系统管理员',
-    createdAt: '2026-08-18 09:30',
-  };
-}
-
-// 模板示例页：展示分区表单与真实校验、回填、提交和页面外操作栏
-export default function FormDemo({ query }) {
+// 表单页样张：内页（由列表页"申请出库"进入）
+// 体现：显式标题 + 右上返回 + Steps 审批流 + 文本域单独一行 + 底部操作栏（保存/提交/重置/取消为纯文字无图标）
+export default function FormDemo() {
   const [form] = Form.useForm();
-  const { message } = AntdApp.useApp();
-  const [submitting, setSubmitting] = useState(false);
-  const requestedMode = query?.get('mode') || 'create';
-  const mode = ['create', 'edit', 'view'].includes(requestedMode) ? requestedMode : 'create';
-  const id = query?.get('id') || '';
-  const readOnly = mode === 'view';
-  const initialValues = useMemo(() => getInitialValues(mode, id), [mode, id]);
+  const { message } = App.useApp();
 
-  useEffect(() => {
-    setSubmitting(false);
-    form.resetFields();
-    form.setFieldsValue(initialValues);
-  }, [form, initialValues]);
-
-  const onFinish = (values) => {
-    setSubmitting(true);
-    window.setTimeout(() => {
-      setSubmitting(false);
-      message.success(mode === 'edit' ? '任务已更新' : '任务已创建');
-    }, 400);
+  const submit = async () => {
+    try {
+      await form.validateFields();
+      message.success('出库申请已提交');
+    } catch {
+      message.error('请先补全必填信息');
+    }
   };
-
-  const onFinishFailed = () => {
-    message.error('请先完善必填字段');
-  };
-
   return (
     <div>
-      <TablerPageHeader
-        prefix="示例"
-        title={mode === 'view' ? '查看任务' : mode === 'edit' ? '编辑任务' : '新建任务'}
-        subtitle={id ? '示例 ID：' + id : '表单页骨架：页头 → 分区 Card → 校验反馈 → 底部 sticky 操作栏'}
-      />
+      {/* 内页显式标题 + 返回按钮（右上角） */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <Title level={4} style={{ margin: 0 }}>出库申请</Title>
+        <Button icon={<IconArrowLeft size={16} />} onClick={() => navigate('/')}>返回</Button>
+      </div>
 
-      <Form
-        form={form}
-        layout="vertical"
-        initialValues={initialValues}
-        disabled={readOnly}
-        onFinish={onFinish}
-        onFinishFailed={onFinishFailed}
-        style={{ maxWidth: 960 }}
-      >
-        <TablerFormSection title="基本信息">
+      {/* 审批流 */}
+      <Card size="small" style={{ marginBottom: 16 }}>
+        <Steps
+          size="small"
+          current={0}
+          items={[{ title: '服务区发起' }, { title: '服务区确认' }, { title: '结束' }]}
+        />
+      </Card>
+
+      {/* 表单：普通字段一行两列，文本域单独一行 */}
+      <Card size="small" title="出库信息" style={{ marginBottom: 16 }}>
+        <Form
+          form={form}
+          layout="vertical"
+          initialValues={{ type: 'normal' }}
+        >
           <Row gutter={24}>
-            <Col span={8} xs={24} md={8}>
-              <Form.Item
-                label="任务名称"
-                name="taskName"
-                rules={[{ required: true, message: '请输入任务名称' }]}
-              >
-                <Input placeholder="请输入任务名称" />
+            <Col span={12}>
+              <Form.Item label="资产类别" name="category" rules={[{ required: true, message: '请选择资产类别' }]}>
+                <Select placeholder="请选择资产类别" options={['固定资产', '低值易耗品', '办公用品'].map((v) => ({ value: v, label: v }))} />
               </Form.Item>
             </Col>
-            <Col span={8} xs={24} md={8}>
-              <Form.Item
-                label="负责人"
-                name="owner"
-                rules={[{ required: true, message: '请选择负责人' }]}
-              >
-                <Select placeholder="请选择负责人" options={[{ value: 'zhang', label: '张工' }, { value: 'li', label: '李工' }]} />
+            <Col span={12}>
+              <Form.Item label="出库数量" name="qty" rules={[{ required: true, message: '请输入出库数量' }]}>
+                <InputNumber style={{ width: '100%' }} min={1} placeholder="请输入数量" />
               </Form.Item>
             </Col>
-            <Col span={8} xs={24} md={8}>
-              <Form.Item label="优先级" name="priority">
-                <Select placeholder="请选择优先级" options={[{ value: 'high', label: '高' }, { value: 'normal', label: '普通' }]} />
+            <Col span={12}>
+              <Form.Item label="使用部门" name="dept" rules={[{ required: true, message: '请选择使用部门' }]}>
+                <Select placeholder="请选择使用部门" options={['综合管理部', '物业管理部', '工程维修部', '安全保卫部'].map((v) => ({ value: v, label: v }))} />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item label="期望出库日期" name="date" rules={[{ required: true, message: '请选择日期' }]}>
+                <DatePicker style={{ width: '100%' }} placeholder="请选择日期" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item label="出库类型" name="type">
+                <Radio.Group>
+                  <Radio value="normal">正常出库</Radio>
+                  <Radio value="borrow">借用</Radio>
+                  <Radio value="transfer">调拨</Radio>
+                </Radio.Group>
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item label="经办人" name="person" rules={[{ required: true, message: '请输入经办人' }]}>
+                <Input placeholder="请输入经办人" />
+              </Form.Item>
+            </Col>
+            {/* 文本域：单独一行 */}
+            <Col span={24}>
+              <Form.Item label="出库原因" name="reason" rules={[{ required: true, message: '请填写出库原因' }]}>
+                <Input.TextArea rows={3} placeholder="请填写出库原因，包括用途、使用场景等说明" />
               </Form.Item>
             </Col>
             <Col span={24}>
-              <Form.Item label="任务描述" name="description">
-                <Input.TextArea autoSize={{ minRows: 4, maxRows: 8 }} placeholder="请输入任务描述" />
+              <Form.Item label="备注" name="remark">
+                <Input.TextArea rows={2} placeholder="其他补充说明（选填）" />
               </Form.Item>
             </Col>
           </Row>
-        </TablerFormSection>
+        </Form>
+      </Card>
 
-        <TablerFormSection title="系统判定字段">
-          <Row gutter={24}>
-            <Col span={8} xs={24} md={8}>
-              <Form.Item label="创建人" name="creator">
-                <Input disabled />
-              </Form.Item>
-            </Col>
-            <Col span={8} xs={24} md={8}>
-              <Form.Item label="创建时间" name="createdAt">
-                <Input disabled />
-              </Form.Item>
-            </Col>
-          </Row>
-        </TablerFormSection>
-      </Form>
+      {/* 内页底部版权（内容最底部一行） */}
+      <PageFooter />
 
-      <TablerActionBar>
-        {readOnly ? (
-          <Button icon={<IconX size={16} />} onClick={() => navigate('/')}>
-            返回
-          </Button>
-        ) : (
-          <>
-            <Button icon={<IconRefresh size={16} />} onClick={() => form.resetFields()}>
-              重置
-            </Button>
-            <Button icon={<IconX size={16} />} onClick={() => navigate('/')}>
-              取消
-            </Button>
-            <Button type="primary" loading={submitting} icon={<IconCheck size={16} />} onClick={() => form.submit()}>
-              提交
-            </Button>
-          </>
-        )}
-      </TablerActionBar>
+      {/* 页面级操作栏：底部通栏贴底，按钮带图标 */}
+      <div className="page-action-bar">
+        <Button icon={<IconRefresh size={16} />} onClick={() => form.resetFields()}>重置</Button>
+        <Button icon={<IconX size={16} />} onClick={() => navigate('/')}>取消</Button>
+        <Button type="primary" icon={<IconSend size={16} />} onClick={submit}>提交申请</Button>
+      </div>
     </div>
   );
 }

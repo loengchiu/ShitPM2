@@ -72,9 +72,9 @@ call :checkenv
 if errorlevel 1 goto menu
 call :ensure_deps
 if errorlevel 1 goto menu
-echo 正在启动本地即时预览（默认端口 5173，若被占用自动顺延到 5174、5175…）...
-echo 浏览器将由 Vite 在就绪后自动打开到实际端口。
-call npm run dev -- --open
+echo 正在启动本地即时预览：http://localhost:5173/
+start "" "http://localhost:5173/"
+call npm run dev
 echo.
 echo 本地预览已停止，按任意键返回菜单。
 pause >nul
@@ -90,9 +90,9 @@ if errorlevel 1 (
   pause
   goto menu
 )
-echo 正在启动构建预览（默认端口 4173，若被占用自动顺延）...
-echo 浏览器将由 Vite 在就绪后自动打开到实际端口。
-call npm run preview -- --open
+echo 正在启动构建预览：http://localhost:4173/
+start "" "http://localhost:4173/"
+call npm run preview
 echo.
 echo 构建预览已停止，按任意键返回菜单。
 pause >nul

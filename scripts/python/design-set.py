@@ -728,6 +728,8 @@ def cmd_stage_single(root: Path, args: argparse.Namespace) -> int:
         _emit({"ok": False, "errors": [f"目标文件不存在: {entry['path']}"]})
         return 1
     changed_ids = [args.id]
+    targets = [entry]
+    file_artifacts = backup_artifacts(root, "single", targets)
     artifacts = artifacts_for_change(root, "single", changed_ids)
     active = {
         "schema_version": SCHEMA_CHANGE,
@@ -739,7 +741,7 @@ def cmd_stage_single(root: Path, args: argparse.Namespace) -> int:
             "before_sha256": sha256_file(src),
             "staged_sha256": None,
         }],
-        "artifacts": artifacts,
+        "artifacts": file_artifacts + artifacts,
     }
     write_active(root, "single", active)
     staged = staged_dir(root, "single")
@@ -961,6 +963,7 @@ def cmd_begin(root: Path, args: argparse.Namespace) -> int:
     if len(targets) < 2:
         _emit({"ok": False, "errors": ["多文件事务 begin 至少需要两个目标文件。单文件请用 stage-single。"]})
         return 1
+    file_artifacts = backup_artifacts(root, "multi", targets)
     artifacts = artifacts_for_change(root, "multi", args.ids)
     active = {
         "schema_version": SCHEMA_CHANGE,
@@ -972,7 +975,7 @@ def cmd_begin(root: Path, args: argparse.Namespace) -> int:
             "before_sha256": sha256_file(design_path(root, e["path"])),
             "staged_sha256": None,
         } for e in targets],
-        "artifacts": artifacts,
+        "artifacts": file_artifacts + artifacts,
     }
     write_active(root, "multi", active)
     sdir = staged_dir(root, "multi")

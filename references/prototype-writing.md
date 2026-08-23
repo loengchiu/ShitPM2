@@ -1,6 +1,6 @@
 # 原型写法参考
 
-> 本文件只说明 Ant Design 组件调用、源码工程边界和页面组织。视觉 Token、7 类页面骨架、状态矩阵与视觉自检的唯一事实源是 `prototype-visual-spec.md`；生成或修改页面前先读取它。
+> 本文件只说明 Ant Design 组件调用、源码工程边界和页面组织。视觉 Token、7 类页面骨架、状态矩阵与视觉自检的唯一事实源是 `prototype-visual-spec.md`；生成或修改页面前先读取它。品牌主题可选 Claude 或 Tabler，但单个原型只选一套。
 > 流程、停止条件和反馈传播由 `skills/spm-prototype/SKILL.md` 负责；多页面 shell、导航或空白页问题再读取 `prototype-shell.md`。
 
 ## 目录
@@ -48,7 +48,7 @@ Hash 地址可能带查询参数（例如 `#/demo-form?case=1`）；路由匹配
 
 ## 二、组件与视觉入口
 
-视觉规则只从 `prototype-visual-spec.md` 读取；可执行 Token 在模板 `src/theme/tablerTokens.ts`，Ant Design 映射在 `src/theme/tablerTheme.ts`，高频结构在 `src/shared/ui/`。页面不复制全局颜色、字号、间距、圆角或阴影。
+视觉规则只从 `prototype-visual-spec.md` 读取；品牌主题在 Claude 与 Tabler 中二选一。可执行 Token 在模板 `src/theme/` 的对应主题文件，Ant Design 映射在对应主题适配文件，高频结构在 `src/shared/ui/`。页面不复制全局颜色、字号、间距、圆角或阴影。
 
 需要被全局样式或 Portal 内容读取的 CSS 变量挂在 `document.documentElement`；不要只挂在 `#root`。Ant Design 的 Modal、Dropdown 等内容可能渲染到 `document.body`，无法继承 `#root` 上的变量。
 
@@ -79,7 +79,7 @@ const trendOption = useMemo(() => ({
 }), [labels, values]);
 ```
 
-图标统一使用 `@tabler/icons-react`，优先复用 `src/shared/icons/`；不混用 Ant Icons。找不到精确图标时使用语义接近的官方 Tabler 图标，并在共享映射中记录。
+图标统一使用 `@tabler/icons-react`，优先复用 `src/shared/icons/`；不混用 Ant Icons。Claude 与 Tabler 是品牌主题，不改变项目统一的图标库。找不到精确图标时使用语义接近的官方 Tabler 图标，并在共享映射中记录。
 
 ## 三、交互硬规则
 
@@ -127,10 +127,18 @@ const trendOption = useMemo(() => ({
 
 ## 六、输入与反馈边界
 
-1. 生成和修改前读取目标模块 Design 事实闭包；PRD 仅用于辅助发现表达差异，冲突时以 Design 为准。
+1. 生成和修改前读取设计地图、设计集清单和目标模块 Design 事实闭包；PRD 仅用于辅助发现表达差异，冲突时以 Design 为准。
 2. 有 `output/prototype/prototype-feedback.md` 时，先按模板分类，再决定修改范围。
 3. 表现问题只改 Prototype；字段、状态、权限、流程、异常、责任边界或模块冲突属于语义问题，停止静默修改并转入 Design/Fix。
 4. 反馈无法归类时先澄清，不直接改源码。
+
+### 稳定事实锚点
+
+为便于确定性检查和后续审查，只在能稳定对应 Design 对象时使用显式锚点：页面使用 `data-page` 或路由登记项，区块使用 `data-block`/`data-section`，字段使用 `data-field` 配合稳定 `name`，操作使用 `data-operation` 配合稳定 action key，状态使用 `data-state`。普通文字、注释、变量名、隐藏字符串或任意源码命中不能单独证明业务事实已落地。
+
+显式锚点中的未知对象属于确定性冲突；Design 事实没有可靠锚点时只报告 `possible_omissions`。路由 `title` 改写、缺少 `title` 的 `element` 写法或组件身份未精确对账，不能单独判为幻觉页面；脚本会把这类情况列为 `route_page_identity_unresolved`，由 Review 结合 Design、组件和运行时证据判断。只有显式路由标题与路径均未登记且没有可确认源码组件时才阻断。
+
+同义表达、字段合并/拆分、复杂权限、状态转换和异常后果属于 `needs_semantic_judgment` 的审查责任；脚本不声称能够自动区分这些语义关系，Review 必须结合 Design、源码和运行时证据逐项判断。
 
 ## 七、交付前检查
 

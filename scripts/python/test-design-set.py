@@ -15,7 +15,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = Path(__file__).with_name("design-set.py")
-FIXTURES = ROOT / "test-fixture" / "design-set"
+MOD_001_CONTENT = "# 模块设计：订单管理\n\n订单内容。\n"
+MOD_002_CONTENT = "# 模块设计：库存管理\n\n库存内容。\n"
 
 
 def run_cli(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
@@ -35,7 +36,75 @@ def parse(stdout: str) -> dict:
 
 def copy_fixture(name: str) -> Path:
     tmp = Path(tempfile.mkdtemp(prefix=f"spm-{name}-"))
-    shutil.copytree(FIXTURES / name, tmp, dirs_exist_ok=True)
+    design_dir = tmp / "output" / "design"
+    module_dir = design_dir / "模块设计"
+    (design_dir / "系统级基线").mkdir(parents=True, exist_ok=True)
+    (design_dir / "契约").mkdir(parents=True, exist_ok=True)
+    (module_dir / "订单").mkdir(parents=True, exist_ok=True)
+    (module_dir / "库存").mkdir(parents=True, exist_ok=True)
+    files = {
+        "设计地图.md": "# 设计地图\n\n- MAP-001\n- SYS-001\n- CON-001\n- MOD-001 [订单](模块设计/订单/订单管理.md)\n- MOD-002 [库存](模块设计/库存/库存管理.md)\n",
+        "系统级基线/系统边界.md": "# 系统边界\n\n订单与库存。\n",
+        "契约/基础契约.md": "# 基础契约\n\n统一约束。\n",
+        "模块设计/订单/订单管理.md": MOD_001_CONTENT,
+        "模块设计/库存/库存管理.md": MOD_002_CONTENT,
+    }
+    for rel, content in files.items():
+        path = design_dir / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+
+    def entry(fid: str, rel: str, ftype: str, module: str | None, depends_on: list[str]) -> dict:
+        return {
+            "id": fid,
+            "path": rel,
+            "type": ftype,
+            "module": module,
+            "business_chains": ["订单链"] if module == "订单" else [],
+            "depends_on": depends_on,
+            "sha256": hashlib.sha256((design_dir / rel).read_bytes()).hexdigest(),
+        }
+
+    manifest = {
+        "schema_version": "shitpm-design-set/v1",
+        "set_sha256": "",
+        "files": [
+            entry("MAP-001", "设计地图.md", "map", None, []),
+            entry("SYS-001", "系统级基线/系统边界.md", "system", None, []),
+            entry("CON-001", "契约/基础契约.md", "contract", None, ["SYS-001"]),
+            entry("MOD-001", "模块设计/订单/订单管理.md", "module", "订单", ["SYS-001", "CON-001"]),
+            entry("MOD-002", "模块设计/库存/库存管理.md", "module", "库存", ["SYS-001", "CON-001"]),
+        ],
+        "decisions": [],
+    }
+    manifest["set_sha256"] = hashlib.sha256("".join(
+        item["id"] + item["path"] + item["sha256"]
+        for item in sorted(manifest["files"], key=lambda item: item["id"])
+    ).encode("utf-8")).hexdigest()
+    manifest_path = design_dir / "设计集清单.json"
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+    if name == "invalid-duplicate-id":
+        manifest["files"][4]["id"] = "MOD-001"
+    elif name == "invalid-path":
+        manifest["files"][1]["path"] = "/absolute.md"
+        manifest["files"][2]["path"] = "bad/../contract.md"
+        manifest["files"][4]["path"] = "missing.md"
+    elif name == "invalid-dependency":
+        manifest["files"][3]["depends_on"] = ["MOD-002"]
+        manifest["files"][4]["depends_on"] = ["MOD-001", "MOD-999"]
+    elif name == "invalid-fingerprint":
+        manifest["files"][3]["sha256"] = "0" * 64
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+    if name == "interrupted-single":
+        proc = run_cli(tmp, "stage-single", "--project-root", str(tmp), "--id", "MOD-001")
+        if proc.returncode != 0:
+            raise AssertionError(proc.stdout + proc.stderr)
+    elif name == "interrupted-multi":
+        proc = run_cli(tmp, "begin", "--project-root", str(tmp), "--ids", "MOD-001", "MOD-002")
+        if proc.returncode != 0:
+            raise AssertionError(proc.stdout + proc.stderr)
     return tmp
 
 
@@ -130,6 +199,7 @@ class SingleFileTransactionTests(unittest.TestCase):
     def test_single_success_updates_manifest_only(self):
         tmp = copy_fixture("valid")
         try:
+            other_before = (tmp / "output" / "design" / "模块设计" / "库存" / "库存管理.md").read_bytes()
             stage = run_cli(tmp, "stage-single", "--project-root", str(tmp), "--id", "MOD-001")
             self.assertEqual(stage.returncode, 0, stage.stdout)
             staged_path = Path(parse(stage.stdout)["staged_path"])
@@ -145,9 +215,7 @@ class SingleFileTransactionTests(unittest.TestCase):
             # 无关文件保持原样
             other = parse((tmp / "output" / "design" / "设计集清单.json").read_text(encoding="utf-8"))
             mod2 = next(f for f in other["files"] if f["id"] == "MOD-002")
-            self.assertEqual(mod2["sha256"], next(f for f in parse(
-                (FIXTURES / "valid" / "output" / "design" / "设计集清单.json").read_text(encoding="utf-8")
-            )["files"] if f["id"] == "MOD-002")["sha256"])
+            self.assertEqual(mod2["sha256"], hashlib.sha256(other_before).hexdigest())
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 

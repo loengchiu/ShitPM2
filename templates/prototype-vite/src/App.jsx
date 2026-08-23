@@ -1,101 +1,147 @@
-import { useState } from 'react';
-import { Avatar, Button, Layout, Menu, Space } from 'antd';
-import { IconMenu2, IconSearch, IconX } from '@tabler/icons-react';
-import { routes } from './routes.jsx';
+import { useEffect, useMemo, useState } from 'react';
+import { Avatar, Layout, Menu, Space, Tabs } from 'antd';
+import { routes, groupIcons, moduleIcons } from './routes.jsx';
 import { navigate, useHashRoute } from './shared/useHashRoute.js';
 
-const { Header, Sider, Content } = Layout;
+const { Header, Sider } = Layout;
 
-// 侧栏菜单从路由注册表派生；业务页面不在这里登记
-const menuItems = routes
-  .filter((item) => item.menu)
-  .map((item) => ({ key: item.path, label: item.title }));
+// 主模块聚合（保持路由注册顺序；module 为 null 的不算主模块）
+const moduleList = [];
+routes.forEach((r) => {
+  if (r.menu && r.module && !moduleList.some((m) => m.key === r.module)) {
+    moduleList.push({ key: r.module, title: r.module, icon: moduleIcons[r.module] });
+  }
+});
+
+const HOME_TAB = { key: '/', title: '首页' };
+
+function buildMenuItems(module) {
+  const items = [];
+  routes
+    .filter((r) => r.menu && r.module === module)
+    .forEach((r) => {
+      if (r.group) {
+        let sub = items.find((i) => i.key === r.group);
+        if (!sub) {
+          sub = { key: r.group, label: r.group, icon: groupIcons[r.group], children: [] };
+          items.push(sub);
+        }
+        sub.children.push({ key: r.path, label: r.title, icon: r.icon });
+      } else {
+        items.push({ key: r.path, label: r.title, icon: r.icon });
+      }
+    });
+  return items;
+}
 
 export default function App() {
-  const { path, query, route } = useHashRoute(routes);
-  const Page = route.component;
-  const [collapsed, setCollapsed] = useState(false);
+  const { path, query } = useHashRoute(routes);
+  const [activeModule, setActiveModule] = useState(moduleList[0]?.key);
+  const [tabs, setTabs] = useState([HOME_TAB]);
 
-  const closeSiderOnMobile = () => {
-    if (window.matchMedia('(max-width: 991px)').matches) setCollapsed(true);
+  const activeRoute = useMemo(
+    () => routes.find((r) => r.path === path) || routes.find((r) => r.path === '*'),
+    [path],
+  );
+
+  useEffect(() => {
+    if (activeRoute && !activeRoute.pinned && !tabs.some((t) => t.key === path)) {
+      setTabs((prev) => [...prev, { key: path, title: activeRoute.title }]);
+    }
+  }, [path, activeRoute, tabs]);
+
+  useEffect(() => {
+    if (activeRoute?.module) {
+      setActiveModule(activeRoute.module);
+    }
+  }, [activeRoute]);
+
+  const switchModule = (m) => {
+    setActiveModule(m.key);
+    const first = routes.find((r) => r.menu && r.module === m.key);
+    if (first) navigate(first.path);
   };
 
+  const closeTab = (key) => {
+    if (key === '/') return;
+    setTabs((prev) => {
+      const idx = prev.findIndex((t) => t.key === key);
+      const next = prev.filter((t) => t.key !== key);
+      if (key === path && next.length) {
+        const neighbor = next[Math.max(0, idx - 1)];
+        navigate(neighbor.key);
+      }
+      return next;
+    });
+  };
+
+  const menuItems = buildMenuItems(activeModule);
+  const Page = activeRoute.component;
+
   return (
-    <Layout style={{ minHeight: '100vh' }}>
-      <div
-        className={'app-sider-mask' + (collapsed ? '' : ' is-visible')}
-        aria-hidden={collapsed}
-        onClick={() => setCollapsed(true)}
-      />
-      {/* 深色 Sider：只承载菜单，独立滚动；lg 断点以下自动折叠 */}
-      <Sider
-        className="app-sider"
-        theme="dark"
-        width={200}
-        collapsedWidth={0}
-        collapsible
-        collapsed={collapsed}
-        onCollapse={setCollapsed}
-        breakpoint="lg"
-        onBreakpoint={(broken) => {
-          if (broken) setCollapsed(true);
-        }}
-        style={{ height: '100vh', position: 'sticky', top: 0 }}
-      >
-        <div className="sider-menu-scroll">
-          <Menu
-            theme="dark"
-            mode="inline"
-            selectedKeys={[path]}
-            items={menuItems}
-            onClick={({ key }) => {
-              navigate(key);
-              closeSiderOnMobile();
-            }}
-          />
+    <>
+      <Header className="app-header" style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100 }}>
+        <div className="brand">
+          <img src="/logo.png" alt="logo" className="brand-logo" />
+          <span>{'原型系统'}</span>
         </div>
-      </Sider>
-      <Layout>
-        {/* 顶栏：LOGO + 搜索 + 用户区同一行（对齐 Tabler 顶栏） */}
-        <Header className="header-bar">
-          <div className="header-brand">
-            <Button
-              type="text"
-              aria-label="展开或收起侧栏"
-              icon={<IconMenu2 size={18} />}
-              onClick={() => setCollapsed((v) => !v)}
-            />
-            <span className="header-logo">{'原型系统' /* 生成时替换为项目名 */}</span>
-          </div>
-          <div className="header-search">
-            <IconSearch size={16} className="header-search-icon" />
-            <input className="header-search-input" placeholder="搜索…" aria-label="搜索" />
-          </div>
-          <div className="header-user">
-            <Space size={8}>
-              <Avatar style={{ background: 'var(--spm-color-primary)' }}>{'示'}</Avatar>
-              <span className="header-user-name">{'演示用户'}</span>
-            </Space>
-          </div>
-        </Header>
-        {/* 页签栏：不设页面大标题，用带关闭按钮的页签表达当前页面 */}
-        <div className="tab-bar" role="tablist" aria-label="当前页面">
-          <div className="tab tab-active" role="tab" aria-selected="true">
-            <span className="tab-title">{route.title}</span>
+        <div className="module-tabs">
+          {moduleList.map((m) => (
             <button
+              key={m.key}
               type="button"
-              className="tab-close"
-              aria-label="关闭页签"
-              onClick={() => navigate('/')}
+              className={`module-tab${m.key === activeModule ? ' active' : ''}`}
+              onClick={() => switchModule(m)}
             >
-              <IconX size={14} />
+              {m.icon}
+              <span>{m.title}</span>
             </button>
-          </div>
+          ))}
         </div>
-        <Content className="content-wrap">
-          <Page path={path} query={query} />
-        </Content>
-      </Layout>
-    </Layout>
+        <Space className="user-info">
+          <Avatar style={{ background: 'var(--avatar-bg)' }}>{'示'}</Avatar>
+          <span>{'演示用户'}</span>
+        </Space>
+      </Header>
+      <Sider
+        width={240}
+        style={{
+          position: 'fixed',
+          top: 56,
+          left: 0,
+          bottom: 0,
+          overflow: 'hidden',
+          background: 'var(--sider-bg, var(--layout-bg))',
+          borderRight: '1px solid var(--border-soft)',
+          zIndex: 90,
+        }}
+      >
+        <Menu
+          mode="inline"
+          selectedKeys={[path]}
+          items={menuItems}
+          onClick={({ key }) => navigate(key)}
+          style={{ borderInlineEnd: 'none', background: 'transparent', height: '100%', overflow: 'hidden' }}
+        />
+      </Sider>
+      <div className="page-tabs-bar" style={{ position: 'fixed', top: 56, left: 240, right: 0, zIndex: 95 }}>
+        <Tabs
+          type="editable-card"
+          hideAdd
+          size="small"
+          activeKey={path}
+          onChange={navigate}
+          onEdit={(key, action) => {
+            if (action === 'remove') closeTab(key);
+          }}
+          items={tabs.map((t) => ({ key: t.key, label: t.title, closable: t.key !== '/' }))}
+        />
+      </div>
+      <main className="content-wrap">
+        <div className="page-content">
+          <Page query={query} {...(activeRoute.placeholder ? { placeholder: activeRoute.placeholder } : {})} />
+        </div>
+      </main>
+    </>
   );
 }

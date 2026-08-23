@@ -279,7 +279,7 @@ Prototype Mark 收集的高影响反馈按 `$BUNDLE/templates/prototype-feedback
 | `prd-consistency-check.py` | PRD 与 Design 确定性对比，输出 `hallucinated` / `missing` / `attribute_mismatch`；`--allow-no-prd` 支持 Prototype-only 项目；`--module` 按模块运行 |
 | `prd-style-lint.py` | PRD 风格检查（坏味道、流水账、模糊表述等） |
 | `prototype-source-check.py` | Prototype 源码工程确定性检查（src/dist/package/BAT/README 契约，通过返回 0，失败返回 1，不自动修复） |
-| `prototype-consistency-check.py` | Prototype 与 Design 确定性对比；`--module` 按模块运行 |
+| `prototype-consistency-check.py` | Prototype 与 Design 全量确定性对比；模块级结论由 Prototype Review 结合 Design 分模块判断 |
 | `stage-prep.py` | 旧版兼容：仅旧项目兼容诊断，ShitPM 主流程不依赖 |
 | `shitpm-host.py install/verify/remove` | 安装、验证、卸载宿主映射 |
 
@@ -292,6 +292,7 @@ python scripts/python/design-set.py closure --project-root . --targets MOD-001
 python scripts/python/design-set.py record-inputs --project-root . --artifact prd --target-id prd:订单 --target-name 订单 --output-path output/prd/prd.md --output-locator '## 4.6 订单' --inputs SYS-001,CON-001,MOD-001
 python scripts/python/prd-consistency-check.py --project-root . --module 订单
 python scripts/python/prd-consistency-check.py --project-root . --allow-no-prd
+python scripts/python/prototype-consistency-check.py --project-root .
 python scripts/python/prd-style-lint.py output/prd/prd.md --format json --output .workflow/runtime/prd/lint.json
 ```
 

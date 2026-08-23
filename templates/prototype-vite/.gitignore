@@ -1,2 +1,23 @@
+# 依赖与构建产物
 node_modules/
 dist/
+dist-*/
+dist-ssr/
+
+# 构建缓存
+*.local
+*.tsbuildinfo
+vite.config.d.ts
+
+# 编辑器与系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# 日志
+*.log
+npm-debug.log*
+
+# Playwright 调试产物
+.playwright-cli/

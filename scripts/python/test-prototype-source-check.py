@@ -13,6 +13,7 @@ PYTHON = sys.executable
 TEMPLATE = ROOT / "templates" / "prototype-vite"
 SOURCE_CHECK = ROOT / "scripts/python/prototype-source-check.py"
 CONSISTENCY = ROOT / "scripts/python/prototype-consistency-check.py"
+DESIGN_INDEX = ROOT / "scripts/python/design-index.py"
 STRUCTURE = ROOT / "scripts/python/prototype-structure.py"
 
 
@@ -150,21 +151,61 @@ export default function Home() {
     )
     design = """# 测试系统 Design
 
-## 页面清单
+### 页面：测试列表页
+目的：查看测试列表
+角色：测试人员
+进入条件：已登录
+数据范围：测试数据
+主要状态：可用、已停用
 
-| 页面名称 | 页面说明 |
-| --- | --- |
-| 测试列表页 | 列表 |
-| 测试详情页 | 详情 |
-| 仅存在于dist的页面 | 不应被扫描 |
-| 仅存在于node_modules的页面 | 不应被扫描 |
+#### 区块：筛选条件
+目的：按名称筛选
 
-## 字段定义
+##### 字段：测试名称
+业务含义：测试名称
+来源：测试服务
+展示条件：始终展示
+输入编辑：可输入
+取值默认：默认空值
+交互：文本输入
+校验反馈：无
 
-| 字段 | 类型 | 说明 |
-| --- | --- | --- |
-| 测试名称 | 文本 | 名称 |
-| 测试字段二 | 文本 | 空串后字段 |
+##### 字段：测试字段二
+业务含义：空串后字段
+来源：测试服务
+展示条件：始终展示
+输入编辑：只读
+取值默认：默认空值
+交互：文本展示
+校验反馈：无
+
+##### 操作：查询
+适用角色：测试人员
+可用条件：输入条件合法
+确认：无需确认
+成功结果：刷新测试列表
+状态变化：无
+失败恢复：保留当前筛选条件并提示
+去向：仍停留在测试列表页
+
+### 页面：测试详情页
+目的：查看测试详情
+角色：测试人员
+进入条件：已登录
+数据范围：测试数据
+主要状态：可用、已停用
+
+#### 区块：详情信息
+目的：展示详情
+
+##### 字段：详情名称
+业务含义：测试详情名称
+来源：测试服务
+展示条件：始终展示
+输入编辑：只读
+取值默认：默认空值
+交互：文本展示
+校验反馈：无
 """
     import hashlib
     design_dir = root / "output" / "design"
@@ -195,23 +236,26 @@ export default function Home() {
     node_modules = proto / "node_modules"
     node_modules.mkdir()
     (node_modules / "evil.js").write_text("仅存在于node_modules的页面", encoding="utf-8")
+    (proto / "src" / "routes.jsx").write_text(
+        "export const routes = [\n  { path: '/test-detail', title: '测试详情页', component: Detail },\n  { path: '*', title: 'NotFound', component: NotFound },\n];\n",
+        encoding="utf-8",
+    )
 
 
 def test_consistency_reads_jsx_and_excludes_dist() -> None:
     holder, root = make_project()
     try:
         _write_business_fixture(root)
+        index_result = run(DESIGN_INDEX, "compile", "--project-root", str(root))
+        check(index_result.returncode == 0, index_result.stdout + index_result.stderr)
         result = run(CONSISTENCY, "--project-root", str(root))
-        check(result.returncode == 1, "仅 dist/node_modules 存在的页面应缺失：" + result.stdout + result.stderr)
+        check(result.returncode == 0, "可能遗漏和语义项不应阻断：" + result.stdout + result.stderr)
         payload = json.loads(result.stdout)
-        matched_pages = set(payload["pages"]["expected"]) - set(payload["pages"]["missing"])
-        check("测试详情页" in matched_pages, f"一致性检查未从 JSX 识别页面: {result.stdout}")
-        check("测试列表页" in set(payload["pages"]["missing"]), f"源码缺失页面未报告: {result.stdout}")
-        missing = set(payload["pages"]["missing"])
-        check("仅存在于dist的页面" in missing, f"dist 被误扫: {result.stdout}")
-        check("仅存在于node_modules的页面" in missing, f"node_modules 被误扫: {result.stdout}")
-        check("测试名称" not in payload["fields"]["missing"], f"字段未从 JSX 识别: {result.stdout}")
-        check("测试字段二" not in payload["fields"]["missing"], f"空字符串后的字段未识别（引号配对漂移）: {result.stdout}")
+        possible = payload["classification"]["possible_omissions"]
+        check(any(item.get("name") == "测试列表页" for item in possible), f"源码缺失页面未进入可能遗漏: {result.stdout}")
+        scanned = set(payload["source"]["scanned_files"])
+        check(not any("dist" in item or "node_modules" in item for item in scanned), f"排除目录被扫描: {result.stdout}")
+        check(not any(item.get("name") in {"仅存在于dist的页面", "仅存在于node_modules的页面"} for item in possible), f"排除目录内容被当作事实: {result.stdout}")
     finally:
         holder.cleanup()
 
@@ -223,7 +267,7 @@ def test_structure_extracts_routes_from_jsx() -> None:
         result = run(STRUCTURE, "--project-root", str(root), "--input", str(root / "output" / "prototype"))
         check(result.returncode == 0, result.stdout + result.stderr)
         payload = json.loads(result.stdout)
-        check("/" in payload["routes"] and "*" in payload["routes"], f"路由未从 JSX 提取: {payload['routes']}")
+        check("/test-detail" in payload["routes"] and "*" in payload["routes"], f"路由未从 JSX 提取: {payload['routes']}")
         check(payload["fields"], f"字段线索为空: {payload['fields']}")
         check(payload["actions"], f"操作线索为空: {payload['actions']}")
         check(payload["source_hash"], "缺少确定性 source_hash")

@@ -200,9 +200,13 @@ class DesignIndexTests(unittest.TestCase):
             path.mkdir(parents=True, exist_ok=True)
             (path / "prd.md").write_text(prd, encoding="utf-8")
         if html is not None:
-            path = self.root / "output" / "prototype"
+            path = self.root / "output" / "prototype" / "src"
             path.mkdir(parents=True, exist_ok=True)
-            (path / "index.html").write_text(html, encoding="utf-8")
+            (path / "OrderPage.jsx").write_text(html, encoding="utf-8")
+            (path / "routes.jsx").write_text(
+                'export const routes = [{ path: "/orders", title: "订单列表", module: "订单", component: OrderPage }, { path: "*", element: <Placeholder /> }];\n',
+                encoding="utf-8",
+            )
         code, output = self.run_cli("compile")
         self.assertEqual(code, 0, output)
 
@@ -354,7 +358,8 @@ class DesignIndexTests(unittest.TestCase):
         self.assertEqual(prd_result["design_index"]["structure"]["missing"], [])
         prototype_run = self.run_downstream("prototype-consistency-check.py")
         self.assertEqual(prototype_run.returncode, 0, prototype_run.stdout + prototype_run.stderr)
-        self.assertTrue(json.loads(prototype_run.stdout)["ok"])
+        prototype_result = json.loads(prototype_run.stdout)
+        self.assertFalse(prototype_result["classification"]["deterministic_conflicts"])
 
     def test_prd_detects_missing_added_and_changed_indexed_items(self):
         # 新格式（design-index 激活）下：页面/字段按名称级确定比较；
@@ -395,16 +400,24 @@ class DesignIndexTests(unittest.TestCase):
     def test_prototype_detects_missing_state_and_added_operation(self):
         self.write_downstream(html=VALID_HTML)
         missing = VALID_HTML.replace('data-state="已完成">已完成', "")
-        (self.root / "output" / "prototype" / "index.html").write_text(missing, encoding="utf-8")
+        (self.root / "output" / "prototype" / "src" / "OrderPage.jsx").write_text(missing, encoding="utf-8")
         run = self.run_downstream("prototype-consistency-check.py")
-        self.assertEqual(run.returncode, 1, run.stdout + run.stderr)
-        self.assertIn("已完成", json.loads(run.stdout)["states"]["missing"])
+        self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+        report = json.loads(run.stdout)
+        self.assertTrue(any(
+            item.get("name") == "已完成"
+            for item in report["classification"]["needs_semantic_judgment"]
+        ))
 
         added = VALID_HTML.replace('<button data-operation="查询">查询</button>', '<button data-operation="查询">查询</button><button data-operation="删除">删除</button>')
-        (self.root / "output" / "prototype" / "index.html").write_text(added, encoding="utf-8")
+        (self.root / "output" / "prototype" / "src" / "OrderPage.jsx").write_text(added, encoding="utf-8")
         run = self.run_downstream("prototype-consistency-check.py")
         self.assertEqual(run.returncode, 1, run.stdout + run.stderr)
-        self.assertIn("删除", json.loads(run.stdout)["hallucinated"]["operation"])
+        report = json.loads(run.stdout)
+        self.assertTrue(any(
+            item.get("name") == "删除"
+            for item in report["classification"]["deterministic_conflicts"]
+        ))
 
 
 if __name__ == "__main__":

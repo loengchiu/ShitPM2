@@ -1,12 +1,12 @@
-# ShitPM 原型视觉规范（Tabler 设计语言 · Ant Design 6 实现）
+# ShitPM 原型视觉规范（Claude / Tabler 品牌主题 · Ant Design 6 实现）
 
 > 用途：生成 / 修改 Vite + React 18 + Ant Design 6 原型时，作为视觉 Token、页面骨架、组件状态矩阵与自检清单的**唯一事实源**。
 > 调用时机：每次生成或评审原型页面前读取本文件；本文件之外的视觉数值一律以本文件为准，不得在页面、`prototype-writing.md` 或模板中定义第二套视觉值。
-> 设计语言来源：**Tabler**（组件仍用 Ant Design，设计语言用 Tabler）。Token 取值逐一对齐 `preview.tabler.io` 当前编译 CSS 的真实 `--tblr-*` 变量，再映射到 antd `theme.token` / `theme.components`。
+> 品牌主题：**Claude** 与 **Tabler** 二选一。组件仍用 Ant Design，主题文件分别承载品牌 Token；当前模板默认 Tabler。项目组的三栏壳层、页面标签、底部操作栏、行为和代码习惯独立于品牌主题，不在单个原型内混用两套主题。
 > 字体：西文 / 数字走 **Inter**（Tabler 同款），中文回落**思源黑体**（2026-08-17 评审结论）；未安装思源黑体时系统默认无衬线正常显示，不把内置 / 下载字体作为阻塞条件。
 > 图标：**@tabler/icons-react**（100% Tabler 图标，不混用 Ant Icons）。
 > 组件行为：组件怎么用、什么场景、什么边界见 `references/prototype-component-behavior.md`（本文件的行为补充层）；本文件 Token、骨架、状态与自检清单与之共同构成运行时视觉唯一事实源。
-> 落地文件：`templates/prototype-vite/src/theme/tablerTokens.ts`（可执行 Token）→ `tablerTheme.ts`（antd 映射）+ `styles/global.css`（全局补丁）+ `src/shared/ui/`（高频共享组件）+ `src/shared/icons/`（图标语义映射）+ `src/shared/charts/TablerChart.jsx`（图表视觉适配）。改风格先改 Token 与视觉规范，再同步主题、全局样式和共享组件。
+> 落地文件：`templates/prototype-vite/src/theme/` 下的 `claudeTheme.ts` / `tablerTheme.ts`（antd 映射与 CSS 变量）+ `styles/global.css`（全局补丁）+ `src/shared/ui/`（高频共享组件）+ `src/shared/icons/`（图标语义映射）+ `src/shared/charts/TablerChart.jsx`（图表适配）。改风格先改对应主题 Token 与视觉规范，再同步全局样式和共享组件。
 > 状态：**已采纳，ShitPM 运行时视觉事实源**（2026-08-17 评审通过；图标随样张确认一并落地）。
 > 与 `references/prototype-writing.md` 的关系：其第三节只保留 antd 令牌名作配置参考并指向本文件；数值、页面骨架与状态以本文件为准。
 
@@ -264,6 +264,12 @@
 - [ ] 1440 宽度下无横向溢出、元素不贴边（边距 ≥ 16）；575/576 与 991/992 边界可操作；390px 无页面级横向溢出
 - [ ] 对比度：正文 / 标题 vs 背景 ≥ 7:1
 - [ ] 页面内出现新颜色 / 圆角 / 阴影 / 字号 / 间距时，已按 1.8 记录 Token 来源与用途，不是现场拍值
+- [ ] 本轮已明确选择 Claude 或 Tabler 之一；单个原型没有混用两套品牌主题，壳层与项目交互习惯仍保持统一
+
+### 检查能力边界
+
+- [ ] 已用脚本或浏览器确认可机械观察的事实：源码工程、路由、显式事实锚点、构建、console、交互、计算样式、响应式边界和页面级溢出
+- [ ] 未把信息层级、内容密度、品牌感觉、审美和整体可读性等主观视觉质量写成脚本通过；这些项目由用户、人工评审或视觉模型验收，无能力时明确标记未评估
 
 ---
 
