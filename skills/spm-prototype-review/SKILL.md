@@ -1,79 +1,45 @@
 ---
 name: spm-prototype-review
-description: "原型 review——判断原型质量。用于用户说 prototype review、原型 review、review 原型时。预检查 → 页面结构/状态/交互/权限审查。不代写原型代码。"
+description: "Prototype Review：独立审查 Prototype 的源码工程、构建、路由、Design 一致性、状态权限表达和视觉规范执行。触发于用户要求审查 Prototype；只输出第二意见，不修改、修复或推进。"
 ---
-## 路径解析
 
-从系统 prompt 的 `<!-- SHITPM GLOBAL RULES START -->` 段读取 `ShitPM bundle root:` 的值，记为 `$BUNDLE`。
+## 目的与边界
 
-- `scripts/python/`、`references/`、`templates/`、`contracts/`、`lib/` 开头 → `$BUNDLE/` 下
-- `.workflow/`、`output/` 开头 → 当前项目根目录下
+Review 是独立第二意见，事实基线是被审 Prototype 模块登记的 Design 依据。读取当前项目的 `output/design/`、`output/prototype/`、`.workflow/`，以及 `$BUNDLE/contracts/`、`$BUNDLE/scripts/python/` 和契约指向的 references。
 
-## 执行顺序（两段式）
+- 内容只读：不手工编辑 `src/`、`index.html`、`dist` 或其他原型文件。`npm ci`、`npm run build` 和构建预览产生的 `node_modules/`、`dist/` 仅作为验证副作用，不作为 Review 修复或交付修改。
+- 不自动修复、确认、推进或调用 `spm-fix`。
+- PRD 只作冲突参考；不要求 metadata、`pages.json` 或其他 Review 产物。
+- 结论区分确定性问题、产品风险和待用户决策项；无法判断的项显式标记。
 
-### 第一段：预检查
+## 审查流程
 
-1. `python $BUNDLE/scripts/python/review-precheck.py --stage prototype --stdin-artifact`（agent 已读 index.html，stdin 传入）→ `.workflow/runtime/prototype/review-precheck.json`
-2.  脚本失败或 `can_start_review=false` → 停止，输出阻塞项
-3. 检查 index.html 存在且有效
-4. prototype 阶段不生成独立 metadata，跳过 metadata 检查
+1. 读取 `.workflow/provenance/prototype.json` 中该 target 的 `design_inputs` 对应正式 Design 文件、Design 修改状态和 Prototype 源码工程；PRD 如存在，仅作为冲突线索。**完成条件**：Design 依据和被审源码均可读；缺失或无法解析时直接输出阻塞，不继续假设。
+2. 运行：
 
- 有阻塞 → 停止，不进入第二段。
+```text
+python $BUNDLE/scripts/python/prototype-source-check.py --project-root .
+```
 
-### 第二段：质量审查
+**完成条件**：源码工程检查结果已记录。只有 dist/compiled.js 时至少记为 structure P1，结论不能为“通过”。
+3. 在 `output/prototype/` 执行 `npm ci`、`npm run build`，并用 `npm run preview` 或等价构建预览打开默认页和全部注册路由。**完成条件**：构建结果及每条注册路由的白屏/console 观察结果均已记录；构建失败或路由白屏按 structure P1 处理，跳过后续业务语义审查但仍输出结论。
+4. 运行：
 
-1. **页面覆盖 checklist**：
+```text
+python $BUNDLE/scripts/python/prototype-consistency-check.py --project-root .
+```
 
-   读取 `.workflow/metadata/design/pages.json`
+一致性检查只有全量入口，模块级判断由 Review 根据全量结果和 Design 分模块完成。`deterministic_conflicts` 必须作为确定性问题处理；`possible_omissions` 和 `needs_semantic_judgment` 必须逐项给出结论、未评估说明或上游同步建议，不能因为退出码为 0 而视为通过。无视觉模型时，只记录 DOM、计算样式、浏览器交互和截图等可观察证据；信息层级、密度、品牌感觉和审美标记为人工/视觉模型验收或未评估。
 
-   逐项输出对比结果（结构化）：
-   - design 每个页面 × 原型 HTML → [存在/缺失/幻觉]
-   - 原型出现的页面不在 design → 标记为幻觉
+**完成条件**：一致性结果已作为审查证据记录；脚本结果不是 Review 启动门禁。
+5. 读取 `$BUNDLE/contracts/review-checklist.md`、`$BUNDLE/contracts/prototype-review-checklist.md` 和 `$BUNDLE/references/prototype-writing.md`；发现多页面 shell、导航、路由或空白页问题时再读取 `$BUNDLE/references/prototype-shell.md`。**完成条件**：专项契约的每个适用结构、内容和一致性检查项均有证据和结论。
+6. 从 Design 页面清单提取全部页面，与 `src/routes.jsx` 逐项对照 `存在 / 缺失 / 幻觉`；再核对字段、状态、主路径、权限、操作限制、异常反馈和 Design 未授权高影响行为。**完成条件**：每个页面和关键对象都有明确结论或待决策标记。
+7. 读取 `$BUNDLE/references/prototype-visual-spec.md`，按 Prototype 专项契约审查视觉事实源、共享 UI、状态矩阵、图标和图表。**完成条件**：每个适用视觉检查项均有证据和结论；表现问题与业务语义问题分开，Design 冲突已设置 `needs_upstream_sync`。
+8. 根据被审源码的真实场景读取 `$BUNDLE/references/prototype-component-behavior.md` 中全部适用章节；至少覆盖命中的表格、Form/Modal、Portal/响应式、回退和跨层契约规则。**完成条件**：每个适用项均有证据和结论；不存在的场景标记不适用，不因生成路径变短而漏审；违反行为规范的项按表现问题输出位置、影响和建议，不修改源码。
+9. 按公共契约写入 `.workflow/reviews/prototype-review-N.md`。**完成条件**：结论符合三档门槛，每个 P0/P1 可追溯到位置、影响和建议，逐页面结果、三类问题分布及上游同步信息完整；未把验证副作用当作修复或交付修改，输出后停止。
 
-   判定：
-   - 幻觉页面 = P0
-   - 缺失页面 = P1（缺失率 > 50% 升级 P0）
+## 判定与失败
 
-2. 状态表达覆盖核心状态
-3. 交互主路径覆盖
-4. 权限表现覆盖
-
-## 判定规则
-
-- **通过**：零 P0、零 P1
-- **有问题需修改**：零 P0，1 个 P1
-- **阻塞**：有 P0 或 2+ 个 P1
-
-| 级别 | 示例 |
-|------|------|
-| P0 | 页面结构缺失、交互主路径不通 |
-| P1 | 状态表达不完整、权限不覆盖 |
-| P2 | 稳定 ID 泄漏（写入 issues 不计 verdict）|
-
-issue_layer：`{"structure":N,"content":N,"consistency":N}`。
-
-## 输出
-
-- 机读：`.workflow/reviews/prototype-review-N.json`（stage/verdict/issues/issue_layer/affected_objects/needs_upstream_sync/next_recommended/reviewed_at）
-- 人读：`.workflow/reviews/prototype-review-N.md`（结论/主要问题/是否回上游/下一步）
-
- 输出 verdict 后停止等用户确认。
-
-## 失败模式
-
-| 场景 | 一线 | 兜底 |
-|------|------|------|
-| 预检查脚本失败 | 检查路径和环境 | 停下，不跳过 |
-| can_start_review=false | 输出阻塞项 | 不绕过 |
-| 假阳性 | 列出 warnings 等确认 | 确认后继续 |
-
-## 硬规则
-
-1. 不代写原型代码
-2. 不自行修改 index.html
-3. 问题具体到页面和区域
-4. 预检查失败不跳过
-5. P2 写入 issues 但不计入 verdict
-6. review 通过后不自动推进
-7. 页面覆盖审查必须输出逐项 checklist
-8. 不允许笼统结论
+- 结论门槛、问题分级和专项严重度以公共契约与 Prototype 专项契约为准。
+- Design 待确认事实不能在 Prototype 中被当成确定行为；只报告问题并设置 `needs_upstream_sync`。
+- 失败处理按公共契约执行；脚本、构建或共享依据失败时保留原始错误，不把退出码包装成质量证明。

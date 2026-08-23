@@ -1,310 +1,503 @@
 #!/usr/bin/env python3
-"""stage-context.py — 准入和上下文脚本
+"""stage-context.py — ShitPM 轻量导航和上下文脚本
 
-职责：读取状态、判断当前阶段、收集最小读取集合、给出下一步建议。
-不生成 metadata，不修改文件，不做业务语义判断。
+职责：
+- 优先探测 canonical 文件：output/align/align.md、设计地图与设计集清单、output/prd/prd.md、output/prototype/
+- 以设计地图和设计集清单判断 Design 是否存在；不再使用确认标记或哈希确认
+- 输出 available_actions 列表（PRD 与 Prototype 是 Design 的两个独立下游）
+- 输出每个动作的模型等级和推理深度建议（来自批准稿 ShitPM PRD §6）
+- status.json 只作为兼容镜像，不得覆盖真实文件判断
+- 无 status.json 时仍能正常输出上下文和可用动作
+- 不生成 metadata，不修改产物
 
-用法：python stage-context.py <project_root>
+用法：
+  python stage-context.py --project-root <path> [--stdin-status]
 """
 
+import argparse
+import hashlib
 import json
 import sys
 from pathlib import Path
 
+
 VALID_STAGES = ["align", "design", "design-review", "prd", "prd-review", "prototype", "prototype-review", "fix", "done"]
 
-# 每个阶段的上游依赖
-UPSTREAM_DEPS = {
-    "align": [],
-    "design": ["align"],
-    "prd": ["design"],
-    "prototype": ["design"],
-    "fix": [],  # fix 可从任意阶段发起
+DESIGN_MAP = "output/design/设计地图.md"
+DESIGN_MANIFEST = "output/design/设计集清单.json"
+DESIGN_CHANGE_SINGLE = ".workflow/runtime/design-change/single/active.json"
+DESIGN_CHANGE_MULTI = ".workflow/runtime/design-change/active.json"
+PRD_PROVENANCE = ".workflow/provenance/prd.json"
+PROTO_PROVENANCE = ".workflow/provenance/prototype.json"
+
+# canonical 文件相对路径（ShitPM：真实文件判断优先于 status.artifacts 镜像）
+CANONICAL_FILES = {
+    "align": "output/align/align.md",
+    "design": "output/design/设计地图.md",
+    "prd": "output/prd/prd.md",
+    "prototype": "output/prototype/index.html",
 }
 
-# 每个阶段必须存在的人读产物
-REQUIRED_ARTIFACTS = {
-    "align": [],
-    "design": ["output/align/align.md"],
-    "prd": ["output/design/design.md"],
-    "prototype": ["output/design/design.md"],
-    "fix": [],
+
+# 模型等级建议（来自 ShitPM PRD §6.2-6.3）
+# 不发明新等级，只复用批准稿矩阵
+MODEL_TIER_LIGHT = "轻量模型"
+MODEL_TIER_DEEP = "深度推理模型"
+MODEL_TIER_SCRIPT = "确定性脚本"
+MODEL_TIER_UNSURE = "无法判断（按深度推理模型处理）"
+
+# 推理深度建议（按动作给出，便于用户/Agent 选择模型）
+REASONING_DEPTH = {
+    "spm-align": "整理型可浅；探索型需深。",
+    "spm-design": "默认深；首次生成需完整高影响推理。",
+    "spm-prd": "Design 决策完整可浅；含未决问题或冲突需深。",
+    "spm-prototype": "页面少、路径单一可浅；交互复杂需深。",
+    "spm-design-review": "结构检查可浅；语义挑战需深。",
+    "spm-prd-review": "结构与一致性检查可浅；坏味道和语义挑战需深。",
+    "spm-prototype-review": "结构检查可浅；交互主路径挑战需深。",
+    "spm-fix": "范围明确可浅；跨模块或语义变更需深。",
+    "spm-prototype-mark": "默认浅；主动发现高影响问题时另行使用深度 Review。",
 }
 
-# 每个阶段必须存在的机读物目录
-REQUIRED_METADATA = {
-    "align": [],
-    "design": [],  # metadata 在 design review 通过后生成
-    "prd": [".workflow/metadata/design/"],  # PRD 引用 design 镜像做一致性检查
-    "prototype": [".workflow/metadata/design/"],  # prototype 引用 design 镜像做页面覆盖检查
-    "fix": [],
+# 各动作默认模型等级建议（ShitPM PRD §6.3）
+DEFAULT_MODEL_TIER = {
+    "spm-align": "视任务而定（探索型用深度推理模型，整理型可用轻量模型）",
+    "spm-design": MODEL_TIER_DEEP,
+    "spm-prd": "Design 决策完整可用轻量模型；含未决问题或冲突需深",
+    "spm-prototype": "根据交互和实现复杂度判断",
+    "spm-design-review": MODEL_TIER_DEEP,
+    "spm-prd-review": MODEL_TIER_DEEP,
+    "spm-prototype-review": MODEL_TIER_DEEP,
+    "spm-fix": "根据变更影响判断",
+    "spm-prototype-mark": MODEL_TIER_LIGHT,
 }
 
-# 每个阶段的最小读取集合
+
+# 每个阶段推荐的最小读取集合（仅作为参考，不再构成硬门禁）
 MINIMAL_READ_SET = {
     "align": [
-        ".workflow/status.json",
         "references/align-writing.md",
         "templates/align.md",
     ],
     "design": [
-        ".workflow/status.json",
-        "output/align/align.md",
-        "references/design-writing.md",
-        "templates/design.md",
+        "contracts/context-loading.manifest.json",
+        "scripts/python/context-pack.py",
+        "scripts/python/context-budget.py",
+        "scripts/python/context-runtime-check.py",
+        "output/align/align.md",  # Design 必经的需求事实输入；原始材料可选
+        "output/design/设计地图.md",
+        "output/design/设计集清单.json",
     ],
     "prd": [
-        ".workflow/status.json",
-        "output/design/design.md",
-        ".workflow/metadata/design/",
-        "references/prd-writing.md",
-        "references/prd-writing.profile.json",
-        "templates/prd.md",
+        "contracts/context-loading.manifest.json",
+        "scripts/python/context-pack.py",
+        "scripts/python/context-budget.py",
+        "contracts/subagent-context-contract.md",
+        "output/design/设计地图.md",
+        "output/design/设计集清单.json",
     ],
     "prototype": [
-        ".workflow/status.json",
-        "output/design/design.md",
-        ".workflow/metadata/design/",
-        "templates/prototype.html",
+        "output/design/设计地图.md",
+        "output/design/设计集清单.json",
+        "templates/prototype-vite",
+        "scripts/python/prototype-source-check.py",
         "references/prototype-writing.md",
     ],
-    "fix": [
-        ".workflow/status.json",
-    ],
+    "fix": [],
     "design-review": [
-        ".workflow/status.json",
-        "output/design/design.md",
-        ".workflow/metadata/design/",
+        "output/design/设计地图.md",
+        "output/design/设计集清单.json",
         "contracts/review-checklist.md",
-        "references/design-writing.md",
-        "references/design-state-format.md",
+        "contracts/design-review-checklist.md",
+        "references/design-quality-rubric.md",
     ],
     "prd-review": [
-        ".workflow/status.json",
-        "output/design/design.md",
+        "output/design/设计地图.md",
+        "output/design/设计集清单.json",
         "output/prd/prd.md",
-        ".workflow/metadata/design/",
         "contracts/review-checklist.md",
+        "contracts/prd-review-checklist.md",
     ],
     "prototype-review": [
-        ".workflow/status.json",
-        "output/design/design.md",
+        "output/design/设计地图.md",
+        "output/design/设计集清单.json",
         "output/prototype/index.html",
         "contracts/review-checklist.md",
+        "contracts/prototype-review-checklist.md",
     ],
 }
 
 
-def load_status(project_root: Path, stdin_status: bool = False) -> dict:
-    """加载 status.json"""
+def load_status(project_root: Path, stdin_status: bool = False) -> dict | None:
+    """读取 status.json。返回 dict 或 None。
+
+    ShitPM：JSON 损坏时输出稳定错误而非崩溃；调用方按 __corrupted__ 标记处理。
+    """
     if stdin_status:
         try:
             content = sys.stdin.read()
             return json.loads(content)
-        except (json.JSONDecodeError, OSError):
-            return None
+        except (json.JSONDecodeError, OSError) as e:
+            return {"__corrupted__": True, "source": "stdin", "error": str(e)}
     status_path = project_root / ".workflow" / "status.json"
     if not status_path.exists():
         return None
-    with open(status_path, encoding="utf-8") as f:
-        return json.load(f)
+    try:
+        with open(status_path, encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, OSError) as e:
+        return {"__corrupted__": True, "source": str(status_path), "error": str(e)}
 
 
-def check_artifacts_exist(project_root: Path, paths: list) -> list:
-    """检查必要产物是否存在，返回缺失列表"""
-    missing = []
-    for p in paths:
-        full_path = project_root / p
-        if not full_path.exists():
-            missing.append(p)
-    return missing
-
-
-def check_metadata_dirs(project_root: Path, dirs: list) -> list:
-    """检查必要机读物目录是否存在且非空，返回缺失列表"""
-    missing = []
-    for d in dirs:
-        full_dir = project_root / d
-        if not full_dir.exists() or not any(full_dir.iterdir()):
-            missing.append(d)
-    return missing
-
-
-def load_align_notes(project_root: Path):
-    """加载 align-notes.json（如存在）"""
+def load_align_notes(project_root: Path) -> dict | None:
     notes_path = project_root / ".workflow" / "runtime" / "align" / "align-notes.json"
     if not notes_path.exists():
         return None
-    with open(notes_path, encoding="utf-8") as f:
-        return json.load(f)
+    try:
+        with open(notes_path, encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return None
 
 
-def determine_stage(project_root: Path, status: dict) -> str:
-    """根据 status 和产物存在情况判断实际应处阶段"""
-    current_stage = status.get("current_stage", "align")
+def probe_canonical_files(project_root: Path) -> dict:
+    """ShitPM：优先探测 canonical 文件，结果覆盖 status.artifacts 镜像。
 
-    # 如果当前是 review 子阶段，直接返回该 review 子阶段
-    if current_stage in ("design-review", "prd-review", "prototype-review"):
-        return current_stage
+    返回 {align: bool, design: bool, prd: bool, prototype: bool}
+    """
+    return {
+        key: (project_root / rel).exists()
+        for key, rel in CANONICAL_FILES.items()
+    }
 
-    artifacts = status.get("artifacts", {})
 
-    has_align = artifacts.get("align") and (project_root / artifacts["align"]).exists()
-    has_design = artifacts.get("design") and (project_root / artifacts["design"]).exists()
-    has_prd = artifacts.get("prd") and (project_root / artifacts["prd"]).exists()
-    has_prototype = artifacts.get("prototype") and (project_root / artifacts["prototype"]).exists()
+def _compute_sha256(path: Path) -> str | None:
+    if not path.exists():
+        return None
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(8192), b""):
+            h.update(chunk)
+    return h.hexdigest()
 
-    if not has_align:
-        return "align"
+
+def design_change_status(project_root: Path) -> dict:
+    """检查 Design 修改状态（活动事务）。返回 {active, mode, phase}。"""
+    for mode, rel in (("single", DESIGN_CHANGE_SINGLE), ("multi", DESIGN_CHANGE_MULTI)):
+        path = project_root / rel
+        if not path.is_file():
+            continue
+        try:
+            data = json.loads(path.read_text(encoding="utf-8-sig"))
+            return {
+                "active": True,
+                "mode": mode,
+                "phase": data.get("phase", "unknown"),
+                "hint": f"存在 {mode} 事务（{data.get('phase', 'unknown')}）。"
+                        "PRD、Prototype、Review 和 fix 不应读取正在变化的 Design 集合；"
+                        "请先执行 design-set.py recover。",
+            }
+        except (json.JSONDecodeError, OSError) as e:
+            return {
+                "active": True,
+                "mode": mode,
+                "phase": "corrupted",
+                "error": str(e),
+                "hint": f"{mode} 事务 active.json 损坏。请先执行 design-set.py recover。",
+            }
+    return {"active": False, "mode": None, "phase": None}
+
+
+def downstream_impact_status(project_root: Path) -> list[dict]:
+    """读取 PRD / Prototype 下游依据中的受影响状态。"""
+    result: list[dict] = []
+    for artifact, rel in (("prd", PRD_PROVENANCE), ("prototype", PROTO_PROVENANCE)):
+        path = project_root / rel
+        if not path.is_file():
+            continue
+        try:
+            data = json.loads(path.read_text(encoding="utf-8-sig"))
+        except (json.JSONDecodeError, OSError):
+            result.append({"artifact": artifact, "corrupted": True})
+            continue
+        for target in data.get("targets", []):
+            if target.get("status") in ("affected", "incomplete"):
+                result.append({
+                    "artifact": artifact,
+                    "target_id": target.get("target_id"),
+                    "target_name": target.get("target_name"),
+                    "status": target.get("status"),
+                    "check_status": target.get("check_status"),
+                    "affected_by": target.get("affected_by", []),
+                })
+    return result
+
+
+def determine_actual_stage(canonical: dict) -> str:
+    """根据 canonical 文件存在情况给出历史兼容的实际阶段标识。
+
+    ShitPM 不再线性推进，此字段仅用于兼容旧逻辑读取。
+    """
+    has_align = canonical.get("align", False)
+    has_design = canonical.get("design", False)
+    has_prd = canonical.get("prd", False)
+    has_prototype = canonical.get("prototype", False)
+
     if not has_design:
+        return "design" if has_align else "align"
+    if not has_prd and not has_prototype:
         return "design"
-    if not has_prd:
-        return "prd"
-    if not has_prototype:
-        return "prototype"
-    return current_stage
-
-
-def determine_next(status: dict, align_notes) -> str:
-    """给出下一步建议，考虑 review 结果"""
-    current = status.get("current_stage", "align")
-    reviews = status.get("latest_reviews", {})
-
-    if current == "align":
-        if align_notes and align_notes.get("can_enter_design"):
-            return "design"
-        if align_notes and align_notes.get("needs_ask_back"):
-            return "align"
-        return "align"
-
-    if current == "design":
-        design_review = reviews.get("design", {})
-        if design_review.get("verdict") == "通过":
-            return "prd"
-        return "design-review"
-
-    if current == "prd":
-        prd_review = reviews.get("prd", {})
-        if prd_review.get("verdict") == "通过":
-            return "prototype"
-        return "prd-review"
-
-    if current == "prototype":
-        proto_review = reviews.get("prototype", {})
-        if proto_review.get("verdict") == "通过":
-            return "done"
-        return "prototype-review"
-
-    if current == "fix":
-        return "design"
-
-    if current == "done":
+    if has_prd and has_prototype:
         return "done"
+    return "design"  # 双下游中只完成一项时仍归 design 阶段
 
-    return current
+
+def recommend_model_for_action(action: str) -> dict:
+    """输出每个动作的模型等级和推理深度建议（来自 ShitPM PRD §6.2-6.3）。"""
+    return {
+        "model_tier": DEFAULT_MODEL_TIER.get(action, "—"),
+        "reasoning_depth": REASONING_DEPTH.get(action, "—"),
+    }
 
 
-def collect_context(project_root: Path, stdin_status: bool = False) -> dict:
-    """收集当前阶段上下文，返回完整结果"""
+def build_available_actions(
+    project_root: Path,
+    canonical: dict,
+) -> list[dict]:
+    """构建 available_actions 列表：每个动作是否可用 + 原因 + 模型建议。
+
+    ShitPM：优先用 canonical 文件探测结果，不依赖 status.artifacts 镜像；
+    Design 不存在确认动作或确认门槛，PRD 与 Prototype 是 Design 的两个独立下游。
+    """
+    has_align = canonical.get("align", False)
+    has_design = canonical.get("design", False)
+    has_prd = canonical.get("prd", False)
+    has_prototype = canonical.get("prototype", False)
+
+    actions: list[dict] = []
+
+    # Align 是 Design 的首个必经分析责任；也可以单独显式调用。
+    actions.append({
+        "action": "spm-align",
+        "available": True,
+        "reason": "Design 首次生成或输入变化时必须先完成 Align；原始材料可选。",
+        **recommend_model_for_action("spm-align"),
+    })
+
+    # spm-design：始终可用，重新生成或修改 Design
+    actions.append({
+        "action": "spm-design",
+        "available": True,
+        "reason": "可生成或修改 Design 基线（Product Definition）。",
+        **recommend_model_for_action("spm-design"),
+    })
+
+    # spm-prd：需设计地图存在（Design 集合已生成）
+    if not has_design:
+        actions.append({
+            "action": "spm-prd",
+            "available": False,
+            "reason": "设计地图不存在，Design 未生成。",
+            **recommend_model_for_action("spm-prd"),
+        })
+    else:
+        actions.append({
+            "action": "spm-prd",
+            "available": True,
+            "reason": "Design 集合存在，可直接生成 PRD；无需确认动作。",
+            **recommend_model_for_action("spm-prd"),
+        })
+
+    # spm-prototype：需设计地图存在
+    if not has_design:
+        actions.append({
+            "action": "spm-prototype",
+            "available": False,
+            "reason": "设计地图不存在，Design 未生成。",
+            **recommend_model_for_action("spm-prototype"),
+        })
+    else:
+        actions.append({
+            "action": "spm-prototype",
+            "available": True,
+            "reason": "Design 集合存在，可直接生成 Prototype；无需确认动作。",
+            **recommend_model_for_action("spm-prototype"),
+        })
+
+    # 三个 Review：按需独立调用，不要求 metadata，不要求先通过其他 Review
+    for review_action, canonical_key in [
+        ("spm-design-review", "design"),
+        ("spm-prd-review", "prd"),
+        ("spm-prototype-review", "prototype"),
+    ]:
+        if canonical.get(canonical_key, False):
+            actions.append({
+                "action": review_action,
+                "available": True,
+                "reason": "按需独立 Review，不构成门禁，不要求 metadata。",
+                **recommend_model_for_action(review_action),
+            })
+        else:
+            actions.append({
+                "action": review_action,
+                "available": False,
+                "reason": f"待审产物不存在：{CANONICAL_FILES[canonical_key]}",
+                **recommend_model_for_action(review_action),
+            })
+
+    # spm-fix：始终可用
+    actions.append({
+        "action": "spm-fix",
+        "available": True,
+        "reason": "高影响修改需回写 Design 并同步实际受影响的现有下游；无确认停顿。",
+        **recommend_model_for_action("spm-fix"),
+    })
+
+    # spm-prototype-mark：prototype 存在时可用
+    if has_prototype:
+        actions.append({
+            "action": "spm-prototype-mark",
+            "available": True,
+            "reason": "保留标注能力，不修改原始 Prototype。",
+            **recommend_model_for_action("spm-prototype-mark"),
+        })
+    else:
+        actions.append({
+            "action": "spm-prototype-mark",
+            "available": False,
+            "reason": "output/prototype/index.html 不存在。",
+            **recommend_model_for_action("spm-prototype-mark"),
+        })
+
+    return actions
+
+
+def resolve_bundle_resources(bundle_root: Path | None = None) -> dict:
+    """按 bundle root 解析 templates/references/contracts/schemas。
+
+    bundle root 推断规则：
+    1. 脚本位于 <bundle>/scripts/python/ 下，向上一级为 scripts，再向上一级为 bundle root
+    2. 若链接安装到 Codex 等 host 目录，链接目标即 bundle root
+
+    返回 {bundle_root, templates, references, contracts, schemas, exists}
+    """
+    if bundle_root is None:
+        script_path = Path(__file__).resolve()
+        # scripts/python/stage-context.py → scripts/python → scripts → bundle_root
+        bundle_root = script_path.parent.parent.parent
+    else:
+        bundle_root = bundle_root.resolve()
+    resources = {
+        "bundle_root": str(bundle_root),
+        "templates": str(bundle_root / "templates"),
+        "references": str(bundle_root / "references"),
+        "contracts": str(bundle_root / "contracts"),
+        "schemas": str(bundle_root / "schemas"),
+        "exists": bundle_root.exists(),
+        "has_templates": (bundle_root / "templates").exists(),
+        "has_references": (bundle_root / "references").exists(),
+        "has_contracts": (bundle_root / "contracts").exists(),
+        "has_schemas": (bundle_root / "schemas").exists(),
+    }
+    return resources
+
+
+def collect_context(project_root: Path, stdin_status: bool = False, bundle_root: Path | None = None) -> dict:
+    """ShitPM：无 status.json 时仍能正常输出，优先用 canonical 文件探测。"""
     status = load_status(project_root, stdin_status=stdin_status)
-    if status is None:
-        return {
-            "error": "status.json not found",
-            "hint": "请先初始化 .workflow/status.json",
-        }
+    canonical = probe_canonical_files(project_root)
+    design_change = design_change_status(project_root)
+    downstream_impact = downstream_impact_status(project_root)
+    available_actions = build_available_actions(project_root, canonical)
+    actual_stage = determine_actual_stage(canonical)
 
-    current_stage = status.get("current_stage", "align")
+    status_corrupted = isinstance(status, dict) and status.get("__corrupted__")
+    status_dict = status if (isinstance(status, dict) and not status_corrupted) else {}
+
+    current_stage = status_dict.get("current_stage", actual_stage)
     if current_stage not in VALID_STAGES:
-        return {
-            "error": f"invalid stage: {current_stage}",
-            "valid_stages": VALID_STAGES,
-        }
+        current_stage = actual_stage
 
-    # 检查上游产物
-    required_artifacts = REQUIRED_ARTIFACTS.get(current_stage, [])
-    missing_artifacts = check_artifacts_exist(project_root, required_artifacts)
-
-    # 检查上游机读物
-    required_metadata = REQUIRED_METADATA.get(current_stage, [])
-    missing_metadata = check_metadata_dirs(project_root, required_metadata)
-
-    # 加载 align-notes
     align_notes = load_align_notes(project_root)
 
-    # 判断实际阶段
-    actual_stage = determine_stage(project_root, status)
-
-    # 检查准入
-    can_proceed = True
-    blocking_issues = []
-
-    if missing_artifacts:
-        can_proceed = False
-        blocking_issues.append(f"上游产物缺失: {missing_artifacts}")
-
-    if missing_metadata:
-        can_proceed = False
-        blocking_issues.append(f"上游机读物缺失: {missing_metadata}")
-
-    if current_stage == "design" and align_notes:
-        if not align_notes.get("can_enter_design"):
-            can_proceed = False
-            blocking_issues.append("align-notes: can_enter_design = false")
-
-    # 收集最小读取集合
+    # 最小读取集合（参考用，不再构成硬门禁），优先解析 bundle 路径
+    bundle_resources = resolve_bundle_resources(bundle_root)
+    bundle_root = Path(bundle_resources["bundle_root"])
     read_set = MINIMAL_READ_SET.get(current_stage, [])
     resolved_read_set = {}
     for p in read_set:
-        full_path = project_root / p
+        # bundle 资源（references/templates/contracts/schemas）按 bundle root 解析
+        if p.startswith(("references/", "templates/", "contracts/", "schemas/")):
+            full_path = bundle_root / p
+        else:
+            full_path = project_root / p
         resolved_read_set[p] = {
             "exists": full_path.exists(),
             "path": str(full_path),
         }
 
-    # 构建输出
+    # ShitPM：不再线性推进，next_recommended 始终为 null，由用户从 available_actions 自行选择
+    next_recommended = None
+
+    # status.artifacts 作为兼容镜像保留输出，但不参与决策
+    status_artifacts = status_dict.get("artifacts", {})
+    # ShitPM：合并 canonical 探测结果到 artifacts_mirror，供 Skill 参考
+    artifacts_mirror = {
+        "status_registered": status_artifacts,
+        "canonical_detected": {k: CANONICAL_FILES[k] for k, v in canonical.items() if v},
+    }
+
     result = {
         "current_stage": current_stage,
         "actual_stage": actual_stage,
-        "artifacts": status.get("artifacts", {}),
-        "metadata_paths": status.get("metadata_paths", {}),
-        "latest_reviews": status.get("latest_reviews", {}),
+        "artifacts": status_artifacts,
+        "artifacts_mirror": artifacts_mirror,
+        # 历史字段保留兼容读取
+        "metadata_paths": status_dict.get("metadata_paths", {}),
         "align_notes": align_notes if align_notes else {},
-        "next_recommended": determine_next({**status, "current_stage": actual_stage}, align_notes) if can_proceed else actual_stage,
-        "gate": {
-            "can_proceed": can_proceed,
-            "blocking_issues": blocking_issues,
-        },
+        # ShitPM 字段
+        "design_change": design_change,
+        "downstream_impact": downstream_impact,
+        "available_actions": available_actions,
+        "next_recommended": next_recommended,
         "minimal_read_set": resolved_read_set,
+        "bundle_resources": bundle_resources,
+        "gate": {
+            "can_proceed": True,  # ShitPM 不再由本脚本阻塞，由各 Skill 自行判断
+            "blocking_issues": [],
+            "note": "ShitPM 不再使用线性门禁；请参考 available_actions 判断可用动作。",
+        },
     }
+
+    if status is None:
+        result["status_source"] = "missing"
+        result["status_hint"] = "无 .workflow/status.json；canonical 文件探测已接管产物判断。"
+    elif status_corrupted:
+        result["status_source"] = "corrupted"
+        result["status_error"] = status.get("error", "")
+        result["status_hint"] = "status.json 损坏；canonical 文件探测已接管产物判断。请修复或删除 status.json。"
+    else:
+        result["status_source"] = "loaded"
 
     return result
 
 
-def main():
-    import argparse
-    parser = argparse.ArgumentParser(description="准入和上下文脚本")
-    parser.add_argument("project_root", help="项目根目录")
-    parser.add_argument("--stdin-status", action="store_true", help="从 stdin 读取 status.json 内容（避免重复读文件）")
+def main() -> int:
+    parser = argparse.ArgumentParser(description="ShitPM 轻量导航和上下文脚本")
+    parser.add_argument("--project-root", required=True, help="项目根目录")
+    parser.add_argument("--stdin-status", action="store_true", help="从 stdin 读取 status.json 内容")
+    parser.add_argument("--bundle-root", type=Path, help="ShitPM bundle 根目录，默认脚本所在 bundle")
     args = parser.parse_args()
 
     project_root = Path(args.project_root).resolve()
     if not project_root.exists():
         print(f"错误: 项目根目录不存在: {project_root}", file=sys.stderr)
-        sys.exit(1)
+        return 1
 
-    result = collect_context(project_root, stdin_status=args.stdin_status)
-
-    # 输出 JSON 到 stdout
+    result = collect_context(project_root, stdin_status=args.stdin_status, bundle_root=args.bundle_root)
     print(json.dumps(result, ensure_ascii=False, indent=2))
-
-    # 如有阻塞问题，exit code = 1
-
-    # 非法 stage 或 status.json 缺失
-    if "error" in result:
-        sys.exit(1)
-    if result.get("gate", {}).get("blocking_issues"):
-        sys.exit(1)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

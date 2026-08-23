@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """prd-style-lint.py — PRD 文风 lint 脚本
 
-职责：检查 PRD 正文中可机械识别的 9 类问题。
+职责：检查 PRD 正文中可机械识别的 12 类问题。
 不做业务语义判断，不做全文重写。
 
 用法：python prd-style-lint.py <prd_file_path> [--format text|json] [--output <path>]
@@ -11,11 +11,14 @@
   STYLE002 - 动作流水账特征
   STYLE003 - 表格主导
   STYLE004 - 重复页面编号
-  STYLE005 - 跨节引用
+  STYLE005 - 跨节引用（含 §x.x 裸引用）
   STYLE006 - 机读字段泄漏
   STYLE007 - AI 痕迹
   STYLE008 - 占位符
   STYLE009 - 名词说明章节缺失
+  STYLE010 - 页面元数据连续块
+  STYLE011 - UI 动作词直接作为动作标题
+  STYLE012 - 连续键值对句式承载正文
 """
 
 import json
@@ -35,28 +38,38 @@ class Issue:
     suggestion: str
 
 
-# 占位符/空话词与标签式正文：以 references/prd-writing.profile.json 的 forbidden_expressions 为单一事实源
+# 占位符/空话词与标签式正文：以 contracts/prd-writing.profile.json 的 forbidden_expressions 为单一事实源
 # 加载失败时降级为内置兜底列表，保证脚本可独立运行
-_PROFILE_PATH = Path(__file__).resolve().parent.parent.parent / "references" / "prd-writing.profile.json"
+_PROFILE_PATH = Path(__file__).resolve().parent.parent.parent / "contracts" / "prd-writing.profile.json"
 _PROFILE = load_json(_PROFILE_PATH) or {}
 _PROFILE_FORBIDDEN = _PROFILE.get("constraints", {}).get("forbidden_expressions", [])
 
-# 标签式正文模式：从 profile 的 ** 开头表达式动态生成（单一事实源）
+# 标签式正文模式：从 profile 的 forbidden_expressions 动态生成（单一事实源）
+# 两类：
+#   1. 加粗标签 `**名称：**`：出现在行中任意位置即报；
+#   2. 行首标签 `名称：内容`（不带加粗，独立成行）：以 `^名称：` 行首锚定识别，
+#      避免正文中"系统处理：xxx"等行中自然出现"处理："时误报。
 # 降级兜底：profile 加载失败时使用内置完整列表（从 prd-writing.profile.json 同步）
 _FALLBACK_LABEL_EXPRS = [
     "**页面目标：**", "**关键动作：**", "**状态变化：**", "**异常提示：**", "**关联功能点：**",
+    "触发：", "处理：", "成功结果：", "失败与恢复：", "失败结果：",
 ]
 _PLACEHOLDER_FALLBACK = [
     "按配置", "按规范", "同常规", "待补充", "需支持", "需考虑",
     "详见原型", "待定", "按业务规则", "具体数值见", "用于承载", "用于支撑",
     "方便用户", "避免用户", "符合操作", "TBD", "TODO",
 ]
-_LABEL_EXPRS = [w for w in _PROFILE_FORBIDDEN if w.startswith("**")] or _FALLBACK_LABEL_EXPRS
+_LABEL_EXPRS = [w for w in _PROFILE_FORBIDDEN if w.startswith("**") or w.endswith(("：", ":"))] or _FALLBACK_LABEL_EXPRS
 LABEL_PATTERNS = []
+LEADING_LABEL_PATTERNS = []
 for _expr in _LABEL_EXPRS:
     _name = _expr.strip("*").rstrip("：:").strip()
-    _pat = r'\*\*' + re.escape(_name) + r'[：:]\*\*'
-    LABEL_PATTERNS.append((_pat, f"{_name}标签"))
+    if _expr.startswith("**"):
+        _pat = r'\*\*' + re.escape(_name) + r'[：:]\*\*'
+        LABEL_PATTERNS.append((_pat, f"{_name}标签"))
+    else:
+        _pat = r'^\s*' + re.escape(_name) + r'[：:]'
+        LEADING_LABEL_PATTERNS.append((_pat, f"{_name}标签"))
 
 # 原因腔词：从 forbidden_expressions 中识别，单独检查以避免误报正常描述
 # "方便用户""避免用户" 后接动词才是原因腔；"需支持""需考虑" 后接标点或行尾才是占位符
@@ -69,7 +82,13 @@ CAUSE_PHRASE_PATTERNS = {
 }
 _CAUSE_PHRASE_WORDS = set(CAUSE_PHRASE_PATTERNS.keys())
 
-PLACEHOLDER_PATTERNS = [w for w in _PROFILE_FORBIDDEN if not w.startswith("**") and w not in _CAUSE_PHRASE_WORDS] or _PLACEHOLDER_FALLBACK
+# 行首标签式表达式（触发：/处理：/成功结果：/失败与恢复：/失败结果：）属 STYLE001 标签域而非占位符；
+# 且 STYLE008 按子串匹配，会从"系统处理：""数据处理："等合法正文中误伤，故从占位符集合排除，
+# 只由 STYLE001 的行首锚定拦截（行首`触发：`→error，行内`系统处理：`→不误报）。
+_PLACEHOLDER_EXCLUDED = {w for w in _LABEL_EXPRS if not w.startswith("**")}
+PLACEHOLDER_PATTERNS = [w for w in _PROFILE_FORBIDDEN if not w.startswith("**") and w not in _CAUSE_PHRASE_WORDS and w not in _PLACEHOLDER_EXCLUDED] or _PLACEHOLDER_FALLBACK
+# 只有明确的空占位才硬阻断；“按配置”等表达存在误报可能，作为 warning 交给 AI 判断。
+_PLACEHOLDER_ERROR_TERMS = {"待补充", "待定", "TBD", "TODO"}
 PLACEHOLDER_RULES = {
     "待定": re.compile(r'(?<![\u4e00-\u9fa5])待定(?!性|稿|人|项|状态|原因|结论|计划|方案)'),
     "待补充": re.compile(r'(?<![\u4e00-\u9fa5])待补充(?!说明|材料|资料|附件|内容|信息|证据|记录|明细|清单)'),
@@ -84,7 +103,7 @@ AI_PATTERNS = [
 
 
 def check_label_style(lines: list) -> list:
-    """STYLE001: 检查标签式正文"""
+    """STYLE001: 检查标签式正文（加粗标签 + 行首标签两类）"""
     issues = []
     for i, line in enumerate(lines):
         for pattern, label in LABEL_PATTERNS:
@@ -95,6 +114,15 @@ def check_label_style(lines: list) -> list:
                     line=i + 1,
                     message=f"发现标签式正文：{label}",
                     suggestion="改用自然规格说明段落，不用加粗标签拼接",
+                ))
+        for pattern, label in LEADING_LABEL_PATTERNS:
+            if re.search(pattern, line):
+                issues.append(Issue(
+                    code="STYLE001",
+                    severity="error",
+                    line=i + 1,
+                    message=f"发现行首标签式正文：{label}",
+                    suggestion="改用自然语言段落表达，不写成“标签：内容”式独立行",
                 ))
     return issues
 
@@ -140,117 +168,252 @@ def check_action_list(lines: list) -> list:
 
 
 def check_table_dominance(lines: list) -> list:
-    """STYLE003: 检查表格主导
+    """STYLE003: 检查业务模块正文是否被表格主导。
 
-    特征：在"详细需求说明"章节中，表格行数 > 段落行数
+    页面映射、版本记录和名词/字段等天然结构化区域不作为页面正文判断。
+    只对业务闭环模块或业务阶段内部的连续内容做机械提示，不判断业务完整性。
     """
     issues = []
-    in_detail_section = False
+    in_business = False
     table_lines = 0
-    paragraph_lines = 0
-    section_start = 0
+    prose_lines = 0
+    start_line = 0
+
+    def flush():
+        if table_lines > 0 and (prose_lines == 0 or table_lines > prose_lines * 2):
+            issues.append(Issue(
+                code="STYLE003",
+                severity="warning",
+                line=start_line,
+                message="业务模块正文中表格行数远超说明段落，疑似纯表格式正文",
+                suggestion="用自然语言说明业务条件、处理、结果和异常，表格只承载天然结构化信息",
+            ))
 
     for i, line in enumerate(lines):
         stripped = line.strip()
+        heading = re.match(r'^#{1,6}\s+(.*)$', stripped)
+        if heading:
+            title = heading.group(1).strip()
+            if re.search(r'业务闭环|业务模块|业务阶段|功能需求|功能详细说明', title):
+                if in_business:
+                    flush()
+                in_business = True
+                table_lines = 0
+                prose_lines = 0
+                start_line = i + 1
+                continue
+            if in_business and re.match(r'^#{1,3}\s', stripped):
+                flush()
+                in_business = False
+                table_lines = 0
+                prose_lines = 0
 
-        # 遇到同级或更高级标题时，结束当前详细需求章节统计
-        if in_detail_section and re.match(r'^#{1,2}\s', stripped) and not re.match(r'^#{1,4}\s.*详细需求', stripped):
-            if table_lines > 0 and (paragraph_lines == 0 or table_lines > paragraph_lines * 2):
-                issues.append(Issue(
-                    code="STYLE003",
-                    severity="warning",
-                    line=section_start,
-                    message="表格行数远超段落数，疑似纯表格式页面正文",
-                    suggestion="页面正文应以自然规格说明为主，表格仅用于天然映射内容",
-                ))
-            in_detail_section = False
-            table_lines = 0
-            paragraph_lines = 0
-
-        if re.match(r'^#{1,4}\s.*详细需求', stripped):
-            in_detail_section = True
-            table_lines = 0
-            paragraph_lines = 0
-            section_start = i + 1
-            continue
-
-        if in_detail_section:
+        if in_business:
             if stripped.startswith('|') and '|' in stripped[1:]:
                 table_lines += 1
-            elif stripped and not stripped.startswith('#') and not stripped.startswith('<!--'):
-                paragraph_lines += 1
+            elif stripped and not stripped.startswith('#') and not stripped.startswith('<!--') and not stripped.startswith('```'):
+                prose_lines += 1
 
-    # 检查最后一个章节
-    if in_detail_section and table_lines > 0 and (paragraph_lines == 0 or table_lines > paragraph_lines * 2):
-        issues.append(Issue(
-            code="STYLE003",
-            severity="warning",
-            line=section_start,
-            message="表格行数远超段落数，疑似纯表格式页面正文",
-            suggestion="页面正文应以自然规格说明为主，表格仅用于天然映射内容",
-        ))
-
+    if in_business:
+        flush()
     return issues
 
 
 def check_duplicate_page_ids(lines: list) -> list:
-    """STYLE004: 检查重复页面编号
+    """STYLE004: 检查明确页面稳定标识是否重复。
 
-    新编号体系下，页面用粗体块 `**N.N.N.N 页面名**` 表示。
-    检查粗体块中的编号是否重复。
+    新结构不要求固定页面编号；只对文档中明确写出的编号或 page-id 做重复提示。
     """
     issues = []
     page_ids = {}
-
-    # 只在详细需求说明章节内检查，避免字段定义表等误报
-    in_detail = False
+    patterns = [
+        re.compile(r'^\*\*(\d+(?:\.\d+)+)\s+.+?\*\*\s*$'),
+        re.compile(r'<!--\s*page[-_]?id\s*[:=]\s*([A-Za-z0-9_.-]+)'),
+    ]
     for i, line in enumerate(lines):
         stripped = line.strip()
-        if re.match(r'^#{1,4}\s.*详细需求', stripped):
-            in_detail = True
-            continue
-        if re.match(r'^#{1,3}\s', stripped) and in_detail:
-            # 新的顶级章节，退出详细需求
-            if re.match(r'^#{1,2}\s', stripped):
-                in_detail = False
+        for pattern in patterns:
+            match = pattern.search(stripped)
+            if not match:
                 continue
-        if not in_detail:
-            continue
-
-        # 匹配粗体块页面：**N.N.N 页面名** 或 **N.N.N.N 页面名**
-        match = re.match(r'^\*\*(\d+(?:\.\d+)+)\s+.+?\*\*\s*$', stripped)
-        if match:
             pid = match.group(1)
             if pid in page_ids:
                 issues.append(Issue(
                     code="STYLE004",
                     severity="error",
                     line=i + 1,
-                    message=f"页面编号重复：{pid}（首次出现在第 {page_ids[pid]} 行）",
-                    suggestion="确保每个页面编号唯一",
+                    message=f"页面稳定标识重复：{pid}（首次出现在第 {page_ids[pid]} 行）",
+                    suggestion="确保明确写出的页面编号或 page-id 唯一；没有稳定标识时无需强行编号",
                 ))
             else:
                 page_ids[pid] = i + 1
-
+            break
     return issues
 
 
 def check_cross_section_refs(lines: list) -> list:
-    """STYLE005: 检查跨节引用"""
-    issues = []
-    # 只匹配"见 X.X"、"参见 X.X"、"详见 X.X"，排除"参考"（太常见的词）
-    cross_ref_pattern = re.compile(r'(?:见|参见|详见)\s*\d+\.\d+')
+    """STYLE005: 检查跨节引用——只对“引用目标在当前 PRD 不存在”报错。
 
+    正常指向真实章节的编号引用不再产生提示（旧版对全部引用刷 info 属于低价值噪音）；
+    “Design §x.x”等显式上游引用不属于 PRD 内部引用，不检查。
+
+    裸引用识别：
+    - “见 §6.8”“（§10.1）”“按 §13.5”等 §x.x 形式，目标是当前 PRD 真实章节则通过；
+    - 目标不是当前 PRD 章节且未写成 “Design §x.x” 时，判定为裸引用报 error
+      （上游引用必须明确写出 Design 来源，不能伪装成 PRD 自身章节）。
+    """
+    issues = []
+    cross_ref_pattern = re.compile(r'(?:见|参见|详见)\s*(\d+(?:\.\d+)*)')
+    bare_ref_pattern = re.compile(r'(?<!Design)(?<!Design\s)§\s*(\d+(?:\.\d+)*)')
+    heading_numbers = set()
+    for line in lines:
+        match = re.match(r'^#{1,6}\s+(\d+(?:\.\d+)*)\s+', line.strip())
+        if match:
+            heading_numbers.add(match.group(1))
+
+    in_fence = False
     for i, line in enumerate(lines):
-        if cross_ref_pattern.search(line):
+        stripped = line.strip()
+        if stripped.startswith("```"):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        for match in cross_ref_pattern.finditer(line):
+            target = match.group(1)
+            if target in heading_numbers:
+                continue
             issues.append(Issue(
                 code="STYLE005",
-                severity="info",
+                severity="error",
                 line=i + 1,
-                message="发现跨节引用，可能导致读者跳转",
-                suggestion="考虑将相关内容直接写在当前段落",
+                message=f"内部引用目标不存在：见 {target}",
+                suggestion="修正为当前 prd.md 中真实存在的章节编号，或明确写成 Design 上游来源",
+            ))
+        for match in bare_ref_pattern.finditer(line):
+            target = match.group(1)
+            if target in heading_numbers:
+                continue
+            issues.append(Issue(
+                code="STYLE005",
+                severity="error",
+                line=i + 1,
+                message=f"裸引用目标不存在：§{target}",
+                suggestion="若为当前 PRD 内部章节请修正编号；若引用 Design 上游章节，请明确写成 Design §" + target,
             ))
 
+    return issues
+
+
+PAGE_METADATA_LABELS = (
+    "页面职责：", "使用对象：", "所属业务侧：", "所处业务阶段：",
+    "入口与返回：", "区块清单：", "页面区块：", "页面展示行为：", "状态驱动展示：",
+    "字段来源：",
+)
+
+
+def check_page_metadata_block(lines: list) -> list:
+    """STYLE010: 页面正文退化为连续元数据块（页面职责/使用对象/入口与返回/区块清单等）。
+
+    连续 3 个及以上元数据标签行即判定页面主体仍是元数据清单，违反
+    “页面从用户任务和业务判断开始”的要求。
+    """
+    issues = []
+    run = 0
+    run_start = 0
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        is_meta = any(stripped.startswith(label) for label in PAGE_METADATA_LABELS)
+        if is_meta:
+            if run == 0:
+                run_start = i + 1
+            run += 1
+        else:
+            if run >= 3:
+                issues.append(Issue(
+                    code="STYLE010",
+                    severity="error",
+                    line=run_start,
+                    message=f"页面正文为连续元数据块（共 {run} 个元数据标签行）",
+                    suggestion="从用户要完成的业务任务和判断开始写作，元数据事实融入语境、动作前提或结果",
+                ))
+            run = 0
+    if run >= 3:
+        issues.append(Issue(
+            code="STYLE010",
+            severity="error",
+            line=run_start,
+            message=f"页面正文为连续元数据块（共 {run} 个元数据标签行）",
+            suggestion="从用户要完成的业务任务和判断开始写作，元数据事实融入语境、动作前提或结果",
+        ))
+    return issues
+
+
+UI_ACTION_WORDS = ("点击", "打开", "切换", "返回", "播放")
+
+
+def check_ui_word_action_titles(lines: list) -> list:
+    """STYLE011: UI 动作词（点击/打开/切换/返回/播放）直接作为动作标题。"""
+    issues = []
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        match = re.match(r'^\*\*(.+?)\*\*\s*$', stripped)
+        if not match:
+            continue
+        title = match.group(1).strip()
+        if title in UI_ACTION_WORDS:
+            issues.append(Issue(
+                code="STYLE011",
+                severity="error",
+                line=i + 1,
+                message=f"动作标题直接使用 UI 动作词：{title}",
+                suggestion="动作标题用“动词 + 业务对象/结果”表达，例如“定位异常车辆”“控制视频播放”",
+            ))
+    return issues
+
+
+def check_key_value_lines(lines: list) -> list:
+    """STYLE012: 连续键值对句式（字段名：说明 / 来源：xxx / 结果：xxx）承载正文。
+
+    独立行或 `·` 列表项以“名称：内容”形式出现且连续 3 行及以上，
+    判定为键值对式模板替代自然语义。单行或两行的偶发冒号句不报，
+    避免把自然说明误判为模板。
+    """
+    issues = []
+    run = 0
+    run_start = 0
+    kv_pattern = re.compile(r'^[^：:]{1,40}[：:]\s*\S+')
+
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        is_kv = False
+        if stripped.startswith('·'):
+            is_kv = bool(kv_pattern.match(stripped[1:].strip()))
+        elif stripped and not stripped.startswith(('|', '#', '<!--', '```', '>', '*', '-')):
+            is_kv = bool(kv_pattern.match(stripped))
+        if is_kv:
+            if run == 0:
+                run_start = i + 1
+            run += 1
+        else:
+            if run >= 3:
+                issues.append(Issue(
+                    code="STYLE012",
+                    severity="error",
+                    line=run_start,
+                    message=f"连续键值对句式承载正文（共 {run} 行）",
+                    suggestion="把字段名、来源、结果等事实融入自然语言段落或列表，不写成“名称：内容”式独立行",
+                ))
+            run = 0
+
+    if run >= 3:
+        issues.append(Issue(
+            code="STYLE012",
+            severity="error",
+            line=run_start,
+            message=f"连续键值对句式承载正文（共 {run} 行）",
+            suggestion="把字段名、来源、结果等事实融入自然语言段落或列表，不写成“名称：内容”式独立行",
+        ))
     return issues
 
 
@@ -315,18 +478,18 @@ def check_placeholders(lines: list) -> list:
                 if rule.search(line):
                     issues.append(Issue(
                         code="STYLE008",
-                        severity="error",
+                        severity="error" if pattern in _PLACEHOLDER_ERROR_TERMS else "warning",
                         line=i + 1,
                         message=f"占位符：发现 '{pattern}'",
-                        suggestion="填写具体内容，不得使用占位符",
+                        suggestion="填写具体内容；若该表达只是规则引用，改为明确说明或由 AI 确认误报",
                     ))
             elif pattern in line:
                 issues.append(Issue(
                     code="STYLE008",
-                    severity="error",
+                    severity="error" if pattern in _PLACEHOLDER_ERROR_TERMS else "warning",
                     line=i + 1,
                     message=f"占位符：发现 '{pattern}'",
-                    suggestion="填写具体内容，不得使用占位符",
+                    suggestion="填写具体内容；若该表达只是规则引用，改为明确说明或由 AI 确认误报",
                 ))
     # 原因腔词单独检查，避免误报正常描述
     issues.extend(check_cause_phrase(lines))
@@ -334,16 +497,16 @@ def check_placeholders(lines: list) -> list:
 
 
 def check_glossary_section(lines: list) -> list:
-    """STYLE009: 检查名词说明章节存在性
+    """STYLE009: 检查术语定义章节存在性
 
-    PRD 必须包含"名词说明"章节（别名"术语说明"），
+    PRD 必须在总体说明下包含"术语定义"章节（兼容旧名"名词说明"/"术语说明"），
     让研发在进入详细需求前建立统一术语认知。
     """
     issues = []
     has_glossary = False
     for line in lines:
         stripped = line.strip()
-        if re.match(r'^#{1,2}\s.*名词说明', stripped) or re.match(r'^#{1,2}\s.*术语说明', stripped):
+        if re.match(r'^#{1,3}\s.*(名词说明|术语说明|术语定义)', stripped):
             has_glossary = True
             break
 
@@ -353,7 +516,7 @@ def check_glossary_section(lines: list) -> list:
             severity="error",
             line=1,
             message="缺少名词说明章节",
-            suggestion="在文档概述之后、范围之前新增名词说明章节，按类别分组列出业务术语",
+            suggestion="补充术语定义章节（### x.x 术语定义），按正式 Design 文件列出业务术语",
         ))
     return issues
 
@@ -368,6 +531,9 @@ ALL_CHECKS = [
     check_ai_traces,
     check_placeholders,
     check_glossary_section,
+    check_page_metadata_block,
+    check_ui_word_action_titles,
+    check_key_value_lines,
 ]
 
 
@@ -412,26 +578,20 @@ def format_json(issues: list) -> str:
 
 
 def main():
-    if len(sys.argv) < 2:
-        print("用法: python prd-style-lint.py <prd_file> [--format text|json] [--output <path>]", file=sys.stderr)
-        sys.exit(1)
+    import argparse
 
-    prd_path = Path(sys.argv[1]).resolve()
+    parser = argparse.ArgumentParser(
+        description="PRD 文风 lint 脚本：检查 PRD 正文中可机械识别的 9 类问题。",
+    )
+    parser.add_argument("prd_file", help="PRD 文件路径")
+    parser.add_argument("--format", choices=["text", "json"], default="text", help="输出格式（默认 text）")
+    parser.add_argument("--output", type=Path, default=None, help="将 JSON 结果写入指定路径")
+    args = parser.parse_args()
+
+    prd_path = Path(args.prd_file).resolve()
     if not prd_path.exists():
         print(f"错误: 文件不存在: {prd_path}", file=sys.stderr)
         sys.exit(2)
-
-    output_format = "text"
-    if "--format" in sys.argv:
-        idx = sys.argv.index("--format")
-        if idx + 1 < len(sys.argv):
-            output_format = sys.argv[idx + 1]
-
-    output_path = None
-    if "--output" in sys.argv:
-        idx = sys.argv.index("--output")
-        if idx + 1 < len(sys.argv):
-            output_path = Path(sys.argv[idx + 1])
 
     with open(prd_path, encoding="utf-8") as f:
         content = f.read()
@@ -440,16 +600,17 @@ def main():
 
     json_output = format_json(issues)
 
-    if output_path:
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(output_path, "w", encoding="utf-8") as f:
+    if args.output:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        with open(args.output, "w", encoding="utf-8") as f:
             f.write(json_output)
 
-    if output_format == "json":
+    if args.format == "json":
         print(json_output)
     else:
         print(format_text(issues))
 
+    # warning/info 只提示 AI 判断，不阻断命令；确定性 error 才返回 1。
     if any(i.severity == "error" for i in issues):
         sys.exit(1)
 

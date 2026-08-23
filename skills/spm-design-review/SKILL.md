@@ -1,104 +1,40 @@
 ---
 name: spm-design-review
-description: "设计 review——判断 design 基线质量。用于用户说 design review、设计 review、review 设计时。预检查 → 逐项审查 → metadata 生成。不代写 design 正文。"
+description: "Design Review：独立审查 Design 基线的结构完整性、业务质量、一致性和高影响缺口。触发于用户要求审查 Design；默认局部审查，整套 Design 仅在用户明确要求完整 Review 时审查。只输出第二意见，不修改或推进。"
 ---
-## 路径解析
 
-从系统 prompt 的 `<!-- SHITPM GLOBAL RULES START -->` 段读取 `ShitPM bundle root:` 的值，记为 `$BUNDLE`。
+## 路径与资源
 
-- `scripts/python/`、`references/`、`templates/`、`contracts/`、`lib/` 开头 → `$BUNDLE/` 下
-- `.workflow/`、`output/` 开头 → 当前项目根目录下
+从系统 prompt 读取 `$BUNDLE`。项目文件使用当前根目录的 `.workflow/` 和 `output/`；共享依据使用 `$BUNDLE/contracts/`、`$BUNDLE/schemas/`、`$BUNDLE/references/` 和 `$BUNDLE/scripts/python/`。
 
-## 执行顺序（三段式）
+流程开始时输出模型建议：需要发现业务、权限、状态、跨模块或方案风险时使用深度推理模型；只做标题、结构、文件、格式和明显缺失检查时可用轻量模型或脚本；无法判断时使用深度推理模型。
 
-**先读 design.md 全文**，后续通过 `--stdin-artifact` 传入脚本。
+## 职责边界
 
-### 第一段：预检查
+Review 是独立第二意见，不是生成门禁，也不承担计划内补全。
 
-1. 运行 `python $BUNDLE/scripts/python/review-precheck.py --stage design --no-metadata --stdin-artifact` → `.workflow/runtime/design/review-precheck.json`
-2.  脚本失败或 `can_start_review=false` → 停止输出阻塞项。假阳性（alias_missed>0 且 blocking_issues 空）→ 列出 warnings 等用户确认后可继续
-3. 检查核心章节：角色定义/模块定义/页面清单/字段定义/页面与字段落点/规则与状态/权限定义
-4. 检查表格仍为结构化格式（字段定义、页面落点、状态流转、权限矩阵）
+- 只审查，不修改正式 Design 文件、设计集清单、决策记录或 metadata。
+- 审查后停在结论输出，不自动修复、不自动确认、不自动推进阶段，不自动调用 `spm-fix`。
+- 审查只依赖 Design 集合与修改状态，不要求 metadata、`page-fields.json` 或其他 Review 存在。
+- 只有输入文件不存在、不可读或完全无法解析时才硬阻塞。
+- 结论必须区分确定性问题、产品风险和待用户决策问题。
 
- 有阻塞问题（核心章节缺失）→ 停止，不进入第二段。
+## 默认局部 Review
 
-### 第二段：人读质量审查
+默认只审查用户指定范围的目标文件闭包；完整 Review（整套 Design）只由用户明确触发。
 
-**A. 密度审查（按列逐项查，缺列或缺值即 P1）**
+## 执行流程
 
-1. 字段定义密度：每张字段表必须 9 列齐全 `字段 | 类型 | 长度 | 必填 | 默认值 | 枚举值 | 格式 | 业务来源 | 说明`；无值属性写"—"不留空；缺列或缺值的表定位到具体实体名报 P1
-2. 状态机密度：每张状态机表必须 6 列齐全 `状态 | 含义 | 操作人 | 触发动作 | 下一状态 | 限制条件`；"操作人"必须到角色（"用户""系统"等模糊主体即 P1）；"限制条件"不能省略（写"—"仅限真正无限制）；终态未占行即 P1；缺列或缺值的表定位到具体实体名报 P1
+1. 确定局部或完整 Review 范围，读取设计地图、设计集清单、目标 Design 文件闭包（目标文件 + 必要系统基线 + 直接契约 + 真正相关的相邻模块）、Design 修改状态、用户指定范围和最近 Review（如有）。修改状态只作为上下文，不构成 Review 门禁。**完成条件**：审查范围、目标文件闭包和每个输入的来源路径已明确。
+2. 确认设计集清单可解析且目标 Design 文件可读。缺失或不可读时停止；缺章节、冲突和质量问题继续作为审查问题。**完成条件**：输入可供审查，或阻塞路径与原因已具体记录。
+3. 读取 `$BUNDLE/contracts/review-checklist.md`、`$BUNDLE/contracts/design-review-checklist.md` 和 `$BUNDLE/references/design-quality-rubric.md` 的独立 Review 部分；按专项契约的触发证据读取对应权威规则来源。只有检测到 `.workflow/metadata/design/` 时才读取 `$BUNDLE/contracts/metadata-anchor-rules.md`。**完成条件**：每个适用检查项的权威依据已加载；缺失依据已按路径记录。
+4. 从人读 Design 而不是 metadata 判断产品事实，按专项契约逐项审查；旧 metadata 仅在存在时作为兼容材料。**完成条件**：每个适用检查项均有证据和结论；无法判断项已标记为产品风险或待用户决策，未被默认通过。
+5. 按公共契约写入 `.workflow/reviews/design-review-N.md`。**完成条件**：结论符合三档门槛，每个 P0/P1 可追溯到位置、影响和建议，三类问题分布及上游同步信息完整。
+6. 输出审查结论后停止，等待用户决定是否修复。**完成条件**：未修改 Design、设计集清单、决策记录或 metadata，未确认或推进阶段。
 
-**A2. 状态机闭环审查（按 `references/design-state-format.md` 闭环要求 8 条逐项查，违反即 P1）**
+## 判定与失败
 
-3. 结构层（脚本校验）：运行 `python $BUNDLE/scripts/python/state-machine-check.py --project-root .`，直接引用输出 JSON 中的 violations。脚本覆盖 4 条：
-   - non_terminal_must_have_exit：非终态至少一条正向迁移，悬空即 P1
-   - non_initial_must_have_entry：非初始状态至少一条迁移指向它，孤岛即 P1
-   - rollback_target_illegal：回退/驳回的"下一状态"必须在正向可达路径上，回退到从未经历的状态即 P1
-   - transition_ambiguity：同一"触发动作 + 操作人"组合在不同状态下指向冲突的"下一状态"，P2 提示人审是否有业务理由
-
-   脚本依赖 `stage-prep.py` 生成的 states.json 含 transitions/entity 字段。若 states.json 不存在或无 transitions，先运行 `python $BUNDLE/scripts/python/stage-prep.py --stage design --project-root .` 生成 metadata，再跑 state-machine-check.py。
-4. 业务层（人审，逐张状态机表检查）：
-   - 合法出路全覆盖：从业务语义看当前状态所有合法操作（推进/撤回/退回/驳回/取消），少一种即 P1
-   - 二次流转闭环：回退/驳回后的状态必须能再次推进回原路径，死锁即 P1
-   - 操作人匹配业务角色：迁移的"操作人"与业务角色职责不一致即 P1（如业务上组长/主审才能发征求意见，状态机写编制人即 P1）
-   - 状态语义与迁移自洽：状态含义描述的待办事项必须有对应出路迁移，断链即 P1
-
-**B. 完整性审查**
-
-5. 权限定义覆盖到字段级，按"页面 > 角色 > 字段权限例外"组织
-6. 模块/页面/字段能在 align.md 中找到来源（不新增未确认范围）
-7. 关键表格结构性检查
-
- 存在 P0 或 2+ 个 P1 → 输出 verdict 停止，不进入第三段。
-
-### 第三段：metadata 生成（仅第二段通过后）
-
-1. `python $BUNDLE/scripts/python/stage-prep.py --stage design --project-root .` 生成 metadata
-2. 一致性校验：8 个 JSON 完整性、字段/页面/模块数与 design.md 一致、page-fields 覆盖率、non-page-fields 覆盖率（≤40%）、design.md 无稳定 ID 泄漏
-3. 校验失败 → 输出不一致项，verdict 降级为"有问题需修改"
-4. 校验通过 → 更新 `status.json` 中 `metadata_paths.design`
-
-## 判定规则
-
-- **通过**：零 P0、零 P1（含 metadata 校验）
-- **有问题需修改**：零 P0，1 个 P1
-- **阻塞**：有 P0 或 2+ 个 P1
-
-verdict = max(第二段 verdict, 第三段 verdict)。
-
-| 级别 | 含义 | 示例 |
-|------|------|------|
-| P0 | 阻塞 | 核心章节缺失、新增未确认范围 |
-| P1 | 影响质量 | 字段属性缺失、权限未覆盖字段级 |
-| P2 | 格式 | lint warning（写入 issues 不计 verdict） |
-
-issue_layer：`{"structure":N,"content":N,"consistency":N}`，三个整数必填。
-
-## 输出
-
-- 机读：`.workflow/reviews/design-review-N.json`（stage/verdict/issues/issue_layer/affected_objects/needs_upstream_sync/next_recommended/reviewed_at/metadata_generated）
-- 人读：`.workflow/reviews/design-review-N.md`（结论/主要问题/是否回上游/下一步/metadata 状态）
-
- 输出 verdict 后停止等用户确认，不自动推进。
-
-## 失败模式
-
-| 场景 | 一线 | 兜底 |
-|------|------|------|
-| 预检查脚本失败 | 检查路径和环境 | 停下，不跳过 |
-| can_start_review=false | 输出阻塞项 | 不绕过 |
-| 假阳性 | 列出 warnings 等确认 | 确认后继续 |
-| 人读发现 P0 | 输出阻塞 verdict | 不进入 metadata |
-| metadata 生成失败 | 检查 design.md 格式 | 降级 verdict |
-| metadata 校验不一致 | 输出不一致项 | 降级 verdict |
-
-## 硬规则
-
-1. 不代写 design 正文
-2. 不自行修改 design.md
-3. 问题具体到章节和内容
-4. 预检查失败不跳过
-5. metadata 只在第二段通过后生成
-6. P2 写入 issues 但不计入 verdict
-7. review 通过后不自动推进
+- 结论门槛、问题分级和输出字段以公共契约与 Design 专项契约为准。
+- 违反 Design 的高影响完整性、状态闭环、权限或事实源规则时，不把问题交给下游生成 Skill 补全。
+- Review 通过不等于 Design 可生成下游；下游可用性由 Design 修改状态和事实闭包决定。
+- 失败处理按公共契约执行；共享契约或必要依据缺失时报告具体路径，不凭记忆重建检查项。

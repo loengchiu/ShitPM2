@@ -1,10 +1,20 @@
 #!/usr/bin/env python3
-"""stage-prep.py — 机读镜像生成脚本
+"""stage-prep.py — 机读镜像生成脚本（ShitPM: legacy compatibility）
+
+ShitPM 状态：此脚本标记为 legacy compatibility。
+- 新主流程不再默认调用此脚本生成 metadata。
+- ShitPM 主流程直接基于正式 Design 文件、prd.md 和 prototype 工作，不依赖 metadata。
+- 旧项目仍可显式调用此脚本生成或刷新 metadata，用于兼容诊断。
+- 生成的 metadata 仅作为参考，不作为新流程的硬门禁或产物质量证明。
+- generate_design_metadata 函数仍可被其他脚本（如 prd-consistency-check.py）复用，从正式 Design 文件提取实体。
 
 职责：从当前人读稿中抽取并生成 metadata anchor。
 不判断是否允许进入该阶段，不修改人读稿正文。
 
-用法：python stage-prep.py --stage <stage> [--project-root <path>] [--dry-run]
+用法：python stage-prep.py --stage design [--project-root <path>] [--dry-run]
+
+ShitPM: CLI 仅暴露 design 阶段；prd/prototype 的 metadata 生成能力保留为内部函数，
+不再经 CLI 调用（新主流程不依赖 metadata）。
 
 结构说明（按职责分组，便于维护时定位）：
 - 通用 ID 工具：read_existing_entities / _scan_ids_recursive
@@ -59,6 +69,9 @@ HEADING_BLACKLIST = {
     "页面与字段落点", "页面数据落点", "非页面落点字段",
     "核心业务流程", "业务流程",
 }
+
+# 状态机语义标题（### 或 #### 均可作为实体边界）
+_STATE_MACHINE_HEADING_RE = re.compile(r"状态机|生命周期|状态流转")
 
 
 def read_existing_entities(stage: str, project_root: Path) -> tuple:
@@ -209,7 +222,7 @@ def _build_field_attributes(row: list, headers: list) -> dict:
 
 
 def extract_entities_from_tables(content: str, headings: list, stage: str, counter: dict, title_to_id: dict = None) -> tuple:
-    """从 design.md 的表格中提取页面和字段实体
+    """从 Design 文件的表格中提取页面和字段实体
 
     ID 策略：优先按标题匹配已有 ID，无匹配时从 max+1 分配新 ID。
     返回 (pages, fields, states, permissions) 四个列表
@@ -299,18 +312,28 @@ def _find_header_index(headers, candidates):
 
 
 def _infer_entity_from_headings(table_line, headings):
-    """从表格行号往上找最近的 ### 实体标题（跳过容器标题黑名单）
+    """从表格行号往上找最近的实体标题（跳过容器标题黑名单）
 
-    状态机表通常在 ## 级章节下用 ### 分实体。遇 ## 级标题停止（实体不会在 ## 之上）。
+    状态机表通常用 ### 或 #### 分实体（如「### 状态机：订单状态」「#### 状态机：订单状态」）。
+    遇 ## 级标题停止（实体不会在 ## 之上）。
+    优先匹配状态机语义标题（任何级别），兜底用最近的 ### 非黑名单标题作为实体。
     """
+    nearest_section = None
     for h in sorted(headings, key=lambda x: x["line"], reverse=True):
-        if h["line"] >= table_line:
-            continue
-        if h["level"] == 3 and h["title"] not in HEADING_BLACKLIST:
-            return h["title"]
         if h["level"] <= 2:
             break
-    return None
+        if h["line"] >= table_line:
+            continue
+        title = h["title"]
+        if title in HEADING_BLACKLIST:
+            continue
+        # 状态机语义标题（### 或 ####）直接作为实体边界，支持多个状态机各自独立
+        if h["level"] in (3, 4) and _STATE_MACHINE_HEADING_RE.search(title):
+            return title
+        # 兜底：最近的 ### 非黑名单标题
+        if h["level"] == 3 and nearest_section is None:
+            nearest_section = title
+    return nearest_section
 
 
 def _extract_states_from_tables(tables, headings, stage, counter):
@@ -333,9 +356,10 @@ def _extract_states_from_tables(tables, headings, stage, counter):
         trigger_idx = _find_header_index(headers, ["触发动作"])
         to_idx = _find_header_index(headers, ["下一状态"])
         if from_idx is None or operator_idx is None or trigger_idx is None or to_idx is None:
-            # 4 列表头时友好提示（常见旧格式：状态|含义|说明|备注）
+            # 仅在表头同时含"状态"+"触发动作"或"下一状态"时才警告，避免误报"待确认问题"等非状态机表
             from_only = _find_header_index(headers, ["状态"])
-            if from_only is not None and len(headers) <= 4:
+            has_trigger_or_next = _find_header_index(headers, ["触发动作", "下一状态"])
+            if from_only is not None and has_trigger_or_next is not None and len(headers) <= 4:
                 print(f"  警告: 发现 4 列旧格式状态表（行 {table['line_offset']}），未提取状态机迁移数据。请改用 6 列规范格式：状态 | 含义 | 操作人 | 触发动作 | 下一状态 | 限制条件", file=sys.stderr)
             continue
 
@@ -450,37 +474,119 @@ def _extract_states_from_content(content: str, stage: str, counter: dict) -> lis
       - `draft`：草稿
       - `submitted`：已提交
 
+      ### 状态迁移
+      1. 创建周报后进入 `draft`
+      2. 提交后进入 `submitted`
+      3. 撤回后从 `submitted` 回到 `draft`
+
+    ShitPM 修复：补全 entity/transitions/is_terminal 字段，并解析"状态迁移"编号列表，
+    使 状态闭环检查脚本 能正确判断闭环（之前只提取状态名，不提取迁移，导致全部被判为"无出路"）。
     ID 分配与此函数内联，与 _extract_states_from_tables 对称。
     不再提取 h3 标题（"状态集合"/"状态迁移" 是容器标题不是状态）。
     """
     states = []
+    state_by_name = {}
     lines = content.split('\n')
     in_state_section = False
+    current_subsection = None  # "set" 或 "transition"
+    last_to_state = None  # 链式推导用：上一条的 to_state
 
     for i, line in enumerate(lines):
         stripped = line.strip()
         # 检测进入状态子章节
         if re.match(r'^#{3,}\s+', stripped):
-            if any(kw in stripped for kw in _STATE_SECTION_KEYWORDS):
+            title_no_prefix = re.sub(r'^#{3,}\s+', '', stripped)
+            if any(kw in title_no_prefix for kw in ("状态集合", "状态定义")):
                 in_state_section = True
+                current_subsection = "set"
+            elif any(kw in title_no_prefix for kw in ("状态迁移", "状态流转", "状态机")):
+                in_state_section = True
+                current_subsection = "transition"
+            elif any(kw in title_no_prefix for kw in _STATE_SECTION_KEYWORDS):
+                in_state_section = True
+                current_subsection = "set"
             else:
                 in_state_section = False
+                current_subsection = None
             continue
         if not in_state_section:
             continue
-        match = _KEY_VALUE_LIST_PATTERN.match(stripped)
-        if match:
-            state_name = match.group(1).strip()
-            state_desc = match.group(2).strip()
-            state_counter = counter.get("STATE", 0) + 1
-            counter["STATE"] = state_counter
-            states.append({
-                "id": f"STATE-{stage}-{state_counter:03d}",
-                "type": "state",
-                "title": state_name,
-                "detail": state_desc,
-                "line": i + 1,
-            })
+
+        # 子章节 1: 状态集合 - 提取状态名
+        if current_subsection == "set":
+            match = _KEY_VALUE_LIST_PATTERN.match(stripped)
+            if match:
+                state_name = match.group(1).strip()
+                state_desc = match.group(2).strip()
+                state_counter = counter.get("STATE", 0) + 1
+                counter["STATE"] = state_counter
+                state_obj = {
+                    "id": f"STATE-{stage}-{state_counter:03d}",
+                    "type": "state",
+                    "title": state_name,
+                    "detail": state_desc,
+                    "entity": None,  # 自然语言格式无实体归属，统一归 None
+                    "transitions": [],
+                    "is_terminal": False,
+                    "line": i + 1,
+                }
+                states.append(state_obj)
+                state_by_name[state_name] = state_obj
+
+        # 子章节 2: 状态迁移 - 解析编号列表，附加 transitions
+        elif current_subsection == "transition":
+            # 编号列表：1. xxx 后进入 `state` / 1. xxx 后从 `A` 回到 `B`
+            m = re.match(r'^\d+[.、）)]\s+(.+)$', stripped)
+            if not m:
+                continue
+            desc = m.group(1)
+            # 提取所有反引号标记的状态名
+            quoted_states = re.findall(r'`([^`]+)`', desc)
+            # 提取动作关键词作为 trigger
+            trigger = desc
+            # 去掉状态名占位
+            trigger = re.sub(r'`[^`]+`', '', trigger).strip()
+            # 去掉"后进入/后回到/后变为/后转为"等连接词
+            trigger = re.sub(r'后(进入|回到|变为|转为|变成).*$', '', trigger).strip()
+            trigger = re.sub(r'(进入|回到|变为|转为|变成).*$', '', trigger).strip()
+            # 去掉"从 X"前缀
+            trigger = re.sub(r'^从.*?(?:开始|起)?', '', trigger).strip()
+            if not trigger:
+                trigger = desc[:20]  # 兜底：取前 20 字符
+
+            # 推断 from_state 和 to_state
+            from_state = None
+            to_state = None
+            if len(quoted_states) >= 2:
+                from_state = quoted_states[0]
+                to_state = quoted_states[1]
+            elif len(quoted_states) == 1:
+                to_state = quoted_states[0]
+                # 尝试从"从 X"提取 from_state
+                from_match = re.search(r'从\s*`?([^`\s，,。.]+)`?\s*(?:回到|变为|转为|变成)', desc)
+                if from_match:
+                    from_state = from_match.group(1).strip()
+
+            if to_state:
+                # 如果 from_state 未明确，用上一条的 to_state 链式推导
+                if from_state is None and last_to_state:
+                    from_state = last_to_state
+
+                # 把 transition 附加到 from_state
+                if from_state and from_state in state_by_name:
+                    state_by_name[from_state]["transitions"].append({
+                        "trigger": trigger,
+                        "to_state": to_state,
+                        "operator": None,
+                        "condition": None,
+                        "line": i + 1,
+                    })
+                # 如果 from_state 不在已定义状态中（如"创建"隐含从无到 draft），
+                # to_state 仍需记录以便初始态推断；附加到一个虚拟初始入口
+                # 状态闭环检查脚本 通过 first_non_terminal 推断初始态，无需额外处理
+
+                # 更新 last_to_state 用于下一条链式推导
+                last_to_state = to_state
 
     return states
 
@@ -672,7 +778,7 @@ def _build_page_field_relations(page_fields: list, stage: str, counter: dict) ->
 
 
 def _extract_numbered_rules_from_design(content: str, stage: str, counter: dict, title_to_id: dict) -> list:
-    """从 design.md 的"规则"章节提取编号规则实体
+    """从 Design 文件的"规则"章节提取编号规则实体
 
     设计稿中规则通常以编号列表形式出现在 ### 规则 标题下：
     1. 每人每周仅可创建一份周报...
@@ -877,7 +983,6 @@ def update_status(stage: str, project_root: Path, dry_run: bool = False):
     - artifacts → 追加当前产物路径
     - metadata_paths → 追加当前 metadata 路径
     - next_recommended → 按阶段顺序映射
-    - latest_reviews → 从 reviews/ 读取最新 review 的 verdict 和 reviewed_at
     """
     if dry_run:
         return
@@ -912,43 +1017,12 @@ def update_status(stage: str, project_root: Path, dry_run: bool = False):
     }
     base_next = next_map.get(stage, stage)
 
-    if base_next == "done":
-        status["next_recommended"] = "done"
-    else:
-        latest_review = status.get("latest_reviews", {}).get(stage, {})
-        if latest_review.get("verdict") == "通过":
-            status["next_recommended"] = base_next
-        else:
-            status["next_recommended"] = f"{stage}-review"
-
-    # 读取当前阶段的 review 文件，取最新的 verdict 和 reviewed_at
-    if stage in ("design", "prd", "prototype"):
-        reviews_dir = project_root / ".workflow" / "reviews"
-        if reviews_dir.exists():
-            review_prefix = f"{stage}-review"
-            matching_reviews = []
-            for review_file in reviews_dir.glob(f"{review_prefix}*.json"):
-                try:
-                    with open(review_file, encoding="utf-8") as f:
-                        review_data = json.load(f)
-                    matching_reviews.append({
-                        "file": review_file.name,
-                        "verdict": review_data.get("verdict"),
-                        "reviewed_at": review_data.get("reviewed_at"),
-                    })
-                except (json.JSONDecodeError, OSError):
-                    continue
-            if matching_reviews:
-                # 按 reviewed_at 排序，取最新
-                matching_reviews.sort(key=lambda r: r.get("reviewed_at") or "", reverse=True)
-                latest = matching_reviews[0]
-                status.setdefault("latest_reviews", {})[stage] = {
-                    "verdict": latest["verdict"],
-                    "reviewed_at": latest["reviewed_at"],
-                }
-            else:
-                # review 文件缺失时清空过期数据，避免基于过时 review 做错误判定
-                status.setdefault("latest_reviews", {}).pop(stage, None)
+    # ShitPM 契约：next_recommended 始终为 null（USAGE.md / status.schema.json 声明）。
+    # legacy stage-prep 不再写入非 null 值，避免与 ShitPM 契约矛盾；
+    # 线性推进由用户从 stage-context.py 的 available_actions 自行选择。
+    # 保留 base_next 计算仅用于潜在的诊断输出，不写入 status。
+    _ = base_next  # noqa: F841（保留计算结果供调试，不写入 status）
+    status["next_recommended"] = None
 
     with open(status_path, "w", encoding="utf-8") as f:
         json.dump(status, f, ensure_ascii=False, indent=2)

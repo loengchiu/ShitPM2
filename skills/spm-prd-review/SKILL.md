@@ -1,88 +1,45 @@
 ---
 name: spm-prd-review
-description: "PRD review——判断 PRD 正文质量。用于用户说 prd review、PRD review、review PRD 时。预检查 → 坏味道/三层覆盖/一致性/结构审查。不代写 PRD 正文。"
+description: "PRD Review：独立审查 PRD 的业务闭环、写作质量、Design 一致性、场景覆盖、权限状态和未授权高影响事实。触发于用户要求审查 PRD；只输出第二意见，不修改、修复或推进。"
 ---
-## 路径解析
 
-从系统 prompt 的 `<!-- SHITPM GLOBAL RULES START -->` 段读取 `ShitPM bundle root:` 的值，记为 `$BUNDLE`。
+## 路径与资源
 
-- `scripts/python/`、`references/`、`templates/`、`contracts/`、`lib/` 开头 → `$BUNDLE/` 下
-- `.workflow/`、`output/` 开头 → 当前项目根目录下
+从当前项目根目录读取 `output/` 和 `.workflow/`；从 `$BUNDLE/` 读取 `contracts/`、`schemas/`、`references/` 和 `scripts/python/`。
 
-## 执行顺序（两段式）
+流程开始时根据问题复杂度选择推理深度；涉及业务闭环、权限、状态、跨模块或高影响事实时使用深度推理模型，无法判断时按深度推理模型处理。
 
-### 第一段：预检查
+## 职责边界
 
-1. `python $BUNDLE/scripts/python/review-precheck.py --stage prd --stdin-artifact`（agent 已读 prd.md，stdin 传入）→ `.workflow/runtime/prd/review-precheck.json`
-2.  脚本失败或 `can_start_review=false` → 停止，输出阻塞项
-3. 检查核心章节：详细需求说明（含每个小模块末尾的字段/状态机归位 + 大模块开头的权限规则归位）
-4. 运行 `python $BUNDLE/scripts/python/prd-style-lint.py output/prd/prd.md` 检查文风
-5. 检查 prd.md 无稳定 ID 泄漏
+- Review 是独立第二意见，不是流程门禁，也不承担计划内补全。
+- 只审查，不修改 `output/prd/prd.md`、Design 或决策记录，不自动调用 `spm-fix`。
+- 审查只依赖 PRD 模块记录的设计依据与 Design 修改状态，不要求 metadata、`page-fields.json` 或其他 Review 资产存在。
+- 只有输入文件不存在、不可读或完全无法解析时才硬阻塞；缺章节、内容不足、冲突和写作质量问题继续作为审查问题。
+- 发现的问题分为确定性问题、产品风险和待用户决策问题，并按既有 P0/P1/P2 门槛输出。
 
- 有阻塞问题 → 停止，不进入第二段。
+## 执行流程
 
-### 第二段：人读质量
+1. 读取被审 PRD 模块的 Design 依据（`.workflow/provenance/prd.json` 中该 target 的 `design_inputs` 对应正式 Design 文件）、`output/prd/prd.md`、Design 修改状态和已有 Review 上下文（如有）。修改状态只作为上下文，不构成 Review 门禁。**完成条件**：被审模块、Design 输入闭包和 PRD 均可读；否则输出具体阻塞项并停止。
+2. 运行：
 
-1. **坏味道**：标签式正文/动作流水账/纯表格/过多加粗/模糊表述
-2. **三层覆盖**：界面元素与展示规则/交互逻辑与状态流转/异常处理与边界
-3. **一致性（脚本兜底 + LLM 语义增强）**：
+```text
+python $BUNDLE/scripts/python/prd-style-lint.py output/prd/prd.md
+```
 
-   运行确定性结构对比：
-   ```bash
-   cat output/prd/prd.md | python $BUNDLE/scripts/python/prd-consistency-check.py --project-root .
-   ```
+目标文件不存在、不可读或无法解析时停止；缺章节、内容不足、冲突和写作质量问题继续作为审查问题。**完成条件**：命令、退出码和诊断已记录；脚本失败未被写成通过。
+3. 运行：
 
-   直接引用脚本 JSON 报告中的 missing/hallucinated/attribute_mismatch 项。
+```text
+python $BUNDLE/scripts/python/prd-consistency-check.py --project-root . --module <被审模块>
+```
 
-   然后 LLM 补充检查（脚本无法覆盖的部分）：
-   - 规则 checklist：design rules.json 每条规则 × PRD 正文 → [存在/缺失]
+引用 JSON 中的三类输出：①确定性冲突（`missing`、`hallucinated`、`attribute_mismatch`、权限反转）直接采用为问题；②可能遗漏逐条人工判定；③`needs_semantic_judgment`（含结构适配差异）按业务语义判定。脚本返回 `0` 不代表 PRD 通过，返回 `1` 也不替代问题定位。**完成条件**：三类输出均已处理；无法提取、可能遗漏和语义判断项已写为明确结论或“未评估”，未被默认通过。
+4. 读取 `$BUNDLE/contracts/review-checklist.md`、`$BUNDLE/contracts/prd-review-checklist.md`、`$BUNDLE/references/prd-writing-rules.md` 和 `$BUNDLE/contracts/prd-writing.profile.json`；按专项契约的触发证据读取 `$BUNDLE/references/prd-writing-examples.md`、`prd-glossary-format.md`、`prd-versioning.md` 或 `prd-scene-checklist.md`。**完成条件**：专项契约的每个适用项均有证据和结论；契约规定的审查顺序、统计页逐页验收和复杂动作逐项验收已执行；无法判断项已显式标记。
+5. 按公共契约写入 `.workflow/reviews/prd-review-N.md`。**完成条件**：结论符合三档门槛，每个 P0/P1 可追溯到位置、影响和建议，三类问题分布及上游同步信息完整。
+6. 输出审查结论后停止。**完成条件**：未修改 PRD、Design 或决策记录，未调用 `spm-fix` 或推进阶段。
 
-   判定：
-   - 脚本报告的 hallucinated 项 = P0
-   - 脚本报告的 missing 项 = P1（缺失率 > 50% 升级 P0）
-   - 脚本报告的 attribute_mismatch 项 = P1
-   - LLM 发现的规则缺失 = P1
+## 判定与失败
 
-4. **结构**：每个小模块末尾含字段定义、状态机归位内容；大模块开头含权限规则归位；状态机按核心业务对象组织，含状态集合/迁移/触发动作和限制条件；权限规则含页面级/按钮级权限
-
-## 判定规则
-
-- **通过**：零 P0、零 P1
-- **有问题需修改**：零 P0，1 个 P1
-- **阻塞**：有 P0 或 2+ 个 P1
-
-| 级别 | 示例 |
-|------|------|
-| P0 | 核心章节缺失、设计边界违反、幻觉项（PRD 引入 design 不存在的实体）、缺失率>50% |
-| P1 | 缺失项（design 有 PRD 没写，但缺失率≤50%）、页面缺展示规则、状态变化缺失 |
-| P2 | lint warning、稳定 ID 泄漏（写入 issues 不计 verdict）|
-
-issue_layer：`{"structure":N,"content":N,"consistency":N}`。
-
-## 输出
-
-- 机读：`.workflow/reviews/prd-review-N.json`（stage/verdict/issues/issue_layer/affected_objects/needs_upstream_sync/next_recommended/reviewed_at）
-- 人读：`.workflow/reviews/prd-review-N.md`（结论/主要问题/是否回上游/下一步）
-
- 输出 verdict 后停止等用户确认，不自动推进。
-
-## 失败模式
-
-| 场景 | 一线 | 兜底 |
-|------|------|------|
-| 预检查脚本失败 | 检查路径和环境 | 停下，不跳过 |
-| can_start_review=false | 输出阻塞项 | 不绕过 |
-| 假阳性 | 列出 warnings 等确认 | 确认后继续 |
-| 人读发现 P0 | 输出阻塞 verdict | 停止 |
-
-## 硬规则
-
-1. 不代写 PRD 正文
-2. 不自行修改 prd.md
-3. 问题具体到页面/章节/内容
-4. 预检查失败不跳过
-5. P2 写入 issues 但不计入 verdict
-6. review 通过后不自动推进
-7. 脚本报告的 missing/hallucinated/attribute_mismatch 项逐条列出；为零时直接引用脚本结论
-8. LLM 补充检查（规则覆盖）必须逐项列出，不允许笼统结论
-9. 幻觉项（PRD 有 design 没有）必须标 P0，不放过
+- 结论门槛、问题分级、专项严重度和上游同步条件以公共契约与 PRD 专项契约为准。
+- Review 通过不改变 Design 修改状态，也不自动推进阶段。
+- 失败处理按公共契约执行；确定性脚本失败但文件可读时继续人读审查并保留原始错误；共享依据缺失时报告具体路径，不凭记忆重建检查项。

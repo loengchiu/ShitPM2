@@ -1,371 +1,147 @@
 # 原型写法参考
 
-> 本文件是原型阶段的示例和对照说明。
-> 硬规则在 `skills/spm-prototype/SKILL.md`。
+> 本文件只说明 Ant Design 组件调用、源码工程边界和页面组织。视觉 Token、7 类页面骨架、状态矩阵与视觉自检的唯一事实源是 `prototype-visual-spec.md`；生成或修改页面前先读取它。品牌主题可选 Claude 或 Tabler，但单个原型只选一套。
+> 流程、停止条件和反馈传播由 `skills/spm-prototype/SKILL.md` 负责；多页面 shell、导航或空白页问题再读取 `prototype-shell.md`。
 
-## 失败模式速查表
+## 目录
 
-| 场景 | 触发条件 | 一线修复 | 仍失败兜底 |
-|---|---|---|---|
-| 原型只有一个 HTML 无法维护 | 页面过多全塞在一个文件 | 按模块拆分 HTML 文件 | 若文件超过 5000 行，必须拆分 |
-| 原型重新定义业务规则 | HTML 中包含独立于 design 的业务规则 | 检查原型中的业务规则是否与 design 一致 | 若不一致，回退到 fix 流程 |
-| 原型拆分不当 | 按技术层拆而不是按业务模块 | 一个子系统一个 HTML 文件，index.html 做入口 | 若模块间有共享组件，提取到公共 JS |
-| 表现问题被当成语义问题 | UI 布局问题被误判为业务错误 | 先归类：表现问题 vs 语义问题 | 表现问题只改 prototype，语义问题才回写 design |
-| 未归类就开始修改 | 读完 feedback 后直接改 | 必须先输出归类结果，再开始修改 | 若无法归类，停在澄清，不直接改 |
-| 原型依赖 lib/ 缺失 | `lib/` 目录下 vue/tailwind/daisyui 缺失 | 提示用户运行 `python scripts/python/download-prototype-libs.py` | 停下，不凭记忆生成 |
-| 状态表达不完整 | 只有默认状态，缺异常/空/加载状态 | 按 design 状态定义逐个补入原型 | 若状态过多，先补核心状态，其余标注 [TODO] |
-| 页面渲染空白 | createShellApp 选项合并错误 / lib 缺失 | 1) 检查四件套[^四件套] lib 引用 2) 按 references 第七章模板重写 shell | 回滚到上一可工作版本 |
-| 页面无样式 | HTML 缺 Tailwind/daisyUI 引用 | 给全部 HTML 补齐本地 lib/ 四件套[^四件套]引用 | —— |
+- 一、源码工程边界
+- 二、组件与视觉入口
+- 三、交互硬规则
+- 四、表格、表单与弹层规则
+- 五、页面组合
+- 六、输入与反馈边界
+- 七、交付前检查
 
-## 反例黑名单（不要做的事）
+## 一、源码工程边界
 
-| # | 反模式 | 为什么不要做 | 替代做法 |
-|---|---|---|---|
-| 1 | **把所有页面塞进一个 HTML** | 无法维护，打开很慢 | 按模块拆分，用 index.html 做入口 |
-| 2 | **原型独立定义业务规则** | 与 design 不一致，造成混乱 | 原型只做展示，业务规则以 design 为准 |
-| 3 | **跳过归类直接修改** | 表现问题和语义问题的传播路径完全不同 | 必须先归类再修改 |
-| 4 | **表现问题回写 design** | 表现层反馈不应改变 design 业务定义 | 表现问题只改 prototype |
-| 5 | **使用外部 CDN** | file:// 协议下加载失败 | 使用本地 lib/ 目录四件套[^四件套] |
-| 6 | **使用 Element Plus 组件（`el-xxx`）** | 已废弃，改用 daisyUI | 用 daisyUI 组件类（`btn`/`table`/`card` 等） |
-| 7 | **自造 createShellApp 框架** | 选项合并易出 bug（曾导致全部页面空白） | 复用 references 第七章模板 |
-| 8 | **把页面 extraData 展开到 shell 的 data()** | Vue 选项被当响应式数据，挂载报错 | 页面用独立组件 + `<component :is>` |
+Prototype 与 PRD 平级，均以 Design 为事实基线；原型只表达 Design，不新增业务规则、字段、状态、权限、流程或跨系统责任。
 
----
+标准工程使用 Vite + React 18 + Ant Design 6：
 
-
-## 一、原型定位
-
-- 原型与 PRD 平级，均以 design 为基线
-- 原型只做展示，不重新定义业务规则
-- 第一版走最小原型，不追求重型系统
-
-## 二、通用后台基座
-
-新的原型默认复用统一后台壳层，不再每个项目从空白 HTML 开始搭页框。
-
-固定壳层包括：
-
-1. **顶栏**
-   - 高度固定
-   - 承载项目名、当前模块名、全局操作入口、用户区
-   - 不承载页面级业务规则
-2. **左侧导航**
-   - 用于模块和页面切换
-   - 可分组
-   - 当前项高亮
-3. **页签区**
-   - 位于主体区顶部白色条带内
-   - 用于同模块下的子页面或同页多视图切换
-   - 页签直接展示页面名称
-   - 活动页签默认带关闭按钮
-   - 只表达当前工作上下文
-4. **主体工作区**
-   - 承载查询区、操作区、表格区、表单区、详情区、统计卡片等真正业务内容
-   - 上述内容块按页面主任务按需出现，不是每页都全量出现
-
-版式方向：
-
-- 顶栏白底
-- 左侧导航白底
-- 主体区浅灰背景
-- 页签条白底，紧贴主体区顶部
-- 主体内容使用白色卡片承载
-- 层级靠间距、卡片、标题和按钮优先级表达，不靠花哨装饰
-
-## 三、daisyUI 组件使用约定
-
-通用组件默认使用 daisyUI 5（基于 Tailwind 的 CSS-only 组件库），不再使用 Element Plus。
-
-daisyUI 5 是 CSS-only 库，无 JS 依赖。交互态（modal/dropdown 开关）通过 Vue 响应式变量或原生 `tabindex` + `:focus-within` 管理。
-
-推荐映射（Element Plus → daisyUI）：
-
-| 用途 | Element Plus（已废弃） | daisyUI 替代 |
-|------|----------------------|-------------|
-| 查询区 | `el-form` + `el-form-item` | `<form class="form-control">` + `<label class="label">` |
-| 操作按钮 | `el-button` | `<button class="btn btn-primary">` |
-| 下拉菜单 | `el-dropdown` | `<div class="dropdown">` + `tabindex` |
-| 数据表格 | `el-table` | `<table class="table">`（原生 table + daisyUI 类） |
-| 页签 | `el-tabs` | `<div role="tablist" class="tabs tabs-bordered">` |
-| 统计卡片 | `el-card` + `el-statistic` | `<div class="card">` + `<div class="stat">` |
-| 详情侧栏 | `el-drawer` | `<div class="drawer drawer-end">` + Vue 状态控制 |
-| 确认弹窗 | `el-dialog` | `<dialog class="modal">` 或 `<div class="modal" :class="{'modal-open': visible}">` |
-| 分页 | `el-pagination` | `<div class="join">` + 多个 `<button class="join-item btn">` |
-| 状态标签 | `el-tag` | `<span class="badge badge-primary">` |
-| 输入框 | `el-input` | `<input class="input input-bordered">` |
-| 下拉选择 | `el-select` | `<select class="select select-bordered">` |
-| 多选 | `el-checkbox` | `<input type="checkbox" class="checkbox">` |
-| 单选 | `el-radio` | `<input type="radio" class="radio">` |
-| 文本域 | `el-input type=textarea` | `<textarea class="textarea textarea-bordered">` |
-| 警告提示 | `el-alert` | `<div role="alert" class="alert alert-warning">` |
-| 折叠面板 | `el-collapse` | `<div class="collapse collapse-arrow">` |
-
-约束：
-
-1. 先用 daisyUI 现成组件类满足通用交互
-2. 再通过 Tailwind utility class（`flex`/`gap-3`/`px-6`/`rounded-md` 等）做版式适配
-3. 不要为了"更像设计稿"就把通用控件全部手写一遍
-4. **禁止使用任何 `el-` 前缀的组件**——已废弃 Element Plus
-
-## 四、页面落位方式
-
-推荐顺序：
-
-1. 先套统一页框
-2. 再确定当前页面主任务
-3. 再按需选择查询区 / 操作区 / 主表格 / 详情区 / 表单区等内容块
-4. 最后补弹窗、抽屉、空状态、分页等辅助区域
-
-坏例子：
-
-- 每个页面重新发明一套导航
-- 页签一页一套视觉语言
-- 主体内容还没写清，先花大量时间做装饰
-
-好例子：
-
-- 页框统一
-- 页签条直接承载“当前页面名 + 关闭按钮”
-- 内容区差异清楚
-- 有查询就放查询，没有查询就直接进入主内容，不为凑模板硬加一条工具栏
-- 页面切换关系稳定
-
-## 五、原型输入
-
-1. 必须读取 design.md
-2. 如 prd.md 已存在，还需读取：详细需求说明（含字段定义表、状态机表、权限规则）
-3. 如存在反馈，读取 `output/prototype/prototype-feedback.md`
-
-## 六、反馈处理
-
-prototype-feedback.md 的反馈必须先归类：
-- 表现问题：只改 prototype
-- 语义问题：先回写 design，再同步
-
-生成的 `output/prototype/` 必须自包含：`lib/` 使用相对路径引用，所有资源可直接打开离线浏览。后续 spm-prototype-mark 阶段会整体复制该目录到 `output/prototypemark/`，相对路径保证复制后仍可用。
-
-## 七、多页面 shell 写法模板（重要）
-
-> 🔴 历史教训：曾经自造 `createShellApp`，把页面传入的 `extraData` 直接展开到 `data()` 返回对象里，导致 Vue 选项（data/methods/computed）被当作响应式数据属性，页面挂载时报 `Cannot read properties of undefined`，全部空白。
->
-> 本节给出正确模板，必须复用，不得自造 shell 框架。
-
-### 核心原则
-
-1. **shell 定义路由 + 渲染容器**，不持有页面业务数据
-2. **每个页面是一个独立的 Vue 组件对象**（`{ template, data() {...}, methods: {...} }`）
-3. 通过 `<component :is="currentPage">` 动态渲染当前页
-4. **禁止**把页面传入的 Vue 选项展开到 shell 的 `data()` 里
-
-### 正确实现模板（单文件版本，多页可拆分）
-
-```html
-<!DOCTYPE html>
-<html lang="zh-CN" data-theme="light">
-<head>
-  <meta charset="UTF-8" />
-  <link href="lib/daisyui-themes.css" rel="stylesheet" />
-  <link href="lib/daisyui.css" rel="stylesheet" />
-  <script src="lib/tailwind.js"></script>
-  <script src="lib/vue.global.prod.js"></script>
-</head>
-<body>
-  <div id="app">
-    <!-- 顶栏 / 导航省略，参考 templates/prototype.html -->
-
-    <!-- 主体区：动态渲染当前页组件 -->
-    <main>
-      <component :is="currentPageComponent"></component>
-    </main>
-  </div>
-
-  <script>
-    // 1. 定义每个页面为独立组件对象
-    const PageList = {
-      template: `
-        <div class="p-6">
-          <h2 class="text-lg font-medium mb-4">周报列表</h2>
-          <table class="table">
-            <thead><tr><th>标题</th><th>状态</th></tr></thead>
-            <tbody>
-              <tr v-for="item in list" :key="item.id">
-                <td>{{ item.title }}</td>
-                <td><span class="badge" :class="item.status === 'submitted' ? 'badge-primary' : 'badge-ghost'">{{ item.status }}</span></td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      `,
-      data() {
-        return { list: [{ id: 1, title: '第 1 周', status: 'submitted' }] };
-      }
-    };
-
-    const PageEdit = {
-      template: `
-        <div class="p-6">
-          <h2 class="text-lg font-medium mb-4">填写周报</h2>
-          <form class="form-control gap-3 max-w-xl">
-            <label class="label"><span class="label-text">标题</span></label>
-            <input class="input input-bordered" v-model="form.title" />
-            <label class="label"><span class="label-text">内容</span></label>
-            <textarea class="textarea textarea-bordered" rows="6" v-model="form.content"></textarea>
-            <button class="btn btn-primary" @click="submit">提交</button>
-          </form>
-        </div>
-      `,
-      data() {
-        return { form: { title: '', content: '' } };
-      },
-      methods: {
-        submit() { alert('提交: ' + this.form.title); }
-      }
-    };
-
-    // 2. shell 只管路由 + 当前页
-    const App = {
-      data() {
-        return {
-          currentPage: 'PageList',
-          pages: {
-            'PageList': { label: '周报列表', component: PageList },
-            'PageEdit': { label: '填写周报', component: PageEdit }
-          }
-        };
-      },
-      computed: {
-        currentPageComponent() {
-          return this.pages[this.currentPage].component;
-        }
-      },
-      methods: {
-        go(pageKey) {
-          this.currentPage = pageKey;
-        }
-      },
-      template: `
-        <div>
-          <aside>
-            <ul>
-              <li v-for="(p, key) in pages" :key="key" @click="go(key)">{{ p.label }}</li>
-            </ul>
-          </aside>
-          <main><component :is="currentPageComponent"></component></main>
-        </div>
-      `
-    };
-
-    Vue.createApp(App).mount('#app');
-  </script>
-</body>
-</html>
-```
-
-### 多文件拆分版本
-
-页面较多时，把每个页面组件抽到独立 JS 文件：
-
-```
+```text
 output/prototype/
-  index.html         # shell + 路由
-  pages/
-    page-list.js     # window.SPM_PAGES.PageList = { template, data, methods }
-    page-edit.js
+├─ 原型工具.bat       用户唯一操作入口
+├─ index.html          应用入口
+├─ package.json        依赖与 dev/build/preview scripts
+├─ package-lock.json   锁文件，安装使用 npm ci
+├─ vite.config.js      Vite 配置
+├─ src/                唯一业务编辑源
+│  ├─ main.jsx         ConfigProvider 与应用挂载
+│  ├─ App.jsx          shell
+│  ├─ routes.jsx       唯一路由注册表
+│  ├─ modules/<模块>/  Design 模块页面
+│  ├─ shared/          共享 UI、图标、图表和异常页
+│  └─ styles/          全局样式
+├─ public/             静态资源
+└─ dist/               只由 npm run build 生成
 ```
 
-index.html 引入顺序：
+执行边界：
 
-```html
-<script src="lib/vue.global.prod.js"></script>
-<script src="pages/page-list.js"></script>
-<script src="pages/page-edit.js"></script>
-<script>
-  const App = {
-    data() {
-      return {
-        currentPage: 'PageList',
-        pages: {
-          'PageList': { label: '周报列表', component: window.SPM_PAGES.PageList },
-          'PageEdit': { label: '填写周报', component: window.SPM_PAGES.PageEdit }
-        }
-      };
-    },
-    // ... 其余同上
-  };
-  Vue.createApp(App).mount('#app');
-</script>
+1. 只编辑 `src/`、`index.html`、`package.json`、`vite.config.js`、`public/`、README 等源码文件；dist、node_modules 和带哈希构建资源由工具生成。
+2. 依赖统一由 package.json/package-lock.json 定义；不复制旧原型 lib，不使用外部 CDN、浏览器端 Babel、UMD lib 或第二套构建链。
+3. 路由使用 Hash 模式；页面由 `src/routes.jsx` 和模块组件表达，默认保留 `path: "*"` 的 NotFound 兜底。
+4. 本地即时预览使用 `npm run dev`；交付前必须 `npm run build` 后用 `npm run preview` 检查构建产物；用户操作写入 `原型工具.bat`，不要求用户手输 npm 命令。
+
+Hash 地址可能带查询参数（例如 `#/demo-form?case=1`）；路由匹配前只使用 `?` 之前的路径，不能把查询参数拼进路由名导致已注册页面落入 NotFound。模板路由解析结果至少提供 `{ path, query, route }`，query 使用 `URLSearchParams` 保留；同一路径 query 改变时页面必须更新，`navigate()` 接受 `/demo-form?mode=edit&id=1` 或 `#/demo-form?mode=edit&id=1`。
+
+## 二、组件与视觉入口
+
+视觉规则只从 `prototype-visual-spec.md` 读取；品牌主题在 Claude 与 Tabler 中二选一。可执行 Token 在模板 `src/theme/` 的对应主题文件，Ant Design 映射在对应主题适配文件，高频结构在 `src/shared/ui/`。页面不复制全局颜色、字号、间距、圆角或阴影。
+
+需要被全局样式或 Portal 内容读取的 CSS 变量挂在 `document.documentElement`；不要只挂在 `#root`。Ant Design 的 Modal、Dropdown 等内容可能渲染到 `document.body`，无法继承 `#root` 上的变量。
+
+常用组件：
+
+| 用途 | 首选写法 |
+| --- | --- |
+| 按钮 | `<Button type="primary">保存</Button>` |
+| 查询 | `<Form layout="inline">` + `Form.Item`，查询/重置属于 Form |
+| 表单 | `Form layout="vertical"` + `Form.Item` + `Row/Col` |
+| 下拉/日期/数字 | `Select` / `DatePicker` / `InputNumber` |
+| 表格 | `TablerDataTable`；字段和数据来自 Design |
+| 状态 | `TablerStatusTag`，不直接自造颜色 |
+| 详情 | `Descriptions`，默认两列，长文本独占一行 |
+| 结果/异常 | `Result` + 恢复或返回操作 |
+| 空态 | `TablerEmptyState` 或 `TablerDataTable` 内置空态 |
+| 页面级操作 | `TablerActionBar` sticky 底部操作栏 |
+
+图表统一使用 `src/shared/charts/TablerChart.jsx`，色板和坐标轴来自该封装；页面 option 使用 `useMemo` 保持引用稳定：
+
+```jsx
+const trendOption = useMemo(() => ({
+  color: tablerChartPalette,
+  tooltip: { trigger: "axis" },
+  xAxis: { type: "category", data: labels, ...tablerChartAxis },
+  yAxis: { type: "value", ...tablerChartAxis },
+  series: [{ type: "line", data: values }],
+}), [labels, values]);
 ```
 
-page-list.js 内容：
+图标统一使用 `@tabler/icons-react`，优先复用 `src/shared/icons/`；不混用 Ant Icons。Claude 与 Tabler 是品牌主题，不改变项目统一的图标库。找不到精确图标时使用语义接近的官方 Tabler 图标，并在共享映射中记录。
 
-```javascript
-window.SPM_PAGES = window.SPM_PAGES || {};
-window.SPM_PAGES.PageList = {
-  template: `...`,
-  data() { return { ... }; },
-  methods: { ... }
-};
-```
+## 三、交互硬规则
 
-### 禁止的反模式
+1. 先查 Ant Design 是否已有组件；弹窗、抽屉、下拉、确认和反馈使用 antd 组件与 React 状态，不使用原生 `alert`、`confirm` 或 `window.confirm`。
+2. 配置管理的新增、编辑、启用、停用必须使用真实 `Modal` + `Form`；破坏性操作使用 `Modal.confirm`，不能用“示意”消息代替。
+3. 必填、只读、选填使用 antd 语义表达：必填用 `Form.Item required`，只读/系统判定用 `disabled` 或等价属性，选填不加星；页面不写“（只读）”“（必填）”“入口：”“去向：”等解释性标注。
+4. 状态机不允许的操作可见且 `disabled`；角色不满足的操作不渲染。不要把两者混成一种表现。
+5. 列表、看板和关键详情必须能观察空数据、加载、失败/重试、无权限或其他 Design 要求的异常状态；不只展示满数据 mock。
+6. 多角色项目的角色切换统一放 shell Header；页面不放“演示角色切换”。
+7. JSX 中使用的组件、图标和工具函数必须逐一确认已 import；构建通过不代表关闭态或条件渲染分支没有运行时 `ReferenceError`，必须在真实浏览器中打开这些分支。
+8. 可见按钮必须产生打开/关闭层、校验、状态变化、列表变化、路由变化或反馈之一；无行为的视觉样张按钮删除或改为非交互展示。可编辑字段使用稳定 `name`，必填/格式/范围通过 `rules` 表达；页面外 ActionBar 通过 Form 实例调用 `submit()` / `resetFields()`。
+9. route、row、menu、action、field 使用稳定唯一 ID；共享表格与行操作不得以展示文案或数组下标作为身份。Table wrapper 对 `scroll`、`pagination`、`locale` 明确默认、合并或透传规则，不得静默丢失调用方配置。
+10. Modal、message、notification 等上下文相关 API 使用 antd `App.useApp()`；Portal 层必须验证主题变量、焦点、Esc、关闭后焦点回归和点击穿透。响应式统一使用 <576、576–991、≥992、≥1200，390px 只能作为额外窄屏优化。
 
-```javascript
-// ❌ 错误 1：把页面 extraData 展开到 shell 的 data() 里
-function createShellApp(pages) {
-  const mergedData = {};
-  pages.forEach(p => Object.assign(mergedData, p.extraData)); // extraData 含 data/methods 会被当响应式属性
-  Vue.createApp({ data() { return mergedData; } }).mount('#app');
-}
+## 四、表格、表单与弹层规则
 
-// ❌ 错误 2：在 shell 中混用页面级 data 和方法
-const App = {
-  data() {
-    return {
-      currentPage: 'list',
-      // 下面这些是 PageList 的数据，错误地塞到 shell 里
-      list: [],
-      searchKeyword: ''
-    };
-  },
-  methods: {
-    // 下面这些是 PageList 的方法
-    fetchList() { ... },
-    handleSearch() { ... }
-  }
-};
+### 表格
 
-// ❌ 错误 3：自造 createShellApp 函数封装上述反模式
-// 任何叫 createShellApp 的函数都必须按本节模板的"独立组件 + <component :is>"方式实现
-```
+- 操作列使用 `whiteSpace: "nowrap"`；表头全局不换行；状态列使用 `TablerStatusTag`。
+- 列数较多或总宽超过卡片宽度时，每列给出合理 `width` 并设置 `scroll={{ x: ... }}`；只有确有业务需要固定列时才使用 `fixed: "right"`，并按组件行为规范复核背景、层级和横向滚动遮挡。
+- 查询按钮和重置按钮放查询 Form；工具栏放新增、批量和其他业务操作。
+- 数字、金额和时间按视觉规范处理为可读的等宽数字和合适对齐，不在页面临时发明样式。
 
----
+### 表单与文本域
 
-## 八、视觉细节规则（零成本打磨）
+- 三列表单使用 `Row gutter` 与 `Col span={8}`；多行/长文本使用 `Input.TextArea`，编辑态用 `autoSize`，长文本字段占 `span={24}`。
+- 只读长文本可用 `disabled` 的 TextArea；不要用普通 Input 压缩多行内容。
+- 详情 `Descriptions` 默认 `column={2}`；长文本字段 `span: 2`。
+- `DatePicker` / `RangePicker` 的控件值使用 Dayjs 对象；如果业务状态保存字符串，必须同时实现字符串 → `dayjs()` 的回填和控件值 → 字符串的提交转换，不能只做单向转换。
 
-> 目标：用一行 CSS 或一个 Tailwind 类，把原型从"能用"提到"像样"。零构建成本，纯 CSS，不引入动画。
-> 模板 `<style>` 已内置第 1/3/4 条；第 2 条通过 daisyUI 组件类间接落地（模板已定义 `--rounded-*` 变量）；第 5 条通过 Tailwind 类落地
+### 弹层与页面操作
 
-### 1. 文本换行
-- 标题用 `text-wrap: balance`（Tailwind: `text-balance`）
-- 段落用 `text-wrap: pretty`（Tailwind: `text-pretty`）
-- 避免标题孤字、段落末行单字
+- Modal/Drawer 内的垂直表单直接占满可用宽度，不用 `Row/Col` 把字段挤成窄列；复杂弹层按内容需要设置宽度。
+- OK/取消按钮使用中文文案；页面级保存、提交、审批、返回和取消等操作统一放 `TablerActionBar`，同一操作不重复出现。列表 toolbar 的新建、行内操作和配置入口可留在对应区域。
+- 自定义 Modal 底部操作使用 `footer` 或同一 flex 容器布局，保持取消在前、确定在后，并按视觉规范对齐；禁止用 `float` 或零散块级布局拼接按钮。
 
-### 2. 同心圆角
-- 嵌套元素内圆角 = 外圆角 − padding
-- 例：外卡片 `rounded-lg`（0.5rem），内元素 `rounded-md`（0.375rem）
-- 模板变量已内置层级：`--rounded-box` > `--rounded-btn` > `--rounded-selector`，生成时按此递减，不要反向
+## 五、页面组合
 
-### 3. 数字对齐
-- 表格、统计卡片、监控数值用 `font-variant-numeric: tabular-nums`（Tailwind: `tabular-nums`）
-- 等宽数字，列对齐整齐，避免数字跳动
+生成时先读取视觉规范并选择对应的 7 类页面骨架，再按以下顺序落位：统一 shell → 页面骨架 → Design 字段/数据/状态 → 弹窗、抽屉、分页、空态和异常表达。
 
-### 4. 字体平滑
-- 已在模板 `<style>` 内置（`-webkit-font-smoothing: antialiased`）
-- macOS 观感提升，生成时无需手动加
+- 业务页面放 `src/modules/<模块>/`，跨页共享件放 `src/shared/`，路由在 `src/routes.jsx` 登记。
+- 高频页头、Card、Toolbar、Table、Status、Empty、ActionBar 和 Chart 优先复用模板共享组件；不要为单个页面复制一套 Tabler CSS。
+- 页面结构、Token、状态矩阵、响应式、焦点和弹层要求以视觉规范对应章节为准；本文件不再复制那套数值或 7 类骨架。
+- 业务规则以 Design 为准；Design 待确认项不能在原型中静默拍板。
 
-### 5. 阴影代边框
-- 卡片优先用 `shadow-sm` 而非 `border`，层级感更柔
-- 嵌套卡片用 `shadow-md` 区分层级
-- 避免多层 `border` 堆叠造成"线条感"；确需边框时只用一层 `border border-slate-200`
+## 六、输入与反馈边界
 
-[^四件套]: 指 `lib/` 目录下的 `vue.global.prod.js`、`tailwind.js`、`daisyui.css`、`daisyui-themes.css` 四个本地依赖文件，所有 HTML 通过相对路径引用。
+1. 生成和修改前读取设计地图、设计集清单和目标模块 Design 事实闭包；PRD 仅用于辅助发现表达差异，冲突时以 Design 为准。
+2. 有 `output/prototype/prototype-feedback.md` 时，先按模板分类，再决定修改范围。
+3. 表现问题只改 Prototype；字段、状态、权限、流程、异常、责任边界或模块冲突属于语义问题，停止静默修改并转入 Design/Fix。
+4. 反馈无法归类时先澄清，不直接改源码。
+
+### 稳定事实锚点
+
+为便于确定性检查和后续审查，只在能稳定对应 Design 对象时使用显式锚点：页面使用 `data-page` 或路由登记项，区块使用 `data-block`/`data-section`，字段使用 `data-field` 配合稳定 `name`，操作使用 `data-operation` 配合稳定 action key，状态使用 `data-state`。普通文字、注释、变量名、隐藏字符串或任意源码命中不能单独证明业务事实已落地。
+
+显式锚点中的未知对象属于确定性冲突；Design 事实没有可靠锚点时只报告 `possible_omissions`。路由 `title` 改写、缺少 `title` 的 `element` 写法或组件身份未精确对账，不能单独判为幻觉页面；脚本会把这类情况列为 `route_page_identity_unresolved`，由 Review 结合 Design、组件和运行时证据判断。只有显式路由标题与路径均未登记且没有可确认源码组件时才阻断。
+
+同义表达、字段合并/拆分、复杂权限、状态转换和异常后果属于 `needs_semantic_judgment` 的审查责任；脚本不声称能够自动区分这些语义关系，Review 必须结合 Design、源码和运行时证据逐项判断。
+
+## 七、交付前检查
+
+完成前确认：源码工程检查通过；npm ci 和 npm run build 通过；用真实浏览器打开默认页、全部注册路由和带 query 的 Hash 地址，且 console 无错；对实际存在的 Modal、Form、Select、角色切换和响应式状态完成代表性操作。角色切换若只存在 React 内存中，切换后先断言，不要立即 reload；除非 Design/实现明确要求持久化。Select 使用真实 `.click()` 打开并选择可见选项；行内操作按 role、可见文字、`aria-label` 或 `title` 定位，不假设一定是链接元素。关键 Design 事实、状态、权限和异常可观察；视觉规范的共享 UI、图标、图表和状态要求已落实；未编辑 dist；未把未验证内容说成完成。
+
+只在必须挂钩样式时使用稳定的自定义 `className` 或 `data-*`；不要维护 Ant Design 内部 DOM 类名清单作为跨版本契约，组件升级后按锁定版本的真实渲染结果复查。

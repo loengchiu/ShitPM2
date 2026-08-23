@@ -1,0 +1,96 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "design-set.schema.json",
+  "title": "DesignSet",
+  "description": "ShitPM 设计集清单：登记多文件 Design 集合中每个正式 Design 文件的稳定 ID、路径、类型、归属、依赖和指纹，以及高影响决策状态。只做机器定位，不复制业务正文，不构成产品事实源。",
+  "type": "object",
+  "required": ["schema_version", "set_sha256", "files", "decisions"],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "enum": ["shitpm-design-set/v1"]
+    },
+    "set_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "按文件 ID 排序后由 id + path + sha256 确定性计算，只用于排查和临时视图，不形成门禁"
+    },
+    "files": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "path", "type", "module", "business_chains", "depends_on", "sha256"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^(MAP|SYS|CON|MOD)-\d{3}$",
+            "description": "稳定 ID，创建后不因文件移动、重命名或章节调整而改变"
+          },
+          "path": {
+            "type": "string",
+            "description": "相对 output/design/ 的路径，使用 /，不得使用绝对路径或 ..",
+            "pattern": "^(?!\.\.)(?![/\\\\])[^\\\\]+$"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["map", "system", "contract", "module"]
+          },
+          "module": {
+            "type": ["string", "null"],
+            "description": "只有 module 类型必填，其他类型为 null"
+          },
+          "business_chains": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "depends_on": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^(MAP|SYS|CON|MOD)-\d{3}$"
+            },
+            "description": "从当前文件指向当前文件成立所必需的上游文件 ID；程序沿该字段递归读取依赖闭包"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "当前 Design 文件内容指纹"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "decisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "title", "owner_file_id", "status", "affects"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^DEC-\d{3}$"
+          },
+          "title": { "type": "string" },
+          "owner_file_id": {
+            "type": "string",
+            "pattern": "^(MAP|SYS|CON|MOD)-\d{3}$"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["defined", "pending", "excluded"]
+          },
+          "affects": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^(MAP|SYS|CON|MOD)-\d{3}$"
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

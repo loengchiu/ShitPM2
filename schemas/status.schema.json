@@ -1,18 +1,18 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Status",
-  "description": "新辅助器工作流状态文件，只保留当前真相",
+  "description": "ShitPM 工作流状态文件（持久化于 .workflow/status.json）。ShitPM 起不再把 current_stage 当成唯一流程真相，PRD 和 Prototype 是 Design 的两个独立下游。available_actions 和 design_confirmation 等运行时计算结果由 stage-context.py 实时输出，不持久化到此文件。本 schema 为文档性契约：当前无脚本对 .workflow/status.json 做强制 schema 校验（stage-context.py 读取时仅做必要字段判断，不加载本文件），仅作为 status.json 的结构约定。",
   "type": "object",
-  "required": ["current_stage", "artifacts", "metadata_paths", "latest_reviews", "next_recommended"],
+  "required": ["current_stage", "artifacts"],
   "properties": {
     "current_stage": {
       "type": "string",
       "enum": ["align", "design", "design-review", "prd", "prd-review", "prototype", "prototype-review", "fix", "done"],
-      "description": "当前所处阶段"
+      "description": "历史字段，仅用于兼容读取。ShitPM 流程不再线性，以 stage-context.py 的 available_actions 输出和 .workflow/confirmations/design.json 为准。"
     },
     "artifacts": {
       "type": "object",
-      "description": "各阶段人读产物路径",
+      "description": "各阶段人读产物路径（兼容镜像）。stage-context.py 优先探测 canonical 文件存在性，此字段不覆盖真实文件判断。",
       "properties": {
         "align": { "type": ["string", "null"] },
         "design": { "type": ["string", "null"] },
@@ -23,7 +23,7 @@
     },
     "metadata_paths": {
       "type": "object",
-      "description": "各阶段机读物目录路径",
+      "description": "历史字段：旧 metadata 目录路径。ShitPM 主流程不依赖，仅用于兼容诊断。",
       "properties": {
         "design": { "type": ["string", "null"] },
         "prd": { "type": ["string", "null"] },
@@ -31,31 +31,13 @@
       },
       "additionalProperties": false
     },
-    "latest_reviews": {
-      "type": "object",
-      "description": "最近一次 review 结果摘要",
-      "properties": {
-        "design": { "$ref": "#/$defs/review_summary" },
-        "prd": { "$ref": "#/$defs/review_summary" },
-        "prototype": { "$ref": "#/$defs/review_summary" }
-      },
-      "additionalProperties": false
-    },
     "align_notes": { "$ref": "align-notes.schema.json" },
     "next_recommended": {
-      "type": "string",
-      "enum": ["align", "design", "design-review", "prd", "prd-review", "prototype", "prototype-review", "fix", "done"],
-      "description": "下一步唯一建议"
+      "type": ["string", "null"],
+      "enum": ["align", "design", "design-review", "prd", "prd-review", "prototype", "prototype-review", "fix", "done", null],
+      "description": "历史字段：旧线性流程下一步建议。ShitPM stage-context.py 始终输出 null，由用户从 available_actions 自行选择。"
     }
   },
   "additionalProperties": false,
-  "$defs": {
-    "review_summary": {
-      "type": "object",
-      "properties": {
-        "verdict": { "$ref": "common.schema.json#/$defs/verdict_enum" },
-        "reviewed_at": { "type": "string", "format": "date-time" }
-      }
-    }
-  }
+  "$defs": {}
 }
