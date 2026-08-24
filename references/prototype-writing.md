@@ -1,6 +1,6 @@
 # 原型写法参考
 
-> 本文件只说明 Ant Design 组件调用、源码工程边界和页面组织。视觉 Token、7 类页面骨架、状态矩阵与视觉自检的唯一事实源是 `prototype-visual-spec.md`；生成或修改页面前先读取它。品牌主题可选 Claude 或 Tabler，但单个原型只选一套。
+> 本文件只说明 Ant Design 组件调用、源码工程边界和页面组织。视觉 Token、7 类页面骨架、状态矩阵与视觉自检的唯一事实源是 `prototype-visual-spec.md`；生成或修改页面前先读取它。品牌主题在 Claude、Tabler、traework 中三选一，默认 Tabler；单个原型只选一套。
 > 流程、停止条件和反馈传播由 `skills/spm-prototype/SKILL.md` 负责；多页面 shell、导航或空白页问题再读取 `prototype-shell.md`。
 
 ## 目录
@@ -48,9 +48,21 @@ Hash 地址可能带查询参数（例如 `#/demo-form?case=1`）；路由匹配
 
 ## 二、组件与视觉入口
 
-视觉规则只从 `prototype-visual-spec.md` 读取；品牌主题在 Claude 与 Tabler 中二选一。可执行 Token 在模板 `src/theme/` 的对应主题文件，Ant Design 映射在对应主题适配文件，高频结构在 `src/shared/ui/`。页面不复制全局颜色、字号、间距、圆角或阴影。
+视觉规则只从 `prototype-visual-spec.md` 读取；品牌主题在 Claude、Tabler、traework 中三选一。可执行 Token 在模板 `src/theme/` 的对应主题文件，Ant Design 映射在对应主题适配文件，高频结构在 `src/shared/ui/`。页面不复制全局颜色、字号、间距、圆角或阴影。
 
 需要被全局样式或 Portal 内容读取的 CSS 变量挂在 `document.documentElement`；不要只挂在 `#root`。Ant Design 的 Modal、Dropdown 等内容可能渲染到 `document.body`，无法继承 `#root` 上的变量。
+
+### 品牌主题接入（生成原型前选好，非运行时换肤）
+
+默认主题为 **Tabler**（`main.jsx` 已引 `tablerTheme`/`tablerCssVars`）。要切换 Claude 或 traework：
+
+1. 选品牌：确认本轮只用一套；多套混用由 SKILL 停止交付。
+2. 读资产：`references/design-sources/<品牌>/` 下对应设计规范（Claude 见 `claude-DESIGN.md`）。
+3. 改引用：`main.jsx` 把 `import { tablerTheme, tablerCssVars }` 换成 `claudeTheme/claudeCssVars` 或对应文件，并把注入 `:root` 的变量同步换成该主题导出的 `cssVars`。
+4. 微调：系统名色、语义 success、圆角是否防胶囊化（控件勿 16，会胶囊化）等随品牌观感定。
+5. 复验：`npm run build` 后用浏览器确认壳层、表格、图表、Portal 均跟随新主题变量，无写死色残留。
+
+视觉皮肤（色板/圆角/字体）随品牌变；布局、操作栏、列宽、版权、标题规则是项目组习惯，所有语言通用，不随品牌变。
 
 常用组件：
 
@@ -106,7 +118,7 @@ const trendOption = useMemo(() => ({
 ### 表单与文本域
 
 - 三列表单使用 `Row gutter` 与 `Col span={8}`；多行/长文本使用 `Input.TextArea`，编辑态用 `autoSize`，长文本字段占 `span={24}`。
-- 只读长文本可用 `disabled` 的 TextArea；不要用普通 Input 压缩多行内容。
+- 只读长文本用 `disabled` 的 TextArea 承载；多行内容用 TextArea 而非单行 Input 压缩。
 - 详情 `Descriptions` 默认 `column={2}`；长文本字段 `span: 2`。
 - `DatePicker` / `RangePicker` 的控件值使用 Dayjs 对象；如果业务状态保存字符串，必须同时实现字符串 → `dayjs()` 的回填和控件值 → 字符串的提交转换，不能只做单向转换。
 
@@ -114,7 +126,7 @@ const trendOption = useMemo(() => ({
 
 - Modal/Drawer 内的垂直表单直接占满可用宽度，不用 `Row/Col` 把字段挤成窄列；复杂弹层按内容需要设置宽度。
 - OK/取消按钮使用中文文案；页面级保存、提交、审批、返回和取消等操作统一放 `TablerActionBar`，同一操作不重复出现。列表 toolbar 的新建、行内操作和配置入口可留在对应区域。
-- 自定义 Modal 底部操作使用 `footer` 或同一 flex 容器布局，保持取消在前、确定在后，并按视觉规范对齐；禁止用 `float` 或零散块级布局拼接按钮。
+- 自定义 Modal 底部操作使用 `footer` 或同一 flex 容器布局，保持取消在前、确定在后，并按视觉规范对齐；按钮统一由 flex 容器横向排布，不靠 `float` 或零散块级拼接。
 
 ## 五、页面组合
 

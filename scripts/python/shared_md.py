@@ -5,6 +5,51 @@
 
 import json
 import re
+import importlib.util
+import hashlib
+from pathlib import Path
+
+
+# ── 同目录脚本加载 ────────────────────────────────────────────
+
+def load_sibling(filename: str, alias: str):
+    """加载同目录下的脚本模块（文件名含连字符时无法用普通 import）。"""
+    path = Path(__file__).with_name(filename)
+    spec = importlib.util.spec_from_file_location(alias, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def load_design_manifest(project_root):
+    """加载设计集清单 → (manifest_dict, files_list, error_message_or_None)。"""
+    path = Path(project_root) / "output" / "design" / "设计集清单.json"
+    if not path.is_file():
+        return None, None, f"设计集清单不存在: {path}"
+    try:
+        manifest = json.loads(path.read_text(encoding="utf-8-sig"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        return None, None, f"设计集清单无法解析: {path}: {exc}"
+    if not isinstance(manifest, dict) or not isinstance(manifest.get("files"), list) or not manifest["files"]:
+        return None, None, f"设计集清单缺少有效的 files 数组: {path}"
+    return manifest, manifest["files"], None
+
+
+def sha256_text(text):
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def sha256_file(path):
+    return sha256_text(Path(path).read_text(encoding="utf-8-sig"))
+
+
+def heading_scope_end(headings, index, total_lines):
+    """当前标题的作用域到下一个同级或更高级标题为止。"""
+    current = headings[index]
+    for next_heading in headings[index + 1:]:
+        if next_heading["level"] <= current["level"]:
+            return next_heading["line"] - 1
+    return total_lines
 
 
 # ── 常量 ──────────────────────────────────────────────────────

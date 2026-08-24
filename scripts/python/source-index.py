@@ -3,7 +3,6 @@ from __future__ import annotations
 """建立可跨阶段复用的项目级材料资产。"""
 
 import argparse
-import hashlib
 import json
 import re
 import time
@@ -11,6 +10,7 @@ from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 from token_estimate import estimate_tokens
+from shared_md import sha256_text as _sha256_text
 from material_revision import material_revision as shared_material_revision, source_id_for
 from typing import Iterable
 
@@ -21,13 +21,9 @@ WORD_RE = re.compile(r'[A-Za-z][A-Za-z0-9_-]{2,}|[\u4e00-\u9fff]{2,8}')
 STOPWORDS = {'以及', '然后', '可以', '需要', '进行', '相关', '内容', '信息', '系统', '用户', '这个', '当前'}
 
 
-def sha256_text(text: str) -> str:
-    return hashlib.sha256(text.encode('utf-8')).hexdigest()
-
-
 def sha256_object(value: object) -> str:
     payload = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
-    return sha256_text(payload)
+    return _sha256_text(payload)
 
 
 
@@ -145,7 +141,7 @@ def build_sources(project_root: Path, input_paths: list[Path], previous_index: d
     for path in sorted(input_paths, key=lambda item: relative_path(project_root, item)):
         text = path.read_text(encoding='utf-8-sig')
         rel = relative_path(project_root, path)
-        digest = sha256_text(text)
+        digest = _sha256_text(text)
         previous = previous_by_path.get(rel)
         if previous and previous.get('sha256') == digest and isinstance(previous.get('segments'), list):
             reused = dict(previous)

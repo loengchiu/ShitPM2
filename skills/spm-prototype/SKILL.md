@@ -13,8 +13,8 @@ Prototype 直接下游于 Design 事实闭包：
 - `output/prototype/src/` 是唯一编辑源；`dist/` 只由 `npm run build` 生成，不能作为产品事实或编辑入口。
 - 工程使用标准 Vite + React 18 + Ant Design 6；依赖由 `package.json` 和 `package-lock.json` 管理，安装使用 `npm ci`。
 - 用户入口只有 `output/prototype/原型工具.bat`；它调用 `package.json` 的 `dev`、`build`、`preview` scripts。
-- 每次生成前从项目的设计地图、设计集清单和目标 Design 文件读取事实闭包；不依赖单体 `design.md`、人工确认脚本或旧确认哈希流程。
-- 生成前选择一套品牌主题：Claude 或 Tabler。一个原型内只使用一套品牌主题；当前模板默认 Tabler，项目组的壳层、交互和代码习惯与品牌主题分离。
+- 每次生成前从项目的设计地图、设计集清单和目标 Design 文件读取事实闭包，取代单体 `design.md` 与旧确认哈希流程。
+- 生成前选择一套品牌主题：Claude、Tabler 或 traework。一个原型内只使用一套品牌主题；当前模板默认 Tabler，项目组的壳层、交互和代码习惯与品牌主题分离。切换流程见 `references/prototype-writing.md`「品牌主题接入」。
 - 页面只表达 Design 已定义的字段、状态、权限、流程、异常和责任边界，不补写高影响事实。
 
 ## 每次任务先读取
@@ -33,7 +33,7 @@ Prototype 直接下游于 Design 事实闭包：
 
 ## 首次生成
 
-1. 检查 `$BUNDLE/templates/prototype-vite/` 完整。将模板复制到 `output/prototype/`；若目标是旧静态 HTML + compiled.js 原型，先报告迁移边界并等待确认，不直接覆盖。**完成条件**：目标包含 `package.json`、`src/`、入口、路由表和 `原型工具.bat`。
+1. 检查 `$BUNDLE/templates/prototype-vite/` 完整。目标目录不存在或为空时，将模板复制到 `output/prototype/`；目标目录已存在且非空、但不同时具备 `package.json` 与 `src/` 时，先报告迁移边界并等待确认，不直接覆盖。**完成条件**：目标包含 `package.json`、`src/`、入口、路由表和 `原型工具.bat`。
 2. 先完成 Design → Prototype 语义对照，再在 `src/modules/<模块>/` 创建页面并在 `src/routes.jsx` 登记；共享 shell、角色区、异常页放在 `src/shared/`。**完成条件**：Design 页面与路由逐项对应，未确认事实没有被静默拍板。
 3. 先按视觉规范选择页面骨架，再组合 `src/shared/ui/`、`src/shared/icons/` 和 `src/shared/charts/`，最后填入 Design 字段和状态。新颜色、间距、字号、圆角或阴影先按视觉规范 1.8 进入 Token，不在页面现场拍值。**完成条件**：页面没有复制一套局部视觉规则，且高频结构来自共享 UI。
 4. 只编辑 `src/`、`index.html`、`package.json`、`vite.config.js`、`public/`、README 等源码工程文件；不编辑 `dist/`、`node_modules/` 或带哈希资源。**完成条件**：所有业务改动都能在源码中定位。
@@ -51,7 +51,7 @@ Prototype 直接下游于 Design 事实闭包：
 
 1. 用真实浏览器打开默认页和每个注册路由，检查浏览器 console 无错误；对项目实际存在的关键交互至少各操作一次，包括 Modal、Form、Select、角色切换和响应式状态。没有对应场景时明确记录“模板/项目无此场景”，不能用静态检查代替浏览器验证。
 2. 检查加载、空数据、失败/重试、无权限、禁用/只读、选中和响应式状态可通过 UI 观察；列表/看板保留空态，配置操作使用真实 `Modal` + `Form`，状态机限制使用 `disabled`。
-3. 检查页面没有“入口：”“（只读）”“（必填）”等解释性标注代替真实 UI 状态；图标统一使用 Tabler，图表使用 `TablerChart`；品牌主题只使用本轮选择的 Claude 或 Tabler 之一。
+3. 检查页面没有“入口：”“（只读）”“（必填）”等解释性标注代替真实 UI 状态；图标统一使用 Tabler，图表使用 `TablerChart`；品牌主题只使用本轮从 Claude、Tabler、traework 中选择的一套，默认 Tabler。
 4. 对本任务命中的 behavior 章节逐条核对对应规则；跨任务通用的完成门槛以本 Skill 为准，不通过交付前再次完整读取 behavior 来替代。
 5. 运行：
 
@@ -73,6 +73,10 @@ python $BUNDLE/scripts/python/prototype-consistency-check.py --project-root .
 发现幻觉页面、字段、状态、权限或未授权高影响行为时，删除未授权表达并报告；发现活动 Design 事务、清单不可读、源码工程缺失、构建失败、白屏或 console 错误时，停止交付并给出具体原因。
 
 Review 使用 `spm-prototype-review`，不会由本 Skill 自动修复或推进。
+
+## 标注副本（prototypemark，按需）
+
+仅当用户要求生成带编号角标 + 浮窗的设计/PRD 标注原型时，才读取 `$BUNDLE/references/prototype-mark-injection.md`，把标注系统注入 `output/prototypemark/`（`output/prototype/` 的副本）。该副本不进入 review 链路、不反写 Design/PRD、不生成 metadata；高影响意见按反馈分类转交 `spm-fix`。普通原型任务不读取本文件。
 
 ## 产物
 

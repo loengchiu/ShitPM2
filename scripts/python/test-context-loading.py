@@ -212,28 +212,8 @@ def load_module(path: Path, name: str):
 
 
 def check_runtime_script_behaviors() -> None:
-    prototype = load_module(ROOT / 'scripts/python/prototype-structure.py', 'prototype_structure_test')
     budget = load_module(ROOT / 'scripts/python/context-budget.py', 'context_budget_test')
     stage = load_module(ROOT / 'scripts/python/stage-context.py', 'stage_context_test')
-    if prototype is not None:
-        parser = prototype.PrototypeParser()
-        parser.feed(
-            '<h2>订单</h2>'
-            '<a href="rel.html">相对页面</a>'
-            '<a href="foo/bar">嵌套页面</a>'
-            '<a href="https://example.com">外部</a>'
-            '<a data-route="/orders">订单</a>'
-            '<button data-action="save">保存</button>'
-            '<input name="title" placeholder="标题">'
-        )
-        if parser.routes != ['rel.html', 'foo/bar', '/orders']:
-            fail(f'Prototype 相对路由提取错误: {parser.routes}')
-        if not parser.headings or parser.headings[0]['text'] != '订单':
-            fail(f'Prototype 标题提取错误: {parser.headings}')
-        if not parser.actions or parser.actions[0].get('data_action') != 'save':
-            fail(f'Prototype 动作提取错误: {parser.actions}')
-        if not parser.fields or parser.fields[0].get('name') != 'title':
-            fail(f'Prototype 字段提取错误: {parser.fields}')
     if budget is not None:
         chinese = budget.estimate_tokens('中文' * 100)
         english = budget.estimate_tokens('ab' * 100)

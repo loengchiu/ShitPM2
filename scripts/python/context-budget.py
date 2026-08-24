@@ -1,23 +1,13 @@
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import json
 import sys
 from pathlib import Path
 from token_estimate import estimate_tokens
+from shared_md import load_sibling
 
 ROOT = Path(__file__).resolve().parents[2]
-PACK_SCRIPT = ROOT / 'scripts/python/context-pack.py'
-
-
-def load_pack_module():
-    spec = importlib.util.spec_from_file_location('context_pack', PACK_SCRIPT)
-    if spec is None or spec.loader is None:
-        raise RuntimeError(f'无法加载上下文装载器: {PACK_SCRIPT}')
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
 
 
 
@@ -66,7 +56,7 @@ def main() -> int:
     try:
         result = {'project_root': str(project_root)}
         if args.stage:
-            module = load_pack_module()
+            module = load_sibling('context-pack.py', 'context_pack_for_budget')
             bundle_root = (args.bundle_root or module.ROOT).resolve()
             manifest = module.load_manifest(bundle_root)
             applicability_path = args.applicability_json

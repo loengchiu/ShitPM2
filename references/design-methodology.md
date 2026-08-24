@@ -58,6 +58,6 @@
 <!-- context:design-methodology-boundary:start -->
 ## 与分析协议和质量标准的关系
 
-本文件提供通用设计方法；模式责任、Park 对齐的 ABC 分析、跨层挑战和质量分级以 `references/design-analysis-protocol.md`、`references/design-quality-rubric.md` 为准。方法论不得把 ABC 变成最终 Design 目录，也不得以 Review、metadata、Align 摘要或中间资产替代首次 Design 责任。
+本文件提供通用设计方法；模式责任、ABC 分析、跨层挑战和质量分级以 `references/design-analysis-protocol.md`、`references/design-quality-rubric.md` 为准。方法论不得把 ABC 变成最终 Design 目录，也不得以 Review、metadata、Align 摘要或中间资产替代首次 Design 责任。
 <!-- context:design-methodology-boundary:end -->
 

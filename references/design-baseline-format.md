@@ -40,7 +40,7 @@
 
 `schema_version` 是分析交接资产的格式版本；材料合并事实库的 `version` 是事实库内部版本，二者不互换。分析资产中的 `source_refs` 是结论级证据引用，材料事实中的 `source` 是单条事实的定位对象，二者不要求同形。
 
-`conclusions`、`conflicts`、`questions`、`payload` 按具体动作责任使用；不得把推测写成已确认业务事实，不得把正式 Review 的评分或 verdict 写入基线。完整模式的 A/B/C 必须分别覆盖设计分析协议中与 Park 对齐的责任；页面、字段、操作、规则、状态、异常和验收的重要结论不能只留在基线，必须被 `design-editor` 写入最终 Design 或显式列为待确认。
+`conclusions`、`conflicts`、`questions`、`payload` 按具体动作责任使用；不得把推测写成已确认业务事实，不得把正式 Review 的评分或 verdict 写入基线。完整模式的 A/B/C 必须分别覆盖设计分析协议中定义的责任；页面、字段、操作、规则、状态、异常和验收的重要结论不能只留在基线，必须被 `design-editor` 写入最终 Design 或显式列为待确认。
 
 ## 证据引用
 
@@ -64,6 +64,5 @@
 版本错误、状态不合法或数组类型错误，均属于输出不合格，应修复当前动作而不是让下游猜测补齐。
 
 <!-- context:design-asset-contract:end -->
-
 
 

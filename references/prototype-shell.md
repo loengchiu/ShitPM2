@@ -112,9 +112,9 @@ export default function App() {
   return (
     <Layout style={{ minHeight: '100vh' }}>
       {/* Sider 独立滚动：菜单长时只在侧栏内部滚动，不随整页滚动 */}
-      <Sider theme="dark" width={200} style={{ height: '100vh', overflow: 'auto', position: 'sticky', top: 0 }}>
+      <Sider width={200} style={{ height: '100vh', overflow: 'auto', position: 'sticky', top: 0 }}>
         <div className="sider-logo">项目名</div>
-        <Menu theme="dark" mode="inline" selectedKeys={[path]}
+        <Menu mode="inline" selectedKeys={[path]}
           items={menuItems} onClick={({ key }) => navigate(key)} />
       </Sider>
       <Layout>

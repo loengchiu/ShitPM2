@@ -9,12 +9,14 @@ from __future__ import annotations
 
 import argparse
 import html.parser
-import importlib.util
 import json
 import re
 import sys
 from pathlib import Path
 from typing import Any
+
+from shared_md import load_sibling
+
 
 
 EXCLUDED_DIRS = {"dist", "node_modules", "prototype-p0"}
@@ -243,11 +245,12 @@ def _iter_object_blocks(text: str) -> list[str]:
     return blocks
 
 
-def _scan_source(root: Path) -> tuple[dict[str, list[dict[str, Any]]], list[dict[str, Any]], list[str]]:
+def _scan_source(root: Path, source_root: Path | None = None) -> tuple[dict[str, list[dict[str, Any]]], list[dict[str, Any]], list[str]]:
     anchors: dict[str, list[dict[str, Any]]] = {key: [] for key in ENTITY_TYPES}
     buttons: list[dict[str, Any]] = []
     files: list[str] = []
-    source_root = root / "output" / "prototype" / "src"
+    if source_root is None:
+        source_root = root / "output" / "prototype" / "src"
     if not source_root.is_dir():
         raise FileNotFoundError(f"Prototype 源码目录不存在: {source_root}")
     source_paths = [
@@ -335,13 +338,7 @@ def _load_verified_index(root: Path) -> tuple[dict[str, Any] | None, str | None,
     index_path = root / ".workflow" / "runtime" / "context" / "design" / "index" / "design-index.json"
     if not index_path.is_file():
         return None, f"Design 索引不存在: {index_path}", False
-    path = Path(__file__).with_name("design-index.py")
-    spec = importlib.util.spec_from_file_location("design_index_for_prototype_check", path)
-    if spec is None or spec.loader is None:
-        return None, "无法加载 Design Index 解析器", False
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module.load_verified_index(root)
+    return load_sibling("design-index.py", "design_index_for_proto").load_verified_index(root)
 
 
 def _names(index: dict[str, Any], entity_type: str) -> list[str]:
@@ -368,15 +365,16 @@ def _component_exists(component: str | None, scanned_files: list[str]) -> bool:
     return any(Path(source).stem.lower() == component.lower() for source in scanned_files)
 
 
-def _run(root: Path) -> tuple[dict[str, Any], int]:
+def _run(root: Path, prototype_src: Path | None = None, design_manifest: Path | None = None) -> tuple[dict[str, Any], int]:
+    proto_src = (prototype_src or (root / "output" / "prototype" / "src")).resolve()
+    manifest_path = (design_manifest or (root / "output" / "design" / "设计集清单.json")).resolve()
     source = {
-        "design_manifest": "output/design/设计集清单.json",
+        "design_manifest": manifest_path.relative_to(root).as_posix() if manifest_path.is_relative_to(root) else str(manifest_path),
         "design_index": ".workflow/runtime/context/design/index/design-index.json",
-        "prototype_source": "output/prototype/src/**/*.{html,js,jsx,mjs,ts,tsx}",
-        "routes": "output/prototype/src/routes.jsx",
+        "prototype_source": proto_src.relative_to(root).as_posix() + "/**/*.{html,js,jsx,mjs,ts,tsx}",
+        "routes": (proto_src / "routes.jsx").relative_to(root).as_posix() if (proto_src / "routes.jsx").is_relative_to(root) else str(proto_src / "routes.jsx"),
         "excluded_dirs": sorted(EXCLUDED_DIRS),
     }
-    manifest_path = root / "output" / "design" / "设计集清单.json"
     if not manifest_path.is_file():
         _fatal(f"设计集清单不存在: {manifest_path}", source)
         return {}, 2
@@ -395,8 +393,8 @@ def _run(root: Path) -> tuple[dict[str, Any], int]:
         return {}, 2
     source["design_index_from_file"] = index_from_file
     try:
-        anchors, buttons, scanned_files = _scan_source(root)
-        routes = _parse_routes(root / "output" / "prototype" / "src" / "routes.jsx", root)
+        anchors, buttons, scanned_files = _scan_source(root, proto_src)
+        routes = _parse_routes(proto_src / "routes.jsx", root)
     except (OSError, UnicodeDecodeError, ValueError, FileNotFoundError) as exc:
         _fatal(str(exc), source)
         return {}, 2
@@ -503,10 +501,18 @@ def _run(root: Path) -> tuple[dict[str, Any], int]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Prototype Design 分层一致性检查（全量入口）")
-    parser.add_argument("--project-root", required=True)
+    parser.add_argument("--project-root", required=True, help="项目根目录")
+    parser.add_argument("--prototype-src", type=Path, default=None,
+                        help="覆盖 Prototype 源码目录（默认 <project-root>/output/prototype/src）")
+    parser.add_argument("--design-manifest", type=Path, default=None,
+                        help="覆盖设计集清单路径（默认 <project-root>/output/design/设计集清单.json）")
     args = parser.parse_args()
     try:
-        result, code = _run(Path(args.project_root).resolve())
+        result, code = _run(
+            Path(args.project_root).resolve(),
+            prototype_src=(Path(args.prototype_src).resolve() if args.prototype_src else None),
+            design_manifest=(Path(args.design_manifest).resolve() if args.design_manifest else None),
+        )
     except Exception as exc:
         return _fatal(f"Prototype 一致性检查无法执行: {type(exc).__name__}: {exc}")
     if result:

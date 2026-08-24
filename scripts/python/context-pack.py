@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from token_estimate import estimate_tokens
 from typing import Any
+from shared_md import load_sibling, load_design_manifest, sha256_text, sha256_file
 
 ROOT = Path(__file__).resolve().parents[2]
 MANIFEST_REL = Path('contracts/context-loading.manifest.json')
@@ -28,14 +29,6 @@ SHARED_HEADING_KEYWORDS = (
     '业务对象', '角色、权限', '权限与数据范围', '页面清单', '待确认事项',
     '用户、组织与权限', '状态与规则', '系统与外部数据边界', '统计口径', '异常与恢复',
 )
-
-
-def sha256_text(text: str) -> str:
-    return hashlib.sha256(text.encode('utf-8')).hexdigest()
-
-
-def sha256_file(path: Path) -> str:
-    return sha256_text(path.read_text(encoding='utf-8-sig'))
 
 
 def manifest_path(bundle_root: Path) -> Path:
@@ -233,13 +226,12 @@ def _design_headings(text: str) -> list[dict[str, Any]]:
     return headings
 
 
+from shared_md import heading_scope_end as _scope_end_impl
+
+
 def _scope_end(lines: list[str], headings: list[dict[str, Any]], index: int) -> int:
     """当前标题的作用域到下一个同级或更高级标题为止（所有 markdown 标题都参与边界计算）。"""
-    current = headings[index]
-    for next_heading in headings[index + 1:]:
-        if next_heading['level'] <= current['level']:
-            return next_heading['line'] - 1
-    return len(lines)
+    return _scope_end_impl(headings, index, len(lines))
 
 
 def _heading_text(lines: list[str], start_line: int, end_line: int) -> str:
@@ -327,19 +319,15 @@ def extract_design_fragment(project_root: Path, module: str,
     旧单体 design.md 不再是日常装载来源；清单缺失时明确报错，不做旧格式回退。
     """
     project_root = Path(project_root)
+    manifest, files, error = load_design_manifest(project_root)
     manifest_path = project_root / 'output' / 'design' / '设计集清单.json'
-    if not manifest_path.is_file():
+    if error and not manifest_path.is_file():
         raise RuntimeError(
             f'设计集清单不存在: {manifest_path}。'
             '旧单体 Design 不再是日常装载来源，请先按迁移提示词转为多文件 Design。'
         )
-    try:
-        manifest = json.loads(manifest_path.read_text(encoding='utf-8-sig'))
-    except Exception as exc:
-        raise RuntimeError(f'设计集清单无法解析: {manifest_path}: {exc}') from exc
-    files = manifest.get('files', [])
-    if not isinstance(files, list) or not files:
-        raise RuntimeError(f'设计集清单缺少 files: {manifest_path}')
+    if error:
+        raise RuntimeError(error)
     # 定位目标模块
     module_files = [e for e in files if isinstance(e, dict) and e.get('module') == module]
     if not module_files:
@@ -355,13 +343,8 @@ def extract_design_fragment(project_root: Path, module: str,
             f'模块名 “{module}” 在设计集清单中找不到对应模块文件。'
             f'清单中已登记的模块：{available}'
         )
-    # 计算依赖闭包（含目标模块自身）
-    import importlib.util as _ilu
-    ds_spec = _ilu.spec_from_file_location('design_set', Path(__file__).with_name('design-set.py'))
-    ds_mod = _ilu.module_from_spec(ds_spec)
-    ds_spec.loader.exec_module(ds_mod)
     target_ids = sorted({e['id'] for e in module_files})
-    ordered, missing = ds_mod.closure_ids(manifest, target_ids)
+    ordered, missing = load_sibling('design-set.py', 'design_set_for_pack').closure_ids(manifest, target_ids)
     id_to_entry = {e['id']: e for e in files if isinstance(e, dict)}
     parts: list[str] = []
     included_lines = 0

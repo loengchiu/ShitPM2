@@ -14,9 +14,6 @@ TEMPLATE = ROOT / "templates" / "prototype-vite"
 SOURCE_CHECK = ROOT / "scripts/python/prototype-source-check.py"
 CONSISTENCY = ROOT / "scripts/python/prototype-consistency-check.py"
 DESIGN_INDEX = ROOT / "scripts/python/design-index.py"
-STRUCTURE = ROOT / "scripts/python/prototype-structure.py"
-
-
 def check(condition: bool, message: str) -> None:
     if not condition:
         raise AssertionError(message)
@@ -260,21 +257,6 @@ def test_consistency_reads_jsx_and_excludes_dist() -> None:
         holder.cleanup()
 
 
-def test_structure_extracts_routes_from_jsx() -> None:
-    holder, root = make_project()
-    try:
-        _write_business_fixture(root)
-        result = run(STRUCTURE, "--project-root", str(root), "--input", str(root / "output" / "prototype"))
-        check(result.returncode == 0, result.stdout + result.stderr)
-        payload = json.loads(result.stdout)
-        check("/test-detail" in payload["routes"] and "*" in payload["routes"], f"路由未从 JSX 提取: {payload['routes']}")
-        check(payload["fields"], f"字段线索为空: {payload['fields']}")
-        check(payload["actions"], f"操作线索为空: {payload['actions']}")
-        check(payload["source_hash"], "缺少确定性 source_hash")
-    finally:
-        holder.cleanup()
-
-
 def main() -> int:
     tests = [
         test_valid_project_passes,
@@ -284,7 +266,6 @@ def main() -> int:
         test_compiled_only_fails,
         test_template_has_single_menu_bat,
         test_consistency_reads_jsx_and_excludes_dist,
-        test_structure_extracts_routes_from_jsx,
     ]
     failures = []
     for test in tests:

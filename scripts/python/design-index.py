@@ -21,6 +21,7 @@ import re
 import sys
 from pathlib import Path
 from typing import Any
+from shared_md import heading_scope_end
 
 
 INDEX_RELATIVE_PATH = Path(".workflow/runtime/context/design/index/design-index.json")
@@ -200,12 +201,7 @@ def _split_heading_lines(content: str) -> list[dict[str, Any]]:
     return headings
 
 
-def _heading_scope_end(headings: list[dict[str, Any]], index: int, total_lines: int) -> int:
-    current = headings[index]
-    for next_heading in headings[index + 1:]:
-        if next_heading["level"] <= current["level"]:
-            return next_heading["line"] - 1
-    return total_lines
+_heading_scope_end = heading_scope_end
 
 
 def _split_table_row(raw_line: str) -> list[str]:

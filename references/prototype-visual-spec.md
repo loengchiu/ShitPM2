@@ -1,8 +1,8 @@
-# ShitPM 原型视觉规范（Claude / Tabler 品牌主题 · Ant Design 6 实现）
+# ShitPM 原型视觉规范（Claude、Tabler 或 traework 三选一 · Ant Design 6 实现）
 
 > 用途：生成 / 修改 Vite + React 18 + Ant Design 6 原型时，作为视觉 Token、页面骨架、组件状态矩阵与自检清单的**唯一事实源**。
 > 调用时机：每次生成或评审原型页面前读取本文件；本文件之外的视觉数值一律以本文件为准，不得在页面、`prototype-writing.md` 或模板中定义第二套视觉值。
-> 品牌主题：**Claude** 与 **Tabler** 二选一。组件仍用 Ant Design，主题文件分别承载品牌 Token；当前模板默认 Tabler。项目组的三栏壳层、页面标签、底部操作栏、行为和代码习惯独立于品牌主题，不在单个原型内混用两套主题。
+> 品牌主题：**Claude**、**Tabler** 与 **traework** 三选一。组件仍用 Ant Design，主题文件分别承载品牌 Token；当前模板默认 Tabler。项目组的三栏壳层、页面标签、底部操作栏、行为和代码习惯独立于品牌主题，不在单个原型内混用两套主题。切换流程见 `prototype-writing.md`「品牌主题接入」。
 > 字体：西文 / 数字走 **Inter**（Tabler 同款），中文回落**思源黑体**（2026-08-17 评审结论）；未安装思源黑体时系统默认无衬线正常显示，不把内置 / 下载字体作为阻塞条件。
 > 图标：**@tabler/icons-react**（100% Tabler 图标，不混用 Ant Icons）。
 > 组件行为：组件怎么用、什么场景、什么边界见 `references/prototype-component-behavior.md`（本文件的行为补充层）；本文件 Token、骨架、状态与自检清单与之共同构成运行时视觉唯一事实源。
@@ -92,7 +92,7 @@
 | Token | 值 | 用法 |
 |---|---|---|
 | `borderRadiusSM` | 4 | 小标签、徽标、状态点 |
-| `borderRadius` | 6 | 按钮、输入框等控件（**不是 4，不是 8**） |
+| `borderRadius` | 6 | 控件唯一圆角：按钮、输入框等一律取 6 |
 | `borderRadiusLG` | 8 | 卡片、弹窗、图标徽章 |
 | 圆形 | `999px` | 仅头像、状态点、圆形图标按钮、图标徽章 |
 
@@ -137,7 +137,7 @@
 ### 1.6 层级与阴影（Tabler 极轻）
 
 - **Level 0 平面**：仅背景 / 分割线区分（列表行、静态区）
-- **Level 1**：1px hairline 浅边框（表格、卡片默认态）——边框色 `#e5e7eb`，**不要** antd 默认 `#d9d9d9`
+- **Level 1**：1px hairline 浅边框（表格、卡片默认态），边框色统一 `#e5e7eb`（非 antd 默认 `#d9d9d9`）
 - **Level 2 轻阴影**（浮动面板 / 弹窗 / 悬浮卡片）：`0 2px 4px rgba(35,46,60,0.04)`（极轻，几乎只一道浅影）
 - hover：卡片轻微上浮 + 阴影加深（`0 4px 10px rgba(35,46,60,0.08)`），过渡 150–200ms
 - **Tabler 去噪哲学**：默认不靠重边框和深阴影堆层次，靠**浅底 + 留白 + 极轻边框**分隔；主按钮无投影
@@ -147,7 +147,7 @@
 - 来源：从 `@tabler/icons-react` 引入，如 `import { IconBolt, IconSearch } from @tabler/icons-react`；**不混用 `@ant-design/icons`**。
 - 常用操作与状态的语义映射集中在 `src/shared/icons/index.jsx`（搜索 / 刷新 / 查看 / 编辑 / 删除 / 返回 / 保存 / 确认 / 警告 / 错误等），页面优先复用，不重复维护清单。
 - 尺寸：默认 **16px**；卡片图标徽章 / 强调处可用 **20–24px** 但同一视图保持统一档。
-- 风格：Tabler 图标本身即线性描边（outline），保持默认 `stroke-width`，**不要**加粗或填色。
+- 风格：Tabler 图标本身即线性描边（outline），沿用默认 `stroke-width` 与线性描边原样。
 - 与文字间距：**4–8px**（图标在文字左侧时）。
 - 状态点 / 圆形图标按钮：用 `TablerIconButton` 或 `<IconX size={16} />` 包在圆形浅底容器（`.tabler-icon-badge`，32px 圆）。
 - 命名：用 Tabler 官方图标名（如 `IconChargingPile`、`IconAlertTriangle`、`IconCircleCheck`），生成时挑语义最贴切的一个；找不到精确图标时在 `shared/icons/index.jsx` 集中记录替代选择，不臆造名称。
@@ -251,7 +251,7 @@
 - [ ] 正文 14/22，字阶 ≤ 5 种，标题用 500/600 字重
 - [ ] 字体家族 Inter 优先、中文回落思源黑体、系统无衬线兜底；无字体下载依赖
 - [ ] 数字 `tabular-nums` + 右对齐
-- [ ] 圆角：控件 6 / 小标签 4 / 卡片 8（**不是 4 也不是 8 通配**）
+- [ ] 圆角按用途取固定值：控件 6、小标签 4、卡片 8
 - [ ] 边框色 `#e5e7eb`、页面底 `#f9fafb`、表头浅底 `#fafbfc`（非 antd 默认 `#d9d9d9`/`#f5f5f5`）
 - [ ] Header 高度 56 与内容区 `calc(100vh - 56px)` 一致，无两套高度
 - [ ] 每类页面套用第 2 节对应骨架（7 类，区块顺序 / 层级不变）
@@ -260,11 +260,11 @@
 - [ ] 状态用 `TablerStatusTag` 语义五档，无裸文字状态
 - [ ] 第 4 节状态矩阵各项在页面中可观察（含 disabled/readonly、loading、empty、error、selected、responsive）
 - [ ] **图标统一 `@tabler/icons-react`**，默认 16px、线性描边、与文字间距 4–8px，无 Ant Icons 混用；优先复用 `shared/icons`
-- [ ] 图表使用 `shared/charts/TablerChart.jsx` 的色板与坐标轴，无 Arco 主题残留
+- [ ] 图表使用 `shared/charts/TablerChart.jsx` 的色板与坐标轴，不引入 Arco 主题
 - [ ] 1440 宽度下无横向溢出、元素不贴边（边距 ≥ 16）；575/576 与 991/992 边界可操作；390px 无页面级横向溢出
 - [ ] 对比度：正文 / 标题 vs 背景 ≥ 7:1
 - [ ] 页面内出现新颜色 / 圆角 / 阴影 / 字号 / 间距时，已按 1.8 记录 Token 来源与用途，不是现场拍值
-- [ ] 本轮已明确选择 Claude 或 Tabler 之一；单个原型没有混用两套品牌主题，壳层与项目交互习惯仍保持统一
+- [ ] 本轮已明确选择 Tabler / Claude / traework 之一（默认 Tabler，见 §0 品牌主题）；单个原型不混用多套品牌主题
 
 ### 检查能力边界
 

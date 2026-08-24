@@ -24,9 +24,7 @@ ShitPM 变更：
 """
 
 import argparse
-import importlib.util
 import json
-import os
 import re
 import sys
 from pathlib import Path
@@ -41,6 +39,7 @@ from shared_md import (
     load_json,
     strip_heading_number,
 )
+from shared_md import load_sibling, load_design_manifest
 
 # PRD 章节别名（用于章节定位，但 ShitPM 主要采用全文扫描策略，章节定位仅作辅助）
 NON_CONCRETE_STATE_NAMES = frozenset({"—", "-", "N/A", "任意状态", "状态"})
@@ -1506,10 +1505,7 @@ def compare_permission_pages(
 
 def _load_verified_design_index(project_root: Path):
     """优先读取并校验 Design 索引；索引缺失时仅在内存中从 Design 集合编译。"""
-    path = Path(__file__).with_name("design-index.py")
-    spec = importlib.util.spec_from_file_location("design_index", path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    module = load_sibling("design-index.py", "design_index")
     index, error, from_file = module.load_verified_index(project_root)
     return module, index, error, from_file
 
@@ -1732,27 +1728,16 @@ def _load_design_entities_from_md(project_root: Path, module_name: str | None = 
     未指定时读取全部正式 Design 文件。复用 stage-prep.py 的
     generate_design_metadata 函数。返回 (design_data, error_message)。
     """
-    manifest_path = project_root / "output" / "design" / "设计集清单.json"
-    if not manifest_path.exists():
-        return None, f"设计集清单不存在: {manifest_path}"
-    try:
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
-    except Exception as exc:
-        return None, f"设计集清单无法解析: {exc}"
-    files = manifest.get("files")
-    if not isinstance(files, list) or not files:
-        return None, "设计集清单缺少 files 数组"
+    manifest, files, error = load_design_manifest(project_root)
+    if error:
+        return None, error
     selected = list(files)
     if module_name and selected:
         # 按 --module 过滤：模块文件自身 + 其 depends_on 闭包
-        scripts_dir = os.path.dirname(os.path.abspath(__file__))
-        ds_spec = importlib.util.spec_from_file_location("design_set", os.path.join(scripts_dir, "design-set.py"))
-        ds_mod = importlib.util.module_from_spec(ds_spec)
-        ds_spec.loader.exec_module(ds_mod)
         module_ids = {e["id"] for e in selected if e.get("module") == module_name}
         if not module_ids:
             return None, f"设计集清单中没有模块: {module_name}"
-        ordered, missing = ds_mod.closure_ids(manifest, sorted(module_ids))
+        ordered, missing = load_sibling("design-set.py", "design_set").closure_ids(manifest, sorted(module_ids))
         selected = [e for e in selected if e.get("id") in set(ordered)]
     parts = []
     for entry in selected:
@@ -1768,11 +1753,7 @@ def _load_design_entities_from_md(project_root: Path, module_name: str | None = 
         return None, "设计集清单列出的正式 Design 文件均不存在"
     try:
         content = "\n".join(parts)
-        scripts_dir = os.path.dirname(os.path.abspath(__file__))
-        spec = importlib.util.spec_from_file_location("stage_prep", os.path.join(scripts_dir, "stage-prep.py"))
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
-        data = mod.generate_design_metadata(content, "design", project_root)
+        data = load_sibling("stage-prep.py", "stage_prep").generate_design_metadata(content, "design", project_root)
         return data, None
     except Exception as e:
         return None, f"从 Design 文件解析实体失败: {e}"
@@ -1780,8 +1761,9 @@ def _load_design_entities_from_md(project_root: Path, module_name: str | None = 
 
 def _read_design_set_text(project_root: Path) -> str:
     """读取设计集清单列出的全部正式 Design 文件并拼接（带来源注释）。"""
-    manifest_path = project_root / "output" / "design" / "设计集清单.json"
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
+    manifest, _, _ = load_design_manifest(project_root)
+    if manifest is None:
+        raise FileNotFoundError("设计集清单不存在或无法解析")
     parts = []
     for entry in manifest.get("files", []):
         rel = entry.get("path")

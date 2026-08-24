@@ -61,7 +61,7 @@ python $BUNDLE/scripts/python/context-pack.py --bundle-root $BUNDLE --project-ro
 - 用户原始需求和已写回的回答；
 - 材料索引、分来源事实和合并事实库（有材料时）；
 - 完整模式的 A/B/C 基线和冲突资产；
-- 当前动作适用的页面、流程、状态、权限、集成和写作规则；完整模式还要读取 design-analysis-protocol.md，涉及状态机时读取 design-state-format.md。
+- 当前动作适用的页面、流程、状态、权限、集成和写作规则；涉及状态机时读取 design-state-format.md。
 
 需要读取历史 Design 时按目标事实闭包读取（设计地图 + 设计集清单 → 目标模块及必要基线与契约），不全量读取整套 Design；契约足够时不再读取相邻模块全文，只有目标事实闭包中的契约不足以支撑当前写作时才读取真正需要的相邻模块内部设计，不升级为全系统扫描。规则包装载不等于分析动作完成；Design 正文只保留产品事实与分析结论，编排器回执、metadata、动作 ID 和中间 JSON 写入正文视为违规。
 

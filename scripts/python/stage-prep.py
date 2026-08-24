@@ -480,7 +480,7 @@ def _extract_states_from_content(content: str, stage: str, counter: dict) -> lis
       3. 撤回后从 `submitted` 回到 `draft`
 
     ShitPM 修复：补全 entity/transitions/is_terminal 字段，并解析"状态迁移"编号列表，
-    使 状态闭环检查脚本 能正确判断闭环（之前只提取状态名，不提取迁移，导致全部被判为"无出路"）。
+    使下游一致性检查能正确判断状态集合覆盖（之前只提取状态名，不提取迁移，导致全部被判为"无出路"）。
     ID 分配与此函数内联，与 _extract_states_from_tables 对称。
     不再提取 h3 标题（"状态集合"/"状态迁移" 是容器标题不是状态）。
     """
@@ -583,7 +583,7 @@ def _extract_states_from_content(content: str, stage: str, counter: dict) -> lis
                     })
                 # 如果 from_state 不在已定义状态中（如"创建"隐含从无到 draft），
                 # to_state 仍需记录以便初始态推断；附加到一个虚拟初始入口
-                # 状态闭环检查脚本 通过 first_non_terminal 推断初始态，无需额外处理
+                # 下游一致性检查通过 first_non_terminal 推断初始态，无需额外处理
 
                 # 更新 last_to_state 用于下一条链式推导
                 last_to_state = to_state
