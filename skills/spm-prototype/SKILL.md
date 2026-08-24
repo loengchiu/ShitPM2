@@ -60,7 +60,7 @@ python $BUNDLE/scripts/python/prototype-source-check.py --project-root .
 python $BUNDLE/scripts/python/prototype-consistency-check.py --project-root .
 ```
 
-一致性脚本只提供全量检查，结果必须按三类阅读：`deterministic_conflicts` 是可确定冲突，`possible_omissions` 是需要结合 Design 和源码逐项判断的可能遗漏，`needs_semantic_judgment` 是脚本不能可靠裁决的语义项。只有确定性冲突返回 1；输入或源码工程等致命错误返回 2；返回 0 不代表事实完整、无幻觉或视觉通过。
+一致性脚本只提供全量检查，结果必须按三类阅读：`deterministic_conflicts` 是 `red`，直接修正；`possible_omissions` 和 `needs_semantic_judgment` 是 `risk` 的证据，必须结合 Design 和源码逐项判断。高影响未知转为 Design `decision` 或明确报告；只有确定性冲突返回 1，输入或源码工程等致命错误返回 2，返回 0 不代表事实完整、无幻觉或视觉通过。
 
 **完成条件**：构建成功；默认页和全部注册路由可打开；实际存在的关键交互可操作；console 无运行时错误；适用 Portal/响应式场景已用真实浏览器检查；三类一致性结果已逐项处理，未把可能遗漏或语义判断写成自动通过。任何未验证项都已明确报告。随后更新 `.workflow/status.json` 的 `current_stage=prototype` 和 Prototype 产物路径，并按实际读取的 Design 文件记录 `design-set.py record-inputs`。
 

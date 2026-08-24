@@ -40,6 +40,16 @@ Review 不要求 metadata 存在，不要求先通过其他 Review。
 ---
 ## 四、统一判定与输出契约
 
+### 质量责任结论
+
+每个审查问题都必须标注以下一种责任结论：
+
+- `red`：正式事实、文件或真实运行结果存在可重复、可定位的明确错误，例如不可读、不可解析、明确缺失或明确冲突。生成时直接修正；Review 时列为确定性问题；脚本可用失败退出码。
+- `risk`：语义、业务闭环、状态、权限、承接、可实施性或体验风险，无法由字符串或结构稳定裁定。`possible_omissions`、`needs_semantic_judgment`、`unsupported` 只是判断证据，不因脚本退出码为 `0` 默认通过；每项必须给出结论或标为“未评估”。
+- `decision`：不同答案会改变流程、权限、数据范围、系统边界或验收标准。必须写明问题、选项、影响与推荐，交由产品负责人决定。
+
+`P0/P1/P2` 表示处理优先级，`structure/content/consistency` 表示问题落点；二者都不能替代 `red/risk/decision`。
+
 ### 审查结论门槛
 
 - **通过**：零 P0、零 P1。
@@ -55,7 +65,7 @@ Review 不要求 metadata 存在，不要求先通过其他 Review。
 - `.workflow/reviews/prd-review-N.md`
 - `.workflow/reviews/prototype-review-N.md`
 
-每条审查问题至少包含编号、严重级别（P0/P1/P2）、描述，可附位置和建议；正文必须包含审查结论（通过 / 有问题需修改 / 阻塞）、主要问题、三类问题分布（structure / content / consistency）、`needs_upstream_sync`、`affected_objects` 和下一步建议。P2 记录但不计入审查结论。
+每条审查问题至少包含编号、责任结论（`red` / `risk` / `decision`）、严重级别（P0/P1/P2）、描述，可附位置和建议；正文必须包含审查结论（通过 / 有问题需修改 / 阻塞）、主要问题、三类问题分布（structure / content / consistency）、`needs_upstream_sync`、`affected_objects` 和下一步建议。P2 记录但不计入审查结论。
 
 ### 共同禁止事项
 

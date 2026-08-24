@@ -82,7 +82,6 @@ MINIMAL_READ_SET = {
     "design": [
         "contracts/context-loading.manifest.json",
         "scripts/python/context-pack.py",
-        "scripts/python/context-budget.py",
         "scripts/python/context-runtime-check.py",
         "output/align/align.md",  # Design 必经的需求事实输入；原始材料可选
         "output/design/设计地图.md",
@@ -91,7 +90,6 @@ MINIMAL_READ_SET = {
     "prd": [
         "contracts/context-loading.manifest.json",
         "scripts/python/context-pack.py",
-        "scripts/python/context-budget.py",
         "contracts/subagent-context-contract.md",
         "output/design/设计地图.md",
         "output/design/设计集清单.json",

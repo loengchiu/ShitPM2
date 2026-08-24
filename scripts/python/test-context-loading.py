@@ -212,13 +212,7 @@ def load_module(path: Path, name: str):
 
 
 def check_runtime_script_behaviors() -> None:
-    budget = load_module(ROOT / 'scripts/python/context-budget.py', 'context_budget_test')
     stage = load_module(ROOT / 'scripts/python/stage-context.py', 'stage_context_test')
-    if budget is not None:
-        chinese = budget.estimate_tokens('中文' * 100)
-        english = budget.estimate_tokens('ab' * 100)
-        if chinese < 100 or chinese <= english:
-            fail(f'预算估算未对中文采取保守系数: 中文={chinese}, 非中文={english}')
     pack = load_pack_module()
     if pack is not None:
         with tempfile.TemporaryDirectory() as temp_dir:

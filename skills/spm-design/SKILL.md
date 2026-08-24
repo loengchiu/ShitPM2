@@ -195,7 +195,7 @@ python $BUNDLE/scripts/python/design-set.py recover --project-root .
 
 ## 7. 写作动作内自检
 
-simple-design 和 design-editor 各自只执行一次内部自检，不拆成独立任务、不生成检查 JSON、报告或回执。按 `$BUNDLE/references/design-writing.md` 的写作前后检查清单逐项回读，并结合 §5.1 横切能力四状态判断与 §5.2 推断值边界；涉及状态机时逐项满足 `$BUNDLE/references/design-state-format.md` 的闭环要求。发现缺口直接修正对应 Design 文件；不能决定的高影响事项写入该文件未决事项。
+simple-design 和 design-editor 各自只执行一次内部自检，不拆成独立任务、不生成检查 JSON、报告或回执。按 `$BUNDLE/references/design-writing.md` 的写作前后检查清单逐项回读，并结合 §5.1 横切能力四状态判断与 §5.2 推断值边界；涉及状态机时逐项满足 `$BUNDLE/references/design-state-format.md` 的闭环要求。发现 `red` 直接修正对应 Design 文件；不能决定的高影响事项写为 `decision`，保留在该文件未决事项。
 
 完成条件：写作清单中的每个适用项都有正文落点或明确未决；修改后的文件已重新回读；`design-set.py check` 通过；没有未暴露的高影响问题。满足后才能告诉用户 Design 已完成。高影响未决事项保持 pending 状态并说明影响，不要求用户确认 Design 或确认哈希。Review 是按需的第二意见，不是首次生成前置。
 
