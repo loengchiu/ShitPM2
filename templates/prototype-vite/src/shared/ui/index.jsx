@@ -198,9 +198,9 @@ export function TablerEmptyState({ icon, title, description, action, compact, cl
       }
       description={
         <div>
-          <div style={{ color: 'var(--spm-color-text)', fontWeight: 500 }}>{title || '暂无数据'}</div>
+          <div style={{ color: 'var(--text)', fontWeight: 500 }}>{title || '暂无数据'}</div>
           {description ? (
-            <div style={{ color: 'var(--spm-color-text-secondary)' }}>{description}</div>
+            <div style={{ color: 'var(--text-secondary)' }}>{description}</div>
           ) : null}
         </div>
       }
@@ -213,6 +213,9 @@ export function TablerEmptyState({ icon, title, description, action, compact, cl
 export function TablerActionBar({ children }) {
   return <div className="tabler-action-bar">{children}</div>;
 }
+
+// 内页底部版权行：页面内容最底部一行，放在 page-action-bar 之前
+export { default as PageFooter } from './PageFooter.jsx';
 
 // 品牌无关语义入口：内部继续复用已验证的 Tabler 实现。
 export const PageHeader = TablerPageHeader;

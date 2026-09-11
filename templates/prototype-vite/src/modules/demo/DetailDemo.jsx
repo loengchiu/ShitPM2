@@ -94,8 +94,8 @@ export default function DetailDemo() {
       <DetailList title="缴费信息" items={paymentInfo} variant="pair" />
 
       {/* 收款明细 */}
-      <Card className="detail-records-card" size="small" title="收款明细" style={{ marginBottom: 16 }}>
-        <Table columns={columns} dataSource={records} pagination={false} size="middle" />
+      <Card className="detail-records-card" title="收款明细" style={{ marginBottom: 16 }}>
+        <Table columns={columns} dataSource={records} pagination={false} />
       </Card>
 
       {/* 备注：20/80 */}

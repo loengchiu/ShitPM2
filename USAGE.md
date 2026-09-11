@@ -11,11 +11,19 @@ ShitPM 是运行在 AI 编程助手中的产品工作台。ShitPM 以多文件 D
 
 ## 2. 安装与卸载
 
-ShitPM 通过 junction 把本仓库注册到宿主工具的 bundle 目录，宿主因此能加载 Skill 和全局规则。
+ShitPM 通过 junction 把本仓库注册到宿主工具的 bundle 目录，宿主因此能加载 Skill、契约、参考文档、Schema、脚本和模板等共享资源。
+
+当多个 AI 工具共用 `C:\Users\<用户名>\.agents` 时，先安装共享宿主：
+
+```powershell
+python scripts/python/shitpm-host.py install --host agents
+```
+
+该命令会建立 `C:\Users\<用户名>\.agents\shitpm` bundle 映射、共享 Skill 映射和 `AGENTS.md` 中的 bundle 根路径；Codex 等具体工具可以继续通过各自宿主映射使用这套共享资源。
 
 ```powershell
 # 安装到指定宿主
-python scripts/python/shitpm-host.py install --host <codex|trae-cn|claude-code|workbuddy>
+python scripts/python/shitpm-host.py install --host <agents|codex|trae-cn|claude-code|workbuddy>
 
 # 验证安装
 python scripts/python/shitpm-host.py verify --host <host>

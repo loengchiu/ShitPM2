@@ -56,13 +56,13 @@ function buildColumns({ onEdit, onDelete, onMore }) {
     fixed: 'end',
     render: (_, record) => (
       <Space size="small">
-        <Button type="link" size="small" icon={<IconEdit size={16} />} onClick={() => onEdit(record)}>
+        <Button type="link" icon={<IconEdit size={16} />} onClick={() => onEdit(record)}>
           编辑
         </Button>
-        <Button type="link" size="small" danger icon={<IconTrash size={16} />} onClick={() => onDelete(record)}>
+        <Button type="link" danger icon={<IconTrash size={16} />} onClick={() => onDelete(record)}>
           删除
         </Button>
-        <Button type="text" size="small" icon={<IconDots size={16} />} aria-label="更多操作" onClick={() => onMore(record)} />
+        <Button type="text" icon={<IconDots size={16} />} aria-label="更多操作" onClick={() => onMore(record)} />
       </Space>
     ),
   },
@@ -107,7 +107,7 @@ export default function DesignGallery() {
           { title: '逾期未缴', value: 12, suffix: '笔' },
         ].map((it) => (
           <Col xs={12} md={6} key={it.title}>
-            <Card size="small">
+            <Card>
               <Statistic title={it.title} value={it.value} suffix={it.suffix} precision={it.suffix === '%' ? 1 : 0} />
             </Card>
           </Col>
@@ -115,7 +115,7 @@ export default function DesignGallery() {
       </Row>
 
       {/* 工具栏 */}
-      <Card size="small" style={{ marginTop: 16 }}>
+      <Card style={{ marginTop: 16 }}>
         <Space wrap>
           <Input
             placeholder="搜索单号 / 商户"
@@ -147,12 +147,12 @@ export default function DesignGallery() {
       </Card>
 
       {/* 表格：首列 + 末列固定 */}
-      <Card size="small" style={{ marginTop: 16 }} title="收款明细（首列与操作列固定）">
-        <Table columns={columns} dataSource={rows} scroll={{ x: 1400 }} pagination={{ pageSize: 5, showTotal: (t) => `共 ${t} 条` }} size="middle" />
+      <Card style={{ marginTop: 16 }} title="收款明细（首列与操作列固定）">
+        <Table columns={columns} dataSource={rows} scroll={{ x: 1400 }} pagination={{ pageSize: 5, showTotal: (t) => `共 ${t} 条` }} />
       </Card>
 
       {/* 表单分组 */}
-      <Card size="small" style={{ marginTop: 16 }} title="表单控件">
+      <Card style={{ marginTop: 16 }} title="表单控件">
         <Row gutter={[24, 16]}>
           <Col xs={24} md={12}>
             <Space orientation="vertical" style={{ width: '100%' }} size="middle">

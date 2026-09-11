@@ -28,16 +28,15 @@ export default function FormDemo() {
       </div>
 
       {/* 审批流 */}
-      <Card size="small" style={{ marginBottom: 16 }}>
+      <Card style={{ marginBottom: 16 }}>
         <Steps
-          size="small"
           current={0}
           items={[{ title: '服务区发起' }, { title: '服务区确认' }, { title: '结束' }]}
         />
       </Card>
 
       {/* 表单：普通字段一行两列，文本域单独一行 */}
-      <Card size="small" title="出库信息" style={{ marginBottom: 16 }}>
+      <Card title="出库信息" style={{ marginBottom: 16 }}>
         <Form
           form={form}
           layout="vertical"

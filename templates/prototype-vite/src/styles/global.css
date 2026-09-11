@@ -113,12 +113,19 @@ body {
   flex: 1 1 auto;
   min-height: 0;
 }
-/* 内页底部版权：页面内容的最底部一行（放操作栏之前，非页脚栏） */
+/* 侧栏菜单：文字色/悬停底/选中底与选中色全部由 theme 的 Menu token 提供；
+   此处只补 token 无法表达的两条强化（选中项字重、选中父级标题同步品牌蓝） */
+.ant-menu-light .ant-menu-item-selected,
+.ant-menu-light .ant-menu-submenu-selected > .ant-menu-submenu-title {
+  font-weight: 500;
+}
+/* 内页底部版权：页面内容的最底部一行（放操作栏之前，非页脚栏）
+   与存量审计工程 20 处现状对齐：右对齐 + 14px + #606266（2026-09-11 v3 统一口径） */
 .page-footer {
-  text-align: center;
+  text-align: right;
   font-size: 14px;
   color: #606266;
-  padding: 16px 0 8px;
+  padding: 4px 0;
 }
 .page-head {
   margin-bottom: 16px;

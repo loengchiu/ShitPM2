@@ -13,7 +13,7 @@ USER_HOME = Path.home()
 START_MARKER = '<!-- SHITPM GLOBAL RULES START -->'
 END_MARKER = '<!-- SHITPM GLOBAL RULES END -->'
 BUNDLE_NAME = 'shitpm'
-HOSTS = ('codex', 'trae-cn', 'claude-code', 'workbuddy')
+HOSTS = ('agents', 'codex', 'trae-cn', 'claude-code', 'workbuddy')
 SKILL_NAMES = (
     'spm-start',
     'spm-align',
@@ -30,6 +30,7 @@ SKILL_NAMES = (
 
 def host_base(host: str) -> Path:
     return {
+        'agents': USER_HOME / '.agents',
         'codex': USER_HOME / '.codex',
         'claude-code': USER_HOME / '.claude',
         'trae-cn': USER_HOME / '.trae-cn',
@@ -241,6 +242,9 @@ def write_global_rules(host: str) -> None:
     if host == 'codex':
         upsert_block(host_base(host) / 'AGENTS.md', block)
         return
+    if host == 'agents':
+        upsert_block(host_base(host) / 'AGENTS.md', block)
+        return
     if host == 'trae-cn':
         content = '\n'.join([
             '---',
@@ -262,6 +266,7 @@ def write_global_rules(host: str) -> None:
 
 def verify_global_rules(host: str) -> None:
     target = {
+        'agents': host_base(host) / 'AGENTS.md',
         'codex': host_base(host) / 'AGENTS.md',
         'claude-code': host_base(host) / 'CLAUDE.md',
         'trae-cn': host_base(host) / 'rules' / 'shitpm-global.md',

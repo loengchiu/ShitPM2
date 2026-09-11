@@ -8,12 +8,11 @@ export default function DetailList({ title, items, variant = 'pair' }) {
   const className = variant === 'pair' ? 'detail-list' : 'detail-list-textarea';
   const descItems = items.map(({ label, value }) => ({ label, children: value }));
   return (
-    <Card className={`${className}-card`} size="small" style={{ marginBottom: 16 }}>
+    <Card className={`${className}-card`} style={{ marginBottom: 16 }}>
       <Descriptions
         className={className}
         title={title}
         bordered
-        size="small"
         column={column}
         items={descItems}
       />

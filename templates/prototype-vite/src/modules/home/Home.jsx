@@ -139,7 +139,7 @@ export default function Home() {
       </section>
 
       <section className="dashboard-section">
-        <TablerSectionCard title="近期趋势" extra={<span style={{ color: 'var(--spm-color-text-secondary)' }}>最近五日</span>}>
+        <TablerSectionCard title="近期趋势" extra={<span style={{ color: 'var(--text-secondary)' }}>最近五日</span>}>
           <TablerChart option={chartOption} height={240} />
         </TablerSectionCard>
       </section>
@@ -150,19 +150,19 @@ export default function Home() {
             actions={
               canMaintain ? (
                 <Space>
-                  <Button size="small" icon={<IconRefresh size={16} />} onClick={refresh}>
+                  <Button icon={<IconRefresh size={16} />} onClick={refresh}>
                     刷新
                   </Button>
-                  <Button size="small" onClick={() => setRows([])}>
+                  <Button onClick={() => setRows([])}>
                     清空数据
                   </Button>
-                  <Button size="small" onClick={() => setRows(initialRows)}>
+                  <Button onClick={() => setRows(initialRows)}>
                     恢复数据
                   </Button>
                 </Space>
               ) : (
                 <Space>
-                  <Button size="small" icon={<IconRefresh size={16} />} onClick={refresh}>
+                  <Button icon={<IconRefresh size={16} />} onClick={refresh}>
                     刷新
                   </Button>
                 </Space>
@@ -170,9 +170,9 @@ export default function Home() {
             }
           >
             {canMaintain ? (
-              <span style={{ color: 'var(--spm-color-text-secondary)' }}>共 {rows.length} 条任务</span>
+              <span style={{ color: 'var(--text-secondary)' }}>共 {rows.length} 条任务</span>
             ) : (
-              <span style={{ color: 'var(--spm-color-text-secondary)' }}>
+              <span style={{ color: 'var(--text-secondary)' }}>
                 以下仅显示本人负责的 {visibleRows.length} 条任务
               </span>
             )}
