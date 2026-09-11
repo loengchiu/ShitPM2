@@ -29,13 +29,13 @@ python $BUNDLE/scripts/python/prototype-source-check.py --project-root .
 python $BUNDLE/scripts/python/prototype-consistency-check.py --project-root .
 ```
 
-一致性检查只有全量入口，模块级判断由 Review 根据全量结果和 Design 分模块完成。`deterministic_conflicts` 必须标为 `red`；`possible_omissions` 和 `needs_semantic_judgment` 必须逐项给出 `risk`、`decision`、未评估说明或上游同步建议，不能因为退出码为 0 而视为通过。无视觉模型时，只记录 DOM、计算样式、浏览器交互和截图等可观察证据；信息层级、密度、品牌感觉和审美标记为人工/视觉模型验收或 `risk` 未评估。
+一致性检查只有全量入口，模块级判断由 Review 根据全量结果和 Design 分模块完成。`deterministic_conflicts` 必须标为 `red`；`possible_omissions` 和 `needs_semantic_judgment` 必须逐项给出 `risk`、`decision`、未评估说明或上游同步建议，不能因为退出码为 0 而视为通过。字段锚点只从真实 JSX 标签属性提取；antd `columns` 数组对象上的字段缺少 `data-field` 锚点属于已知盲区，必须结合该页面源码逐项判断，不得因脚本看不到锚点就一律记为设计遗漏，也不得把列配置对象里伪造成 `data-*` 的字符串当作锚点。无视觉模型时，只记录 DOM、计算样式、浏览器交互和截图等可观察证据；信息层级、密度、品牌感觉和审美标记为人工/视觉模型验收或 `risk` 未评估。
 
 **完成条件**：一致性结果已作为审查证据记录；脚本结果不是 Review 启动门禁。
 5. 读取 `$BUNDLE/contracts/review-checklist.md`、`$BUNDLE/contracts/prototype-review-checklist.md` 和 `$BUNDLE/references/prototype-writing.md`；发现多页面 shell、导航、路由或空白页问题时再读取 `$BUNDLE/references/prototype-shell.md`。**完成条件**：专项契约的每个适用结构、内容和一致性检查项均有证据和结论。
 6. 从 Design 页面清单提取全部页面，与 `src/routes.jsx` 逐项对照 `存在 / 缺失 / 幻觉`；再核对字段、状态、主路径、权限、操作限制、异常反馈和 Design 未授权高影响行为。**完成条件**：每个页面和关键对象都有明确结论或待决策标记。
 7. 读取 `$BUNDLE/references/prototype-visual-spec.md`，按 Prototype 专项契约审查视觉事实源、共享 UI、状态矩阵、图标和图表。**完成条件**：每个适用视觉检查项均有证据和结论；表现问题与业务语义问题分开，Design 冲突已设置 `needs_upstream_sync`。
-8. 根据被审源码的真实场景读取 `$BUNDLE/references/prototype-component-behavior.md` 中全部适用章节；至少覆盖命中的表格、Form/Modal、Portal/响应式、回退和跨层契约规则。**完成条件**：每个适用项均有证据和结论；不存在的场景标记不适用，不因生成路径变短而漏审；违反行为规范的项按表现问题输出位置、影响和建议，不修改源码。
+8. 根据被审源码的真实场景读取 `$BUNDLE/references/prototype-component-behavior.md` 适用章节（§1–§3：组件选型与例外、Form/Modal、Portal/响应式、回退和跨层契约规则），并读取 `$BUNDLE/references/prototype-page-types.md` 被审页面命中类型的章节。在此之上执行三条专项检查：**①角色差异表达**——对照 `$BUNDLE/references/prototype-role-permission.md` 核对角色切换器形态、四级权限表达（菜单不渲染 / 按钮不渲染或 disabled / 字段不渲染或只读 / 数据范围示意）与状态机动作按钮组，缺层或用置灰菜单、文字标注代替真实控件状态记为问题；**②官方尺寸合规**——主题文件只含颜色 token，页面不写死尺寸 / 阴影 / 字体，尺寸与间距按官方默认；**③图标来源统一**——图标一律经 `src/shared/icons/` 再导出取用，不直接 import 图标库、不残留其他图标库依赖。**完成条件**：每个适用项均有证据和结论；不存在的场景标记不适用，不因生成路径变短而漏审；违反行为规范的项按表现问题输出位置、影响和建议，不修改源码。
 9. 按公共契约写入 `.workflow/reviews/prototype-review-N.md`。**完成条件**：结论符合三档门槛，每个 P0/P1 可追溯到位置、影响和建议，逐页面结果、三类问题分布及上游同步信息完整；未把验证副作用当作修复或交付修改，输出后停止。
 
 ## 判定与失败

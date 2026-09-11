@@ -1,6 +1,6 @@
 # 原型写法参考
 
-> 本文件只说明 Ant Design 组件调用、源码工程边界和页面组织。视觉 Token、7 类页面骨架、状态矩阵与视觉自检的唯一事实源是 `prototype-visual-spec.md`；生成或修改页面前先读取它。品牌主题在 Claude、Tabler、traework 中三选一，默认 Tabler；单个原型只选一套。
+> 本文件只说明 Ant Design 组件调用、源码工程边界和页面组织。视觉 Token、页面骨架、状态矩阵与视觉自检的唯一事实源是 `prototype-visual-spec.md`；页面类型与标准结构见 `prototype-page-types.md`；生成或修改页面前按任务需要读取。视觉口径：结构、尺寸、字体、阴影与图标按 antd 官方规范，颜色体系沿用 Tabler 主题；页面不选择主题。
 > 流程、停止条件和反馈传播由 `skills/spm-prototype/SKILL.md` 负责；多页面 shell、导航或空白页问题再读取 `prototype-shell.md`。
 
 ## 目录
@@ -48,21 +48,17 @@ Hash 地址可能带查询参数（例如 `#/demo-form?case=1`）；路由匹配
 
 ## 二、组件与视觉入口
 
-视觉规则只从 `prototype-visual-spec.md` 读取；品牌主题在 Claude、Tabler、traework 中三选一。可执行 Token 在模板 `src/theme/` 的对应主题文件，Ant Design 映射在对应主题适配文件，高频结构在 `src/shared/ui/`。页面不复制全局颜色、字号、间距、圆角或阴影。
+视觉规则只从 `prototype-visual-spec.md` 读取。可执行 Token 在模板 `src/theme/tablerTokens.ts` 和 `tablerTheme.ts`，高频结构在 `src/shared/ui/`。页面不复制全局颜色、字号、间距、圆角或阴影。
 
 需要被全局样式或 Portal 内容读取的 CSS 变量挂在 `document.documentElement`；不要只挂在 `#root`。Ant Design 的 Modal、Dropdown 等内容可能渲染到 `document.body`，无法继承 `#root` 上的变量。
 
-### 品牌主题接入（生成原型前选好，非运行时换肤）
+### 视觉入口（官方结构 + Tabler 颜色）
 
-默认主题为 **Tabler**（`main.jsx` 已引 `tablerTheme`/`tablerCssVars`）。要切换 Claude 或 traework：
+模板 `main.jsx` 已固定引入 `tablerTheme`/`tablerCssVars`，并将 CSS 变量注入 `document.documentElement`。普通页面直接使用该默认入口，不新增主题选择、运行时换肤或页面级视觉分支。
 
-1. 选品牌：确认本轮只用一套；多套混用由 SKILL 停止交付。
-2. 读资产：`references/design-sources/<品牌>/` 下对应设计规范（Claude 见 `claude-DESIGN.md`）。
-3. 改引用：`main.jsx` 把 `import { tablerTheme, tablerCssVars }` 换成 `claudeTheme/claudeCssVars` 或对应文件，并把注入 `:root` 的变量同步换成该主题导出的 `cssVars`。
-4. 微调：系统名色、语义 success、圆角是否防胶囊化（控件勿 16，会胶囊化）等随品牌观感定。
-5. 复验：`npm run build` 后用浏览器确认壳层、表格、图表、Portal 均跟随新主题变量，无写死色残留。
+颜色由 Tabler 主题承担（`tablerTheme.ts` 只含颜色 token）；结构、尺寸、间距、字体、圆角、阴影、控件规格走 antd 6 官方默认，主题不得覆盖非颜色 token。如视觉事实需要改变，先修改 `prototype-visual-spec.md`，再同步主题（限颜色）与共享组件并复验。
 
-视觉皮肤（色板/圆角/字体）随品牌变；布局、操作栏、列宽、版权、标题规则是项目组习惯，所有语言通用，不随品牌变。
+布局、操作栏、列宽、版权和标题等项目组壳层习惯按本项目规范执行；页面不因品牌选择产生视觉分支。
 
 常用组件：
 
@@ -72,12 +68,12 @@ Hash 地址可能带查询参数（例如 `#/demo-form?case=1`）；路由匹配
 | 查询 | `<Form layout="inline">` + `Form.Item`，查询/重置属于 Form |
 | 表单 | `Form layout="vertical"` + `Form.Item` + `Row/Col` |
 | 下拉/日期/数字 | `Select` / `DatePicker` / `InputNumber` |
-| 表格 | `TablerDataTable`；字段和数据来自 Design |
-| 状态 | `TablerStatusTag`，不直接自造颜色 |
+| 表格 | `DataTable`（内部默认实现为 `TablerDataTable`）；字段和数据来自 Design |
+| 状态 | `StatusTag`（内部默认实现为 `TablerStatusTag`），不直接自造颜色 |
 | 详情 | `Descriptions`，默认两列，长文本独占一行 |
 | 结果/异常 | `Result` + 恢复或返回操作 |
-| 空态 | `TablerEmptyState` 或 `TablerDataTable` 内置空态 |
-| 页面级操作 | `TablerActionBar` sticky 底部操作栏 |
+| 空态 | `EmptyState`（内部默认实现为 `TablerEmptyState`）或 `DataTable` 内置空态 |
+| 页面级操作 | `ActionBar`（内部默认实现为 `TablerActionBar`）sticky 底部操作栏 |
 
 图表统一使用 `src/shared/charts/TablerChart.jsx`，色板和坐标轴来自该封装；页面 option 使用 `useMemo` 保持引用稳定：
 
@@ -91,7 +87,7 @@ const trendOption = useMemo(() => ({
 }), [labels, values]);
 ```
 
-图标统一使用 `@tabler/icons-react`，优先复用 `src/shared/icons/`；不混用 Ant Icons。Claude 与 Tabler 是品牌主题，不改变项目统一的图标库。找不到精确图标时使用语义接近的官方 Tabler 图标，并在共享映射中记录。
+图标统一经 `src/shared/icons/` 再导出取用 `@ant-design/icons` 官方图标；不直接 import 任何图标库。找不到语义精确对应时先查官方实际导出清单，使用语义最近的图标并在共享映射中记录，不臆造名称。
 
 ## 三、交互硬规则
 
@@ -104,7 +100,7 @@ const trendOption = useMemo(() => ({
 7. JSX 中使用的组件、图标和工具函数必须逐一确认已 import；构建通过不代表关闭态或条件渲染分支没有运行时 `ReferenceError`，必须在真实浏览器中打开这些分支。
 8. 可见按钮必须产生打开/关闭层、校验、状态变化、列表变化、路由变化或反馈之一；无行为的视觉样张按钮删除或改为非交互展示。可编辑字段使用稳定 `name`，必填/格式/范围通过 `rules` 表达；页面外 ActionBar 通过 Form 实例调用 `submit()` / `resetFields()`。
 9. route、row、menu、action、field 使用稳定唯一 ID；共享表格与行操作不得以展示文案或数组下标作为身份。Table wrapper 对 `scroll`、`pagination`、`locale` 明确默认、合并或透传规则，不得静默丢失调用方配置。
-10. Modal、message、notification 等上下文相关 API 使用 antd `App.useApp()`；Portal 层必须验证主题变量、焦点、Esc、关闭后焦点回归和点击穿透。响应式统一使用 <576、576–991、≥992、≥1200，390px 只能作为额外窄屏优化。
+10. Modal、message、notification 等上下文相关 API 使用 antd `App.useApp()`；Portal 层必须验证主题变量、焦点、Esc、关闭后焦点回归和点击穿透。响应式按 <576、576–991、≥992、≥1200 处理，本轮不执行 390px 专项测试。
 
 ## 四、表格、表单与弹层规则
 
@@ -130,11 +126,11 @@ const trendOption = useMemo(() => ({
 
 ## 五、页面组合
 
-生成时先读取视觉规范并选择对应的 7 类页面骨架，再按以下顺序落位：统一 shell → 页面骨架 → Design 字段/数据/状态 → 弹窗、抽屉、分页、空态和异常表达。
+生成时先按 `prototype-page-types.md` 判定页面类型（7 类 + 公共页 + 快照/只读态横切模式），再按以下顺序落位：统一 shell → 页面类型标准结构 → Design 字段/数据/状态 → 弹窗、抽屉、分页、空态和异常表达。
 
 - 业务页面放 `src/modules/<模块>/`，跨页共享件放 `src/shared/`，路由在 `src/routes.jsx` 登记。
 - 高频页头、Card、Toolbar、Table、Status、Empty、ActionBar 和 Chart 优先复用模板共享组件；不要为单个页面复制一套 Tabler CSS。
-- 页面结构、Token、状态矩阵、响应式、焦点和弹层要求以视觉规范对应章节为准；本文件不再复制那套数值或 7 类骨架。
+- 页面结构、颜色 Token、状态矩阵、响应式、焦点和弹层要求以视觉规范对应章节为准；页面类型标准结构以 `prototype-page-types.md` 为准；本文件不再复制那套数值或结构定义。
 - 业务规则以 Design 为准；Design 待确认项不能在原型中静默拍板。
 
 ## 六、输入与反馈边界

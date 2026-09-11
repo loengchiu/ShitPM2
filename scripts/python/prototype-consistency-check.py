@@ -20,6 +20,11 @@ from shared_md import load_sibling
 
 
 EXCLUDED_DIRS = {"dist", "node_modules", "prototype-p0"}
+# 模板工程自带的样张目录不是用户项目的业务事实，其示例锚点不参与 Design 一致性裁决。
+# 新项目按 spm-prototype 的「首次生成」删除该目录；这里同时排除，避免门禁依赖模型是否记得删。
+# 前缀相对 prototype 源码根（默认 output/prototype/src）计算；只按精确路径前缀排除，
+# 不按目录名匹配，防止误伤恰名为 demo 的真实业务模块。
+EXCLUDED_SOURCE_PREFIXES = ("modules/demo/",)
 ENTITY_TYPES = ("page", "block", "field", "operation", "state")
 CLASSIFICATION_TYPES = (
     "deterministic_conflicts",
@@ -183,7 +188,7 @@ def _strip_js_strings_and_comments(text: str) -> str:
             continue
         if char in {"'", '"', "`"} and not in_tag:
             state = {"'": "single_quote", '"': "double_quote", "`": "template"}[char]
-            output.append(" " )
+            output.append(" ")
             index += 1
             continue
         output.append(char)
@@ -258,6 +263,7 @@ def _scan_source(root: Path, source_root: Path | None = None) -> tuple[dict[str,
         if path.is_file()
         and path.suffix.lower() in {".html", ".js", ".jsx", ".mjs", ".ts", ".tsx"}
         and not any(part in EXCLUDED_DIRS for part in path.parts)
+        and not path.relative_to(source_root).as_posix().startswith(EXCLUDED_SOURCE_PREFIXES)
     ]
     if not source_paths:
         raise FileNotFoundError("Prototype 源码目录中没有可检查的源码文件")
@@ -374,6 +380,7 @@ def _run(root: Path, prototype_src: Path | None = None, design_manifest: Path | 
         "prototype_source": proto_src.relative_to(root).as_posix() + "/**/*.{html,js,jsx,mjs,ts,tsx}",
         "routes": (proto_src / "routes.jsx").relative_to(root).as_posix() if (proto_src / "routes.jsx").is_relative_to(root) else str(proto_src / "routes.jsx"),
         "excluded_dirs": sorted(EXCLUDED_DIRS),
+        "excluded_source_prefixes": sorted(EXCLUDED_SOURCE_PREFIXES),
     }
     if not manifest_path.is_file():
         _fatal(f"设计集清单不存在: {manifest_path}", source)
