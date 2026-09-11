@@ -36,7 +36,7 @@ const statusColor = { 已缴清: 'success', 待缴: 'processing', 逾期: 'error
 
 function buildColumns({ onEdit, onDelete, onMore }) {
   return [
-  { title: '单号', dataIndex: 'no', key: 'no', width: 140, fixed: 'left' },
+  { title: '单号', dataIndex: 'no', key: 'no', width: 140, fixed: 'start' },
   { title: '商户', dataIndex: 'shop', key: 'shop', width: 140 },
   { title: '所属服务区', dataIndex: 'area', key: 'area', width: 160 },
   { title: '应收金额', dataIndex: 'amount', key: 'amount', width: 120, align: 'right' },
@@ -53,7 +53,7 @@ function buildColumns({ onEdit, onDelete, onMore }) {
     title: '操作',
     key: 'action',
     width: 160,
-    fixed: 'right',
+    fixed: 'end',
     render: (_, record) => (
       <Space size="small">
         <Button type="link" size="small" icon={<IconEdit size={16} />} onClick={() => onEdit(record)}>
