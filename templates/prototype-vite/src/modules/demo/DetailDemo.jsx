@@ -1,8 +1,9 @@
 import { App, Button, Card, Table, Tag, Typography } from 'antd';
-import { IconArrowLeft, IconDownload, IconEdit, IconPrinter } from '@tabler/icons-react';
+import { IconArrowLeft, IconDownload, IconEdit, IconPrinter } from '../../shared/icons';
 import DetailList from '../../shared/ui/DetailList.jsx';
 import PageFooter from '../../shared/ui/PageFooter.jsx';
 import { navigate } from '../../shared/useHashRoute.js';
+import { useRole } from '../../shared/role.jsx';
 
 const { Title } = Typography;
 
@@ -64,6 +65,13 @@ const noteInfo = [
 
 export default function DetailDemo() {
   const { message } = App.useApp();
+  // 角色差异演示（§2.3）：一线操作员无编辑权限 → 按钮不渲染（不置灰）；
+  // 联系人字段对一线不可见 → 整个 label:value 对不渲染（§2.3 字段可见层级）
+  const role = useRole();
+  const canEdit = role.key !== 'operator';
+  const visibleBaseInfo = canEdit
+    ? baseInfo
+    : baseInfo.filter((it) => !['联系人', '联系电话'].includes(it.label));
 
   return (
     <div>
@@ -79,8 +87,8 @@ export default function DetailDemo() {
         <span style={{ color: '#6c6a64', fontSize: 13 }}>合同编号 HT-2026-0032 · 缴费周期 2026-04 ~ 2027-03</span>
       </div>
 
-      {/* 基本信息：20/30/20/30 */}
-      <DetailList title="基本信息" items={baseInfo} variant="pair" />
+      {/* 基本信息：20/30/20/30（一线角色不渲染联系人字段对） */}
+      <DetailList title="基本信息" items={visibleBaseInfo} variant="pair" />
 
       {/* 缴费信息：20/30/20/30 */}
       <DetailList title="缴费信息" items={paymentInfo} variant="pair" />
@@ -98,7 +106,9 @@ export default function DetailDemo() {
 
       {/* 页面级操作栏：底部通栏贴底，靠右 */}
       <div className="page-action-bar">
-        <Button icon={<IconEdit size={16} />} onClick={() => navigate('/form-demo?mode=edit&id=1')}>编辑</Button>
+        {canEdit && (
+          <Button icon={<IconEdit size={16} />} onClick={() => navigate('/form-demo?mode=edit&id=1')}>编辑</Button>
+        )}
         <Button icon={<IconPrinter size={16} />} onClick={() => message.info('打印预览已准备')}>打印</Button>
         <Button type="primary" icon={<IconDownload size={16} />} onClick={() => message.success('账单已导出')}>导出账单</Button>
       </div>

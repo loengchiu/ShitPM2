@@ -1,5 +1,5 @@
 import { App, Button, Card, Col, DatePicker, Form, Input, InputNumber, Radio, Row, Select, Steps, Typography } from 'antd';
-import { IconArrowLeft, IconRefresh, IconSend, IconX } from '@tabler/icons-react';
+import { IconArrowLeft, IconRefresh, IconSend, IconX } from '../../shared/icons';
 import PageFooter from '../../shared/ui/PageFooter.jsx';
 import { navigate } from '../../shared/useHashRoute.js';
 

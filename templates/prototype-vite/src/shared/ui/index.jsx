@@ -6,7 +6,7 @@ import {
   IconTrendingDown,
   IconTrendingUp,
   IconDots,
-} from '@tabler/icons-react';
+} from '../icons';
 
 // ── 高频共享 UI：只封装稳定的视觉与交互，不承载 Design 业务规则 ──
 
@@ -213,3 +213,16 @@ export function TablerEmptyState({ icon, title, description, action, compact, cl
 export function TablerActionBar({ children }) {
   return <div className="tabler-action-bar">{children}</div>;
 }
+
+// 品牌无关语义入口：内部继续复用已验证的 Tabler 实现。
+export const PageHeader = TablerPageHeader;
+export const SectionCard = TablerSectionCard;
+export const MetricCard = TablerMetricCard;
+export const Toolbar = TablerToolbar;
+export const DataTable = TablerDataTable;
+export const StatusTag = TablerStatusTag;
+export const IconButton = TablerIconButton;
+export const RowActions = TablerRowActions;
+export const FormSection = TablerFormSection;
+export const EmptyState = TablerEmptyState;
+export const ActionBar = TablerActionBar;

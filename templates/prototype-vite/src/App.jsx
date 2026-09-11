@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Avatar, Layout, Menu, Space, Tabs } from 'antd';
+import { Avatar, Dropdown, Layout, Menu, Space, Tabs } from 'antd';
 import { routes, groupIcons, moduleIcons } from './routes.jsx';
 import { navigate, useHashRoute } from './shared/useHashRoute.js';
+import { ROLES, RoleContext, canSeeMenu } from './shared/role.jsx';
 
 const { Header, Sider } = Layout;
 
@@ -15,10 +16,10 @@ routes.forEach((r) => {
 
 const HOME_TAB = { key: '/', title: '首页' };
 
-function buildMenuItems(module) {
+function buildMenuItems(module, role) {
   const items = [];
   routes
-    .filter((r) => r.menu && r.module === module)
+    .filter((r) => r.menu && r.module === module && canSeeMenu(role, r))
     .forEach((r) => {
       if (r.group) {
         let sub = items.find((i) => i.key === r.group);
@@ -38,6 +39,8 @@ export default function App() {
   const { path, query } = useHashRoute(routes);
   const [activeModule, setActiveModule] = useState(moduleList[0]?.key);
   const [tabs, setTabs] = useState([HOME_TAB]);
+  // 角色切换：默认管理员视角（§2.3：先给全局，再演"一线看不到某些按钮"的落差）
+  const [role, setRole] = useState(ROLES[0]);
 
   const activeRoute = useMemo(
     () => routes.find((r) => r.path === path) || routes.find((r) => r.path === '*'),
@@ -75,10 +78,18 @@ export default function App() {
     });
   };
 
-  const menuItems = buildMenuItems(activeModule);
+  const menuItems = buildMenuItems(activeModule, role);
   const Page = activeRoute.component;
 
+  // 角色切换菜单：点击角色名展开、选中即切换、不刷新页面（§2.3）
+  const roleMenu = {
+    items: ROLES.map((r) => ({ key: r.key, label: r.name })),
+    selectedKeys: [role.key],
+    onClick: ({ key }) => setRole(ROLES.find((r) => r.key === key)),
+  };
+
   return (
+    <RoleContext.Provider value={role}>
     <>
       <Header className="app-header" style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100 }}>
         <div className="brand">
@@ -98,10 +109,13 @@ export default function App() {
             </button>
           ))}
         </div>
-        <Space className="user-info">
-          <Avatar style={{ background: 'var(--avatar-bg)' }}>{'示'}</Avatar>
-          <span>{'演示用户'}</span>
-        </Space>
+        {/* 用户区 = 角色切换器（§2.3）：品牌色头像取角色首字 + 角色名，点击角色名展开角色列表 */}
+        <Dropdown menu={roleMenu} trigger={['click']}>
+          <Space className="user-info" style={{ cursor: 'pointer' }}>
+            <Avatar style={{ background: 'var(--avatar-bg)' }}>{role.name.charAt(0)}</Avatar>
+            <span>{role.name}</span>
+          </Space>
+        </Dropdown>
       </Header>
       <Sider
         width={240}
@@ -143,5 +157,6 @@ export default function App() {
         </div>
       </main>
     </>
+    </RoleContext.Provider>
   );
 }

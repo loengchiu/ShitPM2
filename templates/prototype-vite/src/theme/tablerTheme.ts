@@ -1,22 +1,12 @@
-// Tabler 官方设计语言转译 → antd v6 ConfigProvider 主题
-// 来源：Tabler 官方 CSS（preview.tabler.io/dist/css/tabler.min.css，--tblr-* 变量直接解引用）
-//       关键值全部来自官方 CSS 定义（2026-08-21 逐元素实测 layout-vertical-transparent/form-layout 页面）：
+// 视觉口径（2026-09-11 v3 拍板）：**颜色留 Tabler，其余全按 antd 官方默认**。
+// 本文件只保留颜色体系（Tabler 官方 CSS 解引用值）；尺寸 / 字号 / 字体 / 阴影 /
+// 圆角等非颜色 token 一律不再覆盖，由 antd v6 官方默认值自己生效。
+// 来源（颜色）：Tabler 官方 CSS（preview.tabler.io/dist/css/tabler.min.css，--tblr-* 变量直接解引用）
 //   --tblr-primary #066fd1 / --tblr-primary-darken rgb(5.4,99.9,188.1)≈#0563BC（按钮 hover/active）
-//   阴影（2026-09-10 按 @tabler/core@latest 的 dist/css/tabler.min.css 重新解引用；
-//       官方阴影色基准是 rgba(18,18,23)=#121217，不是 gray-800 #1f2937）
-//   --tblr-shadow-input 0 1px 2px 0 rgba(18,18,23,.05)（输入框+按钮阴影）
-//   --tblr-shadow-card 0 1px 2px 0 rgba(18,18,23,.05)（卡片阴影）
-//   --tblr-shadow-card-hover 0 4px 6px -2px rgba(18,18,23,.05),0 10px 15px -3px rgba(18,18,23,.08)（卡片 hover）
-//   --tblr-shadow-dropdown 0 2px 4px 0 rgba(18,18,23,.04),0 5px 8px 0 rgba(18,18,23,.04),
-//                          0 10px 18px 0 rgba(18,18,23,.03),0 24px 48px 0 rgba(18,18,23,.04)（下拉浮层）
 //   --tblr-border-color #e5e7eb（控件边框）/ --tblr-border-color-translucent rgba(4,32,69,.1)（卡片/行分隔）
-//   --tblr-border-radius 6px（控件）/ --tblr-border-radius-lg 8px（卡片）
 //   --tblr-body-color #1f2937（正文）/ gray-500 #6b7280（次要）/ gray-400 #9ca3af（弱化）
-//   --tblr-bg-surface #ffffff（卡片/侧栏/顶栏底）/ gray-50 #f9fafb（页面底/表头/卡片尾/头像底）
-//   控件标准：高 40px、padding 9px 16px、14px；表单标签 14px/500（官方不用 13px 弱化）
-//   input focus：border #82B7E8 + ring rgba(6,111,209,.25)；下拉浮层 radius 6 + 三层阴影
+//   --tblr-bg-surface #ffffff（卡片/侧栏/顶栏底）/ gray-50 #f9fafb（页面底/表头/卡片尾）
 //   侧栏：官方默认深色（layout-vertical.html）；用户明确不要深色/不要透明 → 实底白 + hairline 分隔
-//   （语义 = 官方浅色 navbar 白底，菜单选中透明底仅文字变深灰 #374151，无蓝底）
 import type { ThemeConfig } from 'antd';
 
 export const tablerTheme: ThemeConfig = {
@@ -46,47 +36,24 @@ export const tablerTheme: ThemeConfig = {
     colorInfo: '#4299e1',
     colorLink: '#066fd1',
     colorLinkHover: '#045db0',
-    // 尺度（官方：控件 6 / 卡片 8 / 控件高 40）
-    borderRadius: 6,
-    controlHeight: 40,
-    // 阴影（官方基准色 rgba(18,18,23)；antd Card 读 boxShadowCard 全局 token）
-    boxShadowCard: '0 1px 2px 0 rgba(18,18,23,0.05)', // 官方 --tblr-shadow-card
-    boxShadow: '0 1px 2px 0 rgba(18,18,23,0.05)', // 官方 --tblr-shadow-input（按钮/输入框微阴影基线）
-    boxShadowSecondary:
-      '0 2px 4px 0 rgba(18,18,23,0.04), 0 5px 8px 0 rgba(18,18,23,0.04), 0 10px 18px 0 rgba(18,18,23,0.03), 0 24px 48px 0 rgba(18,18,23,0.04)', // 官方 --tblr-shadow-dropdown
-    fontSize: 14,
-    fontFamily:
-      '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif',
+    // 尺寸 / 字体 / 阴影 / 圆角：不覆盖，走 antd 官方默认
+    // （2026-09-11 v3：删除 controlHeight 40 / fontSize / fontFamily / borderRadius /
+    //  boxShadow* 全部 Tabler 值；控件高度 32、表头字号 14、单元格 padding 16、
+    //  卡片 padding 24、阴影黑基均由官方默认生效）
   },
   components: {
-    Button: {
-      fontWeight: 500,
-      borderRadius: 6,
-      controlHeight: 40,
-      primaryShadow: '0 1px 2px 0 rgba(18,18,23,0.05)', // --tblr-shadow-input
-      defaultShadow: '0 1px 2px 0 rgba(18,18,23,0.05)',
-      defaultBorderColor: '#e5e7eb', // 默认按钮白底灰边
-      defaultBg: '#ffffff',
-    },
     Card: {
-      borderRadiusLG: 8,
-      borderColor: 'rgba(4,32,69,0.1)', // --tblr-border-color-translucent
-      boxShadow: '0 1px 2px 0 rgba(18,18,23,0.05)', // --tblr-shadow-card
-      headerBg: 'transparent',
-      headerPadding: '16px 20px',
-      bodyPadding: '16px 20px', // 官方 card-body padding 16px 20px（非 antd 默认 24px）
+      borderColor: 'rgba(4,32,69,0.1)', // --tblr-border-color-translucent（颜色，保留）
     },
     Table: {
-      headerBg: '#f9fafb', // 官方表头 gray-50
-      headerColor: '#6b7280', // gray-500
-      headerFontSize: 12,
+      headerBg: '#f9fafb', // 官方表头 gray-50（颜色）
+      headerColor: '#6b7280', // gray-500（颜色）
       // rowHoverBg 必须用不透明色：antd 行 hover 会把该色应用到固定列 td，
-      // 半透明色会失去遮罩导致底下横向滚动内容"穿透"固定列（Tabler 老毛病，Claude 用不透明 #f5f0e8 无此问题）。
+      // 半透明色会失去遮罩导致底下横向滚动内容"穿透"固定列。
       // 官方半透明 rgba(4,32,69,.03) 叠白底后 ≈ #f7f8f9，观感一致。
       rowHoverBg: '#f7f8f9',
-      borderColor: 'rgba(4,32,69,0.1)', // 行分隔半透明深蓝
-      cellPaddingBlock: 12,
-      cellPaddingInline: 12,
+      borderColor: 'rgba(4,32,69,0.1)', // 行分隔半透明深蓝（颜色）
+      // headerFontSize / cellPaddingBlock / cellPaddingInline：删，走官方默认 14 / 16 / 16
     },
     Layout: {
       siderBg: '#ffffff', // 官方浅色 navbar 白底（用户拍板：不深色、不透明）
@@ -94,8 +61,8 @@ export const tablerTheme: ThemeConfig = {
     },
     Menu: {
       itemBg: 'transparent',
-      // 选中：品牌蓝字 + 官方 --tblr-active-bg 淡蓝底（0.04 太淡几乎不可见，用 0.09 语义接近且能一眼看出当前页；
-      // 用户明确要求"表示当前所在页的选中效果"，v3 曾改透明底灰字导致看不出选中，已回退）
+      // 选中：品牌蓝字 + 淡蓝底（0.04 太淡几乎不可见，用 0.09 语义接近且能一眼看出当前页；
+      // 用户明确要求"表示当前所在页的选中效果"）
       itemSelectedBg: 'rgba(6,111,209,0.09)',
       itemSelectedColor: '#066fd1',
       itemColor: '#6b7280', // gray-500 未选中
@@ -103,7 +70,7 @@ export const tablerTheme: ThemeConfig = {
       itemHoverBg: 'rgba(4,32,69,0.03)',
       // 父级 submenu 标题：子项选中时同步品牌蓝（+700 加粗由 CSS 强化，见 global.css）
       subMenuItemSelectedColor: '#066fd1',
-      itemBorderRadius: 6,
+      // itemBorderRadius：删，走官方默认
     },
     Tabs: {
       cardBg: '#f9fafb',
@@ -121,29 +88,21 @@ export const tablerTheme: ThemeConfig = {
     },
     Input: {
       colorBgContainer: '#ffffff',
-      boxShadow: '0 1px 2px 0 rgba(18,18,23,0.05)', // --tblr-shadow-input
-      activeShadow: '0 0 0 2px rgba(6,111,209,0.25)', // focus ring
+      // boxShadow / activeShadow：删，走官方默认
     },
     DatePicker: { colorBgContainer: '#ffffff' },
-    Modal: { borderRadiusLG: 8 },
-    Tag: { borderRadiusSM: 4 },
-    Avatar: {
-      colorTextLightSolid: '#6b7280', // 官方头像文字 gray-500
-    },
+    // Button / Modal / Tag / Avatar 的尺寸与阴影覆盖：删，走官方默认
+    // （Avatar 改品牌色底 + 白字，见 tablerCssVars --avatar-bg）
   },
 };
 
-// CSS 变量：供 global.css / 壳层硬编码引用
+// CSS 变量：供 global.css / 壳层硬编码引用（仅颜色；阴影交官方默认，变量已删）
 export const tablerCssVars: Record<string, string> = {
   '--brand': '#066fd1',
   '--brand-hover': '#0563BC',
   '--brand-active': '#0563BC',
   '--layout-bg': '#f9fafb',
   '--card-bg': '#ffffff',
-  '--card-shadow': '0 1px 2px 0 rgba(18,18,23,0.05)', // 官方 --tblr-shadow-card
-  '--card-shadow-hover':
-    '0 4px 6px -2px rgba(18,18,23,0.05), 0 10px 15px -3px rgba(18,18,23,0.08)', // 官方 --tblr-shadow-card-hover
-  '--control-shadow': '0 1px 2px 0 rgba(18,18,23,0.05)', // 官方 --tblr-shadow-input（输入框/下拉/日期静态微阴影）
   '--surface-elevated': '#ffffff', // 顶栏/标签栏/操作栏（官方 bg-surface）
   '--sider-bg': '#ffffff', // 侧栏：官方浅色 navbar 白底（用户拍板）
   '--border': '#e5e7eb',
@@ -154,5 +113,5 @@ export const tablerCssVars: Record<string, string> = {
   '--detail-label-bg': '#f9fafb',
   '--menu-selected-bg': 'rgba(6,111,209,0.09)',
   '--menu-selected-text': '#066fd1',
-  '--avatar-bg': '#f9fafb', // 官方头像底 gray-50（非品牌色）
+  '--avatar-bg': '#066fd1', // 品牌色底 + 白字（§2.3 角色切换器）
 };

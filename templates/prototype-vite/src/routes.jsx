@@ -11,7 +11,7 @@ import {
   IconSettings,
   IconShieldCheck,
   IconUsers,
-} from '@tabler/icons-react';
+} from './shared/icons';
 import Home from './modules/home/Home.jsx';
 import DesignGallery from './modules/demo/DesignGallery.jsx';
 import DetailDemo from './modules/demo/DetailDemo.jsx';
@@ -31,6 +31,7 @@ export const routes = [
     menu: true,
     module: '物业管理',
     icon: <IconApps size={16} />,
+    roles: ['admin', 'manager'],
   },
   {
     path: '/rent',
@@ -115,6 +116,7 @@ export const routes = [
     menu: true,
     module: '系统管理',
     icon: <IconShieldCheck size={16} />,
+    roles: ['admin'],
     placeholder: '角色权限页面（占位，按 Design 事实生成）',
   },
   { path: '*', title: '页面不存在', component: NotFound, menu: false },

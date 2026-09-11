@@ -28,7 +28,7 @@ import {
   IconPlus,
   IconSearch,
   IconTrash,
-} from '@tabler/icons-react';
+} from '../../shared/icons';
 
 const { Text } = Typography;
 

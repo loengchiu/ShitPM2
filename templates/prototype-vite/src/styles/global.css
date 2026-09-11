@@ -1,5 +1,6 @@
 /* 全局样式：颜色一律引用 Tabler CSS 变量（由 main.jsx 注入 document.documentElement）
-   变量定义见 src/theme/tablerTheme.ts 的 tablerCssVars 导出 */
+   变量定义见 src/theme/tablerTheme.ts 的 tablerCssVars 导出。
+   阴影/尺寸不再写死：走 antd 官方默认（2026-09-11 v3 口径）。 */
 html,
 body,
 #root {
@@ -8,24 +9,6 @@ body,
 }
 body {
   background: var(--layout-bg);
-}
-/* 卡片阴影：由 Tabler --card-shadow 注入（官方极淡阴影） */
-.ant-card {
-  box-shadow: var(--card-shadow, none);
-}
-/* 卡片 hover 阴影：仅对声明 hoverable 的卡片生效（antd 语义），避免所有卡片无差别跳动 */
-.ant-card-hoverable {
-  transition: box-shadow 0.2s ease;
-}
-.ant-card-hoverable:hover {
-  box-shadow: var(--card-shadow-hover, var(--card-shadow, none));
-}
-/* 输入框静态微阴影：antd Input 静态 boxShadow 被内部 none 覆盖，走 CSS 变量（Tabler --tblr-shadow-input） */
-.ant-input,
-.ant-select-selector,
-.ant-picker,
-.ant-input-affix-wrapper {
-  box-shadow: var(--control-shadow, none) !important;
 }
 /* 顶栏通栏：品牌区 + 主模块 Tab + 用户区 */
 .app-header {

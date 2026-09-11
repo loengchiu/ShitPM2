@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
 import { App as AntdApp, Button, Col, Row, Space } from 'antd';
-import { IconChartBar, IconEye, IconInbox, IconList, IconPlus, IconRefresh } from '@tabler/icons-react';
+import { IconChartBar, IconEye, IconInbox, IconList, IconPlus, IconRefresh } from '../../shared/icons';
 import { TablerChart, tablerChartAxis, tablerChartPalette } from '../../shared/charts/TablerChart';
 import { navigate } from '../../shared/useHashRoute.js';
+import { useRole } from '../../shared/role.jsx';
 import {
   TablerDataTable,
   TablerMetricCard,
@@ -24,6 +25,10 @@ export default function Home() {
   const [rows, setRows] = useState(initialRows);
   const [loading, setLoading] = useState(false);
   const { modal, message } = AntdApp.useApp();
+  // 角色差异演示（§5.3）：一线操作员不可维护数据 → 管理按钮不渲染 + 数据范围收窄示意
+  const role = useRole();
+  const canMaintain = role.key !== 'operator';
+  const visibleRows = canMaintain ? rows : rows.filter((r) => r.owner === '张工');
   const chartOption = useMemo(
     () => ({
       color: tablerChartPalette,
@@ -95,8 +100,12 @@ export default function Home() {
         <TablerRowActions
           items={[
             { key: 'view', label: '查看', onClick: () => navigate('/demo-form?mode=view&id=' + encodeURIComponent(record.id)) },
-            { key: 'edit', label: '编辑', onClick: () => navigate('/demo-form?mode=edit&id=' + encodeURIComponent(record.id)) },
-            { key: 'delete', label: '删除', danger: true, onClick: () => removeRow(record) },
+            ...(canMaintain
+              ? [
+                  { key: 'edit', label: '编辑', onClick: () => navigate('/demo-form?mode=edit&id=' + encodeURIComponent(record.id)) },
+                  { key: 'delete', label: '删除', danger: true, onClick: () => removeRow(record) },
+                ]
+              : []),
           ]}
         />
       ),
@@ -139,26 +148,40 @@ export default function Home() {
         <TablerSectionCard title="任务列表">
           <TablerToolbar
             actions={
-              <Space>
-                <Button size="small" icon={<IconRefresh size={16} />} onClick={refresh}>
-                  刷新
-                </Button>
-                <Button size="small" onClick={() => setRows([])}>
-                  清空数据
-                </Button>
-                <Button size="small" onClick={() => setRows(initialRows)}>
-                  恢复数据
-                </Button>
-              </Space>
+              canMaintain ? (
+                <Space>
+                  <Button size="small" icon={<IconRefresh size={16} />} onClick={refresh}>
+                    刷新
+                  </Button>
+                  <Button size="small" onClick={() => setRows([])}>
+                    清空数据
+                  </Button>
+                  <Button size="small" onClick={() => setRows(initialRows)}>
+                    恢复数据
+                  </Button>
+                </Space>
+              ) : (
+                <Space>
+                  <Button size="small" icon={<IconRefresh size={16} />} onClick={refresh}>
+                    刷新
+                  </Button>
+                </Space>
+              )
             }
           >
-            <span style={{ color: 'var(--spm-color-text-secondary)' }}>共 {rows.length} 条任务</span>
+            {canMaintain ? (
+              <span style={{ color: 'var(--spm-color-text-secondary)' }}>共 {rows.length} 条任务</span>
+            ) : (
+              <span style={{ color: 'var(--spm-color-text-secondary)' }}>
+                以下仅显示本人负责的 {visibleRows.length} 条任务
+              </span>
+            )}
           </TablerToolbar>
 
           <TablerDataTable
             rowKey="id"
             columns={columns}
-            dataSource={rows}
+            dataSource={visibleRows}
             loading={loading}
             emptyTitle="暂无任务"
             emptyDescription="当前条件下没有数据，可恢复示例数据后重试"
