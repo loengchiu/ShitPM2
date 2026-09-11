@@ -3,8 +3,7 @@ import { App as AntdApp, ConfigProvider } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import 'dayjs/locale/zh-cn';
 import './styles/global.css';
-// 主题接入点：换设计语言时改这两行（主题文件在 src/theme/，流程见 references/prototype-writing.md「品牌主题接入」）
-// 默认主题 = Tabler（2026-08-21 用户拍板）；要 Claude 时改回 claudeTheme/claudeCssVars
+// 默认且唯一的正式 Prototype 视觉入口：Tabler Token + Ant Design 适配。
 import { tablerTheme, tablerCssVars } from './theme/tablerTheme';
 import App from './App.jsx';
 
