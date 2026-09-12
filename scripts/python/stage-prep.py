@@ -65,7 +65,7 @@ CHAPTER_HEADING_PATTERN = re.compile(r'^[一二三四五六七八九十]+[、．
 # "业务规则" 含 "规则" 关键词但它是 ### 容器标题，不应识别为 rule 实体
 HEADING_BLACKLIST = {
     "业务规则", "状态集合", "状态迁移", "状态机", "状态定义", "状态流转",
-    "权限定义", "角色权限", "权限矩阵", "页面清单", "字段定义",
+    "权限定义", "角色权限", "权限矩阵", "页面清单", "字段定义", "字段表", "操作表",
     "页面与字段落点", "页面数据落点", "非页面落点字段",
     "核心业务流程", "业务流程",
 }
@@ -190,16 +190,41 @@ def infer_entities_from_headings(headings: list, stage: str, project_root: Path 
 
 
 def _build_field_attributes(row: list, headers: list) -> dict:
-    """根据列名适配 5 列或 9 列字段格式
-
-    5 列格式（当前设计稿）：字段 | 类型 | 必填 | 枚举值 / 规则 | 说明
-    9 列格式（原模板）：字段 | 类型 | 长度 | 必填 | 默认值 | 枚举值 | 格式 | 业务来源 | 说明
-
-    判断依据：表头是否含"长度"和"默认值"列，而非列数阈值。
-    """
+    """根据列名适配权威 8 列、9 列或 5/7 列字段格式"""
+    has_meaning = any("业务含义" in h for h in headers)
+    has_8col = has_meaning or any("输入与编辑规则" in h for h in headers)
     has_length = any("长度" in h for h in headers)
     has_default = any("默认值" in h for h in headers)
-    if has_length and has_default:
+
+    def _get(candidates, default=None):
+        for i, h in enumerate(headers):
+            for c in candidates:
+                if c == h or (c in h and len(c) >= 4):
+                    if i < len(row) and row[i]:
+                        return row[i].strip()
+        return default
+
+    if has_8col:
+        # 权威 8 列格式（字段名称 | 业务含义 | 字段来源 | 展示条件 | 输入与编辑规则 | 取值与默认规则 | 交互方式 | 校验与反馈）
+        # 八列不存在独立的"数据类型"、"必填"、"长度"、"默认值"、"枚举值"、"格式"、"业务来源"标量列，设为 None（未声明）
+        # 避免把「交互方式」冒充为数据类型、或把未出现“必填”字样降级为 False
+        return {
+            "数据类型": None,
+            "必填": None,
+            "长度": None,
+            "默认值": None,
+            "枚举值": None,
+            "格式": None,
+            "业务来源": None,
+            "说明": _get(["业务含义", "说明"]),
+            "字段来源": _get(["字段来源"]),
+            "展示条件": _get(["展示条件"]),
+            "输入与编辑规则": _get(["输入与编辑规则"]),
+            "取值与默认规则": _get(["取值与默认规则"]),
+            "交互方式": _get(["交互方式"]),
+            "校验与反馈": _get(["校验与反馈"]),
+        }
+    elif has_length and has_default:
         # 9 列格式
         return {
             "数据类型": row[1] if len(row) > 1 else None,
@@ -212,7 +237,7 @@ def _build_field_attributes(row: list, headers: list) -> dict:
             "说明": row[8] if len(row) > 8 else None,
         }
     else:
-        # 5 列格式
+        # 5 列 / 7 列历史格式
         return {
             "数据类型": row[1] if len(row) > 1 else None,
             "必填": row[2] == "是" if len(row) > 2 else None,
@@ -262,11 +287,20 @@ def extract_entities_from_tables(content: str, headings: list, stage: str, count
                             "line": table["line_offset"],
                         })
 
-        # 字段定义表：表头含"字段"和"类型"列（支持 5 列或 9 列格式）
-        if "字段" in headers and "类型" in headers and len(headers) >= 2:
+        # 字段定义表：表头含"字段"或"字段名称"等列（支持权威 8 列、7 列、5 列、9 列或紧凑格式）
+        field_col = None
+        for i, h in enumerate(headers):
+            if h in ("字段", "字段名称", "字段名") or (h.startswith("字段") and "来源" not in h):
+                field_col = i
+                break
+
+        section_title = table.get("section_title", "")
+        is_non_page = "非页面落点字段" in section_title or "页面清单" in section_title
+
+        if field_col is not None and not is_non_page and len(headers) >= 2 and headers[0] != "操作":
             for row in table["rows"]:
-                if len(row) >= 2 and row[0] and row[0] not in ("---", "字段"):
-                    title = row[0]
+                if len(row) > field_col and row[field_col] and row[field_col].strip() not in ("---", "字段", "字段名称", "字段名"):
+                    title = row[field_col].strip()
                     if title in title_to_id:
                         entity_id = title_to_id[title]
                     else:

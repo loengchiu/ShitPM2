@@ -160,50 +160,6 @@ def main() -> int:
         if handoff_checked.returncode != 0:
             print(handoff_checked.stdout, handoff_checked.stderr)
             return 1
-        v2_handoff = {
-            'schema_version': 'design-analysis/v2',
-            'task_id': 'b-layer',
-            'status': 'completed',
-            'coverage': [],
-            'source_refs': [],
-        }
-        for name in ('a-baseline', 'b-baseline', 'c-baseline', 'design-brief', 'business-conflicts', 'cross-layer-conflicts'):
-            relative = {
-                'a-baseline': 'baselines/a-baseline.json',
-                'b-baseline': 'baselines/b-baseline.json',
-                'c-baseline': 'baselines/c-baseline.json',
-                'design-brief': 'baselines/design-brief.json',
-                'business-conflicts': 'conflicts/business-conflicts.json',
-                'cross-layer-conflicts': 'conflicts/cross-layer-conflicts.json',
-            }[name]
-            target = project / '.workflow/runtime/context/design' / relative
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(json.dumps(v2_handoff, ensure_ascii=False), encoding='utf-8')
-        v2_checked = run(
-            str(CHECK), '--project-root', str(project),
-            '--require', 'a-baseline', '--require', 'b-baseline', '--require', 'c-baseline', '--require',
-            'design-brief', '--require', 'business-conflicts', '--require',
-            'cross-layer-conflicts', cwd=ROOT,
-        )
-        if v2_checked.returncode != 0:
-            print(v2_checked.stdout, v2_checked.stderr)
-            return 1
-        bad_version = dict(v2_handoff)
-        bad_version['schema_version'] = 'design-analysis/v1'
-        version_path = project / '.workflow/runtime/context/design/baselines/a-baseline.json'
-        version_path.write_text(json.dumps(bad_version, ensure_ascii=False), encoding='utf-8')
-        rejected_version = run(str(CHECK), '--project-root', str(project), '--require', 'a-baseline', cwd=ROOT)
-        if rejected_version.returncode == 0:
-            print('错误版本的 v2 交接未被拒绝')
-            return 1
-
-        broken_v2 = project / '.workflow/runtime/context/design/baselines/b-baseline.json'
-        broken_v2.write_text(json.dumps({'schema_version': 'design-analysis/v2'}, ensure_ascii=False), encoding='utf-8')
-        rejected_v2 = run(str(CHECK), '--project-root', str(project), '--require', 'b-baseline', cwd=ROOT)
-        if rejected_v2.returncode == 0:
-            print('缺少字段的 v2 交接未被拒绝')
-            return 1
-
         skill = (ROOT / 'skills/spm-design/SKILL.md').read_text(encoding='utf-8-sig')
         for marker in ('context-pack.py', 'context-loading.manifest.json', 'Align 完整对齐稿'):
             if marker not in skill:

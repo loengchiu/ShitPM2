@@ -28,7 +28,7 @@
         "properties": {
           "id": {
             "type": "string",
-            "pattern": "^(MAP|SYS|CON|MOD)-\d{3}$"
+            "pattern": "^(MAP|SYS|CON|MOD)-\\d{3}$"
           },
           "path": { "type": "string" },
           "before_sha256": {

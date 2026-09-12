@@ -19,9 +19,9 @@
 
 ### Design Challenger（独立挑战角色）
 
-v2 主链不再以 `design-model.json` 作为当前输入。Design Challenger 在 `challenge` pass 中对已通过门禁的 A/B/C baseline、analysis 结果、适用场景卡、必要材料事实和动作卡声明的定点证据做独立挑战；当前编排动作的落点使用 `b-layer` 和 `c-layer`，输出分别进入 `b-baseline.json`、`business-conflicts.json`、`c-baseline.json`、`cross-layer-conflicts.json` 和 `design-brief.json`。具体输入文件、哈希和允许证据范围以动作卡为准，不得接收完整历史对话。输出只能是缺陷、影响对象、证据位置、可否由已确认事实修正、是否需要用户确认和是否阻止写作。不得直接修改 Design，不得输出独立 Review 的正式评分或 verdict。
+Design Challenger 在 `challenge` pass 中对分析结果、适用场景卡、必要材料事实和定点证据做独立跨层挑战。输入以已装载规则和目标事实为准，不得接收完整历史对话。输出只能是缺陷、影响对象、证据位置、可否由已确认事实修正、是否需要用户确认和是否阻止写作，不生成独立的 A/B/C JSON 基线资产。不得直接修改 Design，不得输出独立 Review 的正式评分或 verdict。
 
-所有 v2 基线与冲突资产必须遵循 `$BUNDLE/references/design-baseline-format.md`；材料事实必须遵循 `$BUNDLE/references/design-fact-format.md`。动作卡中的 `output_schema` 和 `completion_check` 是执行期约束，不能只依赖模型记忆。
+材料事实必须遵循 `$BUNDLE/references/design-fact-format.md`。Challenger 的结论直接由主 Agent / design-editor 回读并合并进入正式 Design 文件或未决事项。
 
 读取旧版兼容性交接包时，才使用 `design-model.json`、`design-challenge.json` 和项目级 `materials/facts.json`；旧版路径不代表 v2 主链输入。
 

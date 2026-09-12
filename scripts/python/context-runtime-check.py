@@ -135,34 +135,6 @@ def check_material_facts(path: Path, manifest: dict, index: dict, max_tokens: in
     return {'path': str(path), 'tokens': tokens, 'material_revision': data['material_revision']}
 
 
-V2_HANDOFFS = {
-    'a-baseline': ('baselines/a-baseline.json', ('schema_version', 'task_id', 'status', 'coverage', 'source_refs')),
-    'b-baseline': ('baselines/b-baseline.json', ('schema_version', 'task_id', 'status', 'coverage', 'source_refs')),
-    'c-baseline': ('baselines/c-baseline.json', ('schema_version', 'task_id', 'status', 'coverage', 'source_refs')),
-    'design-brief': ('baselines/design-brief.json', ('schema_version', 'task_id', 'status', 'coverage', 'source_refs')),
-    'business-conflicts': ('conflicts/business-conflicts.json', ('schema_version', 'task_id', 'status', 'coverage', 'source_refs')),
-    'cross-layer-conflicts': ('conflicts/cross-layer-conflicts.json', ('schema_version', 'task_id', 'status', 'coverage', 'source_refs')),
-}
-
-
-def check_v2_handoff(path: Path, required: tuple[str, ...], max_tokens: int) -> dict:
-    data = read_json(path)
-    for key in required:
-        if key not in data:
-            raise RuntimeError(f'{path.name} 缺少字段: {key}')
-    if data.get('schema_version') != 'design-analysis/v2':
-        raise RuntimeError(f'{path.name} schema_version 必须为 design-analysis/v2')
-    if not isinstance(data.get('task_id'), str) or not data.get('task_id').strip():
-        raise RuntimeError(f'{path.name} task_id 必须是非空字符串')
-    if data.get('status') not in ('completed', 'success'):
-        raise RuntimeError(f'{path.name} status 必须为 completed 或 success')
-    if not isinstance(data.get('coverage'), list) or not isinstance(data.get('source_refs'), list):
-        raise RuntimeError(f'{path.name} 的 coverage/source_refs 必须是数组')
-    tokens = estimate_tokens(path.read_text(encoding='utf-8-sig'))
-    if tokens > max_tokens:
-        raise RuntimeError(f'{path.name} 约 {tokens} token，超过上限 {max_tokens}')
-    return {'path': str(path), 'tokens': tokens, 'task_id': data.get('task_id')}
-
 
 def check_named_json(path: Path, required: tuple[str, ...], max_tokens: int) -> dict:
     data = read_json(path)
@@ -188,11 +160,10 @@ def main() -> int:
     parser = argparse.ArgumentParser(description='检查项目级材料资产和阶段交接')
     parser.add_argument('--project-root', type=Path, default=Path.cwd())
     parser.add_argument('--stage', choices=['align', 'design', 'prd', 'review', 'fix'], default='design')
-    parser.add_argument('--require', action='append', choices=['material-manifest', 'material-index', 'material-facts', 'design-model', 'design-challenge', *V2_HANDOFFS], default=[])
+    parser.add_argument('--require', action='append', choices=['material-manifest', 'material-index', 'material-facts', 'design-model', 'design-challenge'], default=[])
     parser.add_argument('--max-material-facts', type=int, default=DEFAULT_MAX_MATERIAL_FACTS)
     parser.add_argument('--max-design-model', type=int, default=DEFAULT_MAX_DESIGN_MODEL)
     parser.add_argument('--max-design-challenge', type=int, default=DEFAULT_MAX_DESIGN_CHALLENGE)
-    parser.add_argument('--max-v2-handoff', type=int, default=DEFAULT_MAX_DESIGN_CHALLENGE)
     args = parser.parse_args()
     project_root = args.project_root.resolve()
     materials = project_root / '.workflow' / 'runtime' / 'materials'
@@ -217,9 +188,6 @@ def main() -> int:
                 checked.append({'name': name, **check_named_json(handoff / 'design-model.json', ('scope', 'roles', 'modules', 'flows', 'states', 'permissions', 'open_questions'), args.max_design_model)})
             elif name == 'design-challenge':
                 checked.append({'name': name, **check_named_json(handoff / 'design-challenge.json', ('findings',), args.max_design_challenge)})
-            elif name in V2_HANDOFFS:
-                relative, required = V2_HANDOFFS[name]
-                checked.append({'name': name, **check_v2_handoff(stage_root / relative, required, args.max_v2_handoff)})
         print(json.dumps({'valid': True, 'stage': args.stage, 'checked': checked}, ensure_ascii=False, indent=2))
         return 0
     except (OSError, RuntimeError, ValueError) as exc:

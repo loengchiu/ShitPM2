@@ -45,7 +45,7 @@
             "type": "array",
             "items": {
               "type": "string",
-              "pattern": "^(MAP|SYS|CON|MOD)-\d{3}$"
+              "pattern": "^(MAP|SYS|CON|MOD)-\\d{3}$"
             },
             "description": "只保存发生变化的 Design 文件 ID"
           },
@@ -57,7 +57,7 @@
               "properties": {
                 "id": {
                   "type": "string",
-                  "pattern": "^(MAP|SYS|CON|MOD)-\d{3}$"
+                  "pattern": "^(MAP|SYS|CON|MOD)-\\d{3}$"
                 },
                 "sha256": {
                   "type": "string",

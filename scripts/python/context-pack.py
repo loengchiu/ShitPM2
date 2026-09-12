@@ -128,8 +128,11 @@ def resolve_pack_sections(manifest: dict[str, Any], stage: str, mode: str | None
     if applicability is not None:
         derived_cards = []
         for key, status in applicability.items():
-            if status in {'applicable', 'unknown'}:
+            if status == 'applicable':
                 derived_cards.append(key)
+            elif status == 'unknown':
+                # unknown 不自动装载完整专项规则，也不等同于不适用；先做一次适用性判断，只有需要时才通过 --card 显式装载
+                pass
             elif status != 'not_applicable':
                 raise RuntimeError(f'未知适用性状态: {key}={status}')
         cards = list(dict.fromkeys(cards + derived_cards))

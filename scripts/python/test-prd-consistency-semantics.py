@@ -212,6 +212,38 @@ COMBINED_STATE_PRD = """# PRD 正文
 | 已发出 | 签署中 | 用户 | 签署 | 待签署 | — |
 """
 
+# PRD 写作规则禁止把状态表写进正文，合规 PRD 只能用自然语言枚举状态；
+# 该写法必须能被识别，否则状态维度会整体误报（Design 状态全被判遗漏）。
+DESIGN_WITH_STATE_MACHINE = """# 设计基线
+
+### 页面：订单列表
+
+- 页面目的：查看订单
+- 适用角色：运营人员
+- 进入条件：已登录
+- 数据范围：本组织
+- 主要状态：无状态机
+
+#### 状态机：订单状态
+
+| 状态 | 含义 | 操作人 | 触发动作 | 下一状态 | 限制条件 |
+| --- | --- | --- | --- | --- | --- |
+| 草稿 | 编制中 | 经办人 | 提交 | 待审核 | — |
+| 待审核 | 等待审核 | 审核人 | 通过 | 已完成 | — |
+| 已完成 | 结束 | — | — | — | — |
+"""
+
+PRD_PROSE_STATES = """# 订单 PRD
+
+## 详细需求说明
+
+订单编号为订单唯一编号。
+
+#### 4.1.5 状态与业务规则
+
+订单状态分为草稿、待审核与已完成三种枚举值。
+"""
+
 # 同名"状态"字段按对象区分（年度计划 vs 审批流程实例），不得跨对象误配属性。
 SAME_NAME_DESIGN = """# 设计基线
 
@@ -540,6 +572,19 @@ def main() -> int:
     if set(states_cs) != {"启用", "停用", "进行中", "已通过", "草稿", "已发出", "待签署"}:
         raise AssertionError(f"状态组合值/下一状态/箭头未正确提取: {states_cs}")
 
+    # 回归：PRD 用自然语言枚举状态时必须能提取（规范禁止正文用状态表）。
+    headings_ps = module.parse_headings(PRD_PROSE_STATES)
+    prose_states = module.extract_prd_prose_states(PRD_PROSE_STATES, headings_ps)
+    if set(prose_states) != {"草稿", "待审核", "已完成"}:
+        raise AssertionError(f"自然语言状态枚举未正确提取: {prose_states}")
+
+    # 回归：下拉框/筛选项等界面构件里的括号枚举不是业务状态，不得被当状态来源。
+    ui_prd = "## 详细需求说明\n\n筛选栏常设运行状态下拉框（全部状态、在营中、已停用）。\n"
+    headings_ui = module.parse_headings(ui_prd)
+    ui_states = module.extract_prd_prose_states(ui_prd, headings_ui)
+    if ui_states:
+        raise AssertionError(f"界面构件括号枚举被误当成业务状态: {ui_states}")
+
     with tempfile.TemporaryDirectory() as temp_dir:
         root = Path(temp_dir)
         (root / "output/design").mkdir(parents=True)
@@ -554,7 +599,30 @@ def main() -> int:
         if missing.returncode != 2:
             raise AssertionError(f"输入缺失应返回 2: {missing.returncode}")
 
-    print("test-prd-consistency-semantics: PASS（新结构页面映射、分散字段、斜杠合并字段、数据字典页面、状态组合值、同名按对象、权限 zero 信号、冲突、遗漏、语义判断和致命错误）")
+    # 回归：Design 有状态机、PRD 用自然语言枚举时，已表达的状态不得判为遗漏。
+    _, report_prose = run_case(PRD_PROSE_STATES, DESIGN_WITH_STATE_MACHINE)
+    if report_prose["states"]["missing"]:
+        raise AssertionError(f"PRD 已用自然语言表达的状态不应判为遗漏: {report_prose['states']}")
+    if report_prose["state_evaluation"]["status"] != "extracted":
+        raise AssertionError(f"状态已提取时应报告 extracted: {report_prose['state_evaluation']}")
+
+    # 回归：真漏掉的状态必须仍被检出，修复不得把状态维度做成摆设。
+    dropped_state = PRD_PROSE_STATES.replace("草稿、待审核与已完成", "草稿与已完成")
+    _, report_dropped = run_case(dropped_state, DESIGN_WITH_STATE_MACHINE)
+    if "待审核" not in report_dropped["states"]["missing"]:
+        raise AssertionError(f"PRD 真漏的状态必须被检出: {report_dropped['states']}")
+
+    # 回归：状态完全解析不到时标记未评估，不把解析失败伪造成遗漏清单。
+    no_state_prd = "# 订单 PRD\n\n## 详细需求说明\n\n订单编号为订单唯一编号。\n"
+    _, report_none = run_case(no_state_prd, DESIGN_WITH_STATE_MACHINE)
+    if not report_none["states"].get("not_evaluated"):
+        raise AssertionError(f"状态解析为空时应标记未评估: {report_none['states']}")
+    if report_none["states"]["missing"]:
+        raise AssertionError(f"未评估时不得输出状态遗漏清单: {report_none['states']['missing']}")
+    if report_none["state_evaluation"]["status"] != "cannot_extract":
+        raise AssertionError(f"状态解析为空时应报告 cannot_extract: {report_none['state_evaluation']}")
+
+    print("test-prd-consistency-semantics: PASS（新结构页面映射、分散字段、斜杠合并字段、数据字典页面、状态组合值、自然语言状态枚举、状态未评估、同名按对象、权限 zero 信号、冲突、遗漏、语义判断和致命错误）")
     return 0
 
 

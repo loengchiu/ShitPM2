@@ -15,20 +15,23 @@ Review 是独立第二意见，不是生成门禁，也不承担计划内补全�
 
 - 只审查，不修改正式 Design 文件、设计集清单、决策记录或 metadata。
 - 审查后停在结论输出，不自动修复、不自动确认、不自动推进阶段，不自动调用 `spm-fix`。
+- 默认只审查 Design 正文，不主动读取 PRD 或 Prototype，不因下游文件缺失而阻塞。
+- 只有用户明确要求双下游对照时，才将 PRD 和 Prototype 纳入审查范围，检查与 Design 的事实一致性。
+- 审查重点是产品事实完整性、业务闭环、跨层一致性、高影响假设和局部未决阻塞；不把固定页面属性、八列字段表、十列操作表或状态机表作为所有场景的默认门槛。
 - 审查只依赖 Design 集合与修改状态，不要求 metadata、`page-fields.json` 或其他 Review 存在。
 - 只有输入文件不存在、不可读或完全无法解析时才硬阻塞。
 - 每条问题按 `$BUNDLE/contracts/review-checklist.md` 的 `red`、`risk` 或 `decision` 标注；不复制公共定义。
 
 ## 默认局部 Review
 
-默认只审查用户指定范围的目标文件闭包；完整 Review（整套 Design）只由用户明确触发。
+默认只审查用户指定范围的目标文件闭包；完整 Review（整套 Design）只由用户明确触发。默认不扩展到整套设计或下游产物。
 
 ## 执行流程
 
 1. 确定局部或完整 Review 范围，读取设计地图、设计集清单、目标 Design 文件闭包（目标文件 + 必要系统基线 + 直接契约 + 真正相关的相邻模块）、Design 修改状态、用户指定范围和最近 Review（如有）。修改状态只作为上下文，不构成 Review 门禁。**完成条件**：审查范围、目标文件闭包和每个输入的来源路径已明确。
 2. 确认设计集清单可解析且目标 Design 文件可读。缺失或不可读时停止；缺章节、冲突和质量问题继续作为审查问题。**完成条件**：输入可供审查，或阻塞路径与原因已具体记录。
 3. 读取 `$BUNDLE/contracts/review-checklist.md`、`$BUNDLE/contracts/design-review-checklist.md` 和 `$BUNDLE/references/design-quality-rubric.md` 的独立 Review 部分；按专项契约的触发证据读取对应权威规则来源。只有检测到 `.workflow/metadata/design/` 时才读取 `$BUNDLE/contracts/metadata-anchor-rules.md`。**完成条件**：每个适用检查项的权威依据已加载；缺失依据已按路径记录。
-4. 从人读 Design 而不是 metadata 判断产品事实，按专项契约逐项审查；旧 metadata 仅在存在时作为兼容材料。**完成条件**：每个适用检查项均有证据和结论；无法判断项已标记为 `risk` 或 `decision`，未被默认通过。
+4. 从人读 Design 而不是 metadata 判断产品事实，按专项契约逐项审查；旧 metadata 仅在存在时作为兼容材料。检查事实是否完整、适用性是否合理、高影响假设是否暴露，不将格式适配本身判定为缺陷；发现问题按实际影响定位到页面、字段、操作、状态、权限、异常、验收或未决事项。用户明确要求双下游对照时，对照 PRD/Prototype 检查事实一致性并区分问题方向。**完成条件**：每个适用检查项均有证据和结论；无法判断项已标记为 `risk` 或 `decision`，未被默认通过。
 5. 按公共契约写入 `.workflow/reviews/design-review-N.md`。**完成条件**：结论符合三档门槛，每个 P0/P1 可追溯到位置、影响和建议，三类问题分布及上游同步信息完整。
 6. 输出审查结论后停止，等待用户决定是否修复。**完成条件**：未修改 Design、设计集清单、决策记录或 metadata，未确认或推进阶段。
 

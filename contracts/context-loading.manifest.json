@@ -45,7 +45,6 @@
             "design-analysis-core",
             "design-analysis-boundary",
             "design-methodology-boundary",
-            "design-asset-contract",
             "design-fact-contract"
           ]
         },
@@ -380,11 +379,6 @@
     "prd-example-external-auto": {
       "stage": "prd",
       "source": "references/prd-writing-examples.md",
-      "selector": "marker"
-    },
-    "design-asset-contract": {
-      "stage": "design",
-      "source": "references/design-baseline-format.md",
       "selector": "marker"
     },
     "design-fact-contract": {

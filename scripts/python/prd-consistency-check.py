@@ -55,6 +55,23 @@ _ACTION_FRAGMENT_RE = re.compile(
     r"回退|退回|回到|重新|撤回|修改后|保存后|发送后|删除后|新增后|可修改|重新提交|继续处理|再提交"
 )
 
+# PRD 写作规则禁止把状态表写进正文，要求状态用自然语言表达；
+# 因此除「状态机表」和「箭头文本」外，还需识别规范允许的枚举句式：
+#   「X状态分为A、B与C三种枚举值」「X运行状态枚举严格为A、B、C」「X状态包括A、B」。
+_NL_STATE_ENUM_RE = re.compile(
+    r"状态[^。；\n]{0,30}?"
+    r"(?:分为|枚举(?:值)?(?:严格)?为|包括|包含|取值为|可取值为)"
+    r"\s*[：:]?\s*([^。；\n]+)"
+)
+# 括号枚举（如「通信状态（在线、离线）」）也是规范内的自然语言写法。
+_NL_STATE_PAREN_RE = re.compile(r"状态[^。；\n]{0,20}?[（(]([^）)]+)[）)]")
+# 下拉框/筛选项/按钮等界面构件里的括号枚举不是业务状态，不得当作状态来源。
+_NL_STATE_PAREN_EXCLUDE = ("下拉框", "筛选", "选项", "按钮", "标签", "单选框", "复选框")
+# 枚举句式的收尾（「三种枚举值」「枚举值」）不是状态名的一部分。
+_NL_STATE_ENUM_TAIL_RE = re.compile(r"[一二三四五六七八九十两0-9]+种(?:枚举值)?|枚举值")
+# 自然语言枚举可能把整句话带进来，超过该长度或含句子标点的片段不当作状态名。
+_NL_STATE_TOKEN_MAX_LEN = 12
+
 
 def _clean_object_name(name: str) -> str:
     """从章节标题提取对象名：去编号前缀、去括号补充说明、去尾缀'对象/表'。"""
@@ -492,6 +509,9 @@ def extract_prd_states(content: str, headings: list, tables: list) -> list:
     支持格式：
     1. 箭头文本：state1 → state2 或 state1 -> state2
     2. 状态机/状态清单表格：表头含"状态"，并含"触发动作/进入条件/下一状态/含义/规则"之一
+
+    仅覆盖可确定性判定的写法；PRD 用自然语言枚举状态时由 extract_prd_prose_states
+    提供低置信补充，不在此处混入，避免散文状态被当成确定性冲突。
     """
     # 新结构允许每个业务闭环就近放置“状态与规则/状态与业务规则”，也可能使用
     # “状态机”子标题；逐个收集这些标题的范围，避免漏掉管理端与移动端的状态表。
@@ -608,6 +628,62 @@ def extract_prd_states(content: str, headings: list, tables: list) -> list:
                             _add_state(token)
 
     return states
+
+
+def extract_prd_prose_states(content: str, headings: list) -> list:
+    """从 PRD 正文自然语言里提取状态名（低置信，只用于抑制误报）。
+
+    PRD 写作规则禁止把状态表写进正文，要求状态用自然语言表达，因此合规 PRD 常见
+    「X状态分为A、B与C三种枚举值」「X状态枚举严格为A、B」「X状态（A、B）」三种句式。
+    这些状态名来自散文，无法与 Design 状态机做确定性比对，因此：
+
+    - 只用于避免把 PRD 已表达的状态误判为「可能遗漏」；
+    - 不用于判定「PRD 多出 Design 没有的状态」；未被 Design 状态机声明的散文状态只作为
+      语义候选列出，交人工核对，避免散文分词噪声变成确定性冲突。
+    """
+    clean = _strip_code_blocks(content)
+    lines = clean.split("\n")
+    tokens: list = []
+    seen: set[str] = set()
+
+    def _collect(raw: str) -> None:
+        for token in _split_nl_state_enum(raw):
+            if token not in seen:
+                seen.add(token)
+                tokens.append(token)
+
+    for line in lines:
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or stripped.startswith("|"):
+            continue
+        for match in _NL_STATE_ENUM_RE.finditer(stripped):
+            _collect(match.group(1))
+        # 下拉框、筛选项、按钮标签等界面构件里的括号不是业务状态，整行排除。
+        if any(word in stripped for word in _NL_STATE_PAREN_EXCLUDE):
+            continue
+        for match in _NL_STATE_PAREN_RE.finditer(stripped):
+            _collect(match.group(1))
+    return tokens
+
+
+def _split_nl_state_enum(raw: str) -> list:
+    """拆分自然语言状态枚举片段（与 Design 侧共用同一套状态名拆分口径）。"""
+    if not raw:
+        return []
+    text = _NL_STATE_ENUM_TAIL_RE.sub("", str(raw))
+    # 「A、B与C」中的连接词按顿号处理，保证与表格写法得到同一组状态名。
+    text = text.replace("与", "、").replace("和", "、")
+    tokens = []
+    for part in _split_state_tokens(text):
+        token = part.strip()
+        if not token or len(token) > _NL_STATE_TOKEN_MAX_LEN:
+            continue
+        if any(ch in token for ch in "为即：:。；！？!?"):
+            continue
+        if token.endswith(("状态", "规则", "条件", "说明", "枚举值")):
+            continue
+        tokens.append(token)
+    return tokens
 
 
 def extract_prd_state_enum_values(tables: list) -> list:
@@ -1865,6 +1941,8 @@ def main():
     prd_fields = extract_prd_fields(headings, tables, content)
     prd_pages = extract_prd_pages(content, headings)
     prd_states = extract_prd_states(content, headings, tables)
+    # 正文自然语言枚举的状态（低置信）：只用于抑制误报，不用于判幻觉。
+    prd_prose_states = extract_prd_prose_states(content, headings)
     prd_perm_pages = extract_prd_permission_pages(headings, tables, content)
 
     # Design 页面正文落点候选：页面只在清单/总体说明出现、未在 4.x.6 正文落点 → possible_omission；
@@ -1968,6 +2046,50 @@ def main():
     state_result["hallucinated"] = kept_hallucinated
     state_result["state_via_enum"] = state_via_enum
     state_result["state_via_process"] = state_via_process
+
+    # PRD 用自然语言枚举状态时（合规写法），状态名来自散文，不能作为确定性证据：
+    # 只用于消除「Design 有、PRD 也写了却被判遗漏」的假红；不产生新的幻觉判定。
+    state_via_prose = []
+    prose_unmatched = []
+    if prd_prose_states:
+        suppressed = [s for s in state_result["missing"] if s in prd_prose_states]
+        state_result["missing"] = [s for s in state_result["missing"] if s not in prd_prose_states]
+        state_via_prose = [
+            {
+                "state": s,
+                "issue": "prd_prose_state",
+                "note": "PRD 以自然语言枚举表达该状态，无法与 Design 状态机做确定性比对，需人工核对",
+            }
+            for s in suppressed
+        ]
+        # PRD 表达了、Design 未以状态机声明的状态：可能是 Design 字段枚举的正常表达口径差异，
+        # 也可能是 Design 缺口；散文分词不足以判确定性冲突，交人工核对。
+        prose_unmatched = [
+            {
+                "state": s,
+                "issue": "prd_prose_state_not_in_design_machine",
+                "note": "PRD 正文表达了该状态，但 Design 未以状态机声明；需人工核对其是否已在 Design 字段枚举或页面状态中定义",
+            }
+            for s in prd_prose_states
+            if s not in design_deliverable_states
+        ]
+    state_result["state_via_prose"] = state_via_prose
+    state_result["prd_prose_state_unmatched"] = prose_unmatched
+
+    # 状态提取为空时，missing/hallucinated 集合无意义（既不能证明缺失，也不能证明新增）。
+    # 合规 PRD 用自然语言表达状态，解析器仍可能一无所获；此时不得把解析失败当成状态遗漏，
+    # 与权限提取为空同样处理：全部标记为未评估，交人工验收。
+    states_extracted = bool(prd_states or prd_prose_states)
+    if design_deliverable_states and not states_extracted:
+        state_result = {"missing": [], "hallucinated": [], "matched_count": 0, "not_evaluated": True}
+        state_via_enum = []
+        state_via_process = []
+        state_via_prose = []
+        prose_unmatched = []
+        state_result["state_via_enum"] = state_via_enum
+        state_result["state_via_process"] = state_via_process
+        state_result["state_via_prose"] = state_via_prose
+        state_result["prd_prose_state_unmatched"] = prose_unmatched
     perm_result = compare_permission_pages(design_permissions, prd_perm_pages)
 
     # ShitPM 增强：权限角色对对比（覆盖角色级一致性，检测 PRD 中 design 没有的角色-页面组合）
@@ -2026,6 +2148,8 @@ def main():
     needs_semantic_judgment_items.extend(field_result.get("merged_split_unmatched", []))
     needs_semantic_judgment_items.extend(state_result.get("state_via_enum", []))
     needs_semantic_judgment_items.extend(state_result.get("state_via_process", []))
+    needs_semantic_judgment_items.extend(state_result.get("state_via_prose", []))
+    needs_semantic_judgment_items.extend(state_result.get("prd_prose_state_unmatched", []))
     needs_semantic_judgment_items.extend(indexed_result.get("field_name_variants", []))
     if indexed_result.get("operations"):
         needs_semantic_judgment_items.append({
@@ -2116,6 +2240,19 @@ def main():
             "note": "解析结果为空不代表权限一致；不得将权限缺失视为通过。",
         }
 
+    # 状态解析为空时同样给出“无法提取、需人工验收”信号，不得显示为“状态一致”。
+    if states_extracted:
+        state_evaluation = {
+            "status": "extracted",
+            "message": "状态已从 PRD 正文提取，仍需人工核对状态集合与流转是否与 Design 一致。",
+        }
+    else:
+        state_evaluation = {
+            "status": "cannot_extract",
+            "message": "状态无法从当前正文提取，需人工验收",
+            "note": "解析结果为空不代表状态一致；不得将状态缺失视为通过。",
+        }
+
     # ShitPM 修复包 D：exit_reason 按严重程度优先级判定
     # 优先级：deterministic_conflict > possible_omission > needs_semantic_judgment > ok
     if (total_hallucinated > 0 or field_result["enum_mismatch"]
@@ -2139,6 +2276,7 @@ def main():
             "prd_fields_count": len(prd_fields),
             "prd_pages_count": len(prd_pages),
             "prd_states_count": len(prd_states),
+            "prd_prose_states_count": len(prd_prose_states),
             "prd_permission_pages_count": len(prd_perm_pages),
             "prd_permission_role_pairs_count": len(prd_perm_pairs),
             "prd_roles_count": len(prd_roles),
@@ -2147,6 +2285,7 @@ def main():
         "fields": field_result,
         "pages": page_result,
         "states": state_result,
+        "state_evaluation": state_evaluation,
         "permissions": perm_result,
         "permission_role_pairs": perm_pair_result,
         "permission_inversions": permission_inversions,

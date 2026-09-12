@@ -24,13 +24,13 @@
         "properties": {
           "id": {
             "type": "string",
-            "pattern": "^(MAP|SYS|CON|MOD)-\d{3}$",
+            "pattern": "^(MAP|SYS|CON|MOD)-\\d{3}$",
             "description": "稳定 ID，创建后不因文件移动、重命名或章节调整而改变"
           },
           "path": {
             "type": "string",
             "description": "相对 output/design/ 的路径，使用 /，不得使用绝对路径或 ..",
-            "pattern": "^(?!\.\.)(?![/\\\\])[^\\\\]+$"
+            "pattern": "^(?!\\.\\.)(?![/\\\\])[^\\\\]+$"
           },
           "type": {
             "type": "string",
@@ -48,7 +48,7 @@
             "type": "array",
             "items": {
               "type": "string",
-              "pattern": "^(MAP|SYS|CON|MOD)-\d{3}$"
+              "pattern": "^(MAP|SYS|CON|MOD)-\\d{3}$"
             },
             "description": "从当前文件指向当前文件成立所必需的上游文件 ID；程序沿该字段递归读取依赖闭包"
           },
@@ -69,12 +69,12 @@
         "properties": {
           "id": {
             "type": "string",
-            "pattern": "^DEC-\d{3}$"
+            "pattern": "^DEC-\\d{3}$"
           },
           "title": { "type": "string" },
           "owner_file_id": {
             "type": "string",
-            "pattern": "^(MAP|SYS|CON|MOD)-\d{3}$"
+            "pattern": "^(MAP|SYS|CON|MOD)-\\d{3}$"
           },
           "status": {
             "type": "string",
@@ -84,7 +84,7 @@
             "type": "array",
             "items": {
               "type": "string",
-              "pattern": "^(MAP|SYS|CON|MOD)-\d{3}$"
+              "pattern": "^(MAP|SYS|CON|MOD)-\\d{3}$"
             }
           }
         },
