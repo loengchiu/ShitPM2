@@ -1,31 +1,36 @@
-import { App, Button, Card, Col, DatePicker, Form, Input, InputNumber, Radio, Row, Select, Steps, Typography } from 'antd';
-import { IconArrowLeft, IconRefresh, IconSend, IconX } from '../../shared/icons';
-import PageFooter from '../../shared/ui/PageFooter.jsx';
+import { App, Button, Card, Col, DatePicker, Form, Input, InputNumber, Radio, Row, Select, Steps } from 'antd';
+import { IconRefresh, IconSend, IconX } from '../../shared/icons';
+import {
+  ActionBar,
+  FormSection,
+  PageFooter,
+  PageHeader,
+} from '../../shared/ui';
 import { navigate } from '../../shared/useHashRoute.js';
 
-const { Title } = Typography;
-
 // 表单页样张：内页（由列表页"申请出库"进入）
-// 体现：显式标题 + 右上返回 + Steps 审批流 + 文本域单独一行 + 底部操作栏（保存/提交/重置/取消为纯文字无图标）
+// 体现：PageHeader + onBack + Steps 审批流 + FormSection + 文本域单独一行 + ActionBar 底部操作栏
 export default function FormDemo() {
   const [form] = Form.useForm();
   const { message } = App.useApp();
 
   const submit = async () => {
     try {
-      await form.validateFields();
-      message.success('出库申请已提交');
+      const values = await form.validateFields();
+      message.success('出库申请已提交：' + JSON.stringify(values));
     } catch {
-      message.error('请先补全必填信息');
+      message.error('表单校验失败，请补全必填信息');
     }
   };
+
   return (
     <div>
-      {/* 内页显式标题 + 返回按钮（右上角） */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <Title level={4} style={{ margin: 0 }}>出库申请</Title>
-        <Button icon={<IconArrowLeft size={16} />} onClick={() => navigate('/')}>返回</Button>
-      </div>
+      {/* 共享 PageHeader + onBack */}
+      <PageHeader
+        title="出库申请"
+        subtitle="填写资产出库申请信息并提交审批"
+        onBack={() => navigate('/')}
+      />
 
       {/* 审批流 */}
       <Card style={{ marginBottom: 16 }}>
@@ -35,8 +40,8 @@ export default function FormDemo() {
         />
       </Card>
 
-      {/* 表单：普通字段一行两列，文本域单独一行 */}
-      <Card title="出库信息" style={{ marginBottom: 16 }}>
+      {/* 表单：FormSection 承载分区 */}
+      <FormSection title="出库信息" style={{ marginBottom: 16 }}>
         <Form
           form={form}
           layout="vertical"
@@ -90,17 +95,23 @@ export default function FormDemo() {
             </Col>
           </Row>
         </Form>
-      </Card>
+      </FormSection>
 
-      {/* 内页底部版权（内容最底部一行） */}
+      {/* 内页底部版权（内容最底部一行，在 ActionBar 之前） */}
       <PageFooter />
 
-      {/* 页面级操作栏：底部通栏贴底，按钮带图标 */}
-      <div className="page-action-bar">
-        <Button icon={<IconRefresh size={16} />} onClick={() => form.resetFields()}>重置</Button>
-        <Button icon={<IconX size={16} />} onClick={() => navigate('/')}>取消</Button>
-        <Button type="primary" icon={<IconSend size={16} />} onClick={submit}>提交申请</Button>
-      </div>
+      {/* 页面级操作栏：ActionBar sticky 贴底，通过 form 实例操作 */}
+      <ActionBar>
+        <Button icon={<IconRefresh size={16} />} onClick={() => form.resetFields()}>
+          重置
+        </Button>
+        <Button icon={<IconX size={16} />} onClick={() => navigate('/')}>
+          取消
+        </Button>
+        <Button type="primary" icon={<IconSend size={16} />} onClick={submit}>
+          提交申请
+        </Button>
+      </ActionBar>
     </div>
   );
 }

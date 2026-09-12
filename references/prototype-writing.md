@@ -48,7 +48,7 @@ Hash 地址可能带查询参数（例如 `#/demo-form?case=1`）；路由匹配
 
 ## 二、组件与视觉入口
 
-视觉规则只从 `prototype-visual-spec.md` 读取。可执行 Token 在模板 `src/theme/tablerTokens.ts` 和 `tablerTheme.ts`，高频结构在 `src/shared/ui/`。页面不复制全局颜色、字号、间距、圆角或阴影。
+视觉规则只从 `prototype-visual-spec.md` 读取。运行时主题入口是 `src/theme/tablerTheme.ts`；图表必要颜色由 `tablerTokens.ts` 的 `chart` 段提供；高频结构在 `src/shared/ui/`。页面不复制全局颜色、字号、间距、圆角或阴影。
 
 需要被全局样式或 Portal 内容读取的 CSS 变量挂在 `document.documentElement`；不要只挂在 `#root`。Ant Design 的 Modal、Dropdown 等内容可能渲染到 `document.body`，无法继承 `#root` 上的变量。
 
@@ -107,7 +107,7 @@ const trendOption = useMemo(() => ({
 ### 表格
 
 - 操作列使用 `whiteSpace: "nowrap"`；表头全局不换行；状态列使用 `TablerStatusTag`。
-- 列数较多或总宽超过卡片宽度时，每列给出合理 `width` 并设置 `scroll={{ x: ... }}`；只有确有业务需要固定列时才使用 `fixed: "right"`，并按组件行为规范复核背景、层级和横向滚动遮挡。
+- 列数较多或总宽超过卡片宽度时，每列给出合理 `width` 并设置 `scroll={{ x: ... }}`；只有确有业务需要固定列时才使用 `fixed: 'end'`（左侧固定统一使用 `fixed: 'start'`；旧的 `left/right` 在 antd 6 仍会被 rc-table 归一化兼容，但项目新代码统一使用 `start/end`），并按组件行为规范复核背景、层级和横向滚动遮挡。
 - 查询按钮和重置按钮放查询 Form；工具栏放新增、批量和其他业务操作。
 - 数字、金额和时间按视觉规范处理为可读的等宽数字和合适对齐，不在页面临时发明样式。
 

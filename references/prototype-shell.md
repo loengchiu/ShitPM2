@@ -56,7 +56,7 @@ export const routes = [
 `src/shared/useHashRoute.js`（极简 Hash 路由，不引入 react-router）：
 
 ```js
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 function readLocation() {
   const hash = window.location.hash.replace(/^#/, '');
@@ -122,7 +122,7 @@ export default function App() {
           <Breadcrumb items={[{ title: route.title }]} />
           <Space>
             {/* 多角色项目：角色切换 Select 统一放这里，页内不放 */}
-            <Avatar style={{ background: 'var(--spm-color-primary)' }}>示</Avatar><span>演示用户</span>
+            <Avatar style={{ background: 'var(--brand)' }}>示</Avatar><span>演示用户</span>
           </Space>
         </Header>
         <Content className="content-wrap">
@@ -137,17 +137,23 @@ export default function App() {
 页面组件只负责业务页面，不重复写壳层：
 
 ```jsx
+import { SectionCard, DataTable, StatusTag } from './shared/ui/index.jsx';
+
 export default function PlanList() {
   const columns = [
     { title: '计划名称', dataIndex: 'name' },
-    { title: '状态', dataIndex: 'status', width: 120,
-      render: (v) => <Tag color={v === '已通过' ? 'green' : 'orange'}>{v}</Tag> },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      width: 120,
+      render: (v) => <StatusTag status={v === '已通过' ? 'success' : 'warning'} text={v} />,
+    },
   ];
-  const data = [{ key: 1, name: '2026 年度审计计划', status: '已通过' }];
+  const data = [{ key: '1', name: '2026 年度审计计划', status: '已通过' }];
   return (
-    <Card>
-      <Table columns={columns} dataSource={data} pagination={false} size="middle" />
-    </Card>
+    <SectionCard title="年度计划列表">
+      <DataTable columns={columns} dataSource={data} rowKey="key" />
+    </SectionCard>
   );
 }
 ```

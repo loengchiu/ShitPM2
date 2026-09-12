@@ -5,12 +5,12 @@ import { TablerChart, tablerChartAxis, tablerChartPalette } from '../../shared/c
 import { navigate } from '../../shared/useHashRoute.js';
 import { useRole } from '../../shared/role.jsx';
 import {
-  TablerDataTable,
-  TablerMetricCard,
-  TablerRowActions,
-  TablerSectionCard,
-  TablerStatusTag,
-  TablerToolbar,
+  DataTable,
+  MetricCard,
+  RowActions,
+  SectionCard,
+  StatusTag,
+  Toolbar,
 } from '../../shared/ui';
 
 // 模板占位页：展示共享 UI 与 Tabler 视觉的调用方式，生成原型时按 Design 替换
@@ -88,7 +88,7 @@ export default function Home() {
       title: '状态',
       dataIndex: 'status',
       width: 120,
-      render: (value) => <TablerStatusTag status={value} />,
+      render: (value) => <StatusTag status={value} />,
     },
     { title: '负责人', dataIndex: 'owner', width: 120 },
     { title: '创建时间', dataIndex: 'createdAt', width: 180 },
@@ -97,12 +97,12 @@ export default function Home() {
       key: 'actions',
       width: 160,
       render: (_, record) => (
-        <TablerRowActions
+        <RowActions
           items={[
-            { key: 'view', label: '查看', onClick: () => navigate('/demo-form?mode=view&id=' + encodeURIComponent(record.id)) },
+            { key: 'view', label: '查看', onClick: () => navigate('/form-demo?mode=view&id=' + encodeURIComponent(record.id)) },
             ...(canMaintain
               ? [
-                  { key: 'edit', label: '编辑', onClick: () => navigate('/demo-form?mode=edit&id=' + encodeURIComponent(record.id)) },
+                  { key: 'edit', label: '编辑', onClick: () => navigate('/form-demo?mode=edit&id=' + encodeURIComponent(record.id)) },
                   { key: 'delete', label: '删除', danger: true, onClick: () => removeRow(record) },
                 ]
               : []),
@@ -116,7 +116,7 @@ export default function Home() {
     <div>
       {/* 不设页面大标题：页签栏表达当前页面；顶部只放有行为的主操作 */}
       <div className="page-actions">
-        <Button type="primary" icon={<IconPlus size={16} />} onClick={() => navigate('/demo-form?mode=create')}>
+        <Button type="primary" icon={<IconPlus size={16} />} onClick={() => navigate('/form-demo?mode=create')}>
           新建任务
         </Button>
       </div>
@@ -124,29 +124,29 @@ export default function Home() {
       <section className="dashboard-section dashboard-metrics" aria-label="关键指标">
         <Row gutter={16}>
           <Col xs={12} md={6}>
-            <TablerMetricCard title="今日待办" value={12} trend="up" trendLabel="较昨日 +3" icon={<IconList size={16} />} />
+            <MetricCard title="今日待办" value={12} trend="up" trendLabel="较昨日 +3" icon={<IconList size={16} />} />
           </Col>
           <Col xs={12} md={6}>
-            <TablerMetricCard title="本月新增" value={48} suffix="项" trend="down" trendLabel="较上月 -5" icon={<IconChartBar size={16} />} />
+            <MetricCard title="本月新增" value={48} suffix="项" trend="down" trendLabel="较上月 -5" icon={<IconChartBar size={16} />} />
           </Col>
           <Col xs={12} md={6}>
-            <TablerMetricCard title="已完成" value={36} trend="up" trendLabel="完成率 75%" icon={<IconEye size={16} />} />
+            <MetricCard title="已完成" value={36} trend="up" trendLabel="完成率 75%" icon={<IconEye size={16} />} />
           </Col>
           <Col xs={12} md={6}>
-            <TablerMetricCard title="异常告警" value="暂无" icon={<IconInbox size={16} />} />
+            <MetricCard title="异常告警" value="暂无" icon={<IconInbox size={16} />} />
           </Col>
         </Row>
       </section>
 
       <section className="dashboard-section">
-        <TablerSectionCard title="近期趋势" extra={<span style={{ color: 'var(--text-secondary)' }}>最近五日</span>}>
+        <SectionCard title="近期趋势" extra={<span style={{ color: 'var(--text-secondary)' }}>最近五日</span>}>
           <TablerChart option={chartOption} height={240} />
-        </TablerSectionCard>
+        </SectionCard>
       </section>
 
       <section className="dashboard-section">
-        <TablerSectionCard title="任务列表">
-          <TablerToolbar
+        <SectionCard title="任务列表">
+          <Toolbar
             actions={
               canMaintain ? (
                 <Space>
@@ -176,9 +176,9 @@ export default function Home() {
                 以下仅显示本人负责的 {visibleRows.length} 条任务
               </span>
             )}
-          </TablerToolbar>
+          </Toolbar>
 
-          <TablerDataTable
+          <DataTable
             rowKey="id"
             columns={columns}
             dataSource={visibleRows}
@@ -187,7 +187,7 @@ export default function Home() {
             emptyDescription="当前条件下没有数据，可恢复示例数据后重试"
             pagination={false}
           />
-        </TablerSectionCard>
+        </SectionCard>
       </section>
     </div>
   );

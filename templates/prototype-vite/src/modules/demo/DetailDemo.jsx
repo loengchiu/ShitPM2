@@ -1,11 +1,16 @@
-import { App, Button, Card, Table, Tag, Typography } from 'antd';
-import { IconArrowLeft, IconDownload, IconEdit, IconPrinter } from '../../shared/icons';
+import { App, Button } from 'antd';
+import { IconDownload, IconEdit, IconPrinter } from '../../shared/icons';
+import {
+  ActionBar,
+  DataTable,
+  PageFooter,
+  PageHeader,
+  SectionCard,
+  StatusTag,
+} from '../../shared/ui';
 import DetailList from '../../shared/ui/DetailList.jsx';
-import PageFooter from '../../shared/ui/PageFooter.jsx';
 import { navigate } from '../../shared/useHashRoute.js';
 import { useRole } from '../../shared/role.jsx';
-
-const { Title } = Typography;
 
 const columns = [
   { title: '期数', dataIndex: 'period', key: 'period', width: 90 },
@@ -18,7 +23,7 @@ const columns = [
     dataIndex: 'status',
     key: 'status',
     width: 100,
-    render: (v) => <Tag color={v === '已缴清' ? 'success' : 'processing'}>{v}</Tag>,
+    render: (v) => <StatusTag status={v === '已缴清' ? 'success' : 'progress'} text={v} />,
   },
 ];
 
@@ -40,8 +45,8 @@ const baseInfo = [
   { label: '联系电话', value: '138****6621' },
   { label: '入驻日期', value: '2026-04-01' },
   { label: '到期日期', value: '2027-03-31' },
-  { label: '商户类型', value: '餐饮' },
-  { label: '经营状态', value: <Tag color="processing">正常经营</Tag> },
+  { label: '补充协议', value: null }, // 空字段示例：由 DetailList 自动展示为 —
+  { label: '经营状态', value: <StatusTag status="progress" text="正常经营" /> },
 ];
 
 const paymentInfo = [
@@ -52,7 +57,7 @@ const paymentInfo = [
   { label: '开票抬头', value: '东莞市肯德基餐饮有限公司' },
   { label: '税率', value: '6%' },
   { label: '下次应收日', value: '2026-08-25' },
-  { label: '催缴提醒', value: <Tag color="warning">提前 5 天提醒</Tag> },
+  { label: '催缴提醒', value: <StatusTag status="warning" text="提前 5 天提醒" /> },
 ];
 
 const noteInfo = [
@@ -75,43 +80,45 @@ export default function DetailDemo() {
 
   return (
     <div>
-      {/* 内页显式标题 + 返回按钮（右上角，与标题对齐） */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <Title level={4} style={{ margin: 0 }}>商户详情</Title>
-        <Button icon={<IconArrowLeft size={16} />} onClick={() => navigate('/')}>返回</Button>
-      </div>
+      {/* 共享 PageHeader + onBack */}
+      <PageHeader
+        title="商户详情"
+        subtitle="合同编号 HT-2026-0032 · 缴费周期 2026-04 ~ 2027-03"
+        onBack={() => navigate('/')}
+        actions={<StatusTag status="success" text="已缴清" />}
+      />
 
-      {/* 状态摘要行（信息展示，非按钮） */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-        <Tag color="success">已缴清</Tag>
-        <span style={{ color: '#6c6a64', fontSize: 13 }}>合同编号 HT-2026-0032 · 缴费周期 2026-04 ~ 2027-03</span>
-      </div>
-
-      {/* 基本信息：20/30/20/30（一线角色不渲染联系人字段对） */}
+      {/* 基本信息：20/30/20/30（一线角色不渲染联系人字段对；空字段展示为 —） */}
       <DetailList title="基本信息" items={visibleBaseInfo} variant="pair" />
 
       {/* 缴费信息：20/30/20/30 */}
       <DetailList title="缴费信息" items={paymentInfo} variant="pair" />
 
       {/* 收款明细 */}
-      <Card className="detail-records-card" title="收款明细" style={{ marginBottom: 16 }}>
-        <Table columns={columns} dataSource={records} pagination={false} />
-      </Card>
+      <SectionCard title="收款明细" style={{ marginBottom: 16 }}>
+        <DataTable columns={columns} dataSource={records} pagination={false} />
+      </SectionCard>
 
       {/* 备注：20/80 */}
       <DetailList title="备注" items={noteInfo} variant="text" />
 
-      {/* 内页底部版权（内容最底部一行） */}
+      {/* 内页底部版权（内容最底部一行，在 ActionBar 之前） */}
       <PageFooter />
 
-      {/* 页面级操作栏：底部通栏贴底，靠右 */}
-      <div className="page-action-bar">
+      {/* 页面级操作栏：共享 ActionBar 贴底 */}
+      <ActionBar>
         {canEdit && (
-          <Button icon={<IconEdit size={16} />} onClick={() => navigate('/form-demo?mode=edit&id=1')}>编辑</Button>
+          <Button icon={<IconEdit size={16} />} onClick={() => navigate('/form-demo?mode=edit&id=1')}>
+            编辑
+          </Button>
         )}
-        <Button icon={<IconPrinter size={16} />} onClick={() => message.info('打印预览已准备')}>打印</Button>
-        <Button type="primary" icon={<IconDownload size={16} />} onClick={() => message.success('账单已导出')}>导出账单</Button>
-      </div>
+        <Button icon={<IconPrinter size={16} />} onClick={() => message.info('打印预览已准备')}>
+          打印
+        </Button>
+        <Button type="primary" icon={<IconDownload size={16} />} onClick={() => message.success('账单已导出')}>
+          导出账单
+        </Button>
+      </ActionBar>
     </div>
   );
 }

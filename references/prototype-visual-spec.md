@@ -44,20 +44,20 @@
 | 角色 | Token | 值 | 用途 |
 |---|---|---|---|
 | 主色 | `colorPrimary` | `#066fd1` | 主行动按钮、当前导航、链接、重要信息高亮 |
-| 主色 hover | `colorPrimaryHover` | `#0559a8` | 主按钮 / 链接 hover |
+| 主色 hover | `colorPrimaryHover` | `#0563BC` | 主按钮 / 链接 hover |
 | 成功 | `colorSuccess` | `#2fb344` | 成功 / 已完成 / 已验证 |
 | 警告 | `colorWarning` | `#f59f00` | 待处理 / 接近阈值 / 需关注 |
 | 错误 | `colorError` | `#d63939` | 失败 / 校验不通过 / 破坏性操作 |
 | 信息 | `colorInfo` | `#4299e1` | 进行中 / 提示（Tabler 独立信息蓝，不复用主色） |
-| 文字一级 | `colorText` | `#232e3c` | 标题、正文、主要数据 |
-| 文字二级 | `colorTextSecondary` | `#626976` | 辅助文字、标签、表头 |
-| 文字三级 | `colorTextTertiary` | `#959dac` | 占位符、禁用、次要说明 |
+| 文字一级 | `colorText` | `#1f2937` | 标题、正文、主要数据 |
+| 文字二级 | `colorTextSecondary` | `#6b7280` | 辅助文字、标签、表头 |
+| 文字三级 | `colorTextTertiary` | `#9ca3af` | 占位符、禁用、次要说明 |
 | 边框 | `colorBorder` | `#e5e7eb` | 控件、卡片边界（Tabler 浅灰，比 antd 默认浅） |
 | 分割线 | `colorSplit` | `#e5e7eb` | 行内 / 区块分隔 |
 | 页面背景 | `colorBgLayout` | `#f9fafb` | 内容区底色（比 antd 更白净） |
 | 容器背景 | `colorBgContainer` | `#ffffff` | 卡片、表格、面板 |
-| 浅层背景 | `colorFillAlter` | `#fafbfc` | 表头、标签底色、hover 行 |
-| 深色侧栏 | `colorSider` | `#182433` | 侧栏背景（Tabler dark nav 色） |
+| 浅层背景 | `colorFillAlter` | `#f9fafb` | 表头、标签底色、hover 行 |
+| 侧栏背景 | `colorSider` | `#ffffff` | 侧栏背景（当前项目已拍板浅色侧栏） |
 | 深色侧栏选中态 | `colorSiderSelectedBg` | `rgba(6,111,209,0.22)` | 深色侧栏当前导航背景（`antd-adapter`） |
 | 深色背景文字 | `colorTextOnDark` | `#ffffff` | 深色侧栏当前导航文字（`antd-adapter`） |
 | 主色浅选中态 | `colorPrimarySelectedBg` | `rgba(6,111,209,0.09)` | Select 等控件的已选项背景（`antd-adapter`） |
@@ -167,7 +167,7 @@
 
 - 统一使用模板 `src/shared/charts/TablerChart.jsx`：`TablerChart` 容器 + `tablerChartPalette` 色板 + `tablerChartAxis` 坐标轴 / 网格（值来自 `tablerTokens.chart`，不复刻 Arco）。
 - 折线图（趋势 / 时间序列）：`color: tablerChartPalette`，`xAxis/yAxis` 展开 `tablerChartAxis`，line `width: 2`，可加浅色面积渐变。
-- 饼图 / 环形图（占比 / 分布）：数据少用环形 `radius: [45%, 70%]`；Legend 圆点、`icon: circle`、文字色 `#626976`。
+- 饼图 / 环形图（占比 / 分布）：数据少用环形 `radius: [45%, 70%]`；Legend 圆点、`icon: circle`、文字色 `#6b7280`。
 - Tooltip：`trigger: axis`（趋势）/ `trigger: item`（占比），不做自定义皮肤。
 - `option` 必须 `useMemo` 保持引用稳定（TablerChart 内部依赖 `[option]`，否则反复 init/dispose）；容器随窗口 resize，不手写尺寸逻辑。
 
@@ -206,13 +206,13 @@
 生成后逐条核对，全部通过才算完成：
 
 - [ ] 所有间距取自 `4/8/12/16/20/24/32/48`（优先 4 的倍数）
-- [ ] 主色 `#066fd1` 只用于主行动 / 当前导航 / 链接；**一视图仅一个主按钮**
+- [ ] 主色 `#066fd1` 只用于主行动 / 当前导航 / 链接；主色 hover / active 使用 `#0563BC`；**一视图仅一个主按钮**
 - [ ] 功能色只表达状态，不装饰；成功 `#2fb344` / 警告 `#f59f00` / 错误 `#d63939` / 信息 `#4299e1`
-- [ ] 正文 14/22，字阶 ≤ 5 种，标题用 500/600 字重
+- [ ] 正文使用 `#1f2937`（14/22）、次要文字使用 `#6b7280`、三级文字使用 `#9ca3af`；字阶 ≤ 5 种，标题用 500/600 字重
 - [ ] 字体走 antd 官方默认栈，主题不覆盖 `fontFamily`；无字体下载依赖
 - [ ] 数字 `tabular-nums` + 右对齐
 - [ ] 圆角按用途取固定值：控件 6、小标签 4、卡片 8
-- [ ] 边框色 `#e5e7eb`、页面底 `#f9fafb`、表头浅底 `#fafbfc`（非 antd 默认 `#d9d9d9`/`#f5f5f5`）
+- [ ] 边框色 `#e5e7eb`、页面底和表头底使用 `#f9fafb`、侧栏使用白底 `#ffffff`（非 antd 默认 `#d9d9d9`/`#f5f5f5`）
 - [ ] Header 高度 56 与内容区 `calc(100vh - 56px)` 一致，无两套高度
 - [ ] 每类页面按 `prototype-page-types.md` 命中类型的标准结构与必须项执行（含分页总条数、筛选折叠、卡头徽章、空字段 `—` 等口径）
 - [ ] 高频结构使用 `src/shared/ui/` 共享组件，页面不复制局部 CSS

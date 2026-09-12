@@ -1,5 +1,6 @@
 // DesignGallery：设计语言样张页——聚合展示中后台典型元素
-// 用途：评审 Claude 主题观感；元素覆盖指标卡/工具栏/表格(钉首末列)/表单/标签/按钮
+// 注意：本文件仅用于展示原生控件观感，不作为业务页面写法样板；其特殊例外不得扩大到其他 modules/ 页面
+// 用途：评审 Ant Design + Tabler 主题观感；元素覆盖指标卡/工具栏/表格(钉首末列)/表单/标签/按钮
 import { useMemo, useState } from 'react';
 import PageFooter from '../../shared/ui/PageFooter.jsx';
 import {

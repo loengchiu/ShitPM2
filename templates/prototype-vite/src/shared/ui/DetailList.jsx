@@ -3,10 +3,21 @@
 // 不要再用 labelStyle/contentStyle：td width 是相对整行，不是相对 item
 import { Card, Descriptions } from 'antd';
 
-export default function DetailList({ title, items, variant = 'pair' }) {
+function formatDetailValue(value) {
+  if (value === null || value === undefined || value === '') {
+    return '—';
+  }
+  return value;
+}
+
+export default function DetailList({ title, items = [], variant = 'pair' }) {
   const column = variant === 'pair' ? 2 : 1;
   const className = variant === 'pair' ? 'detail-list' : 'detail-list-textarea';
-  const descItems = items.map(({ label, value }) => ({ label, children: value }));
+  const descItems = items.map(({ label, value, ...rest }) => ({
+    label,
+    children: formatDetailValue(value),
+    ...rest,
+  }));
   return (
     <Card className={`${className}-card`} style={{ marginBottom: 16 }}>
       <Descriptions

@@ -1,4 +1,4 @@
-import { useId } from 'react';
+import { useId, useMemo } from 'react';
 import { Button, Card, Dropdown, Empty, Space, Table, Tag } from 'antd';
 import {
   IconArrowLeft,
@@ -76,7 +76,28 @@ export function TablerToolbar({ children, actions, className = '' }) {
   );
 }
 
-export function TablerDataTable({ emptyTitle, emptyDescription, pagination, className = '', ...tableProps }) {
+function normalizeColumns(cols) {
+  if (!cols) return cols;
+  return cols.map((col) => {
+    if (col.children) {
+      return { ...col, children: normalizeColumns(col.children) };
+    }
+    if (col.render) {
+      return col;
+    }
+    return {
+      ...col,
+      render: (val) => {
+        if (val === null || val === undefined || val === '') {
+          return '—';
+        }
+        return val;
+      },
+    };
+  });
+}
+
+export function TablerDataTable({ emptyTitle, emptyDescription, pagination, columns, className = '', ...tableProps }) {
   const emptyText =
     emptyTitle !== undefined ? (
       <TablerEmptyState
@@ -96,9 +117,11 @@ export function TablerDataTable({ emptyTitle, emptyDescription, pagination, clas
         };
   const { scroll, locale, ...restTableProps } = tableProps;
   const normalizedLocale = emptyText ? { ...locale, emptyText } : locale;
+  const normalizedCols = useMemo(() => normalizeColumns(columns), [columns]);
   return (
     <Table
       {...restTableProps}
+      columns={normalizedCols}
       className={`tabler-data-table ${className}`}
       scroll={scroll === undefined ? { x: 'max-content' } : scroll}
       pagination={normalizedPagination}

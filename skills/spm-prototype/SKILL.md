@@ -17,17 +17,29 @@ Prototype 直接下游于 Design 事实闭包：
 - 视觉口径：结构、尺寸、间距、字体、阴影、控件规格与图标一律按 Ant Design 官方规范（`$BUNDLE/references/design-sources/ant-design-official/`，读法见同目录 `ADAPTATION.md`）；颜色体系沿用 Tabler 主题（`src/theme/tablerTheme.ts`）。页面不承担主题选择或换肤决策；主题文件只保留颜色 token，不得新增非颜色覆盖。
 - 页面只表达 Design 已定义的字段、状态、权限、流程、异常和责任边界，不补写高影响事实。
 
-## 每次任务先读取
+## 每次任务先读取（分层策略）
 
-按以下顺序读取，且每一步完成后再进入下一步：
+普通页面任务常驻遵守内置核心短规则，按需分层读取，每一步完成后再进入下一步：
 
 1. 运行 `python $BUNDLE/scripts/python/stage-context.py --project-root .`。**完成条件**：确认 Design 清单可读，且 `design_change.active` 不为 `true`；有活动事务先恢复或停止。
 2. 读取设计地图、设计集清单、目标模块的 Design 事实闭包和现有 `output/prototype/`。**完成条件**：能列出本次必须表达的页面、字段、状态、角色权限、主路径、关键反馈和待确认项。
-3. 读取 `$BUNDLE/references/prototype-visual-spec.md`。普通页面直接使用模板提供的主题基础设施和语义 shared/ui；仅在复杂或特殊页面命中对应规则时，读取相关状态矩阵和响应式要求。
-4. 读取 `$BUNDLE/references/prototype-writing.md`；只有多页面 shell、导航、路由或空白页任务才读取 `$BUNDLE/references/prototype-shell.md`。**完成条件**：已确定组件 API、源码目录、路由登记和构建边界。
-5. 按本 Skill「页面分类与标准结构」路由表判定每个页面的类型，读取 `$BUNDLE/references/prototype-page-types.md` 命中章节；同时读取当前模板 `src/shared/ui/` 的真实导出和目标组件实现。生成或修改页头、区块卡片、指标卡、工具栏、数据表格、状态、空态、图标按钮、行操作、表单分区和页面操作栏时，命中现有共享组件的必须直接复用，不在页面内复制它已经承担的 DOM、CSS 或默认行为；未命中共享组件时允许组合 Ant Design 原生组件或页面特有结构，并说明回退原因。**完成条件**：每个页面都能说明页面类型与结构来源。
-6. 只读取本任务命中的章节：页面类型规则在 page-types 命中章节；组件选型与例外、Form/Modal/Drawer/提交重置、Portal 与响应式、跨层运行时契约读 `$BUNDLE/references/prototype-component-behavior.md` §1–§3 对应小节；页面含角色差异时读取 `$BUNDLE/references/prototype-role-permission.md`。新建或修改共享组件契约时读取完整 behavior 和目标源码调用方。**完成条件**：根据页面类型或触发词得到组件选择、权限表达方式或跨层验收结果，不预读未命中的章节。
-7. 如存在 `output/prototype/prototype-feedback.md`，读取并按 `$BUNDLE/templates/prototype-feedback-classification.md` 先归类。**完成条件**：每条反馈已分成表现问题、语义问题或待澄清项。
+3. 读取 `$BUNDLE/references/prototype-writing.md`。**完成条件**：掌握组件 API、交互硬规则、源码目录与构建边界。普通页面直接执行以下常驻短规则，**不预读完整视觉规范**：
+   - 事实输入完全来自 Design 事实闭包，不新增 Design 未定义事实；
+   - 先判页面类型，命中即按对应标准结构落位；
+   - 高频结构命中即直接复用 `src/shared/ui/` 11 个语义组件（`PageHeader / SectionCard / MetricCard / Toolbar / DataTable / StatusTag / IconButton / RowActions / FormSection / EmptyState / ActionBar`），不复制其 DOM/CSS；
+   - 颜色一律走 `src/theme/tablerTheme.ts`（主色 `#066fd1`、hover/active `#0563BC`、文字一级 `#1f2937`、次要 `#6b7280`、弱化 `#9ca3af`、页面底/表头底 `#f9fafb`、侧栏白底 `#ffffff`），不写死色值；
+   - 结构、尺寸、间距、字体、阴影走 Ant Design 6 官方默认，主题不覆盖非颜色 token；
+   - 图标一律经 `src/shared/icons/` 取用，图表走 `src/shared/charts/TablerChart.jsx`；
+   - 空字段一律显示 `—`（`DetailList` 自动格式化；0 和 false 原样保留）；
+   - 完成后按适用场景验证构建、路由、关键交互和 console。
+4. 按「页面分类与标准结构」路由表判定页面类型，**只读取命中的 `$BUNDLE/references/prototype-page-types.md` 章节**。**完成条件**：明确目标页面类型与对应标准结构。
+5. **详细规范按条件触发读取（未命中不读取）**：
+   - **新增颜色、主题变更或修改/新建共享组件**：读取 `$BUNDLE/references/prototype-visual-spec.md` 对应完整章节；
+   - **图表需求**：读取 `$BUNDLE/references/prototype-visual-spec.md` §2.1 图表适配与 `TablerChart.jsx`；
+   - **Portal、sticky、Sider 或特定响应式**：读取 `$BUNDLE/references/prototype-component-behavior.md` 对应小节；
+   - **页面含角色差异**：读取 `$BUNDLE/references/prototype-role-permission.md`；
+   - **多页面 shell、导航、路由或白屏排查**：读取 `$BUNDLE/references/prototype-shell.md`。
+6. 如存在 `output/prototype/prototype-feedback.md`，读取并按 `$BUNDLE/templates/prototype-feedback-classification.md` 先归类。**完成条件**：每条反馈已分成表现问题、语义问题或待澄清项。
 
 缺少规则、模板、Design 输入或无法解析时，报告具体路径并停止；不凭记忆补写产品事实。
 
@@ -80,12 +92,15 @@ Prototype 直接下游于 Design 事实闭包：
 2. 检查加载、空数据、失败/重试、无权限、禁用/只读、选中和响应式状态可通过 UI 观察；列表/看板保留空态，配置操作使用真实 `Modal` + `Form`，状态机限制使用 `disabled`。
 3. 对照 `$BUNDLE/references/prototype-page-types.md` 命中章节逐条核对标准结构与必须项（含分页与总条数、筛选折叠、卡头徽章、空字段 `—`、长文本省略等让路与新增口径）；页面含角色差异时对照 `$BUNDLE/references/prototype-role-permission.md` §八 核对四级权限表达。图标统一通过 `src/shared/icons/` 取用官方图标，不直接 import 图标库；图表使用 `src/shared/charts/`。
 4. 对本任务命中的 page-types、role-permission 与 behavior 章节逐条核对对应规则；跨任务通用的完成门槛以本 Skill 为准，不通过交付前再次完整读取这些文档来替代。响应式按实际命中的断点和场景验收，不执行 390px 专项测试。
-5. 运行：
+5. 运行自检与一致性脚本：
 
 ```text
+python $BUNDLE/scripts/python/prototype-shared-guard.py --project-root .
 python $BUNDLE/scripts/python/prototype-source-check.py --project-root .
 python $BUNDLE/scripts/python/prototype-consistency-check.py --project-root .
 ```
+
+`prototype-shared-guard.py` 用于生成完成自检，识别页面层图标库直引、外部 CSS、重复版权行、废弃主题变量及 shared/ui 权威源漂移；命中违规（返回 1）由生成侧自行修正后复验。
 
 一致性脚本只提供全量检查，结果必须按三类阅读：`deterministic_conflicts` 是 `red`，直接修正；`possible_omissions` 和 `needs_semantic_judgment` 是 `risk` 的证据，必须结合 Design 和源码逐项判断。高影响未知转为 Design `decision` 或明确报告；只有确定性冲突返回 1，输入或源码工程等致命错误返回 2，返回 0 不代表事实完整、无幻觉或视觉通过。
 
