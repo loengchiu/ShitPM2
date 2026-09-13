@@ -132,6 +132,8 @@ def check_selection(module) -> None:
                 for forbidden in (
                     'prd-example-dashboard', 'prd-example-external-auto', 'prd-template', 'prd-profile',
                     'prd-writing-versioning', 'prd-writing-glossary', 'prd-writing-structure',
+                    'prd-example-direct-data', 'prd-example-aggregate-data', 'prd-example-periodic-calculation',
+                    'prd-card-data',
                 ):
                     if forbidden in section_ids:
                         fail(f'module pass 不应装载章节: {forbidden}')
@@ -157,6 +159,27 @@ def check_selection(module) -> None:
                 stale_check = module.verify_run(ROOT, stage, stale_path)
                 if stale_check['valid']:
                     fail(f'manifest 变化未被陈旧检查识别: {stage}.{pass_name}')
+
+        # 验证数据口径卡与三类示例的正向与负向选择
+        _, prd_data_ids = module.resolve_selection(
+            manifest, 'prd', None, 'module', [], ['data'],
+            ['direct-data', 'aggregate-data', 'periodic-calculation'], None,
+        )
+        for req in ('prd-card-data', 'prd-example-direct-data', 'prd-example-aggregate-data', 'prd-example-periodic-calculation'):
+            if req not in prd_data_ids:
+                fail(f'PRD 数据口径按需未装载: {req}')
+        _, prd_nodata_ids = module.resolve_selection(manifest, 'prd', None, 'module', [], ['scenes'], [], None)
+        for forb in ('prd-card-data', 'prd-example-direct-data', 'prd-example-aggregate-data', 'prd-example-periodic-calculation'):
+            if forb in prd_nodata_ids:
+                fail(f'PRD 非数据路径误装载数据章节: {forb}')
+
+        # 验证 D-8 applicability unknown 归一：unknown 不装载对应 card
+        _, unknown_ids = module.resolve_selection(
+            manifest, 'design', 'full', 'writing', [], [], [], {'data': 'unknown'},
+        )
+        if 'design-card-data' in unknown_ids:
+            fail('Design applicability 为 unknown 时仍错误装载 design-card-data')
+
         authorized_cases = [
             ('material-reader', 'design', 'simple', 'analysis'),
             ('design-challenger', 'design', 'full', 'challenge'),

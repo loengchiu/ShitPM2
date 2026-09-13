@@ -9,7 +9,7 @@ description: "PRD 阶段：根据 Design 事实闭包直接生成研发可评审
 
 PRD 两条质量主线：内容上完整承接 Design 事实并保持一致；阅读上按业务闭环连续可评审。生成、重新生成或局部修复 `4.x.6 功能详细说明` 时读取 `$BUNDLE/references/prd-writing-rules.md`；页面、动作、字段、状态、权限、异常和流程图规则均以该文件为准。
 
-`4.x.6` 的交付目标：研发只读该章节，不查看 Prototype、Design 或旧 PRD，也不回问产品，即可确定产品行为并独立开发。前端据此确定页面形态、区域、内容、操作和状态；后端据此确定数据来源、处理对象、状态变化和下游结果；测试据此编写主链路与异常用例。模块生成时按实际适用承接前端和后端事实，不适用项不补写，高影响未知回到 Design。
+交付目标调整为单业务模块（`4.x`）自包含：研发只读当前业务模块（结合 `4.x.5 状态与业务规则`、`4.x.6 功能详细说明` 及相关章节），不查看 Prototype、Design 或旧 PRD，也不回问产品，即可确定产品行为并独立开发。各章节明确分工：公共数据口径与计算规则入 `4.x.5`，页面交互与规则应用入 `4.x.6`，字段属性入 `4.x.7`（严禁将复杂公式压缩在字段表），验收用例入 `4.x.9`。前端据此确定页面形态、区域、内容、操作和状态；后端据此确定数据来源、处理对象、状态变化和下游结果；测试据此编写主链路与异常用例。模块生成时按实际适用承接前端和后端事实，不适用项不补写，高影响未知回到 Design。
 
 ## 开始前检查
 
@@ -18,7 +18,7 @@ PRD 两条质量主线：内容上完整承接 Design 事实并保持一致；�
 3. 读取设计集清单，按目标业务模块运行事实闭包装载：
 
 ~~~text
-python $BUNDLE/scripts/python/context-pack.py --bundle-root $BUNDLE --project-root . --stage prd --pass module --card scenes --module <模块名>
+python $BUNDLE/scripts/python/context-pack.py --bundle-root $BUNDLE --project-root . --stage prd --pass module [--card <scenes|data> ...] [--example <direct-data|aggregate-data|periodic-calculation|dashboard|...>] --module <模块名>
 ~~~
 完成条件：命令成功返回，输出只包含目标模块事实闭包、适用规则和所需示例；目标模块名与设计集清单登记名称一致。
 
@@ -57,7 +57,7 @@ python $BUNDLE/scripts/python/context-pack.py --bundle-root $BUNDLE --project-ro
 每次只处理一个业务闭环（Design 的业务边界，不按页数、字段数或字数机械切片）。运行：
 
 ~~~text
-python $BUNDLE/scripts/python/context-pack.py --bundle-root $BUNDLE --project-root . --stage prd --pass module --card scenes --module <模块名>
+python $BUNDLE/scripts/python/context-pack.py --bundle-root $BUNDLE --project-root . --stage prd --pass module [--card <scenes|data> ...] [--example <direct-data|aggregate-data|periodic-calculation|dashboard|...>] --module <模块名>
 ~~~
 完成条件：当前写作上下文只对应一个业务闭环，且其事实闭包、适用写作规则和示例均已装载。
 
@@ -81,7 +81,7 @@ python $BUNDLE/scripts/python/context-pack.py --bundle-root $BUNDLE --project-ro
 5. 后端业务闭环可独立开发：按「后端事实承接」逐项验收；后端不查看 Design 即可确定业务数据流和状态结果；不写清写入对象、状态变化和下游去向的动作视为未完成。
 6. 动作按业务结果重组与独占标题到位：按「动作正文责任与复杂度分级」执行，动作按业务结果重组，不把点击、打开、切换、返回、播放直接当标题；采用独占一行的无冒号粗体短语（`**动作名称**`）作为小节标题。
 7. 动作责任按复杂度到位：按「动作正文责任与复杂度分级」，动作按复杂度分级写要求，简单动作写清触发角色+条件+业务结果，普通表单写清前置+输入与校验+处理+成功结果+失败保留，复杂动作写清角色与状态+关键分支+状态变化+失败恢复+下一步衔接；用自然段、子列表或短矩阵展开，单块只承载一层事实，严禁堆叠多层信息的超长块。
-8. 字段、区块、状态、权限和异常在真实使用位置表达；数据型功能（指标、统计、下钻、导出）就近写清统计对象、组织范围、时间口径、分子分母、纳入排除、筛选传递、下钻继承、空值零值和刷新失败。
+8. 字段、区块、状态、权限和异常在真实使用位置表达；数据型功能（指标、统计、计算、周期结算）严格执行 `$BUNDLE/references/data-definition-rules.md` 中的四档责任与同名同口径原则：公共口径在 `4.x.5` 闭合，页面动作在 `4.x.6` 承接，字段表 `4.x.7` 仅保留控件属性与来源索引（严禁将复杂公式压缩在字段表），用例在 `4.x.9` 落地；禁止使用“系统统计/计算”作为唯一事实描述。
 9. 正文自包含与有效重复：交付 PRD 自包含，有效重复必须增加新的使用上下文（角色/状态/条件/结果等），无信息增量的原地重述予以剔除；严格遵循自然中文规则，不用行首标签和连续键值对句式。
 10. 发现 `red` 直接修正；高影响未知作为 Design 的 pending `decision` 原样保留，不新增 Design 未确认事实；非页面字段有对象或系统用途落点；自动动作、删除传播、枚举和独立上限按「事实边界」承接或待确认。
 11. 写完直接回读本模块，分别从前端和后端两个视角检查事实承接与歧义，发现页面元数据化、动作清单化、业务链断裂或多种合理理解立即重写；之后修改已完成模块内容时，该模块重新进入回读验收。

@@ -32,7 +32,7 @@ python $BUNDLE/scripts/python/prd-consistency-check.py --project-root . --module
 ```
 
 引用 JSON 中的三类输出：①确定性冲突（`missing`、`hallucinated`、`attribute_mismatch`、权限反转）标为 `red`；②可能遗漏逐条判定为 `risk`、`decision` 或不成立；③`needs_semantic_judgment`（含结构适配差异）按业务语义判定。脚本返回 `0` 不代表 PRD 通过，返回 `1` 也不替代问题定位。**完成条件**：三类输出均已处理；无法提取、可能遗漏和语义判断项已写为明确结论或“未评估”，未被默认通过。
-4. 读取 `$BUNDLE/contracts/review-checklist.md`、`$BUNDLE/contracts/prd-review-checklist.md`、`$BUNDLE/references/prd-writing-rules.md` 和 `$BUNDLE/contracts/prd-writing.profile.json`；按专项契约的触发证据读取 `$BUNDLE/references/prd-writing-examples.md`、`prd-glossary-format.md`、`prd-versioning.md` 或 `prd-scene-checklist.md`。Review 不再只判断“有没有提到”，而是按简单、普通、复杂三档动作复杂度检查适用的信息责任（角色、条件、对象、输入、校验、系统处理、状态变化、失败恢复与下一步衔接），并保留具体证据；从研发视角进行任务式试读（若研发需读第二遍才能提取事实即判为缺陷），检查单块是否堆叠多层事实；检查自包含与有效重复（无新增上下文的重复属原地重述）。**完成条件**：专项契约的每个适用项均有证据和结论；契约规定的审查顺序、统计页逐页验收和复杂动作逐项验收已执行；无法判断项已显式标记。
+4. 读取 `$BUNDLE/contracts/review-checklist.md`、`$BUNDLE/contracts/prd-review-checklist.md`、`$BUNDLE/references/prd-writing-rules.md`、`$BUNDLE/references/data-definition-rules.md` 和 `$BUNDLE/contracts/prd-writing.profile.json`；按专项契约的触发证据读取 `$BUNDLE/references/prd-writing-examples.md`、`prd-glossary-format.md`、`prd-versioning.md` 或 `prd-scene-checklist.md`。Review 不再只判断“有没有提到”，而是按动作复杂度检查适用的信息责任；从研发视角进行任务式试读（若研发需读第二遍才能提取事实即判为缺陷），检查单块是否堆叠多层事实；对重要数据结果依据 `$BUNDLE/references/data-definition-rules.md` 执行四档责任分类与八类适用问题试读，判断是否存在改变数值或处理的第二种合理实现（若存在或无法写用例则判 P1 / 上游决策）；检查自包含与有效重复（无新增上下文的重复属原地重述）。**完成条件**：专项契约的每个适用项均有证据和结论；契约规定的审查顺序、数据口径试读与复杂动作逐项验收已执行；无法判断项已显式标记。
 5. 按公共契约写入 `.workflow/reviews/prd-review-N.md`。**完成条件**：结论符合三档门槛，每个 P0/P1 可追溯到位置、影响和建议，三类问题分布及上游同步信息完整。
 6. 输出审查结论后停止。**完成条件**：未修改 PRD、Design 或决策记录，未调用 `spm-fix` 或推进阶段。
 

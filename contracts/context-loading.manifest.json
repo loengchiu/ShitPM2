@@ -83,6 +83,9 @@
             ],
             "cross-system": [
               "design-card-cross-layer"
+            ],
+            "data": [
+              "design-card-data"
             ]
           }
         },
@@ -150,10 +153,13 @@
           ]
         },
         "prd-cards": {
-          "purpose": "按适用性装载 PRD 精简语义自检问题",
+          "purpose": "按适用性装载 PRD 精简语义自检问题与数据口径规则",
           "card_sections": {
             "scenes": [
               "prd-verification-scenes"
+            ],
+            "data": [
+              "prd-card-data"
             ]
           }
         },
@@ -184,6 +190,15 @@
             ],
             "simple-readonly": [
               "prd-example-simple-readonly"
+            ],
+            "direct-data": [
+              "prd-example-direct-data"
+            ],
+            "aggregate-data": [
+              "prd-example-aggregate-data"
+            ],
+            "periodic-calculation": [
+              "prd-example-periodic-calculation"
             ]
           }
         },
@@ -292,6 +307,11 @@
       "source": "references/design-flow-format.md",
       "selector": "marker"
     },
+    "design-card-data": {
+      "stage": "design",
+      "source": "references/data-definition-rules.md",
+      "selector": "whole"
+    },
     "design-verification-self-review-boundary": {
       "stage": "design",
       "source": "references/design-quality-rubric.md",
@@ -377,6 +397,26 @@
       "selector": "marker"
     },
     "prd-example-external-auto": {
+      "stage": "prd",
+      "source": "references/prd-writing-examples.md",
+      "selector": "marker"
+    },
+    "prd-card-data": {
+      "stage": "prd",
+      "source": "references/data-definition-rules.md",
+      "selector": "whole"
+    },
+    "prd-example-direct-data": {
+      "stage": "prd",
+      "source": "references/prd-writing-examples.md",
+      "selector": "marker"
+    },
+    "prd-example-aggregate-data": {
+      "stage": "prd",
+      "source": "references/prd-writing-examples.md",
+      "selector": "marker"
+    },
+    "prd-example-periodic-calculation": {
       "stage": "prd",
       "source": "references/prd-writing-examples.md",
       "selector": "marker"

@@ -37,6 +37,7 @@
 | 27. 文件、导入导出和批量结果完整（按需） | 场景存在但缺范围、格式/大小/数量、上限、部分失败或结果反馈 | [Design 分析协议](../references/design-analysis-protocol.md) | P1 | `content` / 对应闭环或页面 |
 | 28. 跨系统和产品级质量约束可验收（按需） | 缺事实源、同步方向、失败/部分成功、补偿、最终责任，或产品级质量约束无法观察 | [Design 分析协议](../references/design-analysis-protocol.md)；[Design 质量标准](../references/design-quality-rubric.md) | P1 | `content` / 集成或验收位置 |
 | 29. 旧版兼容材料不替代 Design（按需） | 以旧版 metadata、稳定 ID 或历史结构替代人读 Design 判断当前产品事实 | [Design 质量标准](../references/design-quality-rubric.md) | P2；若导致事实冲突则 P1 | `consistency` / 兼容问题 |
+| 30. 数据口径闭包可执行（按需） | 重要数据结果（卡片指标、汇总、均值、比例、折算、清分或金额）仅写“系统统计/计算”，或缺少四档责任要求的关键要素（对象、起止时间闭合、状态范围、公式、精度或尾差），导致存在多种合理实现且未暴露为 decisions pending | [数据口径闭包规范](../references/data-definition-rules.md)；[Design 写作规则](../references/design-writing.md) | P1 | `content` / 规则或字段位置 |
 
 ## 横切能力、展示与生命周期专项检查
 
@@ -52,6 +53,7 @@
 | X6. 枚举与上限有来源 | 业务实际涉及枚举选项、分页、导出或批量处理，但只有占位符或未明确上限；无相关操作时不触发 | P1 | `content` / 规则或页面位置 |
 | X7. 操作交互维度完整 | 实际存在的操作缺入口/触发方式、是否二次确认、后续去向或字段级输入，导致动作不闭环；简单单步操作不强制使用十列宽表，事实清晰即可 | P1 | `content` / 操作位置 |
 | X8. 推断值未随正文落实 | 正文出现默认值/排序/分页/提示文案/标签颜色等可推断值时未写清取值依据；高影响项（权限/状态机/删除传播/外部系统）被当推断值静默写入 | P1 | `content` / `consistency` |
+| X9. 数据口径闭包与同名一致性 | 涉及指标统计、派生计算或周期结算时，缺四档责任要素或同名指标口径不一致；仅写“系统统计/计算”代指真实规则；无统计计算业务时不触发 | P1 | `content` / `consistency` |
 
 ## Review 输出要求
 

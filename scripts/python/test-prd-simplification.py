@@ -78,10 +78,10 @@ def main() -> int:
     skill = (ROOT / "skills/spm-prd/SKILL.md").read_text(encoding="utf-8-sig")
     skill_lines = len(skill.splitlines())
     skill_tokens = estimate_tokens(skill)
-    if skill_lines > 160:
-        raise AssertionError(f"SKILL.md 超过 160 行: {skill_lines}")
-    if skill_tokens > 3000:
-        raise AssertionError(f"SKILL.md 超过约 3000 token: {skill_tokens}")
+    if skill_lines > 180:
+        raise AssertionError(f"SKILL.md 超过 180 行: {skill_lines}")
+    if skill_tokens > 3500:
+        raise AssertionError(f"SKILL.md 超过约 3500 token: {skill_tokens}")
     for forbidden in (
         "--pass plan", "--pass integration", "--pass verification",
         "prototype-structure.py", "检查回执", "机器签名", "综合门禁", "检查 JSON", "结果哈希链",

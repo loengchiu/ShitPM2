@@ -72,8 +72,8 @@ python $BUNDLE/scripts/python/context-pack.py --bundle-root $BUNDLE --project-ro
 3. full 模式进入跨层挑战前装载 challenge pass；两种模式进入最终写作前装载 writing pass：
 
 ~~~text
-python $BUNDLE/scripts/python/context-pack.py --bundle-root $BUNDLE --project-root . --stage design --mode full --pass challenge [--card <flow|state|page-module|fields|permissions|cross-system> ...]
-python $BUNDLE/scripts/python/context-pack.py --bundle-root $BUNDLE --project-root . --stage design --mode <simple|full> --pass writing [--card <flow|state|page-module|fields|permissions|cross-system> ...]
+python $BUNDLE/scripts/python/context-pack.py --bundle-root $BUNDLE --project-root . --stage design --mode full --pass challenge [--card <flow|state|page-module|fields|permissions|cross-system|data> ...]
+python $BUNDLE/scripts/python/context-pack.py --bundle-root $BUNDLE --project-root . --stage design --mode <simple|full> --pass writing [--card <flow|state|page-module|fields|permissions|cross-system|data> ...]
 ~~~
 
 专项规则较多时，可用 `--applicability-json <path>` 代替重复的 `--card`。只选择当前 Design 实际适用的页面、流程、状态、字段、权限和跨系统规则。
@@ -120,6 +120,7 @@ Align → A → B → C → design-editor → 写作自检 → design-set check
 - 用户看到什么；
 - 用户能做什么；
 - 数据如何变化；
+- 重要数据结果的口径闭包与规则拥有者（四档责任归属于系统级基线、跨模块契约或模块设计）；
 - 状态如何变化；
 - 谁负责；
 - 如何判断成功。
@@ -128,6 +129,7 @@ Align → A → B → C → design-editor → 写作自检 → design-set check
 
 ### 5.2 复杂规则触发条件
 复杂规则按实际业务影响触发，不由页面数量、步骤数量或材料数量机械触发。以下情况必须详细展开：
+- 涉及指标统计、计算派生、周期结算与金额清分（依据 `$BUNDLE/references/data-definition-rules.md` 明确数据口径闭包，禁止只写“系统统计/计算”）；
 - 多个业务状态；
 - 角色责任变化；
 - 审批、驳回、撤回、作废、删除、恢复；
@@ -221,7 +223,7 @@ python $BUNDLE/scripts/python/design-set.py recover --project-root .
 
 ## 7. 写作动作内自检
 
-simple-design 和 design-editor 各自只执行一次内部自检，不拆成独立任务、不生成检查 JSON、报告或回执。按 `$BUNDLE/references/design-writing.md` 的写作前后检查清单逐项回读，并结合 §5.4 横切能力四状态判断与 §5.5 推断值边界；涉及状态机时逐项满足 `$BUNDLE/references/design-state-format.md` 的闭环要求。发现 `red` 直接修正对应 Design 文件；不能决定的高影响事项写为 `decision`，保留在该文件未决事项。
+simple-design 和 design-editor 各自只执行一次内部自检，不拆成独立任务、不生成检查 JSON、报告或回执。按 `$BUNDLE/references/design-writing.md` 的写作前后检查清单逐项回读，结合 §5.4 横切能力四状态判断与 §5.5 推断值边界；重要数据结果依据 `$BUNDLE/references/data-definition-rules.md` 逐项回读四档口径责任并确认规则拥有者，禁止以“系统统计/计算”替代口径定义；涉及状态机时逐项满足 `$BUNDLE/references/design-state-format.md` 的闭环要求。发现 `red` 直接修正对应 Design 文件；不能决定的高影响事项写为 `decision`，保留在该文件未决事项。
 
 完成条件：写作清单中的每个适用项都有正文落点或明确未决；修改后的文件已重新回读；`design-set.py check` 结构检查通过；事实完整且没有未暴露的高影响问题。满足后才能告诉用户 Design 已完成。高影响未决事项保持 pending 状态并说明影响，不要求用户确认 Design 或确认哈希。Review 是按需的第二意见，不是首次生成前置。
 
