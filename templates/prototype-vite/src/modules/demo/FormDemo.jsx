@@ -24,7 +24,7 @@ export default function FormDemo() {
   };
 
   return (
-    <div>
+    <div data-page="出库申请">
       {/* 共享 PageHeader + onBack */}
       <PageHeader
         title="出库申请"
@@ -33,7 +33,7 @@ export default function FormDemo() {
       />
 
       {/* 审批流 */}
-      <Card style={{ marginBottom: 16 }}>
+      <Card data-block="审批流" style={{ marginBottom: 16 }}>
         <Steps
           current={0}
           items={[{ title: '服务区发起' }, { title: '服务区确认' }, { title: '结束' }]}
@@ -41,7 +41,7 @@ export default function FormDemo() {
       </Card>
 
       {/* 表单：FormSection 承载分区 */}
-      <FormSection title="出库信息" style={{ marginBottom: 16 }}>
+      <FormSection data-block="出库信息" title="出库信息" style={{ marginBottom: 16 }}>
         <Form
           form={form}
           layout="vertical"
@@ -50,27 +50,27 @@ export default function FormDemo() {
           <Row gutter={24}>
             <Col span={12}>
               <Form.Item label="资产类别" name="category" rules={[{ required: true, message: '请选择资产类别' }]}>
-                <Select placeholder="请选择资产类别" options={['固定资产', '低值易耗品', '办公用品'].map((v) => ({ value: v, label: v }))} />
+                <Select data-field="资产类别" placeholder="请选择资产类别" options={['固定资产', '低值易耗品', '办公用品'].map((v) => ({ value: v, label: v }))} />
               </Form.Item>
             </Col>
             <Col span={12}>
               <Form.Item label="出库数量" name="qty" rules={[{ required: true, message: '请输入出库数量' }]}>
-                <InputNumber style={{ width: '100%' }} min={1} placeholder="请输入数量" />
+                <InputNumber data-field="出库数量" style={{ width: '100%' }} min={1} placeholder="请输入数量" />
               </Form.Item>
             </Col>
             <Col span={12}>
               <Form.Item label="使用部门" name="dept" rules={[{ required: true, message: '请选择使用部门' }]}>
-                <Select placeholder="请选择使用部门" options={['综合管理部', '物业管理部', '工程维修部', '安全保卫部'].map((v) => ({ value: v, label: v }))} />
+                <Select data-field="使用部门" placeholder="请选择使用部门" options={['综合管理部', '物业管理部', '工程维修部', '安全保卫部'].map((v) => ({ value: v, label: v }))} />
               </Form.Item>
             </Col>
             <Col span={12}>
               <Form.Item label="期望出库日期" name="date" rules={[{ required: true, message: '请选择日期' }]}>
-                <DatePicker style={{ width: '100%' }} placeholder="请选择日期" />
+                <DatePicker data-field="期望出库日期" style={{ width: '100%' }} placeholder="请选择日期" />
               </Form.Item>
             </Col>
             <Col span={12}>
               <Form.Item label="出库类型" name="type">
-                <Radio.Group>
+                <Radio.Group data-field="出库类型">
                   <Radio value="normal">正常出库</Radio>
                   <Radio value="borrow">借用</Radio>
                   <Radio value="transfer">调拨</Radio>
@@ -79,18 +79,18 @@ export default function FormDemo() {
             </Col>
             <Col span={12}>
               <Form.Item label="经办人" name="person" rules={[{ required: true, message: '请输入经办人' }]}>
-                <Input placeholder="请输入经办人" />
+                <Input data-field="经办人" placeholder="请输入经办人" />
               </Form.Item>
             </Col>
             {/* 文本域：单独一行 */}
             <Col span={24}>
               <Form.Item label="出库原因" name="reason" rules={[{ required: true, message: '请填写出库原因' }]}>
-                <Input.TextArea rows={3} placeholder="请填写出库原因，包括用途、使用场景等说明" />
+                <Input.TextArea data-field="出库原因" rows={3} placeholder="请填写出库原因，包括用途、使用场景等说明" />
               </Form.Item>
             </Col>
             <Col span={24}>
               <Form.Item label="备注" name="remark">
-                <Input.TextArea rows={2} placeholder="其他补充说明（选填）" />
+                <Input.TextArea data-field="备注" rows={2} placeholder="其他补充说明（选填）" />
               </Form.Item>
             </Col>
           </Row>
@@ -101,14 +101,14 @@ export default function FormDemo() {
       <PageFooter />
 
       {/* 页面级操作栏：ActionBar sticky 贴底，通过 form 实例操作 */}
-      <ActionBar>
-        <Button icon={<IconRefresh size={16} />} onClick={() => form.resetFields()}>
+      <ActionBar data-block="页面操作">
+        <Button data-operation="重置" icon={<IconRefresh size={16} />} onClick={() => form.resetFields()}>
           重置
         </Button>
-        <Button icon={<IconX size={16} />} onClick={() => navigate('/')}>
+        <Button data-operation="取消" icon={<IconX size={16} />} onClick={() => navigate('/')}>
           取消
         </Button>
-        <Button type="primary" icon={<IconSend size={16} />} onClick={submit}>
+        <Button data-operation="提交申请" type="primary" icon={<IconSend size={16} />} onClick={submit}>
           提交申请
         </Button>
       </ActionBar>

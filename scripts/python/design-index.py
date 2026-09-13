@@ -646,6 +646,7 @@ def _parse_design(content: str, design_sha256: str, require_current_format: bool
         "fields": [_node_public(field) | {"page_id": field["page_id"], "block_id": field["block_id"]} for field in fields],
         "operations": [_node_public(operation) | {"page_id": operation["page_id"], "block_id": operation["block_id"]} for operation in operations],
         "states": _extract_states(pages),
+        "state_machines": _extract_state_machines(content),
         "errors": errors,
         "summary": {
             "pages": len(pages),
@@ -665,6 +666,172 @@ def _ancestor_id(node: dict[str, Any] | None, entity_type: str) -> str | None:
         current = current.get("parent")
     return None
 
+
+
+_SM_KEYWORD_RE = re.compile(r"(?:状态机|生命周期|状态流转)")
+_STATE_TARGET_PLACEHOLDER_RE = re.compile(r"^(?:—|-|无|N/A|无(?:恢复|下一|后续)?状态机?)$")
+
+
+def _split_target_states(raw: str) -> list[str]:
+    """从状态机六列表格的「下一状态」列提取原子状态集合，自动剥离注解与组合分隔符。"""
+    if not raw:
+        return []
+    text = raw.strip()
+    text = re.sub(r"[（(][^）)]*[）)]", "", text)
+    parts = re.split(r"[、，,;；/|｜\s]+|或", text)
+    targets = []
+    for p in parts:
+        token = p.strip().strip("").strip("。；;，,、")
+        if token and not _STATE_TARGET_PLACEHOLDER_RE.match(token):
+            targets.append(token)
+    return targets
+
+
+
+def _extract_state_machines(content: str) -> list[dict[str, Any]]:
+    """从 Design Markdown 文本中提取明确状态机实体（### 或 #### 标题）及其六列表格与迁移边。
+
+    遵循 references/design-state-format.md：
+    - 表头包含“状态”、“下一状态”，以及“触发动作/动作”或“操作人/角色”；
+    - 状态机实体归属到最近的 ### 或 #### 标题；
+    - 解析状态、含义、操作人、触发动作、下一状态、限制条件、是否终态（is_terminal）及迁移边；
+    - 自动处理多行出路（首列留空）；
+    - 普通散文、字段名、过程展示态不进入业务状态机集合。
+    """
+    lines = content.splitlines()
+    headings: list[dict[str, Any]] = []
+    for i, line in enumerate(lines, 1):
+        m = re.match(r"^(#{1,6})\s+(.+)$", line.strip())
+        if m:
+            headings.append({"level": len(m.group(1)), "title": m.group(2).strip(), "line": i})
+
+    tables: list[dict[str, Any]] = []
+    i = 0
+    while i < len(lines):
+        line = lines[i].strip()
+        if line.startswith("|") and line.endswith("|"):
+            start_line = i + 1
+            table_lines = [line]
+            i += 1
+            while i < len(lines) and lines[i].strip().startswith("|") and lines[i].strip().endswith("|"):
+                table_lines.append(lines[i].strip())
+                i += 1
+            if len(table_lines) >= 3:
+                headers = [c.strip() for c in table_lines[0].strip("|").split("|")]
+                sep = [c.strip() for c in table_lines[1].strip("|").split("|")]
+                if all(re.match(r"^:?-+:?$", s) for s in sep):
+                    rows = []
+                    for row_line in table_lines[2:]:
+                        rows.append([c.strip() for c in row_line.strip("|").split("|")])
+                    tables.append({"line": start_line, "headers": headers, "rows": rows})
+            continue
+        i += 1
+
+    machines: list[dict[str, Any]] = []
+    for t in tables:
+        h = t["headers"]
+        def find_col(candidates):
+            for idx, col in enumerate(h):
+                for cand in candidates:
+                    if cand == col or cand in col:
+                        return idx
+            return None
+
+        state_col = find_col(["状态"])
+        action_col = find_col(["触发动作", "动作"])
+        next_col = find_col(["下一状态"])
+        op_col = find_col(["操作人", "角色", "操作角色"])
+        cond_col = find_col(["限制条件", "前置条件", "约束"])
+        meaning_col = find_col(["含义", "说明"])
+
+        if state_col is None or next_col is None or (action_col is None and op_col is None):
+            continue
+
+        nearest_heading = None
+        for head in sorted(headings, key=lambda x: x["line"], reverse=True):
+            if head["line"] < t["line"]:
+                if head["level"] <= 2:
+                    break
+                if head["level"] in (3, 4) and _SM_KEYWORD_RE.search(head["title"]):
+                    nearest_heading = head
+                    break
+                if head["level"] in (3, 4) and nearest_heading is None:
+                    nearest_heading = head
+
+        entity_name = nearest_heading["title"] if nearest_heading else "未命名状态机"
+        clean_name = re.sub(r"^.*(?:状态机|生命周期|状态流转)[：:]\s*", "", entity_name).strip()
+        if not clean_name:
+            clean_name = entity_name
+
+        states_dict: dict[str, dict[str, Any]] = {}
+        transitions: list[dict[str, Any]] = []
+        last_from = None
+
+        for row_idx, r in enumerate(t["rows"]):
+            row_line = t["line"] + 2 + row_idx
+            from_s = r[state_col].strip() if state_col < len(r) else ""
+            if not from_s:
+                from_s = last_from or ""
+            if from_s:
+                last_from = from_s
+            act = r[action_col].strip() if action_col is not None and action_col < len(r) else ""
+            to_s = r[next_col].strip() if next_col < len(r) else ""
+            op = r[op_col].strip() if op_col is not None and op_col < len(r) else ""
+            cond = r[cond_col].strip() if cond_col is not None and cond_col < len(r) else ""
+            meaning = r[meaning_col].strip() if meaning_col is not None and meaning_col < len(r) else ""
+
+            if not from_s:
+                continue
+
+            is_terminal = (act in ("—", "-", "", "无") and to_s in ("—", "-", "", "无"))
+            if from_s not in states_dict:
+                states_dict[from_s] = {
+                    "name": from_s,
+                    "meaning": meaning,
+                    "is_terminal": is_terminal,
+                    "line": row_line,
+                    "transitions": [],
+                }
+            else:
+                if not states_dict[from_s]["meaning"] and meaning:
+                    states_dict[from_s]["meaning"] = meaning
+                    states_dict[from_s]["line"] = row_line
+                if is_terminal:
+                    states_dict[from_s]["is_terminal"] = True
+
+            if not is_terminal and to_s and to_s not in ("—", "-", "无"):
+                trans = {
+                    "from": from_s,
+                    "trigger": act,
+                    "operator": op,
+                    "to": to_s,
+                    "condition": cond,
+                    "line": row_line,
+                }
+                states_dict[from_s]["transitions"].append(trans)
+                transitions.append(trans)
+
+                # 纯目标状态并入状态集合，并同步拆分组合目标值（防假绿）
+                for target_token in _split_target_states(to_s):
+                    if target_token not in states_dict:
+                        states_dict[target_token] = {
+                            "name": target_token,
+                            "meaning": "",
+                            "is_terminal": False,
+                            "line": row_line,
+                            "transitions": [],
+                        }
+
+        if states_dict:
+            machines.append({
+                "entity": clean_name,
+                "title": entity_name,
+                "line": t["line"],
+                "states": list(states_dict.values()),
+                "transitions": transitions,
+            })
+
+    return machines
 
 
 def _extract_states(pages: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -747,6 +914,7 @@ def compile_index(project_root: Path, require_current_format: bool = False) -> d
         "fields": [],
         "operations": [],
         "states": [],
+        "state_machines": [],
         "errors": [],
         "summary": {"files": 0, "pages": 0, "blocks": 0, "fields": 0, "operations": 0, "errors": 0},
     }
@@ -796,12 +964,41 @@ def compile_index(project_root: Path, require_current_format: bool = False) -> d
 
 def _merge_parsed(merged: dict[str, Any], parsed: dict[str, Any], fid: str, rel: str) -> None:
     """把单个文件的解析结果合并进总索引，并给实体附加来源文件信息。"""
-    for key in ("pages", "blocks", "fields", "operations", "states"):
+    for key in ("pages", "blocks", "fields", "operations"):
         for item in parsed.get(key, []):
             if isinstance(item, dict):
                 item["source_file_id"] = fid
                 item["source_path"] = rel
             merged[key].append(item)
+    # 合并状态机及状态
+    for sm in parsed.get("state_machines", []):
+        sm["id"] = f"SM-{len(merged.get('state_machines', [])) + 1:03d}"
+        sm["source_file_id"] = fid
+        sm["source_path"] = rel
+        merged.setdefault("state_machines", []).append(sm)
+        for s in sm.get("states", []):
+            s_name = s.get("name")
+            if s_name and not any(existing.get("name") == s_name and existing.get("entity") == sm.get("entity") for existing in merged["states"]):
+                merged["states"].append({
+                    "name": s_name,
+                    "entity": sm.get("entity"),
+                    "meaning": s.get("meaning", ""),
+                    "is_terminal": s.get("is_terminal", False),
+                    "line": s.get("line"),
+                    "machine_id": sm["id"],
+                    "source_file_id": fid,
+                    "source_path": rel,
+                    "source": "state_machine",
+                })
+    # 兼容页面「主要状态」属性来源的非状态机状态
+    for item in parsed.get("states", []):
+        if isinstance(item, dict):
+            s_name = item.get("name")
+            if s_name and not any(existing.get("name") == s_name for existing in merged["states"]):
+                item["source_file_id"] = fid
+                item["source_path"] = rel
+                item["source"] = "page_attribute"
+                merged["states"].append(item)
     for err in parsed.get("errors", []):
         if isinstance(err, dict) and "file_id" not in err:
             err["file_id"] = fid
@@ -827,6 +1024,7 @@ def _parse_nonmodule(content: str, digest: str, ftype: str) -> dict[str, Any]:
         "fields": [],
         "operations": [],
         "states": [],
+        "state_machines": _extract_state_machines(content) if ftype in ("system", "contract") else [],
         "errors": [],
         "headings": [
             {"level": h["level"], "title": h["title"], "line": h["line"]}
@@ -872,9 +1070,17 @@ def validate_index(project_root: Path, stored: dict[str, Any] | None = None, req
     if stored != expected:
         if stored.get("file_sha256") != expected.get("file_sha256"):
             reason = "Design 文件指纹不一致"
-        else:
-            reason = "索引内容与 Design 文件的确定性编译结果不一致"
-        return False, expected, reason
+            return False, expected, reason
+        # 兼容旧版本未编译 state_machines 的存储索引
+        stored_cmp = {k: v for k, v in stored.items() if k not in ("state_machines",)}
+        expected_cmp = {k: v for k, v in expected.items() if k not in ("state_machines",)}
+        if stored_cmp != expected_cmp:
+            # 若仅因 states 丰富了状态机实体，而核心结构完全一致，视为兼容
+            stored_core = {k: v for k, v in stored_cmp.items() if k != "states"}
+            expected_core = {k: v for k, v in expected_cmp.items() if k != "states"}
+            if stored_core != expected_core:
+                reason = "索引内容与 Design 文件的确定性编译结果不一致"
+                return False, expected, reason
     if expected.get("errors"):
         if _is_unsupported_format(expected):
             return False, expected, "Design 索引无法编译（不支持的格式）"

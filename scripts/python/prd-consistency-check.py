@@ -42,7 +42,7 @@ from shared_md import (
 from shared_md import load_sibling, load_design_manifest
 
 # PRD 章节别名（用于章节定位，但 ShitPM 主要采用全文扫描策略，章节定位仅作辅助）
-NON_CONCRETE_STATE_NAMES = frozenset({"—", "-", "N/A", "任意状态", "状态"})
+NON_CONCRETE_STATE_NAMES = frozenset({"—", "-", "N/A", "任意状态", "状态", "无", "无状态机"})
 # 页面展示/请求过程状态：不属于业务状态机，不得判为业务状态幻觉。
 # 只有在 Design 明确把同类词定义为业务状态时，才需要人工核对表达口径。
 PROCESS_OR_DISPLAY_STATE_MARKERS = frozenset({
@@ -113,7 +113,7 @@ def _split_state_tokens(raw: str) -> list:
     # 去掉括号注释（如'已上报告（设定上报告标记）'→'已上报告'）
     text = re.sub(r"[（(][^）)]*[）)]", "", text)
     tokens = []
-    for part in _FIELD_SPLIT_RE.split(text):
+    for part in re.split(r"[、，,；;/｜|\s]+|或", text):
         token = part.strip().strip("`").strip("。；;，,、")
         if not token:
             continue
@@ -1823,9 +1823,7 @@ def _normalize_indexed_value(value) -> str:
 
 def _compare_indexed_structure(index: dict, content: str, index_module) -> dict:
     expected = _indexed_expected_entities(index)
-    # 旧格式由 design-index.py 明确标记为 unsupported_format 时，交给 legacy
-    # 提取器处理；不能把 PRD 的旧格式实体当成“新增实体”报告为索引幻觉。
-    if not expected:
+    if index_module and getattr(index_module, "_is_unsupported_format", None) and index_module._is_unsupported_format(index):
         return {
             "enabled": False,
             "expected_count": 0,
@@ -1833,6 +1831,16 @@ def _compare_indexed_structure(index: dict, content: str, index_module) -> dict:
             "missing": [],
             "hallucinated": [],
             "attribute_mismatch": [],
+        }
+    if not expected:
+        return {
+            "enabled": True,
+            "expected_count": 0,
+            "matched_count": 0,
+            "missing": [],
+            "hallucinated": [],
+            "attribute_mismatch": [],
+            "diagnostics": index.get("diagnostics", []),
         }
     # 页面/字段只按“名称”做确定比较，不再要求字段具备页面和区块位置：
     # - missing：Design 名称未在 PRD 正文任何位置出现（存在性候选，possible_omission）；
@@ -2050,6 +2058,25 @@ def _read_design_set_text(project_root: Path) -> str:
     return "\n".join(parts)
 
 
+def _extract_legacy_design_states(project_root: Path, module_name: str | None = None) -> tuple[list[dict], str]:
+    """旧版状态提取辅助：供 --legacy 显式回退或历史单体 design 路径调用。"""
+    data, _ = _load_design_entities_from_md(project_root, module_name)
+    states = (data.get("states", []) or []) if data else []
+    state_source = "legacy"
+    if not states:
+        try:
+            design_content = _read_design_set_text(project_root)
+            design_headings = parse_headings(design_content)
+            design_tables = parse_tables_with_context(design_content, design_headings)
+            design_state_names = extract_prd_states(design_content, design_headings, design_tables)
+            states = [{"title": name, "id": name} for name in design_state_names]
+            state_source = "legacy-prd-extractor" if states else "empty"
+        except Exception:
+            states = []
+            state_source = "empty"
+    return states, state_source
+
+
 def main():
     parser = argparse.ArgumentParser(description="PRD 与 design 确定性结构对比（ShitPM: 直接读人读稿，多模板兼容）")
     parser.add_argument("--project-root", type=Path, default=Path.cwd(), help="项目根目录")
@@ -2059,6 +2086,12 @@ def main():
         action="store_true",
         default=False,
         help="Prototype-only 项目无 PRD 时返回 skipped，退出码 0，不阻塞 Fix",
+    )
+    parser.add_argument(
+        "--legacy",
+        action="store_true",
+        default=False,
+        help="显式使用旧版提取路径（用于历史项目兼容与诊断）",
     )
     args = parser.parse_args()
 
@@ -2088,66 +2121,124 @@ def main():
         with open(prd_path, encoding="utf-8") as f:
             content = f.read()
 
-    # ShitPM: 从设计集清单列出的正式 Design 文件直接提取实体（不依赖 metadata）
-    design_data, err = _load_design_entities_from_md(project_root, args.module)
-    if design_data is None:
-        print(json.dumps({"error": err or "无法加载 design 实体"}, ensure_ascii=False))
-        sys.exit(2)
+    manifest_path = project_root / "output" / "design" / "设计集清单.json"
+    is_explicit_legacy = args.legacy or not manifest_path.exists()
 
-    # 阶段 9：优先读取与 Design 文件指纹绑定的索引；缺失时只在内存中编译，绝不把索引当事实源。
-    # ShitPM: 索引不可用时按确定性结构对比降级（不再有旧单体 legacy 模式）。
     design_index_from_file = False
-    try:
-        design_index_module, design_index, design_index_error, design_index_from_file = _load_verified_design_index(project_root)
-    except Exception as exc:
-        design_index = None
-        design_index_error = str(exc)
-    if design_index is None or design_index_error:
-        # 索引编译失败（如清单缺失/文件缺失），降级为确定性结构对比
+    design_index = None
+    design_index_error = None
+    design_index_module = None
+    design_data = None
+
+    if not is_explicit_legacy:
+        try:
+            design_index_module, design_index, design_index_error, design_index_from_file = _load_verified_design_index(project_root)
+        except Exception as exc:
+            design_index = None
+            design_index_error = str(exc)
+
+        if design_index_error:
+            # 索引指纹失效、类型错误或解析错误：显式报错拦截，主流程严禁静默回退 legacy
+            print(json.dumps({
+                "ok": False,
+                "error": design_index_error,
+                "exit_reason": "fatal_input_error",
+                "source": {
+                    "design": "output/design/设计集清单.json (design set manifest)",
+                    "prd": "output/prd/prd.md (human-readable)",
+                    "design_index": ".workflow/runtime/context/design/index/design-index.json",
+                    "design_index_used": False,
+                    "structure_source": "none",
+                    "design_state_source": "none",
+                    "design_permission_source": "none",
+                },
+                "classification": {
+                    "deterministic_conflicts": [],
+                    "needs_semantic_judgment": [],
+                    "possible_omissions": [],
+                },
+                "summary": {
+                    "total_missing": 0,
+                    "total_hallucinated": 0,
+                    "total_attribute_mismatch": 0,
+                    "total_deterministic_attribute_mismatch": 0,
+                    "total_internal_field_issues": 0,
+                    "total_permission_inversions": 0,
+                    "has_hallucination": False,
+                    "has_missing": False,
+                    "has_attribute_mismatch": False,
+                },
+            }, ensure_ascii=False, indent=2))
+            sys.exit(1)
+
+        if design_index and getattr(design_index_module, "_is_unsupported_format", None) and design_index_module._is_unsupported_format(design_index):
+            # 旧格式 Design 集合（缺少固定页面/区块/字段/操作标题结构）：降级为 legacy 兼容
+            indexed_result = {"enabled": False, "expected_count": 0, "matched_count": 0,
+                              "missing": [], "hallucinated": [], "attribute_mismatch": []}
+            indexed_active = False
+            design_data, err = _load_design_entities_from_md(project_root, args.module)
+            if design_data is None:
+                print(json.dumps({"error": err or "无法加载 design 实体"}, ensure_ascii=False))
+                sys.exit(2)
+            structure_source = "legacy-stage-prep"
+        else:
+            # 当前格式主路径：完全通过 verified Design Index 比较结构，主路径不调用 stage-prep.py
+            indexed_result = _compare_indexed_structure(design_index, content, design_index_module)
+            indexed_active = indexed_result["enabled"]
+            structure_source = "design-index"
+    else:
+        # 显式 Legacy 模式或无清单旧项目
         indexed_result = {"enabled": False, "expected_count": 0, "matched_count": 0,
                           "missing": [], "hallucinated": [], "attribute_mismatch": []}
         indexed_active = False
+        design_data, err = _load_design_entities_from_md(project_root, args.module)
+        if design_data is None:
+            print(json.dumps({"error": err or "无法加载 design 实体"}, ensure_ascii=False))
+            sys.exit(2)
+        structure_source = "legacy-stage-prep"
+
+    # 状态事实：T-2.5 非退化对照已通过，当前格式状态事实统一源自 verified Design Index
+    if indexed_active:
+        # 优先只读取由独立标题和六列表格定义的生命周期状态机状态，排除页面主要状态等散文碎片
+        sm_states = [s for s in design_index.get("states", []) if s.get("source") == "state_machine"]
+        if not sm_states and design_index.get("state_machines"):
+            sm_states = [
+                {"name": s["name"], "id": s.get("name")}
+                for sm in design_index["state_machines"]
+                for s in sm.get("states", [])
+            ]
+        if not sm_states:
+            # 若无独立状态机，但存在页面主要状态（如极简单页设计夹具），作为后备读取
+            sm_states = [s for s in design_index.get("states", []) if isinstance(s, dict) and s.get("name")]
+        design_states = [{"title": s["name"], "id": s.get("id", s["name"])} for s in sm_states if isinstance(s, dict) and s.get("name")]
+        design_state_source = "design-index" if design_states else "design-index-empty"
     else:
-        indexed_result = _compare_indexed_structure(design_index, content, design_index_module)
-        indexed_active = indexed_result["enabled"]
+        design_states, design_state_source = _extract_legacy_design_states(project_root, args.module)
 
-    design_fields = design_data.get("fields", []) or []
-    design_pages = design_data.get("pages", []) or []
-    # 状态事实：本期仍由 stage-prep 提取。design-index 的 states 是页面「主要状态」属性的
-    # 投影，不是状态机状态集——实测 7 个真实项目差异巨大（能源数据监测索引侧 0 条、
-    # 租金清分 8 条全为段落碎片），切换即能力退化，故本维度未收敛，仅显式标记来源。
-    design_states = design_data.get("states", []) or []
-    design_state_source = "legacy"
-    # Design 表格可能使用“进入条件/下一状态”等列名变体；此时从正式 Design 文件
-    # 的状态章节回读状态名（无旧单体回退）。
-    if not design_states:
-        design_content = _read_design_set_text(project_root)
-        design_headings = parse_headings(design_content)
-        design_tables = parse_tables_with_context(design_content, design_headings)
-        design_state_names = extract_prd_states(design_content, design_headings, design_tables)
-        design_states = [{"title": name, "id": name} for name in design_state_names]
-        # 第三路径：用 PRD 侧提取器读 Design 文本，语义上并不严谨；但至少一个真实项目
-        # （小程序）依赖它，故保留并标记来源，待 design-index 具备状态章节提取器后收敛。
-        design_state_source = "legacy-prd-extractor" if design_states else "empty"
-
-    # Design 侧权限事实：唯一权威来源是 design-index 的 page/operation 必填属性 roles；
-    # 仅索引不可用（旧格式项目）时才回退 stage-prep 的章节扫描，并显式标记来源。
+    # 权限事实：新格式使用 verified design-index，旧格式回退 legacy
     if indexed_active:
         design_permissions = _design_permissions_from_index(design_index)
         design_permission_source = "design-index"
+        design_fields = []
+        design_pages = []
+        design_modules_raw = []
+        design_non_page_fields = []
+        field_title_to_id = {}
+        page_title_to_id = {}
+        design_field_objects = []
     else:
-        design_permissions = design_data.get("permissions", []) or []
+        design_permissions = (design_data.get("permissions", []) if design_data else []) or []
         design_permission_source = "legacy" if design_permissions else "legacy-empty"
-    design_modules_raw = design_data.get("modules", []) or []
-    # ShitPM：读取 Design 中标记为“非页面落点字段”的内部/审计字段，用于验证 PRD 是否完整交付
-    design_non_page_fields = design_data.get("non_page_fields", []) or []
+        design_fields = (design_data.get("fields", []) if design_data else []) or []
+        design_pages = (design_data.get("pages", []) if design_data else []) or []
+        design_modules_raw = (design_data.get("modules", []) if design_data else []) or []
+        design_non_page_fields = (design_data.get("non_page_fields", []) if design_data else []) or []
+        field_title_to_id = {f["title"]: f.get("id", f["title"]) for f in design_fields if isinstance(f, dict) and "title" in f}
+        page_title_to_id = {p["title"]: p.get("id", p["title"]) for p in design_pages if isinstance(p, dict) and "title" in p}
+        design_field_objects = _design_field_objects(project_root, design_fields)
 
     headings = parse_headings(content)
     tables = parse_tables_with_context(content, headings)
-
-    # 构建 title → id 映射
-    field_title_to_id = {f["title"]: f.get("id", f["title"]) for f in design_fields if isinstance(f, dict) and "title" in f}
-    page_title_to_id = {p["title"]: p.get("id", p["title"]) for p in design_pages if isinstance(p, dict) and "title" in p}
 
     # 从 PRD 提取实体（多模板兼容）
     prd_fields = extract_prd_fields(headings, tables, content)
@@ -2294,7 +2385,13 @@ def main():
     # 合规 PRD 用自然语言表达状态，解析器仍可能一无所获；此时不得把解析失败当成状态遗漏，
     # 与权限提取为空同样处理：全部标记为未评估，交人工验收。
     states_extracted = bool(prd_states or prd_prose_states)
-    if design_deliverable_states and not states_extracted:
+    if not design_deliverable_states:
+        state_result = {"missing": [], "hallucinated": [], "matched_count": 0, "not_evaluated": True}
+        state_via_enum = []
+        state_via_process = []
+        state_via_prose = []
+        prose_unmatched = []
+    elif not states_extracted:
         state_result = {"missing": [], "hallucinated": [], "matched_count": 0, "not_evaluated": True}
         state_via_enum = []
         state_via_process = []
@@ -2475,8 +2572,14 @@ def main():
             "note": "未评估不等于通过：须用 permission_facts 的 Design 角色清单与 PRD 4.x.3 逐模块比对。",
         }
 
-    # 状态解析为空时同样给出“无法提取、需人工验收”信号，不得显示为“状态一致”。
-    if states_extracted:
+    # 状态解析状态评估：区分「Design 未声明状态机」「双侧提取比对」「PRD 未提取到状态」。
+    if not design_deliverable_states:
+        state_evaluation = {
+            "status": "not_evaluated",
+            "message": f"Design 侧未声明明确状态机（来源：{design_state_source}），无需状态机比对，状态一致性由 Review 语义核对。",
+            "note": "未评估不等于通过；若业务包含状态流转，请在 Design 中声明状态机或由 Review 确认。",
+        }
+    elif states_extracted:
         state_evaluation = {
             "status": "extracted",
             "message": "状态已从 PRD 正文提取，仍需人工核对状态集合与流转是否与 Design 一致。",
@@ -2504,8 +2607,12 @@ def main():
 
     result = {
         "source": {
-            "design": "output/design/设计集清单.json (design set manifest)",
+            "design": "output/design/设计集清单.json (design set manifest)" if not is_explicit_legacy else "legacy design files",
             "prd": "output/prd/prd.md (human-readable)",
+            "structure_source": structure_source,
+            "design_index_used": indexed_active,
+            "design_state_source": design_state_source,
+            "design_permission_source": design_permission_source,
         },
         "extracted": {
             "prd_fields_count": len(prd_fields),

@@ -1,7 +1,7 @@
 ---
 name: spm-prototype-mark
 disable-model-invocation: true
-description: "为源码原型副本添加可点击的关键点标记和来源备注浮窗。"
+description: "原型标注：为源码原型副本添加可点击的关键点标记与来源备注浮窗。触发于为已构建原型生成审阅标注副本；仅修改 prototypemark 副本，不修改正式源码或事实源。"
 ---
 
 ## 路径与边界
@@ -17,7 +17,7 @@ Mark 只处理 output/prototypemark/ 副本：
 
 ## 任务判定
 
-用户明确说初始化标注或增量更新后执行对应流程；两者都未明确时先询问“需要初始化标注还是增量更新？”。流程开始输出模型建议：明确定位和展示可用轻量模型；主动发现产品或交互问题属于 Prototype Review，不在 Mark 内处理。
+用户明确说初始化标注或增量更新后执行对应流程；两者都未明确时先询问“需要初始化标注还是增量更新？”。主动发现产品或交互问题属于 Prototype Review，不在 Mark 内处理。
 
 ## 初始化标注
 
@@ -52,3 +52,5 @@ Mark 只处理 output/prototypemark/ 副本：
 - 副本 dist/ 只由 npm run build 生成；不使用外部 CDN、不引入 Python 标注脚本、不使用 Unix 专属复制命令或特定 Agent 协议。
 
 最终完成条件：初始化或增量类型明确；副本排除旧构建依赖并构建通过；关键点与来源备注完整；交互和定位规则可观察；原始 Prototype、PRD、Design 未修改；高影响意见已按六项格式输出。
+
+- 不能据此宣布的结论：标注副本仅供交互展示，不能据此宣布原型已与 Design 完全一致。

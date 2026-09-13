@@ -116,9 +116,14 @@ spm-design（简单模式 / 完整模式）
 关键原则：
 
 - Align 是 Design 的必经分析责任，但原始材料可选；空项目使用用户原话和回答形成事实；
-- Design 同时承担产品定义与 Design 基线，是唯一产品事实体系；每项正式事实只有一个归属处；
-- 设计集清单登记的正式 Design 文件是 PRD 和 Prototype 的唯一产品事实体系；
-- PRD 与 Prototype 并列，可以任意顺序、单独生成；
+- Design 同时承担产品定义与 Design 基线，是唯一产品事实体系；每项正式事实只有一个归属处（系统级基线、跨模块契约、模块设计）；
+- 设计集清单登记的正式 Design 文件是唯一产品事实源；`design-index.py` 是确定性派生索引，不是第二套事实源；
+- 新格式确定性消费者（PRD 一致性、Prototype 一致性）统一只消费经过校验的 verified Design Index（D-1 A）；当 Index 失效或无法解析时显式报错拦截，主流程严禁静默回退 legacy 解析；
+- 状态与权限分层责任：
+  - 状态：确定性比较仅覆盖明确声明的状态机实体（标题+六列表格+迁移边，D-3 A）；普通散文与过程态不进入业务状态集合；未声明明确状态机的场景报告 `not_evaluated`；严格区分对象生命周期状态、页面主要状态与过程展示态；
+  - 权限：暂不建立全量 capability schema（D-2 A），区分页面可见性、操作可执行性、字段编辑权、数据范围和状态前置条件；异构空间显式报告 `not_evaluated` 或 `cannot_extract`，由 Review 语义核对，严禁假绿；Design 权限读取继续沿用 verified Index；
+- PRD 与 Prototype 并列，可以任意顺序、单独生成；PRD 人读正文不暴露机器 ID；Prototype 采用明确稳定锚点（`data-*`）承接结构；
+- 证据分层：确定性脚本通过 ≠ 语义质量通过；脚本返回 0 仅证明机器规则排查无冲突，最终质量由 Skill 内联自检、Review 独立第二意见、真实试读与原型运行核对验收；
 - Review 是按需独立挑战，不构成门禁，不自动阻塞下游；
 - 默认流程不依赖 metadata、`stage-prep.py` 或三个 Review 全部通过；
 - 用户不再执行“确认 Design”或确认哈希；高影响未知只询问具体业务问题。
@@ -276,6 +281,8 @@ Prototype Mark 收集的高影响反馈按 `$BUNDLE/templates/prototype-feedback
 | 脚本 | 功能 |
 |------|------|
 | `stage-context.py` | 状态查询、可用动作、Design 修改状态、下游受影响模块；无 `status.json` 也能正常工作 |
+| `design-index.py compile` | 编译 Design 确定性派生索引（页面、区块、字段、操作、主要状态及稳定 ID 关系） |
+| `design-index.py check` | 校验 Design 派生索引与源文件指纹一致性（新格式消费者唯一消费 verified Index） |
 | `design-set.py check` | 校验设计集清单（Schema、ID、路径、依赖、地图引用、指纹） |
 | `design-set.py refresh` | 重算清单中全部文件指纹与 set_sha256 并写回（首次创建清单时使用） |
 | `design-set.py closure` | 按目标 ID 沿 depends_on 输出递归依赖闭包 |

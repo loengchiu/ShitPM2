@@ -60,7 +60,7 @@ Hash 地址可能带查询参数（例如 `#/demo-form?case=1`）；路由匹配
 
 布局、操作栏、列宽、版权和标题等项目组壳层习惯按本项目规范执行；页面不因品牌选择产生视觉分支。
 
-常用组件：
+常用基础组件：
 
 | 用途 | 首选写法 |
 | --- | --- |
@@ -68,12 +68,27 @@ Hash 地址可能带查询参数（例如 `#/demo-form?case=1`）；路由匹配
 | 查询 | `<Form layout="inline">` + `Form.Item`，查询/重置属于 Form |
 | 表单 | `Form layout="vertical"` + `Form.Item` + `Row/Col` |
 | 下拉/日期/数字 | `Select` / `DatePicker` / `InputNumber` |
-| 表格 | `DataTable`（内部默认实现为 `TablerDataTable`）；字段和数据来自 Design |
-| 状态 | `StatusTag`（内部默认实现为 `TablerStatusTag`），不直接自造颜色 |
 | 详情 | `Descriptions`，默认两列，长文本独占一行 |
 | 结果/异常 | `Result` + 恢复或返回操作 |
-| 空态 | `EmptyState`（内部默认实现为 `TablerEmptyState`）或 `DataTable` 内置空态 |
-| 页面级操作 | `ActionBar`（内部默认实现为 `TablerActionBar`）sticky 底部操作栏 |
+
+### 共享语义组件清单（`src/shared/ui/`）
+
+高频结构统一复用 `src/shared/ui/`（权威导出见 `templates/prototype-vite/src/shared/ui/index.jsx` 或业务原型源码的 `src/shared/ui/`），不复制其 DOM/CSS 或自行重复封装。共享层导出以下 11 个中立语义组件以及 1 个底部版权行组件（底层对接 Tabler 实现，共 12 项）：
+
+| 语义组件名 | 内部实现 | 典型用途与说明 |
+| --- | --- | --- |
+| `PageHeader` | `TablerPageHeader` | 页面标题头部，支持 `prefix`（所属模块）、`title`、`subtitle`、`onBack`、`actions` |
+| `SectionCard` | `TablerSectionCard` | 模块内容卡片容器，支持 `title`、`extra`、`children` |
+| `MetricCard` | `TablerMetricCard` | 看板/概览核心指标卡，支持 `title`、`value`、`suffix`、`trend` ("up"/"down")、`trendLabel`、`icon` |
+| `Toolbar` | `TablerToolbar` | 列表/内容区顶部工具栏，左侧 `children` 承载筛选/操作，右侧 `actions` 承载主按钮 |
+| `DataTable` | `TablerDataTable` | 统一数据表格，内置空态规范、中文分页总条数、空字段自动回退 `—`（0 与 false 保留） |
+| `StatusTag` | `TablerStatusTag` | 状态标签，支持语义 status（`success` / `progress` / `warning` / `error` / `weak`）或直接指定 `color` |
+| `IconButton` | `TablerIconButton` | 纯图标按钮，必须传 `ariaLabel` 与 `title` 保证无障碍支持与悬浮提示 |
+| `RowActions` | `TablerRowActions` | 表格行操作，≤3 个动作直接展示，>3 个自动将超出项收敛至“更多”下拉菜单 |
+| `FormSection` | `TablerFormSection` | 分组/配置表单卡片，支持 `title`、`extra`、`children` |
+| `EmptyState` | `TablerEmptyState` | 缺省/空状态展示，支持 `icon`、`title`、`description`、`action` 与 `compact` 紧凑模式 |
+| `ActionBar` | `TablerActionBar` | 页面级底部吸底/浮动操作栏容器，承载主操作按钮组 |
+| `PageFooter` | `PageFooter` | 页面最底部版权行，位于页面内容末尾、ActionBar 之前 |
 
 图表统一使用 `src/shared/charts/TablerChart.jsx`，色板和坐标轴来自该封装；页面 option 使用 `useMemo` 保持引用稳定：
 

@@ -1,6 +1,6 @@
 ---
 name: spm-design
-description: "产品设计——用于生成或修改 ShitPM 多文件 Design：先完成或复用 Align，再按用户选择的 simple 或 full 模式形成唯一产品事实体系。full 模式承担 A/B/C 责任；最终写作无损整合来源事实并在同一动作内回读修正。"
+description: "产品设计阶段：生成或修改 ShitPM 多文件 Design 唯一事实源。触发于生成或更新 Design、确定业务闭环与事实结构时；先完成或复用 Align，按 simple/full 模式完成产品建模；不用于已有稳定 Design 且仅需生成下游产物的任务。"
 ---
 
 ## 1. 定位与事实源
@@ -233,3 +233,5 @@ simple-design 和 design-editor 各自只执行一次内部自检，不拆成独
 - 不自动启动 PRD、Prototype 或 Review；
 - 不让完整模式跳过 A/B/C；不让简单模式生成无关的完整 ABC；
 - 不把高影响问题推迟给 PRD、Prototype 或 Review。
+
+- 不能据此宣布的结论：不能宣布未经确认的高影响推测已成为正式事实，也不能用 Design 生成替代下游验收。

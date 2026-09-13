@@ -123,7 +123,7 @@ ShitPM 不再为 prototype 阶段生成 metadata。
 | 脚本 | ShitPM 职责 | 旧版兼容 行为 |
 |------|------|---------|
 | 旧项目 metadata 校验 | 仅在旧项目存在 metadata 时按需执行 | schema 校验 + ID 唯一性校验 |
-| prd-consistency-check.py | ShitPM：直接读取人读 Design 和人读 PRD，检查明确可解析的标题、角色、对象、状态、关键动作和明显冲突 | 不依赖 Design metadata |
+| prd-consistency-check.py | ShitPM：新格式唯一消费 verified Design Index，检查明确可解析的页面、区块、字段、操作、状态机与权限边界；指纹失效显式报错拦截，不静默回退 | 不依赖 Design metadata，仅显式 legacy 模式保留兼容提取 |
 | Review 输入核对 | ShitPM：文件存在性、可读性和基础结构检查 | 不决定是否允许 Review |
 | prd-style-lint.py | ShitPM：PRD 模板、文风和格式 | 不变 |
 | 状态闭环人工审查 | ShitPM：按需检查，不作为所有生成任务的硬门禁 | 直接根据 Design 正文审查 |

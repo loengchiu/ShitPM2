@@ -224,5 +224,9 @@ def main() -> int:
     return 0
 
 
+def test_prd_style_lint() -> None:
+    assert main() == 0
+
+
 if __name__ == "__main__":
     raise SystemExit(main())

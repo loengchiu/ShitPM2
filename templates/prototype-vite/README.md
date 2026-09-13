@@ -20,6 +20,7 @@
 - `npm run build`：构建 `dist/`
 - `npm run preview`：构建产物预览（默认端口 4173，被占用时自动顺延）
 - 唯一编辑源：`src/`；`dist/` 是可重建产物，禁止直接修改
+- 受检 Fixture：`src/modules/demo/` 为模板受检 fixture，受 `prototype-shared-guard.py` 共享层与结构锚点检查约束，不作为具体业务项目的 Design 事实对账范围
 - Cloudflare：`wrangler.toml` 保存已确认的 Pages 项目名（`name = "..."`）与构建目录（`pages_build_output_dir = "dist"`），账号与令牌不写入项目文件；未配置时上传选项会停止并提示
 - 配置示例（由 AI 在用户确认项目名后生成，模板不预置）：
   `name = "pages-project-name"` + `pages_build_output_dir = "dist"`

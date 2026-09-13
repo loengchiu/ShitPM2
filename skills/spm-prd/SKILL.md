@@ -1,6 +1,6 @@
 ---
 name: spm-prd
-description: "PRD 阶段——根据 Design 事实闭包直接生成研发可评审的 PRD。用于用户要求生成 PRD、需求规格或产品需求文档时；按业务闭环组织，保持 Design 语义，不依赖 Prototype，不把高影响未决事实静默拍板；成功后记录 PRD 模块依据。"
+description: "PRD 阶段：根据 Design 事实闭包直接生成研发可评审的 PRD。触发于用户要求生成 PRD、需求规格或需求文档；按业务闭环组织，保持 Design 语义，不依赖 Prototype，不把高影响未决事实静默拍板；成功后记录 PRD 模块依据。"
 ---
 
 ## 事实源与职责
@@ -125,4 +125,4 @@ python $BUNDLE/scripts/python/design-set.py record-inputs --project-root . --art
 
 只写入 `output/prd/prd.md`、必需流程图的 `output/prd/diagrams/*.drawio` 与 `*.png`、`.workflow/provenance/prd.json`、更新 `.workflow/status.json`（`current_stage=prd`、`artifacts.prd=output/prd/prd.md`）。不生成 Design→PRD 对照表、覆盖率 JSON、验证回执或签名类证明资产。
 
-完成后停在 PRD 交付点：PRD Review、Prototype 由用户显式触发，不自动推进。Design 缺失、活动事务未恢复、输入不可解析或高影响事实缺失时停止并报告，不用补丁掩盖问题。
+完成后停在 PRD 交付点：PRD Review、Prototype 由用户显式触发，不自动推进。不能据此宣布研发无歧义或逻辑零缺陷，关键模块仍需研发任务式试读验收。Design 缺失、活动事务未恢复、输入不可解析或高影响事实缺失时停止并报告。

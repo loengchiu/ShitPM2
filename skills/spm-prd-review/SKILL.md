@@ -1,13 +1,11 @@
 ---
 name: spm-prd-review
-description: "PRD Review：独立审查 PRD 的业务闭环、写作质量、Design 一致性、场景覆盖、权限状态和未授权高影响事实。触发于用户要求审查 PRD；只输出第二意见，不修改、修复或推进。"
+description: "PRD Review：独立审查 PRD 的业务闭环、写作质量、Design 一致性、场景覆盖、权限状态和未授权高影响事实。触发于用户要求审查 PRD；只输出独立第二意见，不修改、修复或推进。"
 ---
 
 ## 路径与资源
 
 从当前项目根目录读取 `output/` 和 `.workflow/`；从 `$BUNDLE/` 读取 `contracts/`、`schemas/`、`references/` 和 `scripts/python/`。
-
-流程开始时根据问题复杂度选择推理深度；涉及业务闭环、权限、状态、跨模块或高影响事实时使用深度推理模型，无法判断时按深度推理模型处理。
 
 ## 职责边界
 
@@ -43,3 +41,5 @@ python $BUNDLE/scripts/python/prd-consistency-check.py --project-root . --module
 - 结论门槛、问题分级、专项严重度和上游同步条件以公共契约与 PRD 专项契约为准。
 - Review 通过不改变 Design 修改状态，也不自动推进阶段。
 - 失败处理按公共契约执行；确定性脚本失败但文件可读时继续人读审查并保留原始错误；共享依据缺失时报告具体路径，不凭记忆重建检查项。
+
+- 不能据此宣布的结论：Review 结论不能替代研发试读与人工确认，不能据此宣布 PRD 零缺陷。

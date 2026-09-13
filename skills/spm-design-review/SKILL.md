@@ -1,13 +1,11 @@
 ---
 name: spm-design-review
-description: "Design Review：独立审查 Design 基线的结构完整性、业务质量、一致性和高影响缺口。触发于用户要求审查 Design；默认局部审查，整套 Design 仅在用户明确要求完整 Review 时审查。只输出第二意见，不修改或推进。"
+description: "Design Review：独立审查 Design 基线的结构完整性、业务质量、一致性和高影响缺口。触发于用户要求审查 Design；默认局部审查；只输出独立第二意见，不修改、不确认、不推进阶段。"
 ---
 
 ## 路径与资源
 
 从系统 prompt 读取 `$BUNDLE`。项目文件使用当前根目录的 `.workflow/` 和 `output/`；共享依据使用 `$BUNDLE/contracts/`、`$BUNDLE/schemas/`、`$BUNDLE/references/` 和 `$BUNDLE/scripts/python/`。
-
-流程开始时输出模型建议：需要发现业务、权限、状态、跨模块或方案风险时使用深度推理模型；只做标题、结构、文件、格式和明显缺失检查时可用轻量模型或脚本；无法判断时使用深度推理模型。
 
 ## 职责边界
 
@@ -41,3 +39,5 @@ Review 是独立第二意见，不是生成门禁，也不承担计划内补全�
 - 违反 Design 的高影响完整性、状态闭环、权限或事实源规则时，不把问题交给下游生成 Skill 补全。
 - Review 通过不等于 Design 可生成下游；下游可用性由 Design 修改状态和事实闭包决定。
 - 失败处理按公共契约执行；共享契约或必要依据缺失时报告具体路径，不凭记忆重建检查项。
+
+- 不能据此宣布的结论：Review 给出结论不能宣布 Design 已经自动通过下游或可发布，更不能代替业务决策。

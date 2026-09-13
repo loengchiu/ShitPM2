@@ -416,5 +416,9 @@ def main():
     print("\n所有必做场景（A, C, F）自动化回归测试全部 PASS。")
 
 
+def test_phase7_scenarios() -> None:
+    main()
+
+
 if __name__ == "__main__":
     main()

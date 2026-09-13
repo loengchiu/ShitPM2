@@ -20,11 +20,10 @@ from shared_md import load_sibling
 
 
 EXCLUDED_DIRS = {"dist", "node_modules", "prototype-p0"}
-# 模板工程自带的样张目录不是用户项目的业务事实，其示例锚点不参与 Design 一致性裁决。
-# 新项目按 spm-prototype 的「首次生成」删除该目录；这里同时排除，避免门禁依赖模型是否记得删。
-# 前缀相对 prototype 源码根（默认 output/prototype/src）计算；只按精确路径前缀排除，
-# 不按目录名匹配，防止误伤恰名为 demo 的真实业务模块。
-EXCLUDED_SOURCE_PREFIXES = ("modules/demo/",)
+# 模板工程自带的受检 fixture 目录（依据 D-4 A 决策）：
+# 样张代码演示视觉规范与锚点层级，接受语法/结构与共享层检查，但不参与用户项目的业务 Design 事实对账。
+FIXTURE_SOURCE_PREFIXES = ("modules/demo/",)
+EXCLUDED_SOURCE_PREFIXES: tuple[str, ...] = ()
 ENTITY_TYPES = ("page", "block", "field", "operation", "state")
 CLASSIFICATION_TYPES = (
     "deterministic_conflicts",
@@ -263,7 +262,7 @@ def _scan_source(root: Path, source_root: Path | None = None) -> tuple[dict[str,
         if path.is_file()
         and path.suffix.lower() in {".html", ".js", ".jsx", ".mjs", ".ts", ".tsx"}
         and not any(part in EXCLUDED_DIRS for part in path.parts)
-        and not path.relative_to(source_root).as_posix().startswith(EXCLUDED_SOURCE_PREFIXES)
+        and not (EXCLUDED_SOURCE_PREFIXES and path.relative_to(source_root).as_posix().startswith(EXCLUDED_SOURCE_PREFIXES))
     ]
     if not source_paths:
         raise FileNotFoundError("Prototype 源码目录中没有可检查的源码文件")
@@ -365,6 +364,13 @@ def _unique_anchors(anchors: dict[str, list[dict[str, Any]]]) -> dict[str, dict[
     return result
 
 
+def _is_fixture_route(route: dict[str, Any], fixture_files: list[str]) -> bool:
+    component = route.get("component")
+    if not component:
+        return False
+    return any(Path(f).stem.lower() == component.lower() for f in fixture_files)
+
+
 def _component_exists(component: str | None, scanned_files: list[str]) -> bool:
     if not component:
         return False
@@ -381,6 +387,7 @@ def _run(root: Path, prototype_src: Path | None = None, design_manifest: Path | 
         "routes": (proto_src / "routes.jsx").relative_to(root).as_posix() if (proto_src / "routes.jsx").is_relative_to(root) else str(proto_src / "routes.jsx"),
         "excluded_dirs": sorted(EXCLUDED_DIRS),
         "excluded_source_prefixes": sorted(EXCLUDED_SOURCE_PREFIXES),
+        "fixture_source_prefixes": sorted(FIXTURE_SOURCE_PREFIXES),
     }
     if not manifest_path.is_file():
         _fatal(f"设计集清单不存在: {manifest_path}", source)
@@ -406,15 +413,29 @@ def _run(root: Path, prototype_src: Path | None = None, design_manifest: Path | 
         _fatal(str(exc), source)
         return {}, 2
 
+    fixture_files = [
+        f for f in scanned_files
+        if any(f.startswith(p) or f"/{p}" in f for p in FIXTURE_SOURCE_PREFIXES)
+    ]
+    source["fixture_files"] = sorted(fixture_files)
+
+    business_anchors = {
+        entity_type: [item for item in values if item.get("source") not in fixture_files]
+        for entity_type, values in anchors.items()
+    }
     classification = _empty_classification()
-    indexed = _unique_anchors(anchors)
+    indexed = _unique_anchors(business_anchors)
     expected = {entity_type: _names(index, entity_type) for entity_type in ENTITY_TYPES}
     expected_sets = {entity_type: set(names) for entity_type, names in expected.items()}
 
     matched_pages: set[str] = set()
     unresolved_routes: list[dict[str, Any]] = []
+    fixture_routes: list[dict[str, Any]] = []
     for route in routes:
         if route["path"] == "*":
+            continue
+        if _is_fixture_route(route, fixture_files):
+            fixture_routes.append(route)
             continue
         title = route.get("title")
         if title in expected_sets["page"]:
@@ -476,7 +497,9 @@ def _run(root: Path, prototype_src: Path | None = None, design_manifest: Path | 
                     entity_type=entity_type, name=name, source="Design Index",
                 ))
 
-    for button in buttons:
+    source["fixture_routes"] = [r.get("path") for r in fixture_routes if r.get("path")]
+    business_buttons = [b for b in buttons if b.get("source") not in fixture_files]
+    for button in business_buttons:
         classification["needs_semantic_judgment"].append(_item(
             "unanchored_button",
             "发现未绑定 data-operation 的按钮，不能仅凭按钮文案判断其是否为 Design 授权操作",

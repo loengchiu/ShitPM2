@@ -1,11 +1,11 @@
 ---
 name: spm-prototype
-description: "Prototype 生成与修改：根据多文件 Design 事实闭包创建或更新可运行的 Vite + React 18 + Ant Design 6 源码原型。触发于生成原型或修改原型；评审原型使用 spm-prototype-review；源码工程缺失时停止。"
+description: "Prototype 生成与修改：根据 Design 事实闭包创建或更新可运行的 Vite + React 18 + Ant Design 6 源码原型。触发于生成原型或修改原型；不用于独立审查原型（使用 spm-prototype-review）；源码工程缺失时停止。"
 ---
 
 ## 运行前提
 
-从系统 prompt 读取 `ShitPM bundle root:`，记为 `$BUNDLE`。项目文件使用当前项目根目录；规则、模板和脚本使用 `$BUNDLE/`。流程开始时给出一次模型建议：跨页面任务、复杂交互或高影响表达使用深度推理模型；只有明确的结构或格式检查才使用轻量模型；无法判断时使用深度推理模型。
+从系统 prompt 读取 `ShitPM bundle root:`，记为 `$BUNDLE`。项目文件使用当前项目根目录；规则、模板和脚本使用 `$BUNDLE/`。
 
 Prototype 直接下游于 Design 事实闭包：
 
@@ -26,8 +26,8 @@ Prototype 直接下游于 Design 事实闭包：
 3. 读取 `$BUNDLE/references/prototype-writing.md`。**完成条件**：掌握组件 API、交互硬规则、源码目录与构建边界。普通页面直接执行以下常驻短规则，**不预读完整视觉规范**：
    - 事实输入完全来自 Design 事实闭包，不新增 Design 未定义事实；
    - 先判页面类型，命中即按对应标准结构落位；
-   - 高频结构命中即直接复用 `src/shared/ui/` 11 个语义组件（`PageHeader / SectionCard / MetricCard / Toolbar / DataTable / StatusTag / IconButton / RowActions / FormSection / EmptyState / ActionBar`），不复制其 DOM/CSS；
-   - 颜色一律走 `src/theme/tablerTheme.ts`（主色 `#066fd1`、hover/active `#0563BC`、文字一级 `#1f2937`、次要 `#6b7280`、弱化 `#9ca3af`、页面底/表头底 `#f9fafb`、侧栏白底 `#ffffff`），不写死色值；
+   - 高频结构命中即直接复用 `src/shared/ui/` 共享语义组件（权威清单见 `src/shared/ui/index.jsx`，清单与用法见 `$BUNDLE/references/prototype-writing.md`），不复制其 DOM/CSS；
+   - 颜色一律走 `src/theme/tablerTheme.ts` 主题 Token，不写死色值；
    - 结构、尺寸、间距、字体、阴影走 Ant Design 6 官方默认，主题不覆盖非颜色 token；
    - 图标一律经 `src/shared/icons/` 取用，图表走 `src/shared/charts/TablerChart.jsx`；
    - 空字段一律显示 `—`（`DetailList` 自动格式化；0 和 false 原样保留）；
@@ -68,11 +68,11 @@ Prototype 直接下游于 Design 事实闭包：
 
 ## shared/ui 复用
 
-现有 11 个语义组件（`PageHeader / SectionCard / MetricCard / Toolbar / DataTable / StatusTag / IconButton / RowActions / FormSection / EmptyState / ActionBar`）全部保留；高频结构命中即复用，不在页面内复制实现，也不新造与它们重复的局部封装。
+共享语义组件全部保留（权威清单见 `src/shared/ui/index.jsx`，清单与用法见 `$BUNDLE/references/prototype-writing.md`）；高频结构命中即复用，不在页面内复制实现，也不新造与它们重复的局部封装。
 
 ## 首次生成
 
-1. 检查 `$BUNDLE/templates/prototype-vite/` 完整。目标目录不存在或为空时，将模板复制到 `output/prototype/`；目标目录已存在且非空、但不同时具备 `package.json` 与 `src/` 时，先报告迁移边界并等待确认，不直接覆盖。**复制后立即清掉自带样张**：删除 `src/modules/demo/` 下的 `DesignGallery.jsx`、`DetailDemo.jsx`、`FormDemo.jsx`，以及 `src/routes.jsx` 中对应的 import 与路由登记（`/gallery`、`/detail`、`/form-demo`）；`Placeholder.jsx` 是占位页壳层组件、被真实路由复用，保留原位。**完成条件**：目标包含 `package.json`、`src/`、入口、路由表和 `原型工具.bat`；侧栏不残留样张入口且 `npm run build` 仍通过。
+1. 检查 `$BUNDLE/templates/prototype-vite/` 完整。目标目录不存在或为空时，将模板复制到 `output/prototype/`；目标目录已存在且非空、但不同时具备 `package.json` 与 `src/` 时，先报告迁移边界并等待确认，不直接覆盖。模板自带 `src/modules/demo/` 为受检 Fixture（演示共享 UI 与锚点规范，非业务事实）；首次生成业务原型时，按业务范围清理样张页面及其路由登记（`Placeholder.jsx` 保留原位供占位复用）。**完成条件**：目标包含 `package.json`、`src/`、入口、路由表和 `原型工具.bat`；侧栏不残留样张入口且 `npm run build` 仍通过。不能据此宣布业务页面或权限已实现。
 2. 先完成 Design → Prototype 语义对照，再在 `src/modules/<模块>/` 创建页面并在 `src/routes.jsx` 登记；共享 shell、角色区、异常页放在 `src/shared/`。**完成条件**：Design 页面与路由逐项对应，未确认事实没有被静默拍板。
 3. 按「页面分类与标准结构」路由表判定页面类型并按对应标准结构落位；组合 `src/shared/ui/`、`src/shared/icons/` 和 `src/shared/charts/`，填入 Design 字段与状态，字段锚点用 `data-field` 写在控件或单元格元素上。新颜色先按视觉规范 1.8 进入 Token，不在页面现场拍值；尺寸、间距、阴影不写死，走官方默认。**完成条件**：页面没有复制一套局部视觉规则，高频结构来自共享 UI，且每个页面都能说明页面类型。
 4. 只编辑 `src/`、`index.html`、`package.json`、`vite.config.js`、`public/`、README 等源码工程文件；不编辑 `dist/`、`node_modules/` 或带哈希资源。**完成条件**：所有业务改动都能在源码中定位。
@@ -129,3 +129,5 @@ Review 使用 `spm-prototype-review`，不会由本 Skill 自动修复或推进�
 - `output/prototype/index.html`、`package.json`、`package-lock.json`、`vite.config.js`、README：工程文件。
 - `output/prototype/dist/`：可重建构建产物。
 - `.workflow/status.json`：阶段与产物导航状态。
+
+- 不能据此宣布的结论：不能仅凭构建通过或静态锚点存在宣布全部页面交互或权限已完成，必须经过 Prototype Review 和交互验收。

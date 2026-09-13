@@ -234,6 +234,31 @@ def test_excluded_directories_and_hidden_content_are_ignored() -> None:
         check(not any(item.get("name") == "未授权页面" for item in data["classification"]["deterministic_conflicts"]), str(data))
 
 
+def test_demo_fixture_is_checked_without_design_conflict() -> None:
+    with tempfile.TemporaryDirectory(prefix="spm-prototype-consistency-") as name:
+        root = Path(name)
+        routes = """export const routes = [
+  { path: "/orders", title: "订单列表", component: Orders, module: "测试" },
+  { path: "/detail", title: "详情样张", component: DetailDemo, module: "样张" },
+  { path: "*", title: "页面不存在", component: NotFound },
+];
+"""
+        write_fixture(root, routes=routes)
+        demo_dir = root / "output" / "prototype" / "src" / "modules" / "demo"
+        demo_dir.mkdir(parents=True, exist_ok=True)
+        (demo_dir / "DetailDemo.jsx").write_text(
+            "<main data-page=\"商户详情\"><button data-operation=\"编辑\">编辑</button></main>",
+            encoding="utf-8",
+        )
+        result = run(CHECK, "--project-root", str(root))
+        data = payload(result)
+        check(result.returncode == 0, result.stdout)
+        check(data["summary"]["deterministic_conflicts"] == 0, str(data))
+        check(len(data["source"]["fixture_files"]) == 1, str(data["source"]))
+        check("/detail" in data["source"]["fixture_routes"], str(data["source"]))
+        check(data["source"]["excluded_source_prefixes"] == [], str(data["source"]))
+
+
 def test_fatal_inputs_and_module_argument() -> None:
     with tempfile.TemporaryDirectory(prefix="spm-prototype-consistency-") as name:
         root = Path(name)
@@ -244,6 +269,46 @@ def test_fatal_inputs_and_module_argument() -> None:
         result = run(CHECK, "--project-root", str(root), "--module", "测试")
         check(result.returncode == 2, result.stdout + result.stderr)
         check("unrecognized arguments: --module" in result.stderr, result.stderr)
+
+
+def test_fixture_route_component_reuse_boundary() -> None:
+    """测试 fixture 路由边界：真实路由若复用 fixture 组件则整体跳过对账，非 fixture 组件则正常参与对账。"""
+    with tempfile.TemporaryDirectory(prefix="spm-prototype-fixture-boundary-") as name:
+        root = Path(name)
+        routes = """export const routes = [
+  { path: "/orders", title: "订单列表", component: Orders, module: "测试" },
+  { path: "/biz-demo", title: "业务示范页", component: DetailDemo, module: "业务模块" },
+  { path: "/biz-evil", title: "未授权业务页", component: BizEvil, module: "业务模块" },
+  { path: "*", title: "页面不存在", component: NotFound },
+];
+"""
+        write_fixture(root, routes=routes)
+        demo_dir = root / "output" / "prototype" / "src" / "modules" / "demo"
+        demo_dir.mkdir(parents=True, exist_ok=True)
+        (demo_dir / "DetailDemo.jsx").write_text(
+            "<main data-page=\"商户详情\"><button data-operation=\"编辑\">编辑</button></main>",
+            encoding="utf-8",
+        )
+        biz_dir = root / "output" / "prototype" / "src" / "modules" / "biz"
+        biz_dir.mkdir(parents=True, exist_ok=True)
+        (biz_dir / "BizEvil.jsx").write_text(
+            "<main data-page=\"未授权业务页\"><button data-operation=\"操作\">操作</button></main>",
+            encoding="utf-8",
+        )
+
+        result = run(CHECK, "--project-root", str(root))
+        data = payload(result)
+        # 1. /biz-demo 被识别为 fixture 路由，加入 fixture_routes，整体跳过页面对账（不进入 omissions 或 conflicts）
+        check("/biz-demo" in data["source"]["fixture_routes"], str(data["source"]))
+        omissions = data["classification"]["possible_omissions"]
+        conflicts = data["classification"]["deterministic_conflicts"]
+        check(not any(o.get("path") == "/biz-demo" for o in omissions), str(data))
+        check(not any(c.get("path") == "/biz-demo" for c in conflicts), str(data))
+
+        # 2. /biz-evil 是普通业务路由，正常参与对账：未对账路由计入 possible_omissions，未授权锚点计入 deterministic_conflicts
+        check(any(o["code"] == "route_page_identity_unresolved" and o.get("path") == "/biz-evil" for o in omissions), str(data))
+        check(any(c["code"] == "unknown_explicit_anchor" and c.get("name") == "未授权业务页" for c in conflicts), str(data))
+        check(result.returncode == 1, str(result.returncode))
 
 
 def main() -> int:
@@ -259,6 +324,8 @@ def main() -> int:
         test_self_closing_button_is_a_semantic_review_item,
         test_compact_route_array_does_not_hide_later_routes,
         test_excluded_directories_and_hidden_content_are_ignored,
+        test_demo_fixture_is_checked_without_design_conflict,
+        test_fixture_route_component_reuse_boundary,
         test_fatal_inputs_and_module_argument,
     ]
     failures: list[str] = []

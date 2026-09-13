@@ -1,6 +1,6 @@
 ---
 name: spm-prototype-review
-description: "Prototype Review：独立审查 Prototype 的源码工程、构建、路由、Design 一致性、状态权限表达和视觉规范执行。触发于用户要求审查 Prototype；只输出第二意见，不修改、修复或推进。"
+description: "Prototype Review：独立审查 Prototype 的源码工程、构建、路由、Design 一致性、状态权限表达和视觉规范执行。触发于用户要求审查 Prototype；只输出独立第二意见，不修改、修复或推进。"
 ---
 
 ## 目的与边界
@@ -43,3 +43,5 @@ python $BUNDLE/scripts/python/prototype-consistency-check.py --project-root .
 - 结论门槛、问题分级和专项严重度以公共契约与 Prototype 专项契约为准。
 - Design 待确认事实不能在 Prototype 中被当成确定行为；只报告问题并设置 `needs_upstream_sync`。
 - 失败处理按公共契约执行；脚本、构建或共享依据失败时保留原始错误，不把退出码包装成质量证明。
+
+- 不能据此宣布的结论：构建通过或一致性检查 0 冲突不能宣布视觉效果或真实业务逻辑通过，仍需浏览器/交互核对。

@@ -79,43 +79,43 @@ export default function DetailDemo() {
     : baseInfo.filter((it) => !['联系人', '联系电话'].includes(it.label));
 
   return (
-    <div>
+    <div data-page="商户详情">
       {/* 共享 PageHeader + onBack */}
       <PageHeader
         title="商户详情"
         subtitle="合同编号 HT-2026-0032 · 缴费周期 2026-04 ~ 2027-03"
         onBack={() => navigate('/')}
-        actions={<StatusTag status="success" text="已缴清" />}
+        actions={<StatusTag data-state="已缴清" status="success" text="已缴清" />}
       />
 
       {/* 基本信息：20/30/20/30（一线角色不渲染联系人字段对；空字段展示为 —） */}
-      <DetailList title="基本信息" items={visibleBaseInfo} variant="pair" />
+      <div data-block="基本信息"><DetailList title="基本信息" items={visibleBaseInfo} variant="pair" /></div>
 
       {/* 缴费信息：20/30/20/30 */}
-      <DetailList title="缴费信息" items={paymentInfo} variant="pair" />
+      <div data-block="缴费信息"><DetailList title="缴费信息" items={paymentInfo} variant="pair" /></div>
 
       {/* 收款明细 */}
-      <SectionCard title="收款明细" style={{ marginBottom: 16 }}>
+      <SectionCard data-block="收款明细" title="收款明细" style={{ marginBottom: 16 }}>
         <DataTable columns={columns} dataSource={records} pagination={false} />
       </SectionCard>
 
       {/* 备注：20/80 */}
-      <DetailList title="备注" items={noteInfo} variant="text" />
+      <div data-block="备注"><DetailList title="备注" items={noteInfo} variant="text" /></div>
 
       {/* 内页底部版权（内容最底部一行，在 ActionBar 之前） */}
       <PageFooter />
 
       {/* 页面级操作栏：共享 ActionBar 贴底 */}
-      <ActionBar>
+      <ActionBar data-block="页面操作">
         {canEdit && (
-          <Button icon={<IconEdit size={16} />} onClick={() => navigate('/form-demo?mode=edit&id=1')}>
+          <Button data-operation="编辑" icon={<IconEdit size={16} />} onClick={() => navigate('/form-demo?mode=edit&id=1')}>
             编辑
           </Button>
         )}
-        <Button icon={<IconPrinter size={16} />} onClick={() => message.info('打印预览已准备')}>
+        <Button data-operation="打印" icon={<IconPrinter size={16} />} onClick={() => message.info('打印预览已准备')}>
           打印
         </Button>
-        <Button type="primary" icon={<IconDownload size={16} />} onClick={() => message.success('账单已导出')}>
+        <Button data-operation="导出账单" type="primary" icon={<IconDownload size={16} />} onClick={() => message.success('账单已导出')}>
           导出账单
         </Button>
       </ActionBar>

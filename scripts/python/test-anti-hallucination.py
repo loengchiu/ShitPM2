@@ -165,6 +165,11 @@ def _build_design_text(fields, pages, states, perms):
     for f in fields:
         title = f["title"] if isinstance(f, dict) else f
         lines.append(f'| {title} | {title} | 审计服务 | 始终展示 | 可读 | 默认空 | 文本展示 | 无 |')
+    if states:
+        lines += ['', '## 三、模块局部对象、规则与状态', '', '#### 状态机：审计生命周期', '', '| 状态 | 含义 | 操作人 | 触发动作 | 下一状态 | 限制条件 |', '| --- | --- | --- | --- | --- | --- |']
+        for s in states:
+            title = s["title"] if isinstance(s, dict) else s
+            lines.append(f'| {title} | {title} | 经办人 | 推进 | 已完成 | — |')
     lines += ['', '## 六、成功与验收', '', '无。', '', '## 八、权限定义', '']
     for p in perms:
         page_title = p.get("page") if isinstance(p, dict) else p
@@ -231,7 +236,7 @@ def verify():
     test_content = HALLUCINATION_PRD.read_text(encoding="utf-8")
 
     result = subprocess.run(
-        [sys.executable, str(script), "--project-root", str(FIXTURE_DIR)],
+        [sys.executable, str(script), "--project-root", str(FIXTURE_DIR), "--legacy"],
         input=test_content, capture_output=True, text=True, encoding="utf-8",
     )
 
@@ -305,6 +310,13 @@ def clean():
     if FIXTURE_META_DIR.exists():
         shutil.rmtree(FIXTURE_META_DIR)
     print("测试产物已清理（固定 PRD 和 design.md 保留）")
+
+
+def test_anti_hallucination() -> None:
+    try:
+        run_all()
+    except SystemExit as exc:
+        assert exc.code in (0, None)
 
 
 if __name__ == "__main__":
