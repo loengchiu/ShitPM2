@@ -278,6 +278,121 @@ SAME_NAME_PRD = """# PRD 正文
 """
 
 
+# ── 权限维度：Design 事实读取收敛（design-index）+ PRD 侧 ID 空间边界 ──
+#
+# 覆盖 R23 根因 RC-1 / RC-2：
+# - Design 侧权限必须来自 design-index 的 page/operation 必填属性 roles（不再走 stage-prep）；
+# - PRD 侧「角色 × 业务能力」矩阵的列是业务能力，不得进入 page ID 空间；
+# - 权限章节自身标题不得被当作权限页面名；
+# - 两侧不同构时必须 not_evaluated，不得产生确定性冲突。
+
+MODULE_INDEXED = """# 订单 模块设计
+
+## 四、页面、区块、字段与操作设计
+
+### 页面：订单列表
+- 页面目的：查看订单
+- 适用角色：运营人员、财务人员（含对账）
+- 进入条件：已登录
+- 数据范围：本组织
+- 主要状态：无状态机
+
+#### 区块：订单筛选
+- 区块目的：按条件筛选订单
+
+##### 字段表
+
+| 字段名称 | 业务含义 | 字段来源 | 展示条件 | 输入与编辑规则 | 取值与默认规则 | 交互方式 | 校验与反馈 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 订单编号 | 订单唯一编号 | 订单服务 | 始终 | 只读 | 系统生成 | 文本 | 无 |
+
+#### 页面操作
+- 区块目的：页面级操作
+
+##### 操作表
+
+| 操作 | 适用角色 | 入口/触发方式 | 输入（字段级） | 展示与可用条件 | 是否二次确认 | 成功结果 | 数据与状态变化 | 失败与恢复 | 后续去向 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 导出订单 | 运营人员 | 顶部按钮 | 无 | 已选筛选 | 否 | 下载文件 | 无 | 提示重试 | 停留当前页 |
+"""
+
+_PERM_FIELD_BLOCK = """##### 字段定义
+
+| 字段 | 类型 | 必填 | 取值约束 | 默认值 | 业务来源 | 说明 |
+|---|---|---|---|---|---|---|
+| 订单编号 | 字符串 | 是 | 无 | 系统生成 | 订单服务 | 订单唯一编号 |
+"""
+
+# 官方模板形态：「行 = 角色，列 = 业务能力」。
+PRD_CAPABILITY_MATRIX = f"""# 订单 PRD
+
+## 功能需求
+
+### 订单管理
+
+#### 4.1.3 角色与权限
+
+| 角色 | 查看订单 | 导出订单 |
+|---|---|---|
+| 运营人员 | 可 | 可 |
+| 财务人员 | 可 | 否 |
+
+#### 4.1.6 动作说明
+
+{_PERM_FIELD_BLOCK}"""
+
+# 存量形态（审计系统等）：4.x.3 是自然语言段落，无可解析结构。
+PRD_PROSE_PERMISSION = f"""# 订单 PRD
+
+## 功能需求
+
+### 订单管理
+
+#### 4.1.3 角色与权限
+
+运营人员可以查看和导出订单；财务人员可以查看订单，但不能导出。外包人员不在本模块可见范围内。
+
+#### 4.1.6 动作说明
+
+{_PERM_FIELD_BLOCK}"""
+
+# 与 Design 同构的形态：「行 = 页面，列 = 角色」，应保持确定性比对。
+PRD_ROW_OBJECT_PERMISSION = f"""# 订单 PRD
+
+## 功能需求
+
+### 订单管理
+
+#### 4.1.3 角色与权限
+
+| 页面 | 运营人员 | 财务人员 |
+|---|---|---|
+| 订单列表 | 可 | 可 |
+
+#### 4.1.6 动作说明
+
+{_PERM_FIELD_BLOCK}"""
+
+# 旧格式（防回归）：「## 权限汇总 + ### 页面名 + - role：action」，与 Design 同构。
+PRD_LEGACY_PERMISSION_SUMMARY = f"""# 订单 PRD
+
+## 功能需求
+
+### 订单管理
+
+#### 4.1.6 动作说明
+
+{_PERM_FIELD_BLOCK}
+
+## 权限汇总
+
+### 订单列表
+
+- 运营人员：可查看、可导出
+- 财务人员：可查看
+"""
+
+
 def run_case(prd: str, design: str = DESIGN):
     with tempfile.TemporaryDirectory() as temp_dir:
         root = Path(temp_dir)
@@ -622,7 +737,61 @@ def main() -> int:
     if report_none["state_evaluation"]["status"] != "cannot_extract":
         raise AssertionError(f"状态解析为空时应报告 cannot_extract: {report_none['state_evaluation']}")
 
-    print("test-prd-consistency-semantics: PASS（新结构页面映射、分散字段、斜杠合并字段、数据字典页面、状态组合值、自然语言状态枚举、状态未评估、同名按对象、权限 zero 信号、冲突、遗漏、语义判断和致命错误）")
+    # ── 权限维度回归（R23 RC-1 / RC-2）──
+    # 1) 合规「角色 × 业务能力」矩阵：能力列不得进入 page ID 空间，章节自身标题不得被当页面名。
+    code, report = run_case(PRD_CAPABILITY_MATRIX, design=MODULE_INDEXED)
+    if code != 0:
+        raise AssertionError(f"合规能力矩阵 PRD 不应阻断: exit={code}, {report.get('exit_reason')}")
+    perms = report["permissions"]
+    if perms["hallucinated"] or perms["missing"]:
+        raise AssertionError(f"能力矩阵不应产生权限页面级冲突: {perms}")
+    if "角色与权限" in perms["hallucinated"]:
+        raise AssertionError("权限章节自身标题不得被当作权限页面名")
+    facts = report["permission_facts"]
+    if facts["design_source"] != "design-index":
+        raise AssertionError(f"Design 侧权限应来自 design-index: {facts['design_source']}")
+    if set(facts["design_roles"]) != {"运营人员", "财务人员"}:
+        raise AssertionError(f"Design 角色切分应剥离括号且不混入条件式描述: {facts['design_roles']}")
+    if facts["prd_permission_pages"]:
+        raise AssertionError(f"能力列不得进入 page 集合: {facts['prd_permission_pages']}")
+    if facts["prd_permission_capabilities"] != ["查看订单", "导出订单"]:
+        raise AssertionError(f"业务能力列应作为事实输出: {facts['prd_permission_capabilities']}")
+    if facts["comparable"]:
+        raise AssertionError("两侧不同构时不得标记为可确定性比对")
+    if report["permission_evaluation"]["status"] != "not_evaluated":
+        raise AssertionError(f"两侧不同构应标记未评估: {report['permission_evaluation']}")
+
+    # 2) 存量自然语言 4.x.3（审计系统形态）：红线——不得产生成批 missing。
+    code, report = run_case(PRD_PROSE_PERMISSION, design=MODULE_INDEXED)
+    if report["permissions"]["missing"]:
+        raise AssertionError(f"PRD 用自然语言表达权限时不得判为缺失: {report['permissions']}")
+    if report["permission_evaluation"]["status"] != "cannot_extract":
+        raise AssertionError(f"PRD 权限无法提取时应报 cannot_extract: {report['permission_evaluation']}")
+    if "Design 权限为空" in report["permission_evaluation"]["message"]:
+        raise AssertionError("Design 侧已有权限事实时不得报「Design 权限为空」")
+
+    # 3) 「行 = 页面，列 = 角色」与 Design 同构：必须保持确定性比对能力，不得被一并降级。
+    code, report = run_case(PRD_ROW_OBJECT_PERMISSION, design=MODULE_INDEXED)
+    facts = report["permission_facts"]
+    if not facts["comparable"]:
+        raise AssertionError("行=页面矩阵应可确定性比对")
+    if report["permissions"]["matched_count"] < 1:
+        raise AssertionError(f"行=页面矩阵应匹配到页面权限: {report['permissions']}")
+    if report["permission_role_pairs"]["matched_count"] < 2:
+        raise AssertionError(f"行=页面矩阵应匹配到角色对: {report['permission_role_pairs']}")
+    if report["permissions"]["hallucinated"] or report["permission_role_pairs"]["hallucinated"]:
+        raise AssertionError("行=页面矩阵不应产生幻觉判定")
+
+    # 4) 旧格式「## 权限汇总 / ### 页面名 / - role：action」：确定性比对能力不得回退（RC-2 防回归）。
+    code, report = run_case(PRD_LEGACY_PERMISSION_SUMMARY, design=MODULE_INDEXED)
+    if code != 0:
+        raise AssertionError(f"旧格式权限汇总不应阻断: exit={code}, {report.get('exit_reason')}")
+    if not report["permission_facts"]["comparable"]:
+        raise AssertionError("旧格式 权限汇总 应保持可确定性比对")
+    if report["permissions"]["matched_count"] < 1:
+        raise AssertionError(f"旧格式 权限汇总 应匹配到页面权限: {report['permissions']}")
+
+    print("test-prd-consistency-semantics: PASS（新结构页面映射、分散字段、斜杠合并字段、数据字典页面、状态组合值、自然语言状态枚举、状态未评估、同名按对象、权限 zero 信号、权限事实来源收敛、能力列不进 page、行=页面矩阵仍确定性、旧格式权限汇总不回退、冲突、遗漏、语义判断和致命错误）")
     return 0
 
 

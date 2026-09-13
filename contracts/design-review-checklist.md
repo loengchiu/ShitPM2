@@ -17,7 +17,7 @@
 | 7. 状态机结构闭环 | 非终态无出路、非初始态无入路、回退目标非法或迁移含义不明确 | [状态定义格式](../references/design-state-format.md) | P1 | `content` / 状态位置 |
 | 8. 状态条件和副作用完整 | 缺触发角色、前置条件、可逆性、限制条件、数据变化或异常处理 | [状态定义格式](../references/design-state-format.md) | P1 | `content` / 状态迁移 |
 | 9. 权限和数据范围可执行 | 只有角色列表，没有可见范围、可执行动作、字段例外或敏感操作限制 | [Design 写作规则](../references/design-writing.md) | P1 | `content` / 权限与数据范围 |
-| 10. 页面核心属性完整 | 页面缺少核心目的、适用角色、进入条件或数据范围，导致无法判断使用边界；不适用属性合理省略不判错 | [Design 模块模板](../templates/design-module.md)；[设计地图模板](../templates/design-map.md)；[Design 写作规则](../references/design-writing.md) | P1 | `structure` / 页面位置 |
+| 10. 页面核心属性完整 | 页面缺少页面必填属性（清单以 `design-index.py` 的 `REQUIRED_ATTRIBUTES` 为唯一落点，含目的、适用角色、进入条件、数据范围、主要状态），导致无法判断使用边界；不适用属性合理省略不判错 | [Design 模块模板](../templates/design-module.md)；[设计地图模板](../templates/design-map.md)；[Design 写作规则](../references/design-writing.md) | P1 | `structure` / 页面位置 |
 | 11. 区块按用户任务组织 | 区块按数据库表、接口或技术模块拆分，或区块没有明确目的 | [Design 写作规则](../references/design-writing.md) | P2 | `content` / 区块位置 |
 | 12. 字段事实完整 | 缺业务含义、字段来源、展示条件、输入与编辑、取值与默认、交互方式或校验反馈等实际适用事实，或用模糊词替代；格式适配复杂度，不因未用八列表自动判错 | [Design 写作规则](../references/design-writing.md) | P1 | `content` / 字段位置 |
 | 13. 操作事实与结果闭环 | 只有按钮名，缺适用角色、入口/触发方式、可用条件、确认、成功结果、数据/状态变化、失败恢复或后续去向等实际适用事实；操作输入粗粒度导致下游无法承接；格式适配复杂度，不因未用十列表自动判错 | [Design 写作规则](../references/design-writing.md) | P1 | `content` / 操作位置 |

@@ -725,20 +725,8 @@ def extract_prd_state_enum_values(tables: list) -> list:
 
 
 def extract_prd_permission_pages(headings: list, tables: list, content: str) -> list:
-    """从 PRD 提取权限页面名
-
-    ShitPM 多模板兼容策略：
-    - 候选章节：权限汇总、权限定义、权限规则（ShitPM 修复：移除"详细需求说明"，避免子模块标题误判为权限页面）
-    - 策略 1：在权限章节范围内的 `### N.N xxx` 大模块标题
-    - 策略 2：在权限汇总章节内的表格第一列提取页面名（旧模板格式）
-    - 策略 3：候选章节未找到，降级为全文扫描权限表
-
-    design permissions.json 的 page 字段是模块名（如"审计计划""项目启动"），
-    与 PRD 的大模块标题或权限表第一列对应。
-    """
-    candidate_ranges = _find_multiple_section_ranges(
-        headings, ["权限汇总", "权限定义", "权限规则"]
-    )
+    """从 PRD 提取权限页面名（优先定位 4.x.3，兼容行=角色与行=对象）"""
+    candidate_ranges = _find_prd_permission_ranges(headings)
 
     pages = []
     seen = set()
@@ -759,35 +747,66 @@ def extract_prd_permission_pages(headings: list, tables: list, content: str) -> 
             seen.add(name)
             pages.append(name)
 
-    # 策略 1: 在候选章节范围内提取 ### N.N xxx 大模块标题
+    # 策略 1: 在候选章节范围内提取 ### / #### 模块或页面标题
+    # 排除候选范围起始行（即权限章节自身标题，如「#### 4.1.3 角色与权限」）——
+    # 它是容器标题，不是权限页面名，混入会产生"始终 1 条"的伪 hallucinated。
     for h in headings:
         for start, end, _ in candidate_ranges:
-            if h["line"] < start:
+            if h["line"] <= start:
                 continue
             if end is not None and h["line"] >= end:
                 continue
-            if h["level"] != 3:
-                continue
-            _add_page(h["title"])
-            break
+            if h["level"] in (3, 4):
+                _add_page(h["title"])
+                break
 
-    # 策略 2: 在权限汇总章节内的表格第一列提取页面名（旧模板）
+    # 策略 2: 在权限表格内提取页面名
+    # 「行=角色」矩阵的列是**业务能力**，与 Design 侧 page（页面名）不是同一 ID 空间，
+    # 不得进入 page 集合（能力名由 extract_prd_permission_capabilities 单独收集）。
     if candidate_ranges:
         for table in _tables_in_ranges(tables, candidate_ranges):
             headers = table.get("headers", [])
-            if not headers:
+            if not headers or len(headers) < 2:
                 continue
-            header_text = "|".join(headers)
-            # 权限表的特征：表头含"页面"或"对象"或"模块"
-            if not any(k in header_text for k in ("页面", "对象", "模块")):
+            header_first = headers[0].strip()
+            if any(k in header_first for k in ("角色", "岗位", "用户类型", "用户角色", "操作角色")):
                 continue
-            # 第一列是页面名
-            for row in table["rows"]:
-                if not row or not row[0] or row[0] in ("---",):
-                    continue
-                _add_page(row[0])
+            if any(k in header_first for k in ("模块", "操作对象", "页面", "对象")):
+                # 行是页面名：从第一列提取
+                for row in table.get("rows", []):
+                    if not row or not row[0] or row[0] in ("---",):
+                        continue
+                    _add_page(row[0])
 
     return pages
+
+
+def extract_prd_permission_capabilities(headings: list, tables: list) -> list:
+    """从 PRD 权限章节提取「业务能力」列名（仅作事实输出，不参与确定性比对）。
+
+    「行=角色」矩阵的列是业务能力，语义上对应「角色能做什么」，与 Design 侧
+    页面名（page）不同构，因此只能作为事实并列输出，供 AI 逐模块核对。
+    """
+    caps = []
+    seen = set()
+    candidate_ranges = _find_prd_permission_ranges(headings)
+    if not candidate_ranges:
+        return caps
+    for table in _tables_in_ranges(tables, candidate_ranges):
+        headers = table.get("headers", [])
+        if not headers or len(headers) < 2:
+            continue
+        header_first = headers[0].strip()
+        if not any(k in header_first for k in ("角色", "岗位", "用户类型", "用户角色", "操作角色")):
+            continue
+        for h in headers[1:]:
+            if not h or h == "---":
+                continue
+            name = re.sub(r'^\d+\.\d+(?:\.\d+)*\s*', '', h.strip()).strip('`').strip()
+            if name and name not in seen:
+                seen.add(name)
+                caps.append(name)
+    return caps
 
 
 # ── 权限角色对提取（ShitPM 增强：覆盖角色级一致性） ────────────
@@ -800,55 +819,139 @@ _PERM_SECTION_KEYWORDS_EXTENDED = (
 # 列表项 - role：action 模式（与 stage-prep.py _KEY_VALUE_LIST_PATTERN 等价）
 _KV_LIST_PATTERN = re.compile(r'^[-*]\s*`?([^`：:\s]+)`?\s*[：:]\s*(.+)$')
 
+_NO_PERM_TERMS = {
+    "否", "不可", "无", "无权限", "禁止", "×", "x", "X", "-", "--", "---", "—", "不支持"
+}
+
+
+def _find_prd_permission_ranges(headings: list) -> list:
+    """定位 PRD 权限章节范围（规范见 references/prd-writing-rules.md「模块级权限矩阵与正文权限落点」）。
+
+    规则：
+    1. 优先只认模块内编号为 4.x.3 的角色与权限章节及其子级内容（形如 4.<n>.3）；
+    2. 显式排除 3.x.3 等全局章节，不把不同层级的表合并；
+    3. 若文档完全没有 4.x.3 编号章节（如旧测试夹具），降级匹配通用关键词范围，但排除 3.x.3。
+    """
+    r_4x3 = []
+    for i, h in enumerate(headings):
+        title = h.get("title", "")
+        if re.match(r'^\s*4\.\d+\.3(?:\s+|$)', title):
+            start_line = h["line"]
+            level = h["level"]
+            end_line = None
+            for next_h in headings[i + 1:]:
+                if next_h["level"] <= level:
+                    end_line = next_h["line"]
+                    break
+            r_4x3.append((start_line, end_line, level))
+    if r_4x3:
+        return r_4x3
+
+    legacy_ranges = []
+    for canonical in ["权限汇总", "权限定义", "权限规则", "角色权限", "权限矩阵", "权限"]:
+        start, end, level = _find_section_range(headings, canonical)
+        if start is not None:
+            matching_h = [h for h in headings if h["line"] == start]
+            if matching_h and re.match(r'^\s*3\.\d+', matching_h[0].get("title", "")):
+                continue
+            legacy_ranges.append((start, end, level))
+    return legacy_ranges
+
+
+def _cell_has_permission(cell: str) -> bool:
+    c = cell.strip()
+    if not c or c in _NO_PERM_TERMS:
+        return False
+    if re.match(r'^(?:否|不可|禁止|无权限|不支持)\b', c):
+        return False
+    return True
+
 
 def _extract_perm_pairs_from_table(table: dict, pairs: list, seen: set) -> None:
-    """从单个权限表格提取 (page, role) 二元组，追加到 pairs 列表"""
+    """从单个权限表格提取 (page, role) 二元组，追加到 pairs 列表。
+
+    支持两种表头方向（规范见 references/prd-writing-rules.md「模块级权限矩阵与正文权限落点」）：
+    1. 行=角色，列=业务能力（首列表头含 角色/岗位/用户类型/操作角色）：
+       每行第一列是角色名，表头其他列是业务能力/页面名。
+    2. 行=对象/页面，列=角色（首列表头含 模块/操作对象/页面/对象）：
+       每行第一列是页面名，表头其他列是角色名。
+    单元格语义：否/不可/— 判定为无权限。
+    """
     headers = table.get("headers", [])
     if not headers or len(headers) < 2:
         return
-    # 权限表特征：第一列表头含"模块"、"操作对象"、"页面"、"对象"
-    if not any(k in headers[0] for k in ("模块", "操作对象", "页面", "对象")):
+
+    header_first = headers[0].strip()
+    is_row_role = any(k in header_first for k in ("角色", "岗位", "用户类型", "用户角色", "操作角色"))
+    is_row_object = any(k in header_first for k in ("模块", "操作对象", "页面", "对象"))
+
+    if not is_row_role and not is_row_object:
         return
-    # 表头其他列是角色名
-    role_cols = [(i, h) for i, h in enumerate(headers) if i > 0 and h and h != "---"]
-    for row in table["rows"]:
-        if not row or not row[0] or row[0] in ("---",):
-            continue
-        page_name = re.sub(r'^\d+\.\d+(?:\.\d+)*\s*', '', row[0].strip())
-        if not page_name:
-            continue
-        for col_idx, role_name in role_cols:
-            if col_idx < len(row):
-                cell = row[col_idx] if row[col_idx] else ""
-                # 单元格非空且非分隔符即认为该 (page, role) 二元组存在
-                if cell.strip() and cell.strip() != "---":
-                    role_clean = re.sub(r'^\d+\.\d+(?:\.\d+)*\s*', '', role_name.strip()).strip('`')
-                    if not role_clean:
-                        continue
-                    key = (page_name, role_clean)
-                    if key not in seen:
-                        seen.add(key)
-                        pairs.append({"page": page_name, "role": role_clean, "action": cell.strip()})
+
+    if is_row_role:
+        page_cols = [(i, h) for i, h in enumerate(headers) if i > 0 and h and h != "---"]
+        for row in table.get("rows", []):
+            if not row or not row[0] or row[0] in ("---",):
+                continue
+            role_clean = re.sub(r'^\d+\.\d+(?:\.\d+)*\s*', '', row[0].strip()).strip('`').strip()
+            if not role_clean:
+                continue
+            for col_idx, page_header in page_cols:
+                if col_idx < len(row):
+                    cell = row[col_idx] if row[col_idx] else ""
+                    if _cell_has_permission(cell):
+                        page_name = re.sub(r'^\d+\.\d+(?:\.\d+)*\s*', '', page_header.strip()).strip('`').strip()
+                        if not page_name:
+                            continue
+                        key = (page_name, role_clean)
+                        if key not in seen:
+                            seen.add(key)
+                            pairs.append({"page": page_name, "role": role_clean,
+                                          "action": cell.strip(), "source": "capability"})
+    else:
+        role_cols = [(i, h) for i, h in enumerate(headers) if i > 0 and h and h != "---"]
+        for row in table.get("rows", []):
+            if not row or not row[0] or row[0] in ("---",):
+                continue
+            page_name = re.sub(r'^\d+\.\d+(?:\.\d+)*\s*', '', row[0].strip()).strip('`').strip()
+            if not page_name:
+                continue
+            for col_idx, role_name in role_cols:
+                if col_idx < len(row):
+                    cell = row[col_idx] if row[col_idx] else ""
+                    if _cell_has_permission(cell):
+                        role_clean = re.sub(r'^\d+\.\d+(?:\.\d+)*\s*', '', role_name.strip()).strip('`').strip()
+                        if not role_clean:
+                            continue
+                        key = (page_name, role_clean)
+                        if key not in seen:
+                            seen.add(key)
+                            pairs.append({"page": page_name, "role": role_clean,
+                                          "action": cell.strip(), "source": "page"})
 
 
-def _extract_perm_pairs_from_list(content: str, pairs: list, seen: set) -> None:
+def _extract_perm_pairs_from_list(content: str, pairs: list, seen: set, candidate_ranges: list = None) -> None:
     """从权限章节内的 ### 页面名 + - role：action 列表提取 (page, role) 二元组"""
-    lines = content.split('\n')
-    in_perm_section = False
+    if candidate_ranges:
+        lines = _lines_in_ranges(content, candidate_ranges).split('\n')
+        in_perm_section = True
+    else:
+        lines = content.split('\n')
+        in_perm_section = False
     current_page = ""
 
     for line in lines:
         stripped = line.strip()
-        # 检测进入/退出权限章节（h1/h2 级别）
-        if re.match(r'^#{1,2}\s+', stripped):
-            if any(kw in stripped for kw in _PERM_SECTION_KEYWORDS_EXTENDED):
-                in_perm_section = True
-            else:
-                in_perm_section = False
-            current_page = ""
-            continue
-        if not in_perm_section:
-            continue
+        if not candidate_ranges:
+            if re.match(r'^#{1,4}\s+', stripped):
+                if any(kw in stripped for kw in _PERM_SECTION_KEYWORDS_EXTENDED):
+                    in_perm_section = True
+                else:
+                    in_perm_section = False
+                current_page = ""
+                continue
+            if not in_perm_section:
+                continue
         # h3/h4 子标题 = 页面分组名
         if re.match(r'^#{3,}\s+', stripped):
             current_page = re.sub(r'^#{3,}\s+', '', stripped).strip()
@@ -860,10 +963,13 @@ def _extract_perm_pairs_from_list(content: str, pairs: list, seen: set) -> None:
             role = match.group(1).strip().strip('`')
             if not role:
                 continue
-            key = (current_page, role)
-            if key not in seen:
-                seen.add(key)
-                pairs.append({"page": current_page, "role": role, "action": match.group(2).strip()})
+            action = match.group(2).strip()
+            if _cell_has_permission(action):
+                key = (current_page, role)
+                if key not in seen:
+                    seen.add(key)
+                    pairs.append({"page": current_page, "role": role,
+                                  "action": action, "source": "page"})
 
 
 def extract_prd_permission_role_pairs(headings: list, tables: list, content: str) -> list:
@@ -878,16 +984,14 @@ def extract_prd_permission_role_pairs(headings: list, tables: list, content: str
     pairs = []
     seen = set()
 
-    candidate_ranges = _find_multiple_section_ranges(
-        headings, list(_PERM_SECTION_KEYWORDS_EXTENDED)
-    )
+    candidate_ranges = _find_prd_permission_ranges(headings)
 
     # 策略 1：从权限章节内的表格提取
     for table in _tables_in_ranges(tables, candidate_ranges):
         _extract_perm_pairs_from_table(table, pairs, seen)
 
     # 策略 2：从权限章节内的列表提取
-    _extract_perm_pairs_from_list(content, pairs, seen)
+    _extract_perm_pairs_from_list(content, pairs, seen, candidate_ranges)
 
     return pairs
 
@@ -903,36 +1007,47 @@ def extract_prd_roles(headings: list, tables: list, content: str) -> list:
     """
     roles = set()
 
-    candidate_ranges = _find_multiple_section_ranges(
-        headings, list(_PERM_SECTION_KEYWORDS_EXTENDED)
-    )
+    candidate_ranges = _find_prd_permission_ranges(headings)
 
-    # 从表格表头提取角色名
+    # 从表格提取角色名
     for table in _tables_in_ranges(tables, candidate_ranges):
         headers = table.get("headers", [])
         if not headers or len(headers) < 2:
             continue
-        if not any(k in headers[0] for k in ("模块", "操作对象", "页面", "对象")):
-            continue
-        for h in headers[1:]:
-            if h and h != "---":
-                role = re.sub(r'^\d+\.\d+(?:\.\d+)*\s*', '', h.strip()).strip('`')
+        header_first = headers[0].strip()
+        if any(k in header_first for k in ("角色", "岗位", "用户类型", "用户角色", "操作角色")):
+            for row in table.get("rows", []):
+                if not row or not row[0] or row[0] in ("---",):
+                    continue
+                role = re.sub(r'^\d+\.\d+(?:\.\d+)*\s*', '', row[0].strip()).strip('`').strip()
                 if role:
                     roles.add(role)
+        elif any(k in header_first for k in ("模块", "操作对象", "页面", "对象")):
+            for h in headers[1:]:
+                if h and h != "---":
+                    role = re.sub(r'^\d+\.\d+(?:\.\d+)*\s*', '', h.strip()).strip('`').strip()
+                    if role:
+                        roles.add(role)
 
     # 从列表项提取角色名
-    lines = content.split('\n')
-    in_perm_section = False
+    if candidate_ranges:
+        lines = _lines_in_ranges(content, candidate_ranges).split('\n')
+        in_perm_section = True
+    else:
+        lines = content.split('\n')
+        in_perm_section = False
+
     for line in lines:
         stripped = line.strip()
-        if re.match(r'^#{1,2}\s+', stripped):
-            if any(kw in stripped for kw in _PERM_SECTION_KEYWORDS_EXTENDED):
-                in_perm_section = True
-            else:
-                in_perm_section = False
-            continue
-        if not in_perm_section:
-            continue
+        if not candidate_ranges:
+            if re.match(r'^#{1,4}\s+', stripped):
+                if any(kw in stripped for kw in _PERM_SECTION_KEYWORDS_EXTENDED):
+                    in_perm_section = True
+                else:
+                    in_perm_section = False
+                continue
+            if not in_perm_section:
+                continue
         match = _KV_LIST_PATTERN.match(stripped)
         if match:
             role = match.group(1).strip().strip('`')
@@ -960,8 +1075,13 @@ def compare_permission_role_pairs(
 
     prd_pairs = set()
     for p in prd_perm_pairs:
-        if isinstance(p, dict) and p.get("page") and p.get("role"):
-            prd_pairs.add((p["page"], p["role"]))
+        if not isinstance(p, dict) or not p.get("page") or not p.get("role"):
+            continue
+        # 「行=角色」矩阵的列是业务能力，其 page 字段承载的是能力名，与 Design 页面名不同构，
+        # 不参与页面级确定性比对（只作为事实输出，交 AI 核对）。
+        if p.get("source", "page") != "page":
+            continue
+        prd_pairs.add((p["page"], p["role"]))
 
     design_pages = {p[0] for p in design_pairs}
 
@@ -1344,6 +1464,9 @@ def compare_permission_polarity(design_perms: list, prd_perm_pairs: list) -> lis
         for prd in prd_perm_pairs:
             if not isinstance(prd, dict) or prd.get("role") != d_role:
                 continue
+            # 与 compare_permission_role_pairs 同口径：能力列的 page 字段不是页面名，不参与比对。
+            if prd.get("source", "page") != "page":
+                continue
             p_page = prd.get("page", "")
             page_matches = p_page == d_page or bool(fuzzy_page_match(p_page, {d_page: d_page}))
             if not page_matches:
@@ -1577,6 +1700,80 @@ def compare_permission_pages(
         "matched_count": len(matched_design),
     }
 
+
+
+# ── Design 侧权限事实：唯一权威来源是 design-index 的 page/operation 必填属性 roles ──
+#
+# 背景（2026-09-13 R23 根因 RC-1/RC-2）：一致性检查此前用 stage-prep 的章节扫描提取
+# Design 权限，而 stage-prep 在 contracts/metadata-anchor-rules.md 中已被标注为
+# 「旧版兼容：新主流程不默认调用」；实测 7 个真实项目的 stage-prep 权限提取结果全部为 0。
+# design-index 已把「适用角色」作为 page/operation 的必填属性结构化提取，故改为直接消费。
+
+_ROLE_PAREN_PATTERN = re.compile(r'[（(][^）)]*[）)]')
+_ROLE_SPLIT_PATTERN = re.compile(r'[、,，；;]')
+# 指代/动态角色：不删除、只标记，避免隐藏事实（是否可疑交 AI 判断）。
+_ROLE_SUSPICIOUS_PATTERN = re.compile(
+    r'全部|所有|当前|发起人|申请人|经办人|具备|原[^人]|本页|上述|相应|相关|按动态|动态权限'
+)
+
+
+def _split_design_roles(raw) -> list:
+    """把「适用角色」原文切分为角色名列表。
+
+    确定性切分，不做语义清洗。顺序不可反：先剥括号再切分——括号内的限定说明
+    （如「（一级审批）」）可能含「、」，先切会误拆。
+    """
+    if not isinstance(raw, str):
+        return []
+    text = _ROLE_PAREN_PATTERN.sub('', raw)
+    roles = []
+    for item in _ROLE_SPLIT_PATTERN.split(text):
+        name = item.strip()
+        if name and name not in roles:
+            roles.append(name)
+    return roles
+
+
+def _design_permissions_from_index(index: dict) -> list:
+    """从 design-index 的 page/operation 属性 roles 聚合出 (page, role) 权限事实。
+
+    operation 的适用角色归属其所在页面（页面名取自 page_id 对应页面）。
+    这是 Design 侧权限的唯一权威读取路径；stage-prep 仅在索引不可用时回退。
+    """
+    pages_by_id = {p.get("id"): p for p in (index.get("pages") or []) if isinstance(p, dict)}
+    facts = []
+    seen = set()
+
+    def _add(page_name, raw):
+        if not page_name:
+            return
+        for role in _split_design_roles(raw):
+            key = (page_name, role)
+            if key in seen:
+                continue
+            seen.add(key)
+            facts.append({"page": page_name, "role": role})
+
+    for page in (index.get("pages") or []):
+        if isinstance(page, dict):
+            _add(page.get("name"), (page.get("attributes") or {}).get("roles"))
+    for op in (index.get("operations") or []):
+        if isinstance(op, dict):
+            owner = pages_by_id.get(op.get("page_id")) or {}
+            _add(owner.get("name"), (op.get("attributes") or {}).get("roles"))
+    return facts
+
+
+def _design_permission_source_stats(index: dict) -> dict:
+    """统计 Design 索引中的权限事实来源规模，用于输出与诊断（不参与判定）。"""
+    pages = [p for p in (index.get("pages") or []) if isinstance(p, dict)]
+    ops = [o for o in (index.get("operations") or []) if isinstance(o, dict)]
+    return {
+        "pages_total": len(pages),
+        "pages_with_roles": sum(1 for p in pages if (p.get("attributes") or {}).get("roles")),
+        "operations_total": len(ops),
+        "operations_with_roles": sum(1 for o in ops if (o.get("attributes") or {}).get("roles")),
+    }
 
 
 def _load_verified_design_index(project_root: Path):
@@ -1916,7 +2113,11 @@ def main():
 
     design_fields = design_data.get("fields", []) or []
     design_pages = design_data.get("pages", []) or []
+    # 状态事实：本期仍由 stage-prep 提取。design-index 的 states 是页面「主要状态」属性的
+    # 投影，不是状态机状态集——实测 7 个真实项目差异巨大（能源数据监测索引侧 0 条、
+    # 租金清分 8 条全为段落碎片），切换即能力退化，故本维度未收敛，仅显式标记来源。
     design_states = design_data.get("states", []) or []
+    design_state_source = "legacy"
     # Design 表格可能使用“进入条件/下一状态”等列名变体；此时从正式 Design 文件
     # 的状态章节回读状态名（无旧单体回退）。
     if not design_states:
@@ -1925,7 +2126,18 @@ def main():
         design_tables = parse_tables_with_context(design_content, design_headings)
         design_state_names = extract_prd_states(design_content, design_headings, design_tables)
         design_states = [{"title": name, "id": name} for name in design_state_names]
-    design_permissions = design_data.get("permissions", []) or []
+        # 第三路径：用 PRD 侧提取器读 Design 文本，语义上并不严谨；但至少一个真实项目
+        # （小程序）依赖它，故保留并标记来源，待 design-index 具备状态章节提取器后收敛。
+        design_state_source = "legacy-prd-extractor" if design_states else "empty"
+
+    # Design 侧权限事实：唯一权威来源是 design-index 的 page/operation 必填属性 roles；
+    # 仅索引不可用（旧格式项目）时才回退 stage-prep 的章节扫描，并显式标记来源。
+    if indexed_active:
+        design_permissions = _design_permissions_from_index(design_index)
+        design_permission_source = "design-index"
+    else:
+        design_permissions = design_data.get("permissions", []) or []
+        design_permission_source = "legacy" if design_permissions else "legacy-empty"
     design_modules_raw = design_data.get("modules", []) or []
     # ShitPM：读取 Design 中标记为“非页面落点字段”的内部/审计字段，用于验证 PRD 是否完整交付
     design_non_page_fields = design_data.get("non_page_fields", []) or []
@@ -1944,6 +2156,8 @@ def main():
     # 正文自然语言枚举的状态（低置信）：只用于抑制误报，不用于判幻觉。
     prd_prose_states = extract_prd_prose_states(content, headings)
     prd_perm_pages = extract_prd_permission_pages(headings, tables, content)
+    # 「行=角色」矩阵的业务能力列：只作事实输出，不参与页面级确定性比对。
+    prd_perm_caps = extract_prd_permission_capabilities(headings, tables)
 
     # Design 页面正文落点候选：页面只在清单/总体说明出现、未在 4.x.6 正文落点 → possible_omission；
     # 页面在 4.x.6 正文明确合并/并入 → 交 Review 判断，不判确定性冲突。
@@ -2103,10 +2317,18 @@ def main():
     role_title_to_id = {r: r for r in design_roles}
     role_result = compare_entities(design_roles, prd_roles, role_title_to_id, None)
 
-    # 权限提取为空时，missing/hallucinated 集合无意义（无法证明缺失或新增），
-    # 全部标记为未评估，由人工验收，避免把解析失败当成权限不一致。
-    permission_extracted = bool(prd_perm_pages or prd_perm_pairs or prd_roles)
-    if not permission_extracted:
+    # 权限提取双侧判定：确定性比对只在「两侧都是页面语义」时成立。
+    # Design 侧 = 页面/操作 × 角色；PRD 侧只有「行=对象/页面」矩阵与之同构，
+    # 「行=角色」能力矩阵与自然语言段落不同构（列是业务能力，不是页面名），
+    # 此时输出两侧事实并标记未评估，不得产生确定性冲突。
+    design_has_perms = bool(design_permissions and any(isinstance(p, dict) and (p.get("page") or p.get("role")) for p in design_permissions))
+    prd_has_page_semantic = bool(
+        prd_perm_pages
+        or any(isinstance(p, dict) and p.get("source", "page") == "page" for p in prd_perm_pairs)
+    )
+    prd_has_perms = bool(prd_perm_pages or prd_perm_pairs or prd_roles)
+    both_sides_extracted = design_has_perms and prd_has_page_semantic
+    if not both_sides_extracted:
         perm_result = {"missing": [], "hallucinated": [], "matched_count": 0, "not_evaluated": True}
         perm_pair_result = {"missing": [], "hallucinated": [], "matched_count": 0, "not_evaluated": True}
         role_result = {"missing": [], "hallucinated": [], "matched_count": 0, "not_evaluated": True}
@@ -2224,20 +2446,33 @@ def main():
         },
     }
 
-    # 权限解析为空时，明确给出“无法提取、需人工验收”信号，不显示为“权限一致”。
-    permission_extracted = bool(
-        prd_perm_pages or prd_perm_pairs or prd_roles
-    )
-    if permission_extracted:
+    # 权限解析状态评估：区分「两侧同构可比」「PRD 侧表达不同构」「任一侧提取为空」。
+    # 注意：不得把「Design 侧为空」当作默认解释——须先看 design_permission_source，
+    # 由索引提供的 role 事实若存在就不能报「Design 权限为空」。
+    if both_sides_extracted:
         permission_evaluation = {
             "status": "extracted",
-            "message": "权限内容已从 PRD 正文提取，仍需人工对照 Design 权限矩阵核对。",
+            "message": "权限事实已从 Design 与 PRD 双侧提取并完成页面级确定性对比。",
+            "note": "仍需结合业务场景核对权限细节与状态条件。",
+        }
+    elif not design_has_perms:
+        permission_evaluation = {
+            "status": "cannot_extract",
+            "message": f"Design 侧未提取到权限事实（来源：{design_permission_source}），无法与 PRD 比较",
+            "note": "解析结果为空不代表权限一致；不得将权限缺失视为通过。",
+        }
+    elif not prd_has_perms:
+        permission_evaluation = {
+            "status": "cannot_extract",
+            "message": "权限无法从 PRD 正文提取，需人工验收",
+            "note": "解析结果为空不代表权限一致；不得将权限缺失视为通过。",
         }
     else:
         permission_evaluation = {
-            "status": "cannot_extract",
-            "message": "权限无法从当前正文提取，需人工验收",
-            "note": "解析结果为空不代表权限一致；不得将权限缺失视为通过。",
+            "status": "not_evaluated",
+            "message": ("PRD 以「角色 × 业务能力」矩阵或自然语言表达权限，与 Design 的「页面/操作 × 角色」"
+                        "不是同一 ID 空间，不做页面级确定性比对；两侧事实见 permission_facts，由 AI 逐模块核对。"),
+            "note": "未评估不等于通过：须用 permission_facts 的 Design 角色清单与 PRD 4.x.3 逐模块比对。",
         }
 
     # 状态解析为空时同样给出“无法提取、需人工验收”信号，不得显示为“状态一致”。
@@ -2290,6 +2525,20 @@ def main():
         "permission_role_pairs": perm_pair_result,
         "permission_inversions": permission_inversions,
         "permission_evaluation": permission_evaluation,
+        "permission_facts": {
+            "design_source": design_permission_source,
+            "state_source": design_state_source,
+            "comparable": bool(both_sides_extracted),
+            "design_page_role_pairs": len(design_permissions),
+            "design_roles": design_roles,
+            "design_suspicious_roles": [r for r in design_roles if _ROLE_SUSPICIOUS_PATTERN.search(r)],
+            "design_index_stats": _design_permission_source_stats(design_index) if indexed_active else None,
+            "prd_permission_pages": prd_perm_pages,
+            "prd_permission_capabilities": prd_perm_caps,
+            "prd_roles": prd_roles,
+            "note": ("Permission facts from both sides, for AI/manual module-by-module verification; "
+                     "deterministic page-level comparison only runs when both sides are page-semantic."),
+        },
         "roles": role_result,
         "modules": module_result,
         "design_index": {

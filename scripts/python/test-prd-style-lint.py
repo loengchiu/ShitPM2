@@ -70,6 +70,9 @@ CASES = {
     "STYLE010": "## 功能需求\n### 订单处理业务闭环\n###### 订单列表\n页面职责：展示订单。\n使用对象：运营人员。\n入口与返回：菜单进入。\n区块清单：列表、筛选。",
     "STYLE011": "## 功能需求\n### 订单处理业务闭环\n###### 订单列表\n**返回**",
     "STYLE012": "## 功能需求\n### 订单处理业务闭环\n###### 订单列表\n字段名：订单编号。\n来源：用户输入。\n结果：列表展示。",
+    "STYLE013": "· 这是一个超长列表项测试" * 15,
+    "STYLE014": "## 4. 功能需求\n\n### 4.5.6 模块名\n",
+    "STYLE015": "## 4. 功能需求\n\n### 4.1 模块名\n\n##### 4.1.6.2 子标题\n",
 }
 
 
@@ -155,6 +158,27 @@ def main() -> int:
     if inline:
         raise AssertionError(f"行中“系统处理：”不应判为行首标签: {inline}")
 
+    # 外置冒号加粗标签（- **默认排序**：按账期倒序）应识别为 STYLE001
+    label_out = "## 功能需求\n\n### 订单处理业务闭环\n\n- **默认排序**：按账期倒序。\n"
+    label_out_issues = STYLE.run_lint(label_out)
+    if "STYLE001" not in codes(label_out_issues):
+        raise AssertionError(f"外置冒号加粗标签未识别为 STYLE001: {label_out_issues}")
+
+    # 块长形态退化（自然段 > 250 字）应识别为 STYLE013
+    long_para_sample = "## 功能需求\n\n" + ("测试超长自然段落事实堆叠" * 25) + "\n"
+    long_para_issues = STYLE.run_lint(long_para_sample)
+    if "STYLE013" not in codes(long_para_issues):
+        raise AssertionError(f"超长自然段未识别为 STYLE013: {long_para_issues}")
+
+    # test-fixture 固化反例片段断言
+    fixture_neg = ROOT / "test-fixture/output/prd/prd-style-negative-cases.md"
+    if fixture_neg.exists():
+        neg_issues = STYLE.run_lint(fixture_neg.read_text(encoding="utf-8"))
+        neg_codes = codes(neg_issues)
+        for expected in ("STYLE001", "STYLE013", "STYLE014", "STYLE015"):
+            if expected not in neg_codes:
+                raise AssertionError(f"固化反例片段缺少预期错误 {expected}: {neg_codes}")
+
     warning_only = VALID + "\n字段按配置决定展示。\n"
     warning_issues = STYLE.run_lint(warning_only)
     if not warning_issues or any(issue.severity == "error" for issue in warning_issues):
@@ -183,7 +207,20 @@ def main() -> int:
     if missing.returncode != 2:
         raise AssertionError(f"文件不存在时退出码应为 2: {missing.returncode}")
 
-    print("test-prd-style-lint: PASS（十二类问题、严重级别和退出码）")
+    # 规范自证：references/prd-writing-examples.md 是写作示范，自身必须遵守行首标签规则。
+    # 背景：该文件曾用 `输入与校验规则：`/`系统处理与并发保护：` 写行首标签，而 lint 全程漏报——
+    # 行首标签本质是「属性标签封闭词表」（形态判定会把正常散文「本期覆盖十个功能模块：…」误判，
+    # 实测单项目 94 条误报），因此正确的结构性保障是让规范示例与词表保持一致，而不是放宽规则。
+    examples = ROOT / "references/prd-writing-examples.md"
+    if examples.exists():
+        ex_label = [i for i in STYLE.run_lint(examples.read_text(encoding="utf-8")) if i.code == "STYLE001"]
+        if ex_label:
+            raise AssertionError(
+                "规范示例自身不得使用行首标签式正文（否则规范与 lint 词表不同步）: "
+                + str([(i.line, i.message) for i in ex_label])
+            )
+
+    print("test-prd-style-lint: PASS（十二类问题、严重级别、退出码与规范示例自证）")
     return 0
 
 

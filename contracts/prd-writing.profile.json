@@ -1,6 +1,14 @@
 {
   "profile_name": "prd-writing-v1",
   "description": "PRD 写作轻量硬约束摘要",
+  "metrics": {
+    "paragraph_max_chars": 250,
+    "dot_item_max_chars": 100,
+    "functional_requirements_scope_keywords": [
+      "功能需求"
+    ],
+    "functional_requirements_scope_prefix": "4."
+  },
   "constraints": {
     "forbidden_expressions": [
       "**页面目标：**",

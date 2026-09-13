@@ -138,28 +138,6 @@ def main() -> int:
             print('清单外来源的材料事实未被拒绝')
             return 1
 
-        handoff = project / '.workflow/runtime/context/design/handoff'
-        handoff.mkdir(parents=True, exist_ok=True)
-        design_model = {
-            'version': 1,
-            'scope': {},
-            'roles': [],
-            'modules': [],
-            'flows': [],
-            'states': [],
-            'permissions': [],
-            'open_questions': [],
-        }
-        challenge = {'version': 1, 'findings': []}
-        (handoff / 'design-model.json').write_text(json.dumps(design_model, ensure_ascii=False), encoding='utf-8')
-        (handoff / 'design-challenge.json').write_text(json.dumps(challenge, ensure_ascii=False), encoding='utf-8')
-        handoff_checked = run(
-            str(CHECK), '--project-root', str(project), '--require', 'design-model',
-            '--require', 'design-challenge', cwd=ROOT,
-        )
-        if handoff_checked.returncode != 0:
-            print(handoff_checked.stdout, handoff_checked.stderr)
-            return 1
         skill = (ROOT / 'skills/spm-design/SKILL.md').read_text(encoding='utf-8-sig')
         for marker in ('context-pack.py', 'context-loading.manifest.json', 'Align 完整对齐稿'):
             if marker not in skill:

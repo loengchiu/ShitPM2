@@ -191,7 +191,7 @@ python $BUNDLE/scripts/python/design-set.py check --project-root .
 ~~~
 
 `design-set.py check` 仅用于验证文件集合、路径、ID、依赖关系和文件指纹的一致性，不代表 Design 业务语义或质量完整。产品完成条件由事实完整性、未决暴露和内部回读修正决定。
-check 失败时按错误修正（ID 重复、路径非法、依赖错误、指纹不一致、地图引用无法定位）；通过后清单和地图即为正式事实体系。局部修改时执行完整事务命令：
+check 失败时按工具输出的错误项逐条修正（错误类型以工具输出为准，不在本文件另行枚举）；通过后清单和地图即为正式事实体系。局部修改时执行完整事务命令：
 
 ~~~text
 # 单文件修改：先读取 stage-single 返回的 staged_path，再只写该路径
@@ -217,7 +217,7 @@ python $BUNDLE/scripts/python/design-set.py recover --project-root .
 
 完成条件：目标模块所有分段已整合，完整正文可读取，后写内容没有导致前文事实密度下降或相互冲突。
 
-上下文不足时：完成当前模块、写入下游依据（provenance），然后提醒用户调用 handoff（C:/Users/guduj/.codex/skills/handoff/SKILL.md），不声称已经清除上下文。只有用户明确要求导出、打印、人工通读或对外发送时，才生成 `.workflow/runtime/完整Design临时视图.md`，并在文件顶部声明它是自动生成的临时阅读视图、不是产品事实源、不得作为 PRD/Prototype/Review/fix 的默认输入。
+上下文不足时：完成当前模块、写入下游依据（provenance），并如实告知用户当前上下文已接近上限，不声称已经清除上下文。只有用户明确要求导出、打印、人工通读或对外发送时，才生成 `.workflow/runtime/完整Design临时视图.md`，并在文件顶部声明它是自动生成的临时阅读视图、不是产品事实源、不得作为 PRD/Prototype/Review/fix 的默认输入。
 
 ## 7. 写作动作内自检
 

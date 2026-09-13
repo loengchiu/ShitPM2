@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """prd-style-lint.py — PRD 文风 lint 脚本
 
-职责：检查 PRD 正文中可机械识别的 12 类问题。
+职责：检查 PRD 正文中可机械识别的 15 类问题。
 不做业务语义判断，不做全文重写。
 
 用法：python prd-style-lint.py <prd_file_path> [--format text|json] [--output <path>]
@@ -19,6 +19,9 @@
   STYLE010 - 页面元数据连续块
   STYLE011 - UI 动作词直接作为动作标题
   STYLE012 - 连续键值对句式承载正文
+  STYLE013 - 块长形态退化（段落或列表项超长）
+  STYLE014 - 模块编号层级错配（功能需求章节内 H3 编号非两级）
+  STYLE015 - 编号标题跳级（功能需求章节内相邻编号标题层级跳跃 >1）
 """
 
 import json
@@ -43,6 +46,17 @@ class Issue:
 _PROFILE_PATH = Path(__file__).resolve().parent.parent.parent / "contracts" / "prd-writing.profile.json"
 _PROFILE = load_json(_PROFILE_PATH) or {}
 _PROFILE_FORBIDDEN = _PROFILE.get("constraints", {}).get("forbidden_expressions", [])
+_PROFILE_METRICS = _PROFILE.get("metrics", {})
+MAX_PARAGRAPH_CHARS = _PROFILE_METRICS.get("paragraph_max_chars", 250)
+MAX_DOT_ITEM_CHARS = _PROFILE_METRICS.get("dot_item_max_chars", 100)
+SCOPE_FUNC_REQ_KEYWORDS = _PROFILE_METRICS.get("functional_requirements_scope_keywords", ["功能需求"])
+SCOPE_FUNC_REQ_PREFIX = _PROFILE_METRICS.get("functional_requirements_scope_prefix", "4.")
+
+# 加粗标签体形态正则（规则见 references/prd-writing-rules.md「自然语言硬约束与排版形态」）：冒号在加粗之内或之外，独占一行动作标题豁免
+BOLD_LABEL_PATTERNS = [
+    re.compile(r'^\s*(?:[-*]\s*)?\*\*[^*:]+[：:]?\*\*\s*[：:]'),
+    re.compile(r'^\s*(?:[-*]\s*)?\*\*[^*:]+[：:]\*\*'),
+]
 
 # 标签式正文模式：从 profile 的 forbidden_expressions 动态生成（单一事实源）
 # 两类：
@@ -103,27 +117,83 @@ AI_PATTERNS = [
 
 
 def check_label_style(lines: list) -> list:
-    """STYLE001: 检查标签式正文（加粗标签 + 行首标签两类）"""
+    """STYLE001: 检查标签式正文（加粗标签形态 + 行首标签两类）。
+
+    判定规则（references/prd-writing-rules.md「自然语言硬约束与排版形态」）：
+    1. 加粗标签体：**字段名：** 正文 或 - **字段名**：正文；
+       判定式为 BOLD_LABEL_PATTERNS；独占一行的无冒号粗体短语（**动作名称**）明确豁免；
+       排除代码块、HTML 注释与表格行。
+    2. 连续 3 行及以上的同形态加粗标签行。
+    3. 行首标签（触发：/处理：等）按行首锚定识别。
+    """
     issues = []
+    in_fence = False
+    in_html_comment = False
+
     for i, line in enumerate(lines):
-        for pattern, label in LABEL_PATTERNS:
-            if re.search(pattern, line):
-                issues.append(Issue(
-                    code="STYLE001",
-                    severity="error",
-                    line=i + 1,
-                    message=f"发现标签式正文：{label}",
-                    suggestion="改用自然规格说明段落，不用加粗标签拼接",
-                ))
-        for pattern, label in LEADING_LABEL_PATTERNS:
-            if re.search(pattern, line):
-                issues.append(Issue(
-                    code="STYLE001",
-                    severity="error",
-                    line=i + 1,
-                    message=f"发现行首标签式正文：{label}",
-                    suggestion="改用自然语言段落表达，不写成“标签：内容”式独立行",
-                ))
+        stripped = line.strip()
+        if stripped.startswith("```"):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+
+        if "<!--" in stripped and "-->" in stripped:
+            continue
+        if "<!--" in stripped:
+            in_html_comment = True
+            continue
+        if "-->" in stripped:
+            in_html_comment = False
+            continue
+        if in_html_comment:
+            continue
+
+        # 动作标题（独占一行的无冒号粗体短语）明确豁免
+        if re.match(r'^\s*\*\*[^*:]+\*\*\s*$', stripped):
+            continue
+
+        # 表格行排除
+        if stripped.startswith('|'):
+            continue
+
+        # 1. 加粗标签体形态检查
+        is_bold_label = any(pat.search(stripped) for pat in BOLD_LABEL_PATTERNS)
+        line_reported = False
+        if is_bold_label:
+            issues.append(Issue(
+                code="STYLE001",
+                severity="error",
+                line=i + 1,
+                message="发现加粗标签式正文：行首或列表项以加粗标签承载",
+                suggestion="改用自然规格说明段落，不用加粗标签拼接，动作标题独占一行且不带冒号",
+            ))
+            line_reported = True
+
+        # 2. 封闭词表与行首标签检查
+        if not line_reported:
+            for pattern, label in LABEL_PATTERNS:
+                if re.search(pattern, line):
+                    issues.append(Issue(
+                        code="STYLE001",
+                        severity="error",
+                        line=i + 1,
+                        message=f"发现标签式正文：{label}",
+                        suggestion="改用自然规格说明段落，不用加粗标签拼接",
+                    ))
+                    line_reported = True
+                    break
+        if not line_reported:
+            for pattern, label in LEADING_LABEL_PATTERNS:
+                if re.search(pattern, line):
+                    issues.append(Issue(
+                        code="STYLE001",
+                        severity="error",
+                        line=i + 1,
+                        message=f"发现行首标签式正文：{label}",
+                        suggestion="改用自然语言段落表达，不写成“标签：内容”式独立行",
+                    ))
+                    break
     return issues
 
 
@@ -521,6 +591,203 @@ def check_glossary_section(lines: list) -> list:
     return issues
 
 
+def check_block_length(lines: list) -> list:
+    """STYLE013: 块长形态退化（自然段 > 250 字，或列表项 > 100 字）。
+
+    规则（references/prd-writing-rules.md「自然语言硬约束与排版形态」「事实边界与信息密度」）：
+    - 全文生效（不局限于 4.x.6）；
+    - 排除代码块（``` 围栏内）、引用块（> 开头）、HTML 注释（<!-- ... -->）与表格行（| 开头）；
+    - 动作标题（独占一行的无冒号粗体短语）明确豁免；
+    - 列表项：以 · 开头的行，提取其内容，若长度超过 MAX_DOT_ITEM_CHARS 判 error；
+    - 自然段：被空行、标题、表格、列表分隔的连续正文行合并计算，若长度超过 MAX_PARAGRAPH_CHARS 判 error。
+    """
+    issues = []
+    in_fence = False
+    in_html_comment = False
+    cur_para = []
+    para_start = 0
+
+    def flush_para():
+        nonlocal cur_para, para_start
+        if cur_para:
+            text = ''.join(cur_para)
+            if len(text) > MAX_PARAGRAPH_CHARS:
+                issues.append(Issue(
+                    code="STYLE013",
+                    severity="error",
+                    line=para_start,
+                    message=f"自然段过长（共 {len(text)} 字，超过阈值 {MAX_PARAGRAPH_CHARS} 字）",
+                    suggestion="拆分为多个自然段、子列表或短矩阵，单个块只承载一层事实",
+                ))
+            cur_para = []
+            para_start = 0
+
+    for i, line in enumerate(lines):
+        line_no = i + 1
+        stripped = line.strip()
+
+        if stripped.startswith("```"):
+            in_fence = not in_fence
+            flush_para()
+            continue
+        if in_fence:
+            continue
+
+        if "<!--" in stripped and "-->" in stripped:
+            continue
+        if "<!--" in stripped:
+            in_html_comment = True
+            flush_para()
+            continue
+        if "-->" in stripped:
+            in_html_comment = False
+            continue
+        if in_html_comment:
+            continue
+
+        if stripped.startswith(">"):
+            flush_para()
+            continue
+
+        if not stripped:
+            flush_para()
+            continue
+
+        if stripped.startswith(("#", "|", "---")):
+            flush_para()
+            continue
+
+        # 动作标题豁免
+        if re.match(r'^\s*\*\*[^*:]+\*\*\s*$', stripped):
+            flush_para()
+            continue
+
+        # 列表项
+        m_dot = re.match(r'^\s*·\s+(.*)', line)
+        if m_dot:
+            flush_para()
+            dot_content = m_dot.group(1).strip()
+            if len(dot_content) > MAX_DOT_ITEM_CHARS:
+                issues.append(Issue(
+                    code="STYLE013",
+                    severity="error",
+                    line=line_no,
+                    message=f"列表项过长（共 {len(dot_content)} 字，超过阈值 {MAX_DOT_ITEM_CHARS} 字）",
+                    suggestion="拆分子列表项或改用自然段展开，单个列表项只承载一层事实",
+                ))
+            continue
+
+        if re.match(r'^\s*[-*]\s+', line):
+            flush_para()
+            continue
+
+        if not cur_para:
+            para_start = line_no
+        cur_para.append(stripped)
+
+    flush_para()
+    return issues
+
+
+def check_module_heading_level(lines: list) -> list:
+    """STYLE014: 模块编号层级错配（功能需求章节内 H3 编号非两级）。
+
+    规则（骨架见 templates/prd.md 功能需求章节标题层级：### 4.x → #### 4.x.n → ##### 4.x.6.n → ###### 页面名称）：
+    - 作用域限定为功能需求章节内（H2 标题含“功能需求”或编号以“4.”开头）；
+    - 只判定带编号的标题，无编号标题不参与；
+    - ### 级模块标题若带编号，编号必须为两级（4.<n>），出现 4.5.6 这类三级编号判 error。
+    """
+    issues = []
+    in_func_req = False
+
+    for i, line in enumerate(lines):
+        line_no = i + 1
+        stripped = line.strip()
+        m_title = re.match(r'^(#{1,6})\s+(.*)', stripped)
+        if not m_title:
+            continue
+
+        hashes, title_text = m_title.groups()
+        level = len(hashes)
+
+        if level == 2:
+            m_num = re.match(r'^(?:(?:第[一二三四五六七八九十]+部分\s+)?(\d+(?:\.\d+)*)\s+)?(.*)', title_text)
+            sec_num = m_num.group(1) if m_num else None
+            if (sec_num and sec_num.startswith(SCOPE_FUNC_REQ_PREFIX)) or any(kw in title_text for kw in SCOPE_FUNC_REQ_KEYWORDS):
+                in_func_req = True
+            else:
+                in_func_req = False
+        elif level < 2:
+            in_func_req = False
+
+        if in_func_req and level == 3:
+            m_t_num = re.match(r'^(\d+(?:\.\d+)+)\s+(.*)', title_text)
+            if m_t_num:
+                num_str = m_t_num.group(1)
+                parts = num_str.split('.')
+                if len(parts) != 2:
+                    issues.append(Issue(
+                        code="STYLE014",
+                        severity="error",
+                        line=line_no,
+                        message=f"模块编号层级错配：### 级模块标题编号应为两级（4.<n>），实际为 {num_str}",
+                        suggestion="修正为两级模块编号（如 ### 4.1 模块名），保持结构统一",
+                    ))
+    return issues
+
+
+def check_heading_level_jumps(lines: list) -> list:
+    """STYLE015: 编号标题跳级（功能需求章节内相邻编号标题层级跳跃 >1）。
+
+    规则（骨架见 templates/prd.md 功能需求章节标题层级：### 4.x → #### 4.x.n → ##### 4.x.6.n → ###### 页面名称）：
+    - 作用域限定为功能需求章节内（H2 标题含“功能需求”或编号以“4.”开头）；
+    - 只判定带编号的标题，无编号标题（如六级页面名）完全不参与；
+    - 相邻两个都带编号的标题之间出现层级跳跃（跨级 >1，如 H3 直接接 H5）判 error。
+    """
+    issues = []
+    in_func_req = False
+    last_numbered_title = None
+
+    for i, line in enumerate(lines):
+        line_no = i + 1
+        stripped = line.strip()
+        m_title = re.match(r'^(#{1,6})\s+(.*)', stripped)
+        if not m_title:
+            continue
+
+        hashes, title_text = m_title.groups()
+        level = len(hashes)
+
+        if level == 2:
+            m_num = re.match(r'^(?:(?:第[一二三四五六七八九十]+部分\s+)?(\d+(?:\.\d+)*)\s+)?(.*)', title_text)
+            sec_num = m_num.group(1) if m_num else None
+            if (sec_num and sec_num.startswith(SCOPE_FUNC_REQ_PREFIX)) or any(kw in title_text for kw in SCOPE_FUNC_REQ_KEYWORDS):
+                in_func_req = True
+            else:
+                in_func_req = False
+            last_numbered_title = None
+        elif level < 2:
+            in_func_req = False
+            last_numbered_title = None
+
+        if in_func_req:
+            m_t_num = re.match(r'^(\d+(?:\.\d+)+)\s+(.*)', title_text)
+            if m_t_num:
+                num_str = m_t_num.group(1)
+                if last_numbered_title:
+                    prev_level, prev_num, prev_line = last_numbered_title
+                    if level - prev_level > 1:
+                        issues.append(Issue(
+                            code="STYLE015",
+                            severity="error",
+                            line=line_no,
+                            message=f"编号标题跳级：H{prev_level}（第 {prev_line} 行 {prev_num}）直接跳至 H{level}（{num_str}）",
+                            suggestion="补充中间层级标题（如补充 #### 4.x.6 功能详细说明），避免跨级跳跃",
+                        ))
+                last_numbered_title = (level, num_str, line_no)
+    return issues
+
+
 ALL_CHECKS = [
     check_label_style,
     check_action_list,
@@ -534,6 +801,9 @@ ALL_CHECKS = [
     check_page_metadata_block,
     check_ui_word_action_titles,
     check_key_value_lines,
+    check_block_length,
+    check_module_heading_level,
+    check_heading_level_jumps,
 ]
 
 
@@ -581,7 +851,7 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="PRD 文风 lint 脚本：检查 PRD 正文中可机械识别的 9 类问题。",
+        description="PRD 文风 lint 脚本：检查 PRD 正文中可机械识别的文风与结构问题（规则清单见 STYLE001~STYLE015）。",
     )
     parser.add_argument("prd_file", help="PRD 文件路径")
     parser.add_argument("--format", choices=["text", "json"], default="text", help="输出格式（默认 text）")

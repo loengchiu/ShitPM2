@@ -165,7 +165,11 @@ def _build_design_text(fields, pages, states, perms):
     for f in fields:
         title = f["title"] if isinstance(f, dict) else f
         lines.append(f'| {title} | {title} | 审计服务 | 始终展示 | 可读 | 默认空 | 文本展示 | 无 |')
-    lines += ['', '## 六、成功与验收', '', '无。', '']
+    lines += ['', '## 六、成功与验收', '', '无。', '', '## 八、权限定义', '']
+    for p in perms:
+        page_title = p.get("page") if isinstance(p, dict) else p
+        if page_title:
+            lines += [f'### {page_title}', '', '- 审计用户：可查看', '']
     return "\n".join(lines)
 
 

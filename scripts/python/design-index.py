@@ -29,6 +29,10 @@ SCHEMA_VERSION = "design-index/v1"
 MANIFEST_RELATIVE_PATH = Path("output/design/设计集清单.json")
 DESIGN_ROOT = Path("output/design")
 
+# 清单条目 type 的合法取值。与 design-set.py 的 VALID_TYPES 保持一致；
+# 此处本地定义而不跨文件 import，避免 load_sibling 动态加载造成的循环依赖。
+VALID_TYPES = ("map", "system", "contract", "module")
+
 # 固定结构的必填属性。值为“无”或“不适用”时视为明确声明，不视为缺失。
 REQUIRED_ATTRIBUTES = {
     "page": ("purpose", "roles", "entry_condition", "data_scope", "states"),
@@ -759,6 +763,15 @@ def compile_index(project_root: Path, require_current_format: bool = False) -> d
         if fid in id_seen:
             merged["errors"].append({"code": "duplicate_file_id", "message": f"重复文件 ID: {fid}", "file_id": fid})
         id_seen[fid] = rel
+        # 非法 type 必须报错：此前会静默落入 _parse_nonmodule 返回 0 实体，
+        # 表现为「编译成功但索引为空」，调用方会把「读不到」误当成「Design 没有问题」。
+        if ftype not in VALID_TYPES:
+            merged["errors"].append({
+                "code": "invalid_type",
+                "message": f"{rel}: type 只允许 {VALID_TYPES}: {ftype!r}",
+                "file_id": fid,
+            })
+            continue
         path = (project_root / DESIGN_ROOT / rel).resolve()
         if not path.is_file():
             merged["errors"].append({"code": "design_file_missing", "message": f"Design 文件不存在: {rel}", "file_id": fid})
@@ -865,6 +878,8 @@ def validate_index(project_root: Path, stored: dict[str, Any] | None = None, req
     if expected.get("errors"):
         if _is_unsupported_format(expected):
             return False, expected, "Design 索引无法编译（不支持的格式）"
+        if any(isinstance(item, dict) and item.get("code") == "invalid_type" for item in expected["errors"]):
+            return False, expected, "设计集清单存在非法 type，索引不可用（此前会静默编译为空索引）"
         # 非致命错误（missing_attribute / block_without_items 等）不阻碍索引使用
         # 下游 _compare_indexed_structure 仍可从已解析实体中做有效对比
     return True, expected, None
@@ -872,6 +887,21 @@ def validate_index(project_root: Path, stored: dict[str, Any] | None = None, req
 
 def _is_unsupported_format(data: dict[str, Any] | None) -> bool:
     return bool(data and any(item.get("code") == "unsupported_format" for item in data.get("errors", []) if isinstance(item, dict)))
+
+
+# 致命错误：出现即认定索引不可用，调用方必须显式降级并暴露原因，不得静默当作"Design 为空"。
+# 与 _is_unsupported_format 的区别：unsupported_format 是旧格式项目，属既定迁移范围；
+# invalid_type 是清单本身写错，属配置缺陷，必须让调用方看见。
+_FATAL_ERROR_CODES = frozenset({"unsupported_format", "invalid_type"})
+
+
+def _is_fatal_index_error(data: dict[str, Any] | None) -> bool:
+    if not data:
+        return False
+    return any(
+        isinstance(item, dict) and item.get("code") in _FATAL_ERROR_CODES
+        for item in data.get("errors", [])
+    )
 
 
 def load_verified_index(project_root: Path) -> tuple[dict[str, Any] | None, str | None, bool]:
@@ -889,6 +919,8 @@ def load_verified_index(project_root: Path) -> tuple[dict[str, Any] | None, str 
         if compiled.get("errors"):
             if _is_unsupported_format(compiled):
                 return compiled, None, False
+            if any(isinstance(i, dict) and i.get("code") == "invalid_type" for i in compiled["errors"]):
+                return None, "设计集清单存在非法 type，索引不可用：调用方须先修正清单", False
             # 非致命错误仍可使用已解析实体做对比
         return compiled, None, False
     except ValueError as exc:
@@ -899,6 +931,32 @@ def load_verified_index(project_root: Path) -> tuple[dict[str, Any] | None, str 
             return expected, None, True
         return None, reason, True
     return expected, None, True
+
+
+def _extraction_diagnostics(project_root: Path, data: dict[str, Any]) -> list[dict[str, Any]]:
+    """CLI 层提取诊断：让「输入非空但输出为空」与「确实没有实体」在输出上可区分。
+
+    只出现在命令输出里，不写入索引文件——写索引会改变指纹，导致既有落盘索引被判失效，
+    反而把项目推回 legacy 回退路径。
+    """
+    diagnostics: list[dict[str, Any]] = []
+    try:
+        manifest = json.loads((project_root / MANIFEST_RELATIVE_PATH).read_text(encoding="utf-8-sig"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return diagnostics
+    files = manifest.get("files") if isinstance(manifest, dict) else None
+    if not isinstance(files, list):
+        return diagnostics
+    typed = [e for e in files if isinstance(e, dict) and e.get("type") in ("module", "system", "contract")]
+    summary = data.get("summary") or {}
+    entity_total = sum(int(summary.get(k) or 0) for k in ("pages", "blocks", "fields", "operations"))
+    if typed and entity_total == 0:
+        diagnostics.append({
+            "code": "no_entities_extracted",
+            "message": (f"清单含 {len(typed)} 个非 map 正式文件，但未提取到任何页面/区块/字段/操作实体；"
+                        f"请确认这些文件是否符合当前 Design 模板结构"),
+        })
+    return diagnostics
 
 
 def _print_json(value: dict[str, Any]) -> None:
@@ -929,6 +987,7 @@ def main() -> int:
             "file_sha256": data["file_sha256"],
             "summary": data["summary"],
             "errors": data["errors"],
+            "diagnostics": _extraction_diagnostics(root, data),
         }
         _print_json(result)
         return 0 if result["ok"] else 1
@@ -946,6 +1005,7 @@ def main() -> int:
         "file_sha256": expected.get("file_sha256", {}),
         "summary": expected.get("summary", {}),
         "errors": expected.get("errors", []),
+        "diagnostics": _extraction_diagnostics(root, expected),
     }
     if reason:
         result["error"] = reason

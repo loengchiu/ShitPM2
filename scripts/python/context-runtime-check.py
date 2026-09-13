@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""检查项目级材料资产和阶段交接，阻止版本错配与越界输入。"""
+"""检查项目级材料资产，阻止版本错配与越界输入。"""
 
 import argparse
 import hashlib
@@ -136,39 +136,19 @@ def check_material_facts(path: Path, manifest: dict, index: dict, max_tokens: in
 
 
 
-def check_named_json(path: Path, required: tuple[str, ...], max_tokens: int) -> dict:
-    data = read_json(path)
-    if data.get('version') != 1:
-        raise RuntimeError(f'{path.name} version 必须为 1')
-    for key in required:
-        if key not in data:
-            raise RuntimeError(f'{path.name} 缺少字段: {key}')
-    tokens = estimate_tokens(path.read_text(encoding='utf-8-sig'))
-    if tokens > max_tokens:
-        raise RuntimeError(f'{path.name} 约 {tokens} token，超过上限 {max_tokens}')
-    return {'path': str(path), 'tokens': tokens}
-
-
-# 这些上限只限制隔离交接包的体量，防止上下文再次膨胀；
+# 这些上限只限制材料事实包的体量，防止上下文再次膨胀；
 # 它们不是产品完整性、字段数量或业务复杂度门槛。
 DEFAULT_MAX_MATERIAL_FACTS = 8000
-DEFAULT_MAX_DESIGN_MODEL = 16000
-DEFAULT_MAX_DESIGN_CHALLENGE = 8000
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description='检查项目级材料资产和阶段交接')
+    parser = argparse.ArgumentParser(description='检查项目级材料资产')
     parser.add_argument('--project-root', type=Path, default=Path.cwd())
-    parser.add_argument('--stage', choices=['align', 'design', 'prd', 'review', 'fix'], default='design')
-    parser.add_argument('--require', action='append', choices=['material-manifest', 'material-index', 'material-facts', 'design-model', 'design-challenge'], default=[])
+    parser.add_argument('--require', action='append', choices=['material-manifest', 'material-index', 'material-facts'], default=[])
     parser.add_argument('--max-material-facts', type=int, default=DEFAULT_MAX_MATERIAL_FACTS)
-    parser.add_argument('--max-design-model', type=int, default=DEFAULT_MAX_DESIGN_MODEL)
-    parser.add_argument('--max-design-challenge', type=int, default=DEFAULT_MAX_DESIGN_CHALLENGE)
     args = parser.parse_args()
     project_root = args.project_root.resolve()
     materials = project_root / '.workflow' / 'runtime' / 'materials'
-    stage_root = project_root / '.workflow' / 'runtime' / 'context' / args.stage
-    handoff = stage_root / 'handoff'
     checked = []
     try:
         manifest = None
@@ -184,14 +164,10 @@ def main() -> int:
                 checked.append({'name': name, 'files': index['file_count'], 'material_revision': index['material_revision']})
             elif name == 'material-facts':
                 checked.append({'name': name, **check_material_facts(materials / 'facts.json', manifest, index, args.max_material_facts)})
-            elif name == 'design-model':
-                checked.append({'name': name, **check_named_json(handoff / 'design-model.json', ('scope', 'roles', 'modules', 'flows', 'states', 'permissions', 'open_questions'), args.max_design_model)})
-            elif name == 'design-challenge':
-                checked.append({'name': name, **check_named_json(handoff / 'design-challenge.json', ('findings',), args.max_design_challenge)})
-        print(json.dumps({'valid': True, 'stage': args.stage, 'checked': checked}, ensure_ascii=False, indent=2))
+        print(json.dumps({'valid': True, 'checked': checked}, ensure_ascii=False, indent=2))
         return 0
     except (OSError, RuntimeError, ValueError) as exc:
-        print(json.dumps({'valid': False, 'error': str(exc), 'stage': args.stage}, ensure_ascii=False, indent=2))
+        print(json.dumps({'valid': False, 'error': str(exc)}, ensure_ascii=False, indent=2))
         return 1
 
 

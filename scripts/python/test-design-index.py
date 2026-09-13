@@ -420,5 +420,54 @@ class DesignIndexTests(unittest.TestCase):
         ))
 
 
+    def test_invalid_manifest_type_is_reported_not_silently_empty(self):
+        """非法 type 不得被静默解析成「索引为空」。"""
+        manifest_path = self.root / "output" / "design" / "设计集清单.json"
+        for bad in ("MOD", "Module", "模块"):
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            for entry in manifest["files"]:
+                if entry["id"] == "MOD-001":
+                    entry["type"] = bad
+            manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+            code, output = self.run_cli("compile")
+            self.assertEqual(code, 1, f"{bad} 应编译失败: {output}")
+            self.assertFalse(output["ok"], f"{bad} 应返回 ok:false")
+            self.assertTrue(
+                any(e.get("code") == "invalid_type" for e in output["errors"]),
+                f"{bad} 应报 invalid_type: {output['errors']}",
+            )
+            self.assertEqual(output["summary"]["pages"], 0)
+
+    def test_invalid_type_yields_explicit_downgrade_not_empty_index(self):
+        """非法 type 时下游必须拿到显式错误，而不是一个空索引。"""
+        manifest_path = self.root / "output" / "design" / "设计集清单.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        for entry in manifest["files"]:
+            if entry["id"] == "MOD-001":
+                entry["type"] = "MOD"
+        manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+        index, error, _ = self.mod.load_verified_index(self.root)
+        self.assertIsNone(index, "非法 type 不得返回可用索引")
+        self.assertIn("非法 type", error or "")
+
+    def test_empty_extraction_is_diagnosed(self):
+        """存在非 map 正式文件却零实体时，CLI 必须给出诊断（输入非空 ≠ 可以静默为空）。"""
+        module_path = self.root / "output" / "design" / "模块设计" / "订单" / "订单管理.md"
+        module_path.write_text("# 设计基线\n\n这里没有任何页面、区块、字段或操作结构。\n", encoding="utf-8")
+        manifest_path = self.root / "output" / "design" / "设计集清单.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        for entry in manifest["files"]:
+            if entry["id"] == "MOD-001":
+                entry["sha256"] = hashlib.sha256(module_path.read_bytes()).hexdigest()
+        parts = [f["id"] + f["path"] + f["sha256"] for f in sorted(manifest["files"], key=lambda x: x["id"])]
+        manifest["set_sha256"] = hashlib.sha256("".join(parts).encode("utf-8")).hexdigest()
+        manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+        code, output = self.run_cli("compile")
+        self.assertTrue(
+            any(d.get("code") == "no_entities_extracted" for d in output.get("diagnostics", [])),
+            f"零实体必须给出诊断: {output}",
+        )
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
