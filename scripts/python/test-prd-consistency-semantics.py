@@ -795,6 +795,17 @@ def main() -> int:
     return 0
 
 
+def test_empty_expected_entities_is_not_reported_enabled() -> None:
+    """无实体可比对时不得报告“已启用、零预期”，否则“对账通过”与“无法对账”不可区分。"""
+    spec = importlib.util.spec_from_file_location("prd_consistency_check", SCRIPT)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    result = module._compare_indexed_structure({"pages": [], "blocks": [], "fields": [], "operations": []}, "# PRD\n", None)
+    assert result["enabled"] is False, f"无预期实体时不得启用对账: {result}"
+    assert result["expected_count"] == 0
+
+
 def test_prd_consistency_semantics() -> None:
     assert main() == 0
 

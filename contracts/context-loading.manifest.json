@@ -45,7 +45,8 @@
             "design-analysis-core",
             "design-analysis-boundary",
             "design-methodology-boundary",
-            "design-fact-contract"
+            "design-fact-contract",
+            "design-business-closure"
           ]
         },
         "design-mode": {
@@ -424,6 +425,11 @@
     "design-fact-contract": {
       "stage": "design",
       "source": "references/design-fact-format.md",
+      "selector": "marker"
+    },
+    "design-business-closure": {
+      "stage": "design",
+      "source": "references/design-business-closure.md",
       "selector": "marker"
     },
     "align-writing-core": {

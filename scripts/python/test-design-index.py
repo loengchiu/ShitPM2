@@ -468,6 +468,323 @@ class DesignIndexTests(unittest.TestCase):
             f"零实体必须给出诊断: {output}",
         )
 
+    def test_multilevel_numbered_page_heading_is_extracted(self):
+        """“### 4.2 页面：名称”这类多级编号标题必须被识别为页面。"""
+        self._replace_module(MULTILEVEL_PAGE_DESIGN)
+        data = self.mod.compile_index(self.root)
+        self.assertEqual(data["summary"]["pages"], 1, f"多级编号页面未提取: {data['summary']}")
+        self.assertIn("订单列表", [p["name"] for p in data["pages"]])
+
+    def test_numeric_prefix_without_separator_is_not_stripped(self):
+        """“3D 模型”“5G 台账”“2024 年度汇总”不是编号，不得被剥成“D 模型”“G 台账”“年度汇总”。
+
+        剥错是静默的：页面清单与正式标题用同一个 _normalize_label，两侧对称剥离后
+        配对检查不报错，但 page["name"] 已被改坏，下游对账会同时报 missing 与 hallucinated。
+        """
+        for raw in ("3D 模型展示", "5G 设备台账", "2C 端页面", "2024 年度汇总", "4A 景区导览"):
+            self.assertEqual(self.mod._normalize_label(raw), raw, f"非编号数字前缀被误剥: {raw}")
+        # 单级编号仍要求显式分隔符，不得借“支持多级编号”放宽成可选
+        self.assertEqual(self.mod._normalize_label("三、页面：X"), "页面：X")
+        self.assertEqual(self.mod._normalize_label("1. 页面：X"), "页面：X")
+        self.assertEqual(self.mod._normalize_label("十、页面：X"), "页面：X")
+
+    def test_page_name_with_numeric_prefix_survives_compile(self):
+        """端到端：以数字开头但无分隔符的页面名，提取后必须保持原样。"""
+        self._replace_module(NUMERIC_PREFIX_PAGE_DESIGN)
+        data = self.mod.compile_index(self.root)
+        names = [p["name"] for p in data["pages"]]
+        self.assertEqual(names, ["3D 模型展示"], f"页面名被改坏: {names}")
+        codes = {e["code"] for e in data["errors"]}
+        self.assertNotIn("page_summary_missing_detail", codes, f"清单配对被前缀剥离破坏: {data['errors']}")
+        self.assertNotIn("page_detail_missing_summary", codes, f"清单配对被前缀剥离破坏: {data['errors']}")
+
+    def test_page_compare_key_strips_trailing_parenthetical(self):
+        """清单行写短名、正式标题带尾括注时，同一实体不得双向各报一次配对错误。"""
+        self._replace_module(PARENTHETICAL_PAGE_DESIGN)
+        data = self.mod.compile_index(self.root)
+        self.assertEqual(data["summary"]["pages"], 2, data["summary"])
+        codes = {e["code"] for e in data["errors"]}
+        self.assertNotIn("page_summary_missing_detail", codes, f"括注导致假配对错误: {data['errors']}")
+        self.assertNotIn("page_detail_missing_summary", codes, f"括注导致假配对错误: {data['errors']}")
+        # 比对键不得改变实体名本身：page["name"] 被下游页面级事实消费。
+        names = {p["name"] for p in data["pages"]}
+        self.assertTrue(any("（非定向方案 B 专用" in n for n in names), f"实体名被误改: {names}")
+
+    def test_block_only_design_without_page_yields_page_extraction_empty(self):
+        """有区块/字段/操作但 pages=0 时必须显式报 page_extraction_empty。"""
+        self._replace_module(BLOCK_ONLY_NO_PAGE_DESIGN)
+        data = self.mod.compile_index(self.root)
+        summary = data["summary"]
+        self.assertTrue(
+            summary["blocks"] + summary["fields"] + summary["operations"] > 0,
+            f"夹具必须有实体: {summary}",
+        )
+        self.assertEqual(summary["pages"], 0)
+        self.assertTrue(
+            any(e.get("code") == "page_extraction_empty" for e in data["errors"]),
+            f"关键空集未识别: {data['errors']}",
+        )
+        self.assertFalse(
+            any(e.get("code") == "unsupported_format" for e in data["errors"]),
+            "有实体时不得同时判为旧格式",
+        )
+
+    def test_legacy_flat_design_still_downgrades(self):
+        """旧格式（全 0 实体）必须继续 legacy 降级，不得被 page_extraction_empty 打成硬失败。"""
+        self._replace_module(LEGACY_FLAT_DESIGN)
+        data = self.mod.compile_index(self.root)
+        self.assertEqual(
+            (data["summary"]["pages"], data["summary"]["blocks"], data["summary"]["fields"], data["summary"]["operations"]),
+            (0, 0, 0, 0),
+            data["summary"],
+        )
+        self.assertTrue(
+            any(e.get("code") == "unsupported_format" for e in data["errors"]),
+            f"旧格式应判 unsupported_format: {data['errors']}",
+        )
+        self.assertFalse(
+            any(e.get("code") == "page_extraction_empty" for e in data["errors"]),
+            "旧格式不得同时报 page_extraction_empty",
+        )
+        index, error, _ = self.mod.load_verified_index(self.root)
+        self.assertIsNone(error, f"旧格式必须继续降级可用: {error}")
+
+    def test_load_verified_index_rejects_page_extraction_empty(self):
+        """关键空集必须让下游拿到显式错误，而不是一个缺页但可用的索引。"""
+        self._replace_module(BLOCK_ONLY_NO_PAGE_DESIGN)
+        index, error, _ = self.mod.load_verified_index(self.root)
+        self.assertIsNone(index, "缺页索引不得返回给下游")
+        self.assertIn("page_extraction_empty", error or "")
+
+    def test_both_consumers_reject_page_extraction_empty(self):
+        """PRD 与 Prototype 两个真实消费者都必须拒绝关键空集。"""
+        self._replace_module(BLOCK_ONLY_NO_PAGE_DESIGN)
+        # 直接落下游文件：本夹具的 compile 注定失败，不能走会断言 compile 成功的 write_downstream。
+        prd_dir = self.root / "output" / "prd"
+        prd_dir.mkdir(parents=True, exist_ok=True)
+        (prd_dir / "prd.md").write_text(VALID_PRD, encoding="utf-8")
+        proto_dir = self.root / "output" / "prototype" / "src"
+        proto_dir.mkdir(parents=True, exist_ok=True)
+        (proto_dir / "OrderPage.jsx").write_text(VALID_HTML, encoding="utf-8")
+        (proto_dir / "routes.jsx").write_text(
+            'export const routes = [{ path: "/orders", title: "订单列表", module: "订单", component: OrderPage }, { path: "*", element: <Placeholder /> }];\n',
+            encoding="utf-8",
+        )
+        # compile 即使有错误也会落盘索引；prototype 侧要求索引文件存在，必须先落盘。
+        self.run_cli("compile")
+        for script in ("prd-consistency-check.py", "prototype-consistency-check.py"):
+            completed = self.run_downstream(script)
+            self.assertNotEqual(completed.returncode, 0, f"{script} 应拒绝关键空集: {completed.stdout[:400]}")
+            self.assertIn("page_extraction_empty", completed.stdout, f"{script} 未给出原因: {completed.stdout[:400]}")
+
+    def test_stored_index_page_extraction_empty_reports_real_reason(self):
+        """已有旧落盘索引时，validate_index 会因新增错误码判“内容不一致”。
+
+        真实原因（页面提取为空）必须仍被报出，不得被泛化原因掩盖——否则调用方
+        会按“索引过期/内容漂移”排查，方向完全错。
+        """
+        original_load, original_validate = self.mod.load_index, self.mod.validate_index
+        try:
+            self.mod.load_index = lambda root: {"stored_placeholder": True}
+            self.mod.validate_index = lambda root, stored=None, require_current_format=False: (
+                False,
+                {"errors": [{"code": "page_extraction_empty"}], "pages": []},
+                "索引内容与 Design 文件的确定性编译结果不一致",
+            )
+            index, error, _ = self.mod.load_verified_index(self.root)
+        finally:
+            self.mod.load_index, self.mod.validate_index = original_load, original_validate
+        self.assertIsNone(index, "页面提取为空的索引不得返回给下游")
+        self.assertIn("page_extraction_empty", error or "", f"真实原因被泛化原因掩盖: {error}")
+
+    def test_stored_index_unsupported_format_still_downgrades(self):
+        """同一入口下，旧格式必须继续降级可用，不得被关键空集判断误伤。"""
+        original_load, original_validate = self.mod.load_index, self.mod.validate_index
+        try:
+            self.mod.load_index = lambda root: {"stored_placeholder": True}
+            self.mod.validate_index = lambda root, stored=None, require_current_format=False: (
+                False,
+                {"errors": [{"code": "unsupported_format"}], "pages": []},
+                "Design 索引无法编译（不支持的格式）",
+            )
+            index, error, _ = self.mod.load_verified_index(self.root)
+        finally:
+            self.mod.load_index, self.mod.validate_index = original_load, original_validate
+        self.assertIsNone(error, f"旧格式必须继续降级可用: {error}")
+        self.assertIsNotNone(index, "旧格式降级应返回索引")
+
+    def _replace_module(self, content: str) -> None:
+        module_path = self.root / "output" / "design" / "模块设计" / "订单" / "订单管理.md"
+        module_path.write_text(content, encoding="utf-8")
+        manifest_path = self.root / "output" / "design" / "设计集清单.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        for entry in manifest["files"]:
+            if entry["id"] == "MOD-001":
+                entry["sha256"] = hashlib.sha256(module_path.read_bytes()).hexdigest()
+        parts = [f["id"] + f["path"] + f["sha256"] for f in sorted(manifest["files"], key=lambda x: x["id"])]
+        manifest["set_sha256"] = hashlib.sha256("".join(parts).encode("utf-8")).hexdigest()
+        manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+MULTILEVEL_PAGE_DESIGN = """# 设计基线
+
+## 4. 页面设计
+
+### 4.2 页面：订单列表
+目的：查看和处理订单
+角色：运营人员
+进入条件：已登录
+数据范围：本人所属组织订单
+主要状态：待处理、已完成
+
+#### 4.2.1 区块：筛选条件
+目的：按条件缩小订单范围
+
+##### 字段：订单编号
+业务含义：订单的唯一业务编号
+必填：是
+来源：订单服务
+展示条件：始终展示
+输入编辑：可输入，不可修改已有值
+取值默认：默认空值
+交互：文本输入
+校验反馈：格式错误时提示
+
+##### 操作：查询
+适用角色：运营人员
+可用条件：输入条件合法
+确认：无需确认
+成功结果：刷新订单列表
+状态变化：无
+失败恢复：保留当前筛选条件并提示
+去向：仍停留在订单列表
+"""
+
+# 页面名以数字开头但无分隔符：不是编号，清单与标题两侧都必须原样保留。
+NUMERIC_PREFIX_PAGE_DESIGN = """# 设计基线
+
+## 页面清单
+
+| 页面 | 说明 |
+| --- | --- |
+| 3D 模型展示 | 主视图 |
+
+### 页面：3D 模型展示
+目的：查看三维模型
+角色：设计人员
+进入条件：已登录
+数据范围：本组织模型
+主要状态：草稿、已发布
+
+#### 区块：主体
+目的：展示模型
+
+| 字段 | 业务含义 | 必填 | 来源 | 展示条件 | 输入编辑 | 取值默认 | 交互 | 校验反馈 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 模型编号 | 模型唯一编号 | 是 | 模型服务 | 始终 | 可输入 | 空 | 文本 | 无 |
+"""
+
+# 页面清单行用短名、正式标题带尾括注：同一实体两处都在，不得双向各报一次配对错误。
+PARENTHETICAL_PAGE_DESIGN = """# 设计基线
+
+## 页面清单
+
+| 页面 | 说明 |
+| --- | --- |
+| P-SET-01 订单列表 | 主列表 |
+| P-SET-02 订单详情 | 详情 |
+
+### 页面：P-SET-01 订单列表
+目的：查看和处理订单
+角色：运营人员
+进入条件：已登录
+数据范围：本人所属组织订单
+主要状态：待处理、已完成
+
+#### 区块：筛选条件
+目的：按条件缩小订单范围
+
+##### 字段：订单编号
+业务含义：订单的唯一业务编号
+必填：是
+来源：订单服务
+展示条件：始终展示
+输入编辑：可输入，不可修改已有值
+取值默认：默认空值
+交互：文本输入
+校验反馈：格式错误时提示
+
+##### 操作：查询
+适用角色：运营人员
+可用条件：输入条件合法
+确认：无需确认
+成功结果：刷新订单列表
+状态变化：无
+失败恢复：保留当前筛选条件并提示
+去向：仍停留在订单列表
+
+### 页面：P-SET-02 订单详情（非定向方案 B 专用；仅财务可见）
+目的：查看订单详情
+角色：财务人员
+进入条件：已登录
+数据范围：本人所属组织订单
+主要状态：待处理、已完成
+
+#### 区块：明细
+目的：展示明细
+
+##### 字段：订单金额
+业务含义：订单金额
+必填：是
+来源：订单服务
+展示条件：始终展示
+输入编辑：不可输入
+取值默认：默认空值
+交互：文本
+校验反馈：无
+"""
+
+# 有区块、字段、操作，但全文没有页面标题：命中关键空集判据（blocks+fields+operations>0 且 pages==0）。
+BLOCK_ONLY_NO_PAGE_DESIGN = """# 设计基线
+
+### 区块：筛选条件
+目的：按条件缩小订单范围
+
+##### 字段：订单编号
+业务含义：订单的唯一业务编号
+必填：是
+来源：订单服务
+展示条件：始终展示
+输入编辑：可输入，不可修改已有值
+取值默认：默认空值
+交互：文本输入
+校验反馈：格式错误时提示
+
+##### 操作：查询
+适用角色：运营人员
+可用条件：输入条件合法
+确认：无需确认
+成功结果：刷新订单列表
+状态变化：无
+失败恢复：保留当前筛选条件并提示
+去向：仍停留在订单列表
+"""
+
+# 旧格式：只有普通标题和字段表，无页面/区块结构 → 全 0 + unsupported_format，必须继续降级。
+LEGACY_FLAT_DESIGN = """# 订单模块设计
+
+## 页面说明
+订单列表页用于查看和处理订单，运营人员可进入。
+
+## 字段清单
+
+| 名称 | 说明 |
+| --- | --- |
+| 订单编号 | 订单唯一业务编号 |
+
+## 操作说明
+查询：按条件刷新列表。
+"""
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

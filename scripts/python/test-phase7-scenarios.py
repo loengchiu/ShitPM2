@@ -365,43 +365,67 @@ def run_scenario_f() -> dict:
     assert len(entities1["fields"]) == 1
     results.append({"case": "F1: simple 无状态机/无宽表不误判 P1", "status": "PASS", "evidence": "页面属性与字段完整，无状态机声明合规"})
 
-    # 行为 2: full 多角色状态 Design：遗漏某个关键状态出路（如“待审核”无出路），Review 定位为实际业务缺口 P1
-    broken_state_doc = """# 模块设计：审批
+    # 行为 2: 非终态无出路（死状态）必须被确定性地检出。
+    # 夹具形态：“待审核”只作为“提交”的目标态出现，状态机表里没有它自己的行
+    # → 它既不是终态也没有任何出路。不能写成“待审核 | — | — | — | —”：
+    # 按 references/design-state-format.md，终态也要占一行、触发动作和下一状态写“—”，
+    # 那种写法是合规终态，不是死状态。
+    dead_state_doc = """# 模块设计：审批
+#### 状态机：流程状态
+| 状态 | 含义 | 操作人 | 触发动作 | 下一状态 | 限制条件 |
+| --- | --- | --- | --- | --- | --- |
+| 草稿 | 编制中 | 经办人 | 提交 | 待审核 | — |
+| 已通过 | 审批完成 | — | — | — | — |
+"""
+    entities2 = stage_prep.generate_design_metadata(dead_state_doc, "design", ROOT)
+    states2 = entities2.get("states", [])
+    dead2 = sorted(
+        s["title"] for s in states2
+        if len(s.get("transitions", [])) == 0 and not s.get("is_terminal")
+    )
+    assert dead2 == ["待审核"], f"仅作目标态、无自有行的状态必须被判为死状态: {[(s['title'], s.get('is_terminal'), len(s.get('transitions', []))) for s in states2]}"
+    results.append({"case": "F2: 非终态无出路被确定性检出（仅作目标态、无自有行）", "status": "PASS", "evidence": f"dead_states={dead2}"})
+
+    # 反例：有自有行且触发动作/下一状态均为“—”是格式规定的终态，不得误报为死状态。
+    terminal_doc = """# 模块设计：审批
 #### 状态机：流程状态
 | 状态 | 含义 | 操作人 | 触发动作 | 下一状态 | 限制条件 |
 | --- | --- | --- | --- | --- | --- |
 | 草稿 | 编制中 | 经办人 | 提交 | 待审核 | — |
 | 待审核 | 等待审核 | — | — | — | — |
 """
-    entities2 = stage_prep.generate_design_metadata(broken_state_doc, "design", ROOT)
-    states2 = entities2.get("states", [])
-    has_dead_state = any(s["title"] == "待审核" and len(s.get("transitions", [])) == 0 and not s.get("is_terminal") for s in states2)
-    results.append({"case": "F2: full 状态遗漏合法出路被准确定位为业务断链 P1", "status": "PASS", "evidence": f"检出非终态无出路状态: 待审核"})
+    states3 = stage_prep.generate_design_metadata(terminal_doc, "design", ROOT).get("states", [])
+    dead3 = sorted(
+        s["title"] for s in states3
+        if len(s.get("transitions", [])) == 0 and not s.get("is_terminal")
+    )
+    terminal = next((s for s in states3 if s["title"] == "待审核"), None)
+    assert terminal is not None and terminal.get("is_terminal") is True, f"「—」自有行应按格式判为终态: {states3}"
+    assert dead3 == [], f"终态不得被误报为死状态: {dead3}"
+    results.append({"case": "F2-反例: 有「—」自有行的终态不误报", "status": "PASS", "evidence": "待审核 is_terminal=True，未进入 dead_states"})
 
-    # 行为 3: 高影响未决 Design：未决已明确记录且局部阻塞，不把未决本身判为缺陷；正文静默拍板则判定为 P1
-    dec_block_pass = True
-    results.append({"case": "F3: 高影响未决明确记录且局部阻塞不判缺陷，静默拍板判 P1", "status": "PASS", "evidence": "契约与 rubric 明确已记录局部阻塞未决不属于缺陷"})
+    # 行为 3-4: 高影响未决是否构成缺陷、专项是否适用，属 LLM 业务判断，没有可断言的确定性对象。
+    # 原先以常量 PASS 占位，会冒充验证；改为不产出结论，交由 design-review-checklist 的人工核对面覆盖。
 
-    # 行为 4: 不适用专项（无外部系统/删除传播），不因缺少对应章节判错
-    results.append({"case": "F4: 不适用专项依据业务证据合理排除，不因缺章节判错", "status": "PASS", "evidence": "checklist 专项检查 X1-X8 均已重写为根据业务证据触发"})
+    # 行为 5-7: 以下是规范文档措辞断言，只证明契约文本存在，不证明模型行为。
+    review_skill = (ROOT / "skills/spm-design-review/SKILL.md").read_text(encoding="utf-8")
+    assert "不因下游文件缺失而阻塞" in review_skill
+    results.append({"case": "F5: Review 默认只读 Design，不因下游缺失阻塞", "status": "PASS", "evidence": "文档措辞断言：spm-design-review/SKILL.md 声明不因下游缺失阻塞（不证明模型行为）"})
 
-    # 行为 5: 仅 Design Review：没有 PRD/Prototype 输入仍可完成 Review，不把下游缺失当作输入阻塞
-    results.append({"case": "F5: 仅 Design Review 独立进行，不因下游缺失而阻塞", "status": "PASS", "evidence": "Review SKILL 明确默认只读 Design，无下游不报错"})
+    checklist_text = (ROOT / "contracts/design-review-checklist.md").read_text(encoding="utf-8")
+    assert "双下游对照" in checklist_text and "不直接修改产物" in checklist_text
+    results.append({"case": "F6: 双下游对照规则存在于 Review 清单", "status": "PASS", "evidence": "文档措辞断言：design-review-checklist.md 含双下游对照（不证明模型行为）"})
 
-    # 行为 6: 明确要求双下游对照：Review 能指出 Design/PRD/Prototype 事实差异并建议回写方向，不直接改动
-    results.append({"case": "F6: 用户明确要求双下游对照时识别事实差异并建议回写", "status": "PASS", "evidence": "checklist 增补双下游对照规则"})
-
-    # 行为 7: Review 输出保留 P0/P1/P2 和三档结论（通过/有问题需修改/阻塞），无强制 L0-L3 评分
     rubric_text = (ROOT / "references/design-quality-rubric.md").read_text(encoding="utf-8")
     assert "取消独立 Review 强制输出 L0–L3 评分" in rubric_text
     assert "P0/P1/P2" in rubric_text
-    results.append({"case": "F7: 输出契约使用 P0/P1/P2 与三档结论，无强制 L0-L3 评分", "status": "PASS", "evidence": "rubric 与 checklist 统一使用三档判定与 P0/P1/P2"})
+    results.append({"case": "F7: 输出契约使用 P0/P1/P2 与三档结论，无强制 L0-L3 评分", "status": "PASS", "evidence": "文档措辞断言：rubric 与 checklist 统一三档判定（不证明模型行为）"})
 
     return {
         "name": "必做场景 F：Design Review 回归",
         "status": "PASS",
         "sub_cases": results,
-        "details": "Design Review 7 项核心行为全部验证通过，审查与生成保持完全一致的业务判断口径。"
+        "details": "F1 与 F2 为确定性行为断言；F5-F7 为规范文档措辞断言；F3-F4 属 LLM 业务判断，无确定性对象，不产出 PASS。",
     }
 
 

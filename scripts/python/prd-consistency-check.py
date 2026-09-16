@@ -1833,8 +1833,13 @@ def _compare_indexed_structure(index: dict, content: str, index_module) -> dict:
             "attribute_mismatch": [],
         }
     if not expected:
+        # 没有可比对实体时不得报告“已启用、零预期”——那会让“对账通过”与“无法对账”不可区分。
+        # 可达性边界：_indexed_expected_entities 把 blocks/fields/operations 都计入 expected，
+        # 因此本分支只在“实体存在但名称全空”这类极窄场景到达；pages=0 而 fields/operations
+        # 非空时 expected 非空、走下面的完整比对，那种页面层空转由 design_index.load_verified_index
+        # 的 page_extraction_empty 拦截，不经过本分支。
         return {
-            "enabled": True,
+            "enabled": False,
             "expected_count": 0,
             "matched_count": 0,
             "missing": [],

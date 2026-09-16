@@ -159,8 +159,23 @@ def _is_explicit_empty(value: Any) -> bool:
 
 def _normalize_label(value: str) -> str:
     value = _clean_text(value).strip().strip("| ")
-    value = re.sub(r"^[一二三四五六七八九十0-9]+[、.．)]\s*", "", value)
+    # 兼容“4.2 页面：…”这类多级编号，以及“1.”“一、”等单级编号。
+    # 两个分支的分隔符要求不同：多级编号（至少一个“.”）后允许直接跟空格，单级编号仍要求
+    # 显式分隔符（、.．)），否则“3D 模型”“5G 台账”“2024 年度汇总”会被剥成“D 模型”“G 台账”
+    # “年度汇总”。剥错是静默的：清单侧与标题侧用同一函数，配对检查不报错，但 page["name"]
+    # 已被改坏，下游对账会同时产生 missing 与 hallucinated。
+    value = re.sub(r"^(?:[0-9]+(?:[.．][0-9]+)+\s*|[一二三四五六七八九十0-9]+[、.．)]\s*)", "", value)
     return value.strip()
+
+
+def _page_compare_key(value: str) -> str:
+    """页面清单与详情标题的比对键：只剥尾部括注，保留页面编号前缀。
+
+    page["name"] 会被下游页面级事实消费，因此不能在 _normalize_label 里全局剥括注，
+    只在本函数用于配对比较。编号前缀（P-SET-02）必须保留，避免同名不同括注的两个
+    真实页面被静默合并。
+    """
+    return re.sub(r"[（(][^（()）]*[)）]\s*$", "", value).strip()
 
 
 def _entity_heading(title: str) -> tuple[str | None, str | None]:
@@ -590,6 +605,16 @@ def _parse_design(content: str, design_sha256: str, require_current_format: bool
         if missing:
             _add_error(errors, "missing_attribute", f"{node['type']} 缺少必填属性: {', '.join(missing)}", node)
 
+    # 关键空集：已提取区块/字段/操作却一个页面都没有，说明页面标题写法不被识别。
+    # 用结构判据而非“标题含页面”这类文本信号，才能与 unsupported_format（实体全空）互斥。
+    if not pages and (blocks or fields or operations):
+        _add_error(
+            errors,
+            "page_extraction_empty",
+            f"已提取 {len(blocks)} 个区块、{len(fields)} 个字段、{len(operations)} 个操作，但没有提取到任何页面；"
+            f"页面实体缺失会让页面层对账静默空转，索引不可用",
+        )
+
     for page in pages:
         if not page["blocks"]:
             _add_error(errors, "page_without_block", f"页面“{page['name']}”没有正式区块", {"line": page["line"], "path": [page["name"]]})
@@ -612,17 +637,17 @@ def _parse_design(content: str, design_sha256: str, require_current_format: bool
         page_column = headers.index("页面")
         for _, cells in rows:
             if len(cells) > page_column:
-                name = _normalize_label(cells[page_column])
+                name = _page_compare_key(_normalize_label(cells[page_column]))
                 if name:
                     summary_names.append(name)
 
     if summary_present:
-        detail_names = [page["name"] for page in pages]
+        detail_names = [_page_compare_key(page["name"]) for page in pages]
         for name in dict.fromkeys(summary_names):
             if name not in detail_names:
                 _add_error(errors, "page_summary_missing_detail", f"页面清单中的“{name}”没有正式页面定义")
         for page in pages:
-            if page["name"] not in summary_names:
+            if _page_compare_key(page["name"]) not in summary_names:
                 _add_error(errors, "page_detail_missing_summary", f"正式页面“{page['name']}”未出现在页面清单中", {"line": page["line"], "path": [page["name"]]})
 
     pages_public = []
@@ -1095,17 +1120,20 @@ def _is_unsupported_format(data: dict[str, Any] | None) -> bool:
     return bool(data and any(item.get("code") == "unsupported_format" for item in data.get("errors", []) if isinstance(item, dict)))
 
 
-# 致命错误：出现即认定索引不可用，调用方必须显式降级并暴露原因，不得静默当作"Design 为空"。
-# 与 _is_unsupported_format 的区别：unsupported_format 是旧格式项目，属既定迁移范围；
-# invalid_type 是清单本身写错，属配置缺陷，必须让调用方看见。
-_FATAL_ERROR_CODES = frozenset({"unsupported_format", "invalid_type"})
+_PAGE_EXTRACTION_EMPTY_MESSAGE = (
+    "Design 索引页面实体为空（page_extraction_empty）：已提取区块/字段/操作但没有页面，"
+    "页面层对账会静默空转，调用方须先修正页面标题写法"
+)
 
 
-def _is_fatal_index_error(data: dict[str, Any] | None) -> bool:
+# 与 unsupported_format 的区别：unsupported_format 是旧格式项目（实体全空），属既定迁移范围，
+# 调用方继续降级为 legacy；page_extraction_empty 是实体齐了、只有页面层没提出来，属设计文件缺陷，
+# 必须让调用方看见并修正，不得静默当作“Design 为空”或降级。
+def _has_page_extraction_empty(data: dict[str, Any] | None) -> bool:
     if not data:
         return False
     return any(
-        isinstance(item, dict) and item.get("code") in _FATAL_ERROR_CODES
+        isinstance(item, dict) and item.get("code") == "page_extraction_empty"
         for item in data.get("errors", [])
     )
 
@@ -1127,11 +1155,18 @@ def load_verified_index(project_root: Path) -> tuple[dict[str, Any] | None, str 
                 return compiled, None, False
             if any(isinstance(i, dict) and i.get("code") == "invalid_type" for i in compiled["errors"]):
                 return None, "设计集清单存在非法 type，索引不可用：调用方须先修正清单", False
+            if _has_page_extraction_empty(compiled):
+                return None, _PAGE_EXTRACTION_EMPTY_MESSAGE, False
             # 非致命错误仍可使用已解析实体做对比
         return compiled, None, False
     except ValueError as exc:
         return None, str(exc), True
     valid, expected, reason = validate_index(project_root, stored)
+    # 先判关键空集：否则已有旧落盘索引时，新增错误码会让 stored != expected，
+    # 原因被“索引内容与 Design 文件的确定性编译结果不一致”这类泛化描述掩盖，
+    # 调用方会往错误方向排查。page_extraction_empty 与 unsupported_format 互斥，不会误伤旧格式降级。
+    if _has_page_extraction_empty(expected):
+        return None, _PAGE_EXTRACTION_EMPTY_MESSAGE, True
     if not valid:
         if _is_unsupported_format(expected):
             return expected, None, True
