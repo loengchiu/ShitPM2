@@ -51,7 +51,7 @@ python scripts/python/shitpm-host.py remove --host <host>
 | `spm-design-review` | Design 独立挑战（默认局部，完整 Review 由用户触发） |
 | `spm-prd-review` | PRD 独立挑战（按被审模块的 Design 依据） |
 | `spm-prototype-review` | Prototype 独立挑战（按被审模块的 Design 依据） |
-| `spm-prototype-mark` | 原型标注副本生成 |
+| `spm-prototype-mark` | 原型主规格标注副本生成（仅承载原型无法直接展示的实现/验收规格） |
 
 ## 3. 启动与状态查询
 
@@ -91,6 +91,7 @@ spm-design（简单模式 / 完整模式）
     设计地图 + 设计集清单 + 系统级基线 + 跨模块契约 + 模块设计
         ↓
     design-set.py check（校验通过后即为事实体系）
+        ├── output/verification/（高影响规则验证条目，与 Design 同一次写作动作生成）
         ├───────────────┐
         ▼               ▼
      spm-prd       spm-prototype
@@ -122,8 +123,10 @@ spm-design（简单模式 / 完整模式）
 - 状态与权限分层责任：
   - 状态：确定性比较仅覆盖明确声明的状态机实体（标题+六列表格+迁移边，D-3 A）；普通散文与过程态不进入业务状态集合；未声明明确状态机的场景报告 `not_evaluated`；严格区分对象生命周期状态、页面主要状态与过程展示态；
   - 权限：暂不建立全量 capability schema（D-2 A），区分页面可见性、操作可执行性、字段编辑权、数据范围和状态前置条件；异构空间显式报告 `not_evaluated` 或 `cannot_extract`，由 Review 语义核对，严禁假绿；Design 权限读取继续沿用 verified Index；
+- 规则验证与预期来源独立性：命中计算、状态、权限、事件、映射或生命周期类型的高影响规则，Design 在同一次写作动作内生成验证包；每条验证条目必须写明 `expected_source`，`ai_inference` 不计入验证；高影响规则不允许全部条目落在 `self_review` 与 `ai_inference` 组合。规则类型、取值和格式以 `$BUNDLE/references/verification-and-oracle.md` 为唯一权威；
+- Design Review 以验证包闭合为覆盖停止条件，`spm-fix` 把验证包列为 Design 下游，规则变化未更新验证包不算 Fix 完成；
 - 数据口径闭包与分层责任：系统内重要数据结果按直接数据、派生数据、汇总统计、周期结算四档承担递增闭包责任（详见 `references/data-definition-rules.md`）；同名指标默认同口径；影响结果的关键未知必须在上游暴露为决策簇，严禁在下游静默补齐；
-- PRD 交付以单业务模块（`4.x`）自包含为基线：`4.x.5` 集中收敛公共数据口径与业务规则，`4.x.6` 承接页面构成与规则落地，`4.x.7` 仅保留控件属性与来源索引，严禁将口径压缩进字段表；
+- PRD 交付以单业务模块（`4.x`）自包含为基线，模块按需组织为业务流程 → 业务规则 → 功能说明 → 异常处理 → 验收标准；业务流程按具体业务对象连续叙述，业务规则集中收敛公共数据口径与计算规则，功能说明按页面任务就近写清区块、字段、操作、反馈和失败，页面说明只在跨动作共用页面规格时单列并让后续章节顺延，字段表仅保留控件属性与来源索引，严禁将口径压缩进字段表；
 - PRD 与 Prototype 并列，可以任意顺序、单独生成；PRD 人读正文不暴露机器 ID；Prototype 采用明确稳定锚点（`data-*`）承接结构；
 - 证据分层：确定性脚本通过 ≠ 语义质量通过；脚本返回 0 仅证明机器规则排查无冲突，最终质量由 Skill 内联自检、Review 独立第二意见、真实试读与原型运行核对验收；
 - Review 是按需独立挑战，不构成门禁，不自动阻塞下游；
@@ -163,6 +166,7 @@ Align 不承担最终方案决策，但不能只做摘要；Design 至少读取 
 - `output/design/系统级基线/` — 系统级事实（删除某模块后仍成立）；
 - `output/design/跨模块契约/` — 跨模块交接（只在交接时成立）；
 - `output/design/模块设计/` — 模块内部事实（只影响一个模块内部）。
+- `output/verification/` — Design 的正式交付物：高影响规则的验证条目、预期来源和独立性等级（与 Design 同一次写作动作内生成或更新）。
 
 模式选择必须由用户决定：
 
@@ -210,11 +214,12 @@ PRD、Prototype 通过 `.workflow/provenance/` 记录各业务模块实际读取
 - `output/prd/prd.md`
 - `output/prd/diagrams/*.drawio` 与 `*.png`（按需）
 - `.workflow/provenance/prd.json`（模块依据）
+- 引用 `output/verification/` 中的规则 ID（验收标准的执行依据，不复制用例表）
 
 首次生成责任：
 
 - 维持 Design 的产品语义；PRD 按业务闭环组织功能模块，总体说明只定义跨模块共用事实，页面、字段、状态、权限、异常和验收就近归入所属闭环。
-- 交付目标为单业务模块自包含：`4.x.5` 集中收敛公共数据口径与业务规则，`4.x.6` 承接页面动作与规则应用，`4.x.7` 仅保留控件属性与来源索引，严禁将数据口径压缩进字段表；`4.x.9` 提供可验证业务用例；
+- 交付目标为单业务模块自包含：业务流程按具体业务对象连续写；业务规则集中收敛公共数据口径、计算和状态规则，难理解规则配最小数值例子；功能说明按页面任务写清区块、字段、操作、反馈和失败；页面说明只在跨动作共用页面规格时单列并让后续章节顺延，字段表仅保留控件属性与来源索引，严禁将数据口径压缩进字段表；验收标准提供可验证业务用例；
 - 正式写入前完成 Design → PRD 语义对照，覆盖核心对象、角色、状态、关键动作、流程、权限、模块和跨系统边界；
 - 已识别的事实偏差和语义漂移在首次交付前修正；
 - 发现必须新增高影响产品判断时不得猜测，返回 Design 处理；
@@ -252,7 +257,7 @@ Prototype Mark 收集的高影响反馈按 `$BUNDLE/templates/prototype-feedback
 - Design Review 默认只审查目标文件闭包，完整 Review 由用户明确触发；
 - PRD / Prototype Review 读取被审模块记录的 Design 依据；
 - Review 不修改原始产物、不自动推进阶段；
-- Review 结论区分确定性缺陷、产品风险、需用户决策的问题；
+- Review 结论区分确定性缺陷、产品风险、需用户决策的问题；Design Review 以验证包闭合作为覆盖停止条件，闭合后仍发现的问题按缺陷记录，不作为继续扩大审查范围的理由；
 - 预检查只在目标文件不存在、不可读或完全无法解析时阻止执行；缺章节、内容不足、冲突和质量问题作为审查问题返回；
 - 深度业务 Review 使用深度推理模型；结构和明确规则核对可使用轻量模型或脚本。
 
@@ -260,7 +265,7 @@ Prototype Mark 收集的高影响反馈按 `$BUNDLE/templates/prototype-feedback
 
 `spm-fix` 用于在用户确认事实或产品决策发生变化后传播影响。
 
-- 高影响变化先回写 Design（按事务），再连续同步所有实际存在且受影响的 PRD / Prototype 模块，无确认停顿；
+- 高影响变化先回写 Design（按事务），再连续同步所有实际存在且受影响的 PRD / Prototype 模块，无确认停顿；规则语义变化同时同步 `output/verification/` 中受影响的验证包，受影响条目标记 `stale` 并说明是规则变了还是预期来源变了；
 - 仅表现层变化可以只修改 Prototype；
 - 支持 PRD-only、Prototype-only 和双下游项目；只同步实际存在的下游，不自动创建；
 - PRD 存在时运行 `prd-consistency-check.py --module <模块名>`；Prototype-only 项目无 PRD 时使用 `--allow-no-prd` 跳过，不阻塞 Fix；
@@ -268,12 +273,14 @@ Prototype Mark 收集的高影响反馈按 `$BUNDLE/templates/prototype-feedback
 
 ### 6.3 Prototype Mark
 
-`spm-prototype-mark` 复制原型源码工程到 `output/prototypemark/`（排除 `node_modules/` 与旧 `dist/`），在副本 `src/` 中注入标注组件并重新构建，原始原型不变。
+`spm-prototype-mark` 复制原型源码工程到 `output/prototypemark/`（排除 `node_modules/` 与旧 `dist/`），在副本 `src/` 中注入不可见规格标注并重新构建，原始原型不变。
 
-- 不修改原始 Prototype；
-- 不回写 Design 或 PRD；
-- 不进入默认主链路；
-- 高影响反馈通过结构化输出约定供 Fix 使用。
+- 只标注原型无法直接展示且影响研发实现或测试判断的字段规则、权限、状态、异常、数据口径和验收判断；
+- 已可见的字段、按钮和布局不重复标注；
+- 页面完成判据是只打开带标注原型、不打开 PRD，也能完成实现和验收判断；
+- Design 是事实源；PRD 可选参与单条标注，但不得与 Design 混合，冲突时停止；
+- 不修改原始 Prototype；不回写 Design 或 PRD；不自动执行；进入测试的页面需在交付前完成 Mark；高影响反馈通过结构化输出约定供 Fix 使用；
+- 进入测试的页面应完成 Mark；进入研发的页面可提前完成，早期探索原型不强制。
 
 ## 7. 模型选择建议
 
@@ -297,7 +304,7 @@ Prototype Mark 收集的高影响反馈按 `$BUNDLE/templates/prototype-feedback
 | `design-set.py record-inputs` | 写入 PRD / Prototype 模块依据 |
 | `design-set.py check-inputs` | 检查下游模块是否 current / affected / incomplete；下游产物存在但无依据记录时报告 incomplete（provenance_missing），不静默当作无影响 |
 | `prd-consistency-check.py` | PRD 与 Design 确定性对比，输出 `hallucinated` / `missing` / `attribute_mismatch`；`--allow-no-prd` 支持 Prototype-only 项目；`--module` 按模块运行 |
-| `prd-style-lint.py` | PRD 风格检查（坏味道、流水账、模糊表述等） |
+| `prd-style-lint.py` | PRD 风格检查（坏味道、流水账、模糊表述、句长超限等） |
 | `prototype-source-check.py` | Prototype 源码工程确定性检查（src/dist/package/BAT/README 契约，通过返回 0，失败返回 1，不自动修复） |
 | `prototype-consistency-check.py` | Prototype 与 Design 全量确定性对比；模块级结论由 Prototype Review 结合 Design 分模块判断 |
 | `stage-prep.py` | 旧版兼容：仅旧项目兼容诊断，ShitPM 主流程不依赖 |

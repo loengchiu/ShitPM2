@@ -3,6 +3,7 @@
 
 import importlib.util
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -125,7 +126,8 @@ def main() -> int:
         "按实际适用覆盖", "前端事实承接", "后端事实承接",
         "动作按业务结果重组", "动作按复杂度写", "跨前后端的完整业务链",
         "事实边界与信息密度", "不得从“立即生效”等生效描述推导",
-        "行首标签", "每个有页面或业务动作的功能模块必须包含 `4.x.6 功能详细说明`",
+        "行首标签", "每个有页面或业务动作的功能模块必须包含“功能说明”",
+        "页面说明不存在时，后续章节连续编号",
         "业务流程图", "跨页面推进", "每个命中模块至少一张图",
         "output/prd/diagrams/<图名>.drawio", "2 倍分辨率", "流程图只辅助理解",
     ):
@@ -145,7 +147,7 @@ def main() -> int:
 
     examples = (ROOT / "references/prd-writing-examples.md").read_text(encoding="utf-8-sig")
     for marker in (
-        "prd-example-simple-readonly", "prd-example-dashboard",
+        "prd-example-simple-readonly", "prd-example-workflow-calculation", "prd-example-dashboard",
         "prd-example-list-detail-query", "prd-example-form-config",
         "prd-example-multi-role-state", "prd-example-mobile-cross-terminal",
         "prd-example-external-auto",
@@ -155,10 +157,24 @@ def main() -> int:
     if "反例" in examples:
         raise AssertionError("示例不应保留反例（坏味道由 lint 识别）")
 
+    # 长租金示例与简单只读示例必须互不包裹，auto section 只保留真正的简单页面。
+    simple_start = examples.index("<!-- context:prd-example-simple-readonly:start -->")
+    simple_end = examples.index("<!-- context:prd-example-simple-readonly:end -->")
+    simple_block = examples[simple_start:simple_end]
+    if "租金账单" in simple_block or "多缴" in simple_block:
+        raise AssertionError("简单只读示例仍包裹租金业务示例")
+    workflow_start = examples.index("<!-- context:prd-example-workflow-calculation:start -->")
+    workflow_end = examples.index("<!-- context:prd-example-workflow-calculation:end -->")
+    if not (workflow_start < workflow_end < simple_start):
+        raise AssertionError("连续流程示例的标记边界不正确")
+
     template = (ROOT / "templates/prd.md").read_text(encoding="utf-8-sig")
     for required in (
         "功能模块必需章节", "不能以“无内容”为由省略", "页面字段表只补充",
         "跨页面推进", "每个命中模块至少一张图", "2 倍分辨率", "不使用 Mermaid",
+        "页面说明按需增加，本骨架不预置空章节",
+        "不存在页面说明时，异常处理接续功能说明编号",
+        "页面说明存在时，插入页面说明并顺延后续章节编号",
     ):
         if required not in template:
             raise AssertionError(f"PRD 模板缺少 4.x.6 硬约束: {required}")
@@ -171,11 +187,22 @@ def main() -> int:
     for forbidden in ("**页面名称**", "###### 动作标题：业务结果", "车辆信息记录（管理端）"):
         if forbidden in template:
             raise AssertionError(f"PRD 模板仍保留旧格式: {forbidden}")
+    if re.search(r"(?m)^#{3,6}\s+4\.[^\n]*页面说明", template):
+        raise AssertionError("PRD 模板仍预置固定页面说明章节")
+    expected_headings = (
+        "#### 4.1.6 功能说明",
+        "#### 4.1.7 异常处理",
+        "#### 4.1.8 验收标准",
+        "#### 4.1.9 待确认事项",
+    )
+    positions = [template.find(heading) for heading in expected_headings]
+    if any(position < 0 for position in positions) or positions != sorted(positions):
+        raise AssertionError(f"PRD 模板默认无页面说明时章节编号不连续: {positions}")
 
     review = (ROOT / "contracts/prd-review-checklist.md").read_text(encoding="utf-8-sig")
     for required in (
         "无效引用", "时间范围", "页面操作承接与合并", "检查后修改", "格式统一",
-        "页面展示行为完整", "自动动作失败闭环", "删除传播完整", "枚举和独立上限有来源",
+        "页面展示行为完整", "自动动作承接与失败闭环", "删除传播完整", "枚举和独立上限有来源",
         "Design 全读痕迹", "上下文爆栈", "一次性全读整套 Design",
         "详细需求说明语义专项检查", "数据范围与统计口径专项检查",
         "跨页面推进", "2 倍 PNG", "PRD 内嵌引用",

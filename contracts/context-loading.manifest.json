@@ -95,6 +95,7 @@
           "sections": [
             "design-writing-common-errors",
             "design-writing-structure",
+            "design-writing-inference",
             "design-writing-final",
             "design-writing-self-check",
             "design-verification-self-review-boundary",
@@ -108,6 +109,15 @@
             "design-system-template",
             "design-contract-template",
             "design-module-template"
+          ]
+        },
+        "design-verification": {
+          "purpose": "规则类型判定、验证包生成与更新、预期来源和独立性",
+          "sections": [
+            "verification-oracle-rule-types",
+            "verification-oracle-evidence",
+            "verification-oracle-format",
+            "verification-oracle-closure"
           ]
         }
       }
@@ -148,7 +158,7 @@
           ]
         },
         "prd-writing-spec": {
-          "purpose": "详细需求说明（4.x.6）唯一写作规范：模块组织、页面判断链、动作重组与复杂度、数据口径、事实边界和信息密度",
+          "purpose": "详细需求说明唯一写作规范：模块按需叙述、按业务对象流程、业务规则与最小例子、页面任务和动作闭环、按需页面说明、数据口径、事实边界和信息密度",
           "sections": [
             "prd-writing-spec"
           ]
@@ -165,12 +175,15 @@
           }
         },
         "prd-writing-examples": {
-          "purpose": "详细需求说明写作示例：目标颗粒度和表达方式的必要输入，不提供产品事实。模块写作自动装载简单只读和多角色状态示例，分别展示篇幅下限和复杂页面的完整颗粒度；其他类型用 --example 按需装载",
+          "purpose": "详细需求说明写作示例：目标颗粒度和表达方式的必要输入，不提供产品事实。模块写作自动装载简单只读和多角色状态示例，分别展示篇幅下限和复杂页面的完整颗粒度；其他类型用 --example 按需装载，租金账单长例不自动装载",
           "sections": [
             "prd-example-simple-readonly",
             "prd-example-multi-role-state"
           ],
           "example_sections": {
+            "workflow-calculation": [
+              "prd-example-workflow-calculation"
+            ],
             "dashboard": [
               "prd-example-dashboard"
             ],
@@ -213,6 +226,12 @@
           "purpose": "PRD 版本记录格式",
           "sections": [
             "prd-writing-versioning"
+          ]
+        },
+        "prd-verification": {
+          "purpose": "PRD 验收用例引用验证包规则 ID 的规则",
+          "sections": [
+            "verification-oracle-prd-reference"
           ]
         }
       }
@@ -269,6 +288,11 @@
       "selector": "marker"
     },
     "design-writing-structure": {
+      "stage": "design",
+      "source": "references/design-writing.md",
+      "selector": "marker"
+    },
+    "design-writing-inference": {
       "stage": "design",
       "source": "references/design-writing.md",
       "selector": "marker"
@@ -370,6 +394,13 @@
       "shared": true,
       "reuse_note": "简单只读示例同时作为 module pass 自动装载的篇幅下限样本和 simple-readonly 按需键。"
     },
+    "prd-example-workflow-calculation": {
+      "stage": "prd",
+      "source": "references/prd-writing-examples.md",
+      "selector": "marker",
+      "shared": true,
+      "reuse_note": "连续业务流程、最小数值例子和局部动作样本，只通过 --example workflow-calculation 按需装载。"
+    },
     "prd-example-dashboard": {
       "stage": "prd",
       "source": "references/prd-writing-examples.md",
@@ -465,6 +496,31 @@
     "design-module-template": {
       "stage": "design",
       "source": "templates/design-module.md",
+      "selector": "marker"
+    },
+    "verification-oracle-rule-types": {
+      "stage": "design",
+      "source": "references/verification-and-oracle.md",
+      "selector": "marker"
+    },
+    "verification-oracle-evidence": {
+      "stage": "design",
+      "source": "references/verification-and-oracle.md",
+      "selector": "marker"
+    },
+    "verification-oracle-format": {
+      "stage": "design",
+      "source": "references/verification-and-oracle.md",
+      "selector": "marker"
+    },
+    "verification-oracle-closure": {
+      "stage": "design",
+      "source": "references/verification-and-oracle.md",
+      "selector": "marker"
+    },
+    "verification-oracle-prd-reference": {
+      "stage": "prd",
+      "source": "references/verification-and-oracle.md",
       "selector": "marker"
     }
   },

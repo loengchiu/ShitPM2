@@ -137,6 +137,8 @@ def check_selection(module) -> None:
                 ):
                     if forbidden in section_ids:
                         fail(f'module pass 不应装载章节: {forbidden}')
+                if 'prd-example-workflow-calculation' in section_ids:
+                    fail('module pass 未显式请求时装载了长租金流程示例')
             sections = module.build_sections(ROOT, manifest, stage, section_ids)
             if not sections:
                 fail(f'选择结果为空: {stage}.{pass_name}')
@@ -168,6 +170,12 @@ def check_selection(module) -> None:
         for req in ('prd-card-data', 'prd-example-direct-data', 'prd-example-aggregate-data', 'prd-example-periodic-calculation'):
             if req not in prd_data_ids:
                 fail(f'PRD 数据口径按需未装载: {req}')
+
+        _, workflow_ids = module.resolve_selection(
+            manifest, 'prd', None, 'module', [], [], ['workflow-calculation'], None,
+        )
+        if 'prd-example-workflow-calculation' not in workflow_ids:
+            fail('workflow-calculation 按需未装载长流程示例')
         _, prd_nodata_ids = module.resolve_selection(manifest, 'prd', None, 'module', [], ['scenes'], [], None)
         for forb in ('prd-card-data', 'prd-example-direct-data', 'prd-example-aggregate-data', 'prd-example-periodic-calculation'):
             if forb in prd_nodata_ids:
