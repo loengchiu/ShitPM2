@@ -53,7 +53,6 @@ MAX_DOT_ITEM_CHARS = _PROFILE_METRICS.get("dot_item_max_chars", 100)
 MAX_SENTENCE_CHARS = _PROFILE_METRICS.get("sentence_max_chars", 50)
 MAX_STEP_SENTENCE_CHARS = _PROFILE_METRICS.get("step_max_chars", 40)
 SCOPE_FUNC_REQ_KEYWORDS = _PROFILE_METRICS.get("functional_requirements_scope_keywords", ["功能需求"])
-SCOPE_FUNC_REQ_PREFIX = _PROFILE_METRICS.get("functional_requirements_scope_prefix", "4.")
 
 # 加粗标签体形态正则（规则见 references/prd-writing-rules.md「自然语言硬约束与排版形态」）：冒号在加粗之内或之外，独占一行动作标题豁免
 BOLD_LABEL_PATTERNS = [
@@ -598,7 +597,7 @@ def check_block_length(lines: list) -> list:
     """STYLE013: 块长形态退化（自然段 > 250 字，或列表项 > 100 字）。
 
     规则（references/prd-writing-rules.md「自然语言硬约束与排版形态」「事实边界与信息密度」）：
-    - 全文生效（不局限于 4.x.6）；
+    - 全文生效（不绑定某一章节）；
     - 排除代码块（``` 围栏内）、引用块（> 开头）、HTML 注释（<!-- ... -->）与表格行（| 开头）；
     - 动作标题（独占一行的无冒号粗体短语）明确豁免；
     - 列表项：以 · 开头的行，提取其内容，若长度超过 MAX_DOT_ITEM_CHARS 判 error；
@@ -695,10 +694,10 @@ def check_block_length(lines: list) -> list:
 def check_module_heading_level(lines: list) -> list:
     """STYLE014: 模块编号层级错配（功能需求章节内 H3 编号非两级）。
 
-    规则（骨架见 templates/prd.md 功能需求章节标题层级：### 4.x → #### 4.x.n → ##### 4.x.6.n → ###### 页面名称）：
+    规则（骨架见 templates/prd.md 功能需求章节标题层级，只约束编号层级，不依赖具体章节号）：
     - 作用域限定为功能需求章节内（H2 标题含“功能需求”或编号以“4.”开头）；
     - 只判定带编号的标题，无编号标题不参与；
-    - ### 级模块标题若带编号，编号必须为两级（4.<n>），出现 4.5.6 这类三级编号判 error。
+    - ### 级模块标题若带编号，编号必须为两段，出现 4.5.6 这类三段编号判 error；任意合法章节号均可。
     """
     issues = []
     in_func_req = False
@@ -716,7 +715,7 @@ def check_module_heading_level(lines: list) -> list:
         if level == 2:
             m_num = re.match(r'^(?:(?:第[一二三四五六七八九十]+部分\s+)?(\d+(?:\.\d+)*)\s+)?(.*)', title_text)
             sec_num = m_num.group(1) if m_num else None
-            if (sec_num and sec_num.startswith(SCOPE_FUNC_REQ_PREFIX)) or any(kw in title_text for kw in SCOPE_FUNC_REQ_KEYWORDS):
+            if any(kw in title_text for kw in SCOPE_FUNC_REQ_KEYWORDS):
                 in_func_req = True
             else:
                 in_func_req = False
@@ -733,8 +732,8 @@ def check_module_heading_level(lines: list) -> list:
                         code="STYLE014",
                         severity="error",
                         line=line_no,
-                        message=f"模块编号层级错配：### 级模块标题编号应为两级（4.<n>），实际为 {num_str}",
-                        suggestion="修正为两级模块编号（如 ### 4.1 模块名），保持结构统一",
+                        message=f"模块编号层级错配：### 级模块标题编号应为两段，实际为 {num_str}",
+                        suggestion="修正为两段模块编号（如 ### 4.1 或 ### 7.3），保持结构统一",
                     ))
     return issues
 
@@ -742,7 +741,7 @@ def check_module_heading_level(lines: list) -> list:
 def check_heading_level_jumps(lines: list) -> list:
     """STYLE015: 编号标题跳级（功能需求章节内相邻编号标题层级跳跃 >1）。
 
-    规则（骨架见 templates/prd.md 功能需求章节标题层级：### 4.x → #### 4.x.n → ##### 4.x.6.n → ###### 页面名称）：
+    规则（骨架见 templates/prd.md 功能需求章节标题层级，只约束编号层级，不依赖具体章节号）：
     - 作用域限定为功能需求章节内（H2 标题含“功能需求”或编号以“4.”开头）；
     - 只判定带编号的标题，无编号标题（如六级页面名）完全不参与；
     - 相邻两个都带编号的标题之间出现层级跳跃（跨级 >1，如 H3 直接接 H5）判 error。
@@ -764,7 +763,7 @@ def check_heading_level_jumps(lines: list) -> list:
         if level == 2:
             m_num = re.match(r'^(?:(?:第[一二三四五六七八九十]+部分\s+)?(\d+(?:\.\d+)*)\s+)?(.*)', title_text)
             sec_num = m_num.group(1) if m_num else None
-            if (sec_num and sec_num.startswith(SCOPE_FUNC_REQ_PREFIX)) or any(kw in title_text for kw in SCOPE_FUNC_REQ_KEYWORDS):
+            if any(kw in title_text for kw in SCOPE_FUNC_REQ_KEYWORDS):
                 in_func_req = True
             else:
                 in_func_req = False
@@ -785,7 +784,7 @@ def check_heading_level_jumps(lines: list) -> list:
                             severity="error",
                             line=line_no,
                             message=f"编号标题跳级：H{prev_level}（第 {prev_line} 行 {prev_num}）直接跳至 H{level}（{num_str}）",
-                            suggestion="补充中间层级标题（如补充 #### 4.x.6 功能详细说明），避免跨级跳跃",
+                            suggestion="补充中间层级标题，保持相邻编号标题层级连续",
                         ))
                 last_numbered_title = (level, num_str, line_no)
     return issues

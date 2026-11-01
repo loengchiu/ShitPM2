@@ -92,6 +92,12 @@ def main() -> int:
         if code not in found:
             raise AssertionError(f"未识别 {code}: {found}")
 
+    # 标题编号解绑：功能需求章节和模块编号使用非 4.x 时，不应因旧前缀产生结构性 error。
+    renumbered = "## 总体说明\n\n### 术语定义\n\n订单：业务订单。\n\n## 7. 功能需求\n\n### 7.3 订单处理业务闭环\n\n#### 7.3.1 模块概览\n\n##### 业务过程\n\n订单创建后进入处理。\n"
+    renumbered_errors = [issue for issue in STYLE.run_lint(renumbered) if issue.severity == "error"]
+    if renumbered_errors:
+        raise AssertionError(f"重编号功能需求不应产生结构 error: {renumbered_errors}")
+
     # STYLE005 收窄：引用目标真实存在时不再产生提示（旧版对全部引用刷 info 是低价值噪音）。
     valid_ref = "## 总体说明\n订单：业务订单。\n\n## 功能需求\n### 3.2 订单查询\n查询规则详见 3.2。"
     style005_valid = [issue for issue in STYLE.run_lint(valid_ref) if issue.code == "STYLE005"]

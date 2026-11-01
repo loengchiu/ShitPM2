@@ -21,7 +21,7 @@
   "material_revision": "sha256:<64位十六进制>",
   "facts": [
     {
-      "kind": "page|section|field|metric|action|state|enum|rule|exception|integration|non_functional|acceptance|other",
+      "kind": "object|page|block|section|field|metric|action|state|enum|rule|exception|integration|non_functional|acceptance|other",
       "statement": "可由材料直接确认的单条事实",
       "source": {"path": "materials/01-background.md", "sha256": "...", "line_start": 1, "line_end": 8}
     }
@@ -31,7 +31,7 @@
 
 `source_path`、`source_hash` 必须对应动作输入的单一材料；每条事实必须有可定位来源行范围。不得把跨来源冲突、用户回答或模型推测写入已确认事实。`kind` 用来保护事实粒度，不得把多个不同字段、操作或枚举合并成一条摘要。
 
-至少逐项保留：目标和范围、角色边界、页面/子页面/区块、展示/搜索/筛选/表单字段、统计指标、操作及前置和结果、状态迁移、枚举和数据字典、规则和统计口径、异常和恢复、外部系统和数据流向、非功能与验收。
+至少逐项保留：目标和范围、角色边界、对象身份和生命周期、页面/子页面/区块及所属对象、展示/搜索/筛选/表单字段、统计指标、操作及前置和结果、状态和终态、状态迁移、枚举和数据字典、规则和统计口径、异常和恢复、外部系统和数据流向、非功能与验收。材料出现未决选项时，同时保留可选答案及各自后果。
 
 ## 合并事实库
 

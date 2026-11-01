@@ -1,6 +1,6 @@
 {
-  "profile_name": "prd-writing-v1",
-  "description": "PRD 写作轻量硬约束摘要",
+  "profile_name": "prd-object-unit-v2",
+  "description": "PRD 对象单元写作轻量硬约束摘要",
   "metrics": {
     "paragraph_max_chars": 250,
     "dot_item_max_chars": 100,
@@ -8,8 +8,7 @@
     "step_max_chars": 40,
     "functional_requirements_scope_keywords": [
       "功能需求"
-    ],
-    "functional_requirements_scope_prefix": "4."
+    ]
   },
   "constraints": {
     "forbidden_expressions": [
@@ -43,7 +42,15 @@
       "避免用户",
       "符合操作",
       "TBD",
-      "TODO"
+      "TODO",
+      "规则 ID",
+      "验证包位置",
+      "对应规则",
+      "所属对象：",
+      "只读承接",
+      "本节不重复",
+      "本试点",
+      "见待确认事项"
     ]
   }
 }

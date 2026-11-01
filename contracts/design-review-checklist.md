@@ -15,7 +15,9 @@
 | 3. 范围、边界和依赖明确 | 范围外、系统边界、外部责任或限制缺失，导致下游可能重新引入排除项 | [Design 模块模板](../templates/design-module.md)；[设计地图模板](../templates/design-map.md) | P1 | `content` / 摘要或外部协作 |
 | 4. 关键业务闭环可走完 | 缺触发、参与者、阶段、分支、结果、恢复或后续责任 | [Design 写作规则](../references/design-writing.md)；[业务流程格式](../references/design-flow-format.md) | P1 | `content` / 业务闭环 |
 | 5. 简单流程不过度展开 | 单角色、无分支、无异常的流程被强制拆成无意义的空表格或重复步骤 | [业务流程格式](../references/design-flow-format.md) | P2 | `content` / 业务闭环 |
+| 6a. 对象没有无依据拆分 | 某对象、动作、状态或页面不满足对象必要性的独立条件，却被写成独立实体、独立确认动作或新填报流程；或汇总、报表被写成新数据而非已有记录的聚合；或模型与用户原话、材料不一致（用户没说的拆分、合并、实体或动作被写成确定事实） | [Design 业务闭环规则](../references/design-business-closure.md) 2.1 | P1 | `consistency` / 业务模型 |
 | 6. 对象、规则和状态互相解释 | 核心对象关系、生命周期、规则、状态或责任之间存在断链 | [Design 分析协议](../references/design-analysis-protocol.md)；[Design 质量标准](../references/design-quality-rubric.md) | P1 | `consistency` / 业务模型 |
+| 6b. 对象卡与页面归属完整 | 独立对象没有对象卡；对象卡与状态机名称不一致；页面清单或页面区块没有所属对象，导致 PRD 仍需自行拆对象或反查页面 | [Design 写作规则](../references/design-writing.md)；[Design 业务闭环规则](../references/design-business-closure.md) 2.1 | P1 | `consistency` / 业务模型或页面位置 |
 | 7. 状态机结构闭环 | 非终态无出路、非初始态无入路、回退目标非法或迁移含义不明确 | [状态定义格式](../references/design-state-format.md) | P1 | `content` / 状态位置 |
 | 8. 状态条件和副作用完整 | 缺触发角色、前置条件、可逆性、限制条件、数据变化或异常处理 | [状态定义格式](../references/design-state-format.md) | P1 | `content` / 状态迁移 |
 | 9. 权限和数据范围可执行 | 只有角色列表，没有可见范围、可执行动作、字段例外或敏感操作限制 | [Design 写作规则](../references/design-writing.md) | P1 | `content` / 权限与数据范围 |
@@ -25,17 +27,18 @@
 | 13. 操作事实与结果闭环 | 只有按钮名，缺适用角色、入口/触发方式、可用条件、确认、成功结果、数据/状态变化、失败恢复或后续去向等实际适用事实；操作输入粗粒度导致下游无法承接；格式适配复杂度，不因未用十列表自动判错 | [Design 写作规则](../references/design-writing.md) | P1 | `content` / 操作位置 |
 | 14. 产品字段使用业务名称 | 用数据库字段名、内部编号或技术类型替代中文业务名称 | [Design 写作规则](../references/design-writing.md) | P2 | `content` / 字段位置 |
 | 15. 页面与字段落点存在 | 用户可见、可编辑、可筛选或动作直接依赖的字段没有页面、区块落点 | [Design 写作规则](../references/design-writing.md) | P1 | `consistency` / 字段落点 |
-| 16. 页面落点不引入未定义字段 | 页面、区块或操作出现没有正式定义的产品字段 | [Design 写作规则](../references/design-writing.md) | P1 | `consistency` / 页面位置 |
+| 16. 字段和规则可追溯且无未定义项 | 页面、区块或操作出现没有正式定义的产品字段或规则；或字段、规则无法回指来源，模型推测或无来源内容未标明也未列入待确认 | [Design 写作规则](../references/design-writing.md)；[Design 质量标准](../references/design-quality-rubric.md) | P1 | `consistency` / 字段或规则位置 |
 | 17. 非页面字段例外合理 | 内部字段未说明原因，或可见/可编辑/可筛选字段被错误归入内部字段 | [Design 模块模板](../templates/design-module.md)；[设计地图模板](../templates/design-map.md) | P1 | `consistency` / 非页面落点字段 |
 | 18. 页面清单与正式页面一致 | 页面速览有页面未展开，或正式页面不在清单中且造成覆盖歧义 | [Design 模块模板](../templates/design-module.md)；[设计地图模板](../templates/design-map.md) | P1 | `consistency` / 页面位置 |
 | 19. 实际页面规则已覆盖 | 真实存在的列表默认、空/加载/异常、文件、导入导出、批量或跨系统同步没有产品口径 | [Design 写作规则](../references/design-writing.md) | P1 | `content` / 页面或闭环 |
 | 20. 业务闭环与产品承接一致 | 流程、角色权限、数据范围、状态、页面、字段、操作、外部责任或异常路径存在断链 | [Design 分析协议](../references/design-analysis-protocol.md)；[Design 质量标准](../references/design-quality-rubric.md) | P1 | `consistency` / `affected_objects` |
-| 21. 高影响问题在 Design 阶段暴露 | 把会改变方案的问题推迟给 PRD、Prototype 或 Review | [Design 分析协议](../references/design-analysis-protocol.md) | P1 | `content` / 待确认事项 |
+| 21. 高影响问题在 Design 阶段暴露 | 把会改变方案的问题推迟给 PRD、Prototype 或 Review，或待确认只写一个推荐答案而没有可选答案及各自后果 | [Design 分析协议](../references/design-analysis-protocol.md)；[Design 写作规则](../references/design-writing.md) | P1 | `content` / 待确认事项 |
 | 22. 未授权高影响假设被显式标记 | 静默新增流程、权限、状态、数据范围、页面操作或跨系统责任 | [Design 分析协议](../references/design-analysis-protocol.md) | P1 | `consistency` / 审查问题 |
 | 23. 事实、推导和待确认可区分 | 评审无法判断输入事实、设计推导和仍需用户决定的内容 | [Design 质量标准](../references/design-quality-rubric.md) | P1 | `content` / 审查问题 |
 | 24. 关键动作产品结果闭环 | 动作缺前置条件、影响字段/对象、成功/失败结果、状态副作用、后续责任或恢复路径 | [Design 写作规则](../references/design-writing.md)；[Design 质量标准](../references/design-quality-rubric.md) | P1 | `content` / 操作位置 |
 | 25. 数据生命周期可判定（按需） | 删除、作废、归档、恢复或历史记录存在，但当前数据、历史和关联数据结果不明确 | [Design 分析协议](../references/design-analysis-protocol.md) | P1 | `content` / 对象或规则位置 |
 | 26. 唯一性、时间和并发边界可判定（按需） | 唯一性冲突、周期/时区、重复提交或并发更新存在多个合法解释 | [Design 分析协议](../references/design-analysis-protocol.md) | P1 | `content` / 规则或操作位置 |
+| 26a. 测试级歧义可判定（按需） | 同一组输入因触发时机、舍入与尾差顺序、人工覆盖边界或并发批次可见性得到多个预期，正文未形成唯一结果，也未进入带后果的待确认 | [Design 写作规则](../references/design-writing.md)「未决事项与测试级歧义」 | P1 | `decision` / 规则、金额或验收位置 |
 | 27. 文件、导入导出和批量结果完整（按需） | 场景存在但缺范围、格式/大小/数量、上限、部分失败或结果反馈 | [Design 分析协议](../references/design-analysis-protocol.md) | P1 | `content` / 对应闭环或页面 |
 | 28. 跨系统和产品级质量约束可验收（按需） | 缺事实源、同步方向、失败/部分成功、补偿、最终责任，或产品级质量约束无法观察 | [Design 分析协议](../references/design-analysis-protocol.md)；[Design 质量标准](../references/design-quality-rubric.md) | P1 | `content` / 集成或验收位置 |
 | 29. 旧版兼容材料不替代 Design（按需） | 以旧版 metadata、稳定 ID 或历史结构替代人读 Design 判断当前产品事实 | [Design 质量标准](../references/design-quality-rubric.md) | P2；若导致事实冲突则 P1 | `consistency` / 兼容问题 |
@@ -79,7 +82,7 @@
 - 缺少适用章节时作为审查问题返回，不再因为“章节不齐”自动把 Review 当作门禁；
 - 页面、区块、字段和操作按业务复杂度表达，事实完整优先于表格形式。复杂页面的八列字段表和十列操作表是推荐格式；简单页面可使用紧凑短表或结构化段落。不因格式未采用宽表判定缺陷，但事实遗漏、歧义或导致下游无法承接时按 P1 判定；
 - **合理不适用判定**：结合需求目标、范围和业务场景判断，不因章节缺失自动判错。无状态机、无外部系统、无删除类操作的需求，简短说明或省略属合理不适用；
-- **高影响未决处理**：高影响未决事项已明确记录（写明问题、影响范围、保守表达和确认人）且局部阻塞时，不把未决本身判定为缺陷；若受影响内容仍被正文静默拍板，则按 P1 判定；
+- **高影响未决处理**：高影响未决事项已明确记录（写明问题、影响范围、可选答案及各自后果、保守表达和确认人）且局部阻塞时，不把未决本身判定为缺陷；若只写一个推荐答案、缺少后果，或受影响内容仍被正文静默拍板，则按 P1 判定；
 - **双下游对照（用户明确要求时）**：对照 PRD 和 Prototype 检查事实一致性，区分 Design 缺失、PRD/Prototype 偏离和需要回写 Design 的问题，给出修改建议，不直接修改产物；
 - **历史结论只用于回归核对**：当前问题集冻结前不读取历史 Review 的问题结论；冻结后逐编号核对复发与修复声明；
 - **覆盖摘要**：报告必须能说明覆盖如何闭合——审查单元清单、用到的关系维度、候选实例数、各结论数、排除依据、无法提取的数量，缺项写明原因。候选实例来源见 [业务闭环规则](../references/design-business-closure.md) 3.5。摘要是判断覆盖是否闭合的手段，不是交付产物：不得为凑齐字段机械填数，也不得用计数充抵闭合判断；摘要与实际问题记录必须一致；

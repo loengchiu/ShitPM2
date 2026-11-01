@@ -26,16 +26,17 @@ description: "同步修复：将变更影响沿事实链传播至唯一事实源
 4. $BUNDLE/contracts/fix-propagation-rules.md（唯一传播规则来源）。
 5. 设计地图与设计集清单：定位唯一事实归属和受影响下游。
 6. 实际受影响分支所需的上游/下游 references、templates、contracts 和确定性检查脚本；不读取无关阶段资源。
+7. 当前任务的 `output/align/align.md` 和 `.workflow/runtime/align/align-notes.json`：命中模型纠正回写时必读；Align 不存在时先按 `spm-align` 建立最小产物。
 
 ## 执行流程
 
-1. 读取并解析用户修改指令；必须明确改什么和改成什么，缺一项就停止追问。
+1. 读取并解析用户修改指令；必须明确改什么和改成什么，缺一项就停止追问。用户给出业务原则或例子（如“审核到账就是确认收入”）时，按原则推导改成什么，不因没有逐句指令而停止。修改涉及业务模型、同一主题再次被纠正，或用户指出幻觉、过度设计、理解错误时，按 `$BUNDLE/contracts/fix-propagation-rules.md` 第三节第 16 条先做六项分诊；任一项模型信号变化或无法判断时，先读取现有 `output/align/align.md` 与 `.workflow/runtime/align/align-notes.json`（不存在时按 `spm-align` 建立最小产物），再按 `$BUNDLE/skills/spm-align/SKILL.md` 第 5 步写回纠正记录并更新受影响事实，然后回 `$BUNDLE/skills/spm-design/SKILL.md` 重建受影响对象；六项都不变才在本流程局部修复。用户给出的清单、具体数值和明确说明代表实际数据的例子是权威来源，修改后逐项对照；仅用于解释模型的示例按“示例与模型说明”保留，不据示例补正式数据。
 2. 判断修改对象属于目标/范围/建设方式、模块/页面/字段/规则/流程/状态/权限、跨系统/异常，还是表现层/措辞/格式。
 3. 读取设计地图与设计集清单，从问题位置定位唯一事实归属文件（系统级基线/跨模块契约/模块设计）。
 4. 读取 $BUNDLE/contracts/fix-propagation-rules.md，判定受影响的最深阶段和实际存在的下游分支。
 5. 修改对象是 Design 语义变化时，先按 `$BUNDLE/contracts/fix-propagation-rules.md` 第四节步骤 0 做**影响面枚举**：把每个问题改写为业务约束；先做约束类别差集（确认是否有整类约束从未进入核对面）；再建立"业务约束 × 承载面 × 对象（含细分类型）"三维影响表；检查整页、整列属性或整组字段是否缺失；搜索字面变体、统称下的细分类型、同类型对象和兄弟页面，但只修改确认受影响的位置。定义以 `$BUNDLE/references/design-business-closure.md` 为唯一权威来源。
 6. 修改 Design 时按事务写入：单文件用 design-set.py stage-single/commit-single，多文件用 begin/commit；检查失败或中断用 recover。纯组织变化只更新 ID/路径/指纹和依据，下游保持 current。**修改后逐位置回读，并检查新句与既有规则的冲突。**
-7. 计算受影响下游：用 design-set.py check-inputs --artifact prd|prototype 检查当前依据；返回 incomplete（provenance_missing）时说明下游产物存在但无依据记录，先补 record-inputs 再继续；用户明确修改事实时连续同步所有实际存在且受影响的 PRD / Prototype 模块，无确认停顿。规则语义变化时同步 `output/verification/` 中受影响的验证包：更新或标记 `stale` 对应条目，并同步被这些条目引用的 PRD `4.x.9` 验收用例。
+7. 计算受影响下游：用 design-set.py check-inputs --artifact prd|prototype 检查当前依据；返回 incomplete（provenance_missing）时说明下游产物存在但无依据记录，先补 record-inputs 再继续；用户明确修改事实时连续同步所有实际存在且受影响的 PRD / Prototype 模块，无确认停顿。规则语义变化时同步 `output/verification/` 中受影响的验证包：更新或标记 `stale` 对应条目，并同步受影响对象单元的验收场景。
 8. 仅对实际存在且受影响的分支运行针对性检查：PRD 使用 `prd-consistency-check.py --module <模块名>`；Prototype 使用全量 `prototype-consistency-check.py --project-root .`。Prototype 的模块级判断由语义审查结合全量结果和对应 Design 模块完成。PRD 不存在时不伪造 PRD 检查，Prototype-only 项目仍需走合法原型检查路径。
 9. 针对性检查通过后更新下游依据：record-inputs 更新 design_inputs 指纹，status 置 current、check_status 置 passed、清空 affected_by；检查失败时保留 affected 或 incomplete，不得伪装通过。
 

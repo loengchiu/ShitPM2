@@ -208,7 +208,325 @@ def _lines_in_ranges(content: str, ranges: list) -> str:
     return "\n".join(result)
 
 
+# ── PRD 对象单元结构定位 ───────────────────────────────────────
+
+REQUIRED_MODULE_HEADINGS = ("模块概览", "页面功能")
+REQUIRED_OBJECT_UNIT_SLOTS = ("业务过程", "对象规则", "验收场景")
+OBJECT_UNIT_SLOT_HEADINGS = (
+    "业务过程", "状态迁移", "对象规则", "异常与边界", "验收场景", "待确认",
+)
+OPTIONAL_OBJECT_UNIT_HEADINGS = ("共用规则", "跨对象异常", "角色与能力矩阵")
+PRD_MODULE_SECTION_HEADINGS = (
+    "功能需求", "详细需求说明", "详细需求", "需求说明", "详细需求规格", "需求详细说明",
+)
+STRUCTURE_CONTAINER_HEADINGS = (
+    "模块概览", "功能概述", "对象关系", "角色与能力矩阵", "页面清单",
+    "共用规则", "页面功能", "跨对象异常",
+)
+
+
+def _title_matches(title: str, expected: str) -> bool:
+    """按标题名匹配，忽略编号和标题后的括号补充。"""
+    normalized = strip_heading_number(str(title or "")).strip()
+    if normalized == expected:
+        return True
+    return bool(re.match(rf"^{re.escape(expected)}(?:[（(]|\s|$)", normalized))
+
+
+def _find_named_heading_ranges(headings: list, names: tuple[str, ...] | list[str]) -> list:
+    """按标题名定位章节范围，不读取标题末位编号。"""
+    ranges = []
+    for index, heading in enumerate(headings):
+        if not any(_title_matches(heading.get("title", ""), name) for name in names):
+            continue
+        end = None
+        for next_heading in headings[index + 1:]:
+            if next_heading["level"] <= heading["level"]:
+                end = next_heading["line"]
+                break
+        ranges.append((heading["line"], end, heading["level"]))
+    return ranges
+
+
+def _is_structure_heading(title: str) -> bool:
+    normalized = strip_heading_number(str(title or "")).strip()
+    return any(_title_matches(normalized, name) for name in STRUCTURE_CONTAINER_HEADINGS)
+
+
+def _is_object_unit_slot_heading(title: str) -> bool:
+    normalized = strip_heading_number(str(title or "")).strip()
+    return any(_title_matches(normalized, name) for name in OBJECT_UNIT_SLOT_HEADINGS)
+
+
+def _direct_slot_names(headings: list, index: int) -> list:
+    """读取对象单元标题下的直接子槽位，不把其他章节的同名标题算进来。"""
+    heading = headings[index]
+    slots = []
+    for next_heading in headings[index + 1:]:
+        if next_heading["level"] <= heading["level"]:
+            break
+        if next_heading["level"] != heading["level"] + 1:
+            continue
+        for slot in OBJECT_UNIT_SLOT_HEADINGS:
+            if _title_matches(next_heading.get("title", ""), slot) and slot not in slots:
+                slots.append(slot)
+                break
+    return slots
+
+
+def _find_module_scope_ranges(headings: list) -> list:
+    """定位功能需求下的模块范围，避免把附录示例对象当作真实对象单元。"""
+    ranges = []
+    seen_starts = set()
+
+    def add_range(heading):
+        line = heading["line"]
+        if line in seen_starts:
+            return
+        end = None
+        for next_heading in headings:
+            if next_heading["line"] > line and next_heading["level"] <= heading["level"]:
+                end = next_heading["line"]
+                break
+        ranges.append((line, end, heading["level"]))
+        seen_starts.add(line)
+
+    # 常规结构：功能需求或详细需求章节下的直接模块标题。
+    for start, end, section_level in _find_named_heading_ranges(headings, PRD_MODULE_SECTION_HEADINGS):
+        for heading in headings:
+            if heading["line"] <= start:
+                continue
+            if end is not None and heading["line"] >= end:
+                continue
+            if heading["level"] == section_level + 1:
+                add_range(heading)
+
+    # 兼容无“功能需求”外层标题的旧稿和测试夹具：模块标题本身作为边界。
+    for heading in headings:
+        if heading["level"] < 2 or heading["level"] > 4:
+            continue
+        title = strip_heading_number(heading.get("title", "")).strip()
+        if "模块" not in title:
+            continue
+        if _is_structure_heading(title) or _is_object_unit_slot_heading(title):
+            continue
+        add_range(heading)
+
+    # --module 切片后可能只保留一个 H3 模块标题，不能再要求其上方存在 H2。
+    # 只在标题之前没有 H1/H2 容器时启用，避免把附录中的示例对象当成模块。
+    for heading in headings:
+        if heading["level"] != 3:
+            continue
+        if any(other["level"] <= 2 and other["line"] < heading["line"] for other in headings):
+            continue
+        title = strip_heading_number(heading.get("title", "")).strip()
+        if _is_structure_heading(title) or _is_object_unit_slot_heading(title):
+            continue
+        add_range(heading)
+
+    return ranges
+
+
+def _line_in_ranges(line: int, ranges: list) -> bool:
+    return any(start <= line and (end is None or line < end) for start, end, _level in ranges)
+
+
+def evaluate_prd_object_structure(headings: list) -> dict:
+    """判断 PRD 是否具备可执行确定性核对的对象单元结构。
+
+    结构成立条件：
+    - 功能需求模块存在“模块概览”和“页面功能”；
+    - 至少有一个实际对象单元，且对象单元必须位于模块范围内；
+    - 每个对象单元的直接子标题包含业务过程、对象规则和验收场景。
+    """
+    scope_ranges = _find_module_scope_ranges(headings)
+
+    def in_scope(line: int) -> bool:
+        return _line_in_ranges(line, scope_ranges)
+
+    # 模块概览和页面功能仍按标题名全局定位；对象单元必须位于模块范围内。
+    # 这样兼容只有单模块切片、没有外层 H2 的合法输入，同时不会把附录对象当对象单元。
+    module_overview_found = bool(_find_named_heading_ranges(headings, ("模块概览",)))
+    page_function_found = bool(_find_named_heading_ranges(headings, ("页面功能",)))
+    object_units = []
+    for index, heading in enumerate(headings):
+        if heading["level"] < 3 or not in_scope(heading["line"]):
+            continue
+        title = strip_heading_number(heading.get("title", "")).strip()
+        if not title or _is_structure_heading(title) or _is_object_unit_slot_heading(title):
+            continue
+        slots = _direct_slot_names(headings, index)
+        if not slots:
+            continue
+        missing = [slot for slot in REQUIRED_OBJECT_UNIT_SLOTS if slot not in slots]
+        object_units.append({
+            "title": title,
+            "slots": slots,
+            "missing_required": missing,
+        })
+
+    found_slots = []
+    for unit in object_units:
+        for slot in unit["slots"]:
+            if slot not in found_slots:
+                found_slots.append(slot)
+
+    reasons = []
+    if not scope_ranges:
+        reasons.append("未找到功能需求模块或模块标题")
+    if not module_overview_found:
+        reasons.append("缺少模块概览")
+    if not page_function_found:
+        reasons.append("缺少页面功能")
+    if not object_units:
+        reasons.append("未找到位于模块范围内的对象单元")
+    incomplete = [unit for unit in object_units if unit["missing_required"]]
+    if incomplete:
+        detail = "；".join(
+            f"{unit['title']}缺少" + "、".join(unit["missing_required"])
+            for unit in incomplete
+        )
+        reasons.append(detail)
+
+    if reasons:
+        missing = []
+        if not scope_ranges:
+            missing.append("功能需求模块")
+        if not module_overview_found:
+            missing.append("模块概览")
+        if not page_function_found:
+            missing.append("页面功能")
+        if not object_units:
+            missing.extend(REQUIRED_OBJECT_UNIT_SLOTS)
+        for unit in incomplete:
+            missing.extend(f"{unit['title']}：{slot}" for slot in unit["missing_required"])
+        return {
+            "status": "not_evaluated",
+            "message": "未检查：当前 PRD 不是完整对象单元结构，未执行确定性比对，不得视为通过。",
+            "reason": "；".join(reasons),
+            "found": (
+                (["模块概览"] if module_overview_found else [])
+                + (["页面功能"] if page_function_found else [])
+                + found_slots
+            ),
+            "object_unit_slots": found_slots,
+            "object_units": object_units,
+            "missing": missing,
+        }
+
+    found = [name for name in REQUIRED_MODULE_HEADINGS] + found_slots
+    return {
+        "status": "evaluated",
+        "message": "已按标题名识别完整对象单元结构，可执行确定性核对。",
+        "found": list(dict.fromkeys(found)),
+        "object_unit_slots": found_slots,
+        "object_units": object_units,
+        "missing": [],
+    }
+
+
+def build_structure_not_evaluated_report(
+    structure: dict,
+    source: dict | None = None,
+    design_index_result: dict | None = None,
+) -> dict:
+    """旧结构只报告未检查，不产生冲突、遗漏或通过结论。"""
+    empty = {"missing": [], "hallucinated": [], "matched_count": 0, "not_evaluated": True}
+    source_copy = dict(source or {})
+    source_copy.setdefault("prd", "output/prd/prd.md (human-readable)")
+    source_copy.setdefault("structure_source", "title-name")
+    source_copy.setdefault("design_index_used", False)
+    source_copy.setdefault("design_state_source", "not_loaded")
+    source_copy.setdefault("design_permission_source", "not_loaded")
+    index_result = dict(design_index_result or {})
+    index_view = {
+        "enabled": bool(index_result.get("enabled")),
+        "expected_count": index_result.get("expected_count", 0),
+        "matched_count": 0,
+        "missing": [],
+        "hallucinated": [],
+        "attribute_mismatch": [],
+        "not_evaluated": True,
+        "note": "PRD 不是对象单元结构，Design 索引实体未执行承接比对。",
+    }
+    return {
+        "evaluation_status": "not_evaluated",
+        "structure_evaluation": structure,
+        "source": source_copy,
+        "extracted": {
+            "prd_fields_count": 0,
+            "prd_pages_count": 0,
+            "prd_states_count": 0,
+            "prd_prose_states_count": 0,
+            "prd_permission_pages_count": 0,
+            "prd_permission_role_pairs_count": 0,
+            "prd_roles_count": 0,
+            "prd_modules_count": 0,
+        },
+        "fields": dict(empty),
+        "pages": dict(empty),
+        "states": dict(empty),
+        "state_evaluation": {
+            "status": "not_evaluated",
+            "message": structure["message"],
+            "note": "未检查不等于通过。",
+        },
+        "permissions": dict(empty),
+        "permission_role_pairs": dict(empty),
+        "permission_inversions": [],
+        "permission_evaluation": {
+            "status": "not_evaluated",
+            "message": structure["message"],
+            "note": "未检查不等于通过。",
+        },
+        "roles": dict(empty),
+        "modules": dict(empty),
+        "design_index": {
+            "used": bool(source_copy.get("design_index_used")),
+            "structure": index_view,
+        },
+        "classification": {
+            "deterministic_conflicts": {"fields": [], "pages": [], "states": [], "count": 0},
+            "possible_omissions": {"fields": [], "pages": [], "states": [], "count": 0},
+            "needs_semantic_judgment": {"attribute_mismatches": [], "page_merges": [], "count": 0},
+        },
+        "summary": {
+            "check_status": "not_evaluated",
+            "total_missing": 0,
+            "total_hallucinated": 0,
+            "total_attribute_mismatch": 0,
+            "total_deterministic_attribute_mismatch": 0,
+            "total_internal_field_issues": 0,
+            "total_permission_inversions": 0,
+            "has_hallucination": False,
+            "has_missing": False,
+            "has_attribute_mismatch": False,
+            "note": "未检查不等于通过；需按对象单元结构重写后再执行确定性核对。",
+        },
+        "exit_reason": "not_evaluated",
+    }
+
+
 # ── PRD 实体提取（多模板兼容） ─────────────────────────────────
+
+def _object_context_for_line(headings: list, line: int, fallback: str = "") -> str:
+    """从字段表上方的标题中识别对象名，跳过槽位和容器标题。"""
+    containers = set(OBJECT_UNIT_SLOT_HEADINGS) | set(OPTIONAL_OBJECT_UNIT_HEADINGS) | {
+        "模块概览", "页面功能", "功能概述", "对象关系", "页面清单",
+        "字段定义", "字段清单", "字段列表", "数据字典", "数据项定义",
+        "业务规则", "状态与规则", "状态与业务规则", "状态机", "状态定义", "状态流转",
+    }
+    candidates = [
+        heading for heading in headings
+        if heading["line"] <= line and strip_heading_number(heading.get("title", "")).strip()
+    ]
+    for heading in reversed(candidates):
+        title = strip_heading_number(heading["title"]).strip()
+        if any(_title_matches(title, name) for name in containers):
+            continue
+        return _clean_object_name(title)
+    return _clean_object_name(fallback)
+
 
 def extract_prd_fields(headings: list, tables: list, content: str) -> list:
     """从 PRD 提取字段及可确定比较的属性。
@@ -262,7 +580,9 @@ def extract_prd_fields(headings: list, tables: list, content: str) -> list:
             format_idx = _idx(headers, ("格式",))
             source_idx = _idx(headers, ("业务来源", "来源"))
 
-            object_name = _clean_object_name(table.get("section_title", ""))
+            object_name = _object_context_for_line(
+                headings, table.get("line_offset", 0), table.get("section_title", "")
+            )
             for row in table["rows"]:
                 if not row:
                     continue
@@ -367,7 +687,17 @@ def extract_prd_pages(content: str, headings: list) -> list:
             seen.add(name)
             pages.append(name)
 
-    # 新结构：总体说明中的页面清单是页面身份的确定性落点。
+    # 新结构：“页面功能”下一级标题是页面身份的正文落点。
+    for start, end, page_function_level in _find_named_heading_ranges(headings, ("页面功能",)):
+        for heading in headings:
+            if heading["line"] <= start:
+                continue
+            if end is not None and heading["line"] >= end:
+                continue
+            if heading["level"] == page_function_level + 1:
+                _add_page(heading["title"])
+
+    # 新结构：总体说明中的页面清单也是页面身份的确定性落点。
     # 只读取“页面清单”章节，避免把角色权限矩阵中的“页面”列误识别为页面。
     mapping_ranges = _find_multiple_section_ranges(headings, ["页面清单", "页面与终端映射"])
     mapping_tables = _tables_in_ranges(parse_tables_with_context(content, headings), mapping_ranges)
@@ -514,23 +844,11 @@ def extract_prd_states(content: str, headings: list, tables: list) -> list:
     仅覆盖可确定性判定的写法；PRD 用自然语言枚举状态时由 extract_prd_prose_states
     提供低置信补充，不在此处混入，避免散文状态被当成确定性冲突。
     """
-    # 新结构允许每个业务闭环就近放置“状态与规则/状态与业务规则”，也可能使用
-    # “状态机”子标题；逐个收集这些标题的范围，避免漏掉管理端与移动端的状态表。
-    candidate_ranges = []
-    state_heading_prefixes = ("状态与规则", "状态与业务规则", "状态机", "状态定义", "状态流转")
-    for heading in headings:
-        title = strip_heading_number(heading["title"])
-        if not title.startswith(state_heading_prefixes):
-            continue
-        end = None
-        for next_heading in headings:
-            if next_heading["line"] > heading["line"] and next_heading["level"] <= heading["level"]:
-                end = next_heading["line"]
-                break
-        candidate_ranges.append((heading["line"], end, heading["level"]))
+    # 新结构按“状态迁移”标题定位；仅保留旧标题作迁移期提取兼容。
+    candidate_ranges = _find_named_heading_ranges(headings, ("状态迁移",))
     if not candidate_ranges:
-        candidate_ranges = _find_multiple_section_ranges(
-            headings, ["详细需求说明", "状态机", "状态定义", "状态流转"]
+        candidate_ranges = _find_named_heading_ranges(
+            headings, ("状态与规则", "状态与业务规则", "状态机", "状态定义", "状态流转")
         )
 
     states = []
@@ -566,7 +884,7 @@ def extract_prd_states(content: str, headings: list, tables: list) -> list:
                 continue
             header_text = "|".join(headers)
             if "状态" not in header_text or not any(
-                marker in header_text for marker in ("触发动作", "进入条件", "下一状态", "含义", "规则")
+                marker in header_text for marker in ("动作", "条件", "触发动作", "进入条件", "下一状态", "含义", "规则")
             ):
                 continue
             state_cols = [i for i, h in enumerate(headers) if h.strip() in ("状态", "展示状态", "下一状态")]
@@ -602,7 +920,7 @@ def extract_prd_states(content: str, headings: list, tables: list) -> list:
                 continue
             header_text = "|".join(headers)
             if "状态" not in header_text or not any(
-                marker in header_text for marker in ("触发动作", "进入条件", "下一状态", "含义", "规则")
+                marker in header_text for marker in ("动作", "条件", "触发动作", "进入条件", "下一状态", "含义", "规则")
             ):
                 continue
             state_cols = [i for i, h in enumerate(headers) if h.strip() in ("状态", "展示状态", "下一状态")]
@@ -726,7 +1044,7 @@ def extract_prd_state_enum_values(tables: list) -> list:
 
 
 def extract_prd_permission_pages(headings: list, tables: list, content: str) -> list:
-    """从 PRD 提取权限页面名（优先定位 4.x.3，兼容行=角色与行=对象）"""
+    """从 PRD 提取权限页面名（按角色与能力矩阵或权限标题定位）"""
     candidate_ranges = _find_prd_permission_ranges(headings)
 
     pages = []
@@ -826,37 +1144,13 @@ _NO_PERM_TERMS = {
 
 
 def _find_prd_permission_ranges(headings: list) -> list:
-    """定位 PRD 权限章节范围（规范见 references/prd-writing-rules.md「模块级权限矩阵与正文权限落点」）。
-
-    规则：
-    1. 优先只认模块内编号为 4.x.3 的角色与权限章节及其子级内容（形如 4.<n>.3）；
-    2. 显式排除 3.x.3 等全局章节，不把不同层级的表合并；
-    3. 若文档完全没有 4.x.3 编号章节（如旧测试夹具），降级匹配通用关键词范围，但排除 3.x.3。
-    """
-    r_4x3 = []
-    for i, h in enumerate(headings):
-        title = h.get("title", "")
-        if re.match(r'^\s*4\.\d+\.3(?:\s+|$)', title):
-            start_line = h["line"]
-            level = h["level"]
-            end_line = None
-            for next_h in headings[i + 1:]:
-                if next_h["level"] <= level:
-                    end_line = next_h["line"]
-                    break
-            r_4x3.append((start_line, end_line, level))
-    if r_4x3:
-        return r_4x3
-
-    legacy_ranges = []
-    for canonical in ["权限汇总", "权限定义", "权限规则", "角色权限", "权限矩阵", "权限"]:
-        start, end, level = _find_section_range(headings, canonical)
-        if start is not None:
-            matching_h = [h for h in headings if h["line"] == start]
-            if matching_h and re.match(r'^\s*3\.\d+', matching_h[0].get("title", "")):
-                continue
-            legacy_ranges.append((start, end, level))
-    return legacy_ranges
+    """按标题名定位 PRD 角色与能力矩阵或其他权限落点。"""
+    capability_ranges = _find_named_heading_ranges(headings, ("角色与能力矩阵",))
+    if capability_ranges:
+        return capability_ranges
+    return _find_named_heading_ranges(
+        headings, ("权限汇总", "权限定义", "权限规则", "角色权限", "权限矩阵", "权限")
+    )
 
 
 def _cell_has_permission(cell: str) -> bool:
@@ -1120,36 +1414,90 @@ def compare_permission_role_pairs(
 
 # ── 模块提取与对比（ShitPM 增强：覆盖模块职责一致性） ──────────
 
-def extract_prd_modules(headings: list, content: str) -> list:
-    """从 PRD 详细需求说明章节提取模块名
+def _find_prd_module_ranges(headings: list) -> list:
+    """按功能需求/旧详细需求章节定位模块标题，不依赖章节编号。"""
+    module_ranges = []
+    seen_starts = set()
+    for start, end, section_level in _find_named_heading_ranges(
+        headings, PRD_MODULE_SECTION_HEADINGS
+    ):
+        for heading in headings:
+            if heading["line"] <= start:
+                continue
+            if end is not None and heading["line"] >= end:
+                continue
+            if heading["level"] != section_level + 1:
+                continue
+            title = strip_heading_number(heading.get("title", "")).strip()
+            if not title or _is_structure_heading(title) or heading["line"] in seen_starts:
+                continue
+            module_end = None
+            for next_heading in headings:
+                if next_heading["line"] > heading["line"] and next_heading["level"] <= heading["level"]:
+                    module_end = next_heading["line"]
+                    break
+            module_ranges.append({
+                "title": title,
+                "start": heading["line"],
+                "end": module_end,
+                "level": heading["level"],
+            })
+            seen_starts.add(heading["line"])
+    return module_ranges
 
-    策略：在"详细需求说明"章节范围内，提取 ### N.N 模块名 标题
-    返回去重后的模块名列表
+
+def _module_match_key(name: str) -> str:
+    """模块定位匹配键：兼容 Design 的“模块”后缀和 PRD 的“管理”后缀。"""
+    key = _normalize_module_name(name)
+    key = re.sub(r"(?:管理)$", "", key).strip()
+    return key
+
+
+def _scope_prd_to_module(content: str, headings: list, module_name: str) -> tuple[str, str | None, str | None]:
+    """按目标模块切出 PRD 范围。
+
+    返回 (content, matched_title, error)。无法唯一定位时保留原文并返回错误，
+    由主流程输出 not_evaluated，而不是用全文误判目标模块。
     """
-    candidate_ranges = _find_multiple_section_ranges(
-        headings, ["详细需求说明", "详细需求", "需求说明", "详细需求规格", "需求详细说明"]
-    )
+    module_ranges = _find_prd_module_ranges(headings)
+    if not module_ranges:
+        return content, None, f"PRD 中未找到功能需求模块标题：{module_name}"
 
+    target_key = _module_match_key(module_name)
+    matches = [
+        item for item in module_ranges
+        if _module_match_key(item["title"]) == target_key
+    ]
+    if not matches:
+        return content, None, f"PRD 中未找到目标模块：{module_name}"
+    if len(matches) > 1:
+        return content, None, f"PRD 中目标模块标题不唯一：{module_name}"
+
+    selected = matches[0]
+    lines = content.split("\n")
+    start = selected["start"] - 1
+    end = selected["end"] - 1 if selected["end"] else len(lines)
+    return "\n".join(lines[start:end]), selected["title"], None
+
+
+def extract_prd_modules(headings: list, content: str) -> list:
+    """提取 PRD 模块名，兼容新版功能需求和旧版详细需求结构。"""
+    modules = [item["title"] for item in _find_prd_module_ranges(headings)]
+    if modules:
+        return modules
+
+    # 已切到目标模块的单模块内容没有上级“功能需求”标题，退化为读取 H3。
     modules = []
     seen = set()
-
-    for h in headings:
-        for start, end, _ in candidate_ranges:
-            if h["line"] < start:
-                continue
-            if end is not None and h["line"] >= end:
-                continue
-            if h["level"] != 3:
-                continue
-            title = strip_heading_number(h["title"])
-            title = re.sub(r'^\d+\.\d+(?:\.\d+)*\s*', '', title).strip()
-            if not title:
-                continue
-            if title not in seen:
-                seen.add(title)
-                modules.append(title)
-            break
-
+    for heading in headings:
+        if heading["level"] != 3:
+            continue
+        title = strip_heading_number(heading.get("title", "")).strip()
+        if not title or _is_structure_heading(title):
+            continue
+        if title not in seen:
+            seen.add(title)
+            modules.append(title)
     return modules
 
 
@@ -1784,6 +2132,42 @@ def _load_verified_design_index(project_root: Path):
     return module, index, error, from_file
 
 
+def _filter_design_index_for_module(project_root: Path, index: dict, module_name: str) -> tuple[dict, str | None]:
+    """把 Design 索引限定到目标模块，避免其他模块页面和字段污染模块检查。"""
+    _manifest, files, manifest_error = load_design_manifest(project_root)
+    if manifest_error:
+        return index, manifest_error
+    target_key = _module_match_key(module_name)
+    module_ids = set()
+    for entry in files or []:
+        if not isinstance(entry, dict) or entry.get("type") != "module":
+            continue
+        entry_name = entry.get("module") or Path(str(entry.get("path", ""))).stem
+        if _module_match_key(str(entry_name)) == target_key:
+            entry_id = entry.get("id")
+            if isinstance(entry_id, str):
+                module_ids.add(entry_id)
+    if not module_ids:
+        return index, f"设计集清单中没有模块: {module_name}"
+
+    filtered = dict(index)
+    for key in ("pages", "blocks", "fields", "operations", "states", "state_machines"):
+        filtered[key] = [
+            item for item in index.get(key, [])
+            if isinstance(item, dict) and item.get("source_file_id") in module_ids
+        ]
+    filtered["file_sha256"] = {
+        key: value for key, value in index.get("file_sha256", {}).items()
+        if key in module_ids
+    }
+    summary = dict(index.get("summary", {}))
+    for key in ("pages", "blocks", "fields", "operations"):
+        summary[key] = len(filtered[key])
+    summary["files"] = len(module_ids)
+    filtered["summary"] = summary
+    return filtered, None
+
+
 def _indexed_expected_entities(index: dict) -> list[dict]:
     pages_by_id = {item.get("id"): item for item in index.get("pages", []) if isinstance(item, dict)}
     blocks_by_id = {item.get("id"): item for item in index.get("blocks", []) if isinstance(item, dict)}
@@ -1855,22 +2239,22 @@ def _compare_indexed_structure(index: dict, content: str, index_module) -> dict:
     pages_expected = [item for item in expected if item["type"] == "page"]
     fields_expected = [item for item in expected if item["type"] == "field"]
     operations_expected = [item for item in expected if item["type"] == "operation"]
-    normalized_content = re.sub(r"[\s，,；;。、：:（）()\"'“”]+", "", content).lower()
     expected_page_names = {_normalize_indexed_value(item["name"]) for item in pages_expected}
     expected_field_names = {_normalize_indexed_value(item["name"]) for item in fields_expected}
-
-    page_missing = [
-        item for item in pages_expected
-        if _normalize_indexed_value(item["name"]) not in normalized_content
-    ]
-    field_missing = [
-        item for item in fields_expected
-        if _normalize_indexed_value(item["name"]) not in normalized_content
-    ]
     headings = parse_headings(content)
     tables = parse_tables_with_context(content, headings)
     prd_pages = extract_prd_pages(content, headings)
     prd_fields = extract_prd_fields(headings, tables, content)
+    prd_page_names = {_normalize_indexed_value(name) for name in prd_pages}
+    prd_field_names = {_normalize_indexed_value(field["name"]) for field in prd_fields if field.get("name")}
+    page_missing = [
+        item for item in pages_expected
+        if _normalize_indexed_value(item["name"]) not in prd_page_names
+    ]
+    field_missing = [
+        item for item in fields_expected
+        if _normalize_indexed_value(item["name"]) not in prd_field_names
+    ]
     page_hallucinated = [
         {"type": "page", "name": name}
         for name in sorted(set(prd_pages))
@@ -1924,54 +2308,37 @@ def _compare_indexed_structure(index: dict, content: str, index_module) -> dict:
     }
 
 
-def _find_function_detail_ranges(headings: list) -> list:
-    """定位所有“4.x.6 功能详细说明”类章节范围，返回 [(start, end, level), ...]。
-
-    - 新编号体系：`#### 4.1.6 功能详细说明`（章节号末段为 .6）；
-    - 旧结构：标题去掉编号后以“详细需求说明/详细需求/需求说明”等开头。
-    子页面（`##### 4.1.6.1 xxx`）与动作正文都落在该范围内。
-    """
-    aliases = SECTION_ALIASES.get("详细需求说明", ["详细需求说明"])
-    ranges = []
-    for h in headings:
-        title = h["title"].strip()
-        title_no_prefix = strip_heading_number(title)
-        is_new_46 = bool(re.match(r'^\d+\.\d+\.6($|\s|\.)', title))
-        is_old_detail = any(title_no_prefix.startswith(a) for a in aliases)
-        if not (is_new_46 or is_old_detail):
-            continue
-        start = h["line"]
-        end = None
-        for h2 in headings:
-            if h2["line"] > start and h2["level"] <= h["level"]:
-                end = h2["line"]
-                break
-        ranges.append((start, end, h["level"]))
-    return ranges
+def _find_page_function_ranges(headings: list) -> list:
+    """按“页面功能”标题定位页面正文范围。"""
+    return _find_named_heading_ranges(headings, ("页面功能",))
 
 
 def find_page_body_landing_issues(content: str, headings: list, expected_page_names: list) -> dict:
-    """Design 页面正文落点候选（possible_omission / needs_semantic_judgment，不判确定性冲突）。
+    """检查 Design 页面是否在“页面功能”下形成页面级标题落点。
 
-    - body_omissions：Design 页面名称出现在 PRD 其他位置（页面清单/总体说明），
-      但未出现在任何 4.x.6 功能详细说明正文，列为可能遗漏，交 Review 判断是否漏页；
-    - page_merges：页面在 4.x.6 正文中明确与另一页面合并/并入，不直接判错，
-      交 Review 判断合并是否丢失业务结果。
-
-    本检查不判断统计口径是否正确、状态迁移是否合理等语义内容。
+    页面正文中出现页面名不能替代页面标题；正文只在“合并/并入”说明中
+    提及目标页面时，交给 Review 判断是否属于有意的页面合并。
     """
-    ranges = _find_function_detail_ranges(headings)
+    ranges = _find_page_function_ranges(headings)
+    if not ranges:
+        return {
+            "body_omissions": [],
+            "page_merges": [],
+            "not_evaluated": True,
+            "reason": "未找到“页面功能”标题，页面正文落点未检查。",
+        }
     body_lines = _lines_in_ranges(content, ranges).split("\n")
     normalize = _normalize_indexed_value
-    norm_body = "".join(normalize(line) for line in body_lines)
-    norm_content = normalize(content)
-    # 4.x.6 内独立子页面标题（如 “##### 4.4.6.1 两客一危统计”）：有独立标题落点即视为已承接，
-    # 不再因出现在合并句中而误列为合并候选。
     heading_page_names = set()
-    for line in body_lines:
-        m = re.match(r'^#{1,6}\s+(.+?)\s*$', line)
-        if m:
-            heading_page_names.add(normalize(strip_heading_number(m.group(1))))
+    for start, end, page_function_level in ranges:
+        for heading in headings:
+            if heading["line"] <= start:
+                continue
+            if end is not None and heading["line"] >= end:
+                continue
+            if heading["level"] == page_function_level + 1:
+                heading_page_names.add(normalize(strip_heading_number(heading["title"])))
+
     body_omissions = []
     page_merges = []
     seen = set()
@@ -1981,29 +2348,27 @@ def find_page_body_landing_issues(content: str, headings: list, expected_page_na
         if not norm or norm in seen:
             continue
         seen.add(norm)
-        if norm in norm_body:
-            if norm in heading_page_names:
-                continue
-            merged_lines = [
-                line for line in body_lines
-                if norm in normalize(line) and any(w in line for w in merge_words)
-            ]
-            if merged_lines:
-                page_merges.append({
-                    "type": "page",
-                    "name": name,
-                    "issue": "page_merged",
-                    "note": "页面在 4.x.6 正文中与另一页面合并/并入，交 Review 判断合并是否丢失业务结果",
-                })
+        if norm in heading_page_names:
             continue
-        if norm in norm_content:
-            body_omissions.append({
+        merged_lines = [
+            line for line in body_lines
+            if norm in normalize(line) and any(word in line for word in merge_words)
+        ]
+        if merged_lines:
+            page_merges.append({
                 "type": "page",
                 "name": name,
-                "issue": "page_body_omission",
-                "note": "页面只在页面清单/总体说明出现，未在 4.x.6 功能详细说明正文落点，交 Review 判断是否漏页或需补正文",
+                "issue": "page_merged",
+                "note": "页面在“页面功能”中与另一页面合并或并入，交 Review 判断合并是否丢失业务结果",
             })
-    return {"body_omissions": body_omissions, "page_merges": page_merges}
+            continue
+        body_omissions.append({
+            "type": "page",
+            "name": name,
+            "issue": "page_body_omission",
+            "note": "页面未在“页面功能”下形成页面级标题，交 Review 判断是否漏页或需补正文",
+        })
+    return {"body_omissions": body_omissions, "page_merges": page_merges, "not_evaluated": False}
 
 
 # ── 主入口 ────────────────────────────────────────────────────
@@ -2127,6 +2492,18 @@ def main():
         with open(prd_path, encoding="utf-8") as f:
             content = f.read()
 
+    module_scope_error = None
+    initial_headings = parse_headings(content)
+    module_ranges = _find_prd_module_ranges(initial_headings)
+    if args.module:
+        scoped_content, _matched_module, module_scope_error = _scope_prd_to_module(
+            content, initial_headings, args.module
+        )
+        if module_scope_error is None:
+            content = scoped_content
+    elif len(module_ranges) > 1:
+        module_scope_error = "PRD 含多个模块，请使用 --module 指定目标模块"
+
     manifest_path = project_root / "output" / "design" / "设计集清单.json"
     is_explicit_legacy = args.legacy or not manifest_path.exists()
 
@@ -2135,6 +2512,7 @@ def main():
     design_index_error = None
     design_index_module = None
     design_data = None
+    structure_source = "none"
 
     if not is_explicit_legacy:
         try:
@@ -2142,6 +2520,16 @@ def main():
         except Exception as exc:
             design_index = None
             design_index_error = str(exc)
+
+        if not design_index_error and args.module and design_index is not None:
+            unsupported = bool(
+                getattr(design_index_module, "_is_unsupported_format", None)
+                and design_index_module._is_unsupported_format(design_index)
+            )
+            if not unsupported:
+                design_index, design_index_error = _filter_design_index_for_module(
+                    project_root, design_index, args.module
+                )
 
         if design_index_error:
             # 索引指纹失效、类型错误或解析错误：显式报错拦截，主流程严禁静默回退 legacy
@@ -2189,9 +2577,17 @@ def main():
             structure_source = "legacy-stage-prep"
         else:
             # 当前格式主路径：完全通过 verified Design Index 比较结构，主路径不调用 stage-prep.py
-            indexed_result = _compare_indexed_structure(design_index, content, design_index_module)
-            indexed_active = indexed_result["enabled"]
-            structure_source = "design-index"
+            if module_scope_error:
+                indexed_result = {
+                    "enabled": False, "expected_count": 0, "matched_count": 0,
+                    "missing": [], "hallucinated": [], "attribute_mismatch": [],
+                }
+                indexed_active = False
+                structure_source = "module-scope"
+            else:
+                indexed_result = _compare_indexed_structure(design_index, content, design_index_module)
+                indexed_active = indexed_result["enabled"]
+                structure_source = "design-index"
     else:
         # 显式 Legacy 模式或无清单旧项目
         indexed_result = {"enabled": False, "expected_count": 0, "matched_count": 0,
@@ -2202,6 +2598,35 @@ def main():
             print(json.dumps({"error": err or "无法加载 design 实体"}, ensure_ascii=False))
             sys.exit(2)
         structure_source = "legacy-stage-prep"
+
+    headings = parse_headings(content)
+    if module_scope_error:
+        structure_evaluation = {
+            "status": "not_evaluated",
+            "message": "未检查：无法唯一定位目标 PRD 模块，未执行确定性比对，不得视为通过。",
+            "reason": module_scope_error,
+            "found": [],
+            "object_unit_slots": [],
+            "object_units": [],
+            "missing": [],
+        }
+    else:
+        structure_evaluation = evaluate_prd_object_structure(headings)
+    if structure_evaluation["status"] != "evaluated":
+        source = {
+            "design": "output/design/设计集清单.json (design set manifest)" if not is_explicit_legacy else "legacy design files",
+            "prd": "output/prd/prd.md (human-readable)",
+            "structure_source": structure_source,
+            "design_index_used": indexed_active,
+            "design_state_source": "not_loaded",
+            "design_permission_source": "not_loaded",
+        }
+        print(json.dumps(
+            build_structure_not_evaluated_report(structure_evaluation, source, indexed_result),
+            ensure_ascii=False,
+            indent=2,
+        ))
+        sys.exit(0)
 
     # 状态事实：T-2.5 非退化对照已通过，当前格式状态事实统一源自 verified Design Index
     if indexed_active:
@@ -2256,8 +2681,8 @@ def main():
     # 「行=角色」矩阵的业务能力列：只作事实输出，不参与页面级确定性比对。
     prd_perm_caps = extract_prd_permission_capabilities(headings, tables)
 
-    # Design 页面正文落点候选：页面只在清单/总体说明出现、未在 4.x.6 正文落点 → possible_omission；
-    # 页面在 4.x.6 正文明确合并/并入 → 交 Review 判断，不判确定性冲突。
+    # Design 页面正文落点候选：页面只在清单/总体说明出现、未在“页面功能”形成正文落点 → possible_omission；
+    # 页面在“页面功能”中明确合并/并入 → 交 Review 判断，不判确定性冲突。
     if indexed_active:
         expected_page_names = [
             item["name"] for item in _indexed_expected_entities(design_index)
@@ -2575,7 +3000,7 @@ def main():
             "status": "not_evaluated",
             "message": ("PRD 以「角色 × 业务能力」矩阵或自然语言表达权限，与 Design 的「页面/操作 × 角色」"
                         "不是同一 ID 空间，不做页面级确定性比对；两侧事实见 permission_facts，由 AI 逐模块核对。"),
-            "note": "未评估不等于通过：须用 permission_facts 的 Design 角色清单与 PRD 4.x.3 逐模块比对。",
+            "note": "未评估不等于通过：须用 permission_facts 的 Design 角色清单与 PRD 角色与能力矩阵逐模块比对。",
         }
 
     # 状态解析状态评估：区分「Design 未声明状态机」「双侧提取比对」「PRD 未提取到状态」。
@@ -2612,6 +3037,8 @@ def main():
         exit_reason = "ok"
 
     result = {
+        "evaluation_status": "evaluated",
+        "structure_evaluation": structure_evaluation,
         "source": {
             "design": "output/design/设计集清单.json (design set manifest)" if not is_explicit_legacy else "legacy design files",
             "prd": "output/prd/prd.md (human-readable)",
@@ -2663,6 +3090,7 @@ def main():
         },
         "classification": classification,
         "summary": {
+            "check_status": "evaluated",
             "total_missing": total_missing,
             "total_hallucinated": total_hallucinated,
             "total_attribute_mismatch": total_attribute_mismatch,

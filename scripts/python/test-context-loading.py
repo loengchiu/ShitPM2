@@ -126,19 +126,17 @@ def check_selection(module) -> None:
             if len(section_ids) != len(set(section_ids)):
                 fail(f'选择结果含重复章节: {stage}.{pass_name}')
             if stage == 'prd' and pass_name == 'module':
-                for required in ('prd-example-simple-readonly', 'prd-example-multi-role-state'):
+                for required in ('prd-object-unit-spec', 'prd-object-unit-sample', 'prd-verification-scenes'):
                     if required not in section_ids:
-                        fail(f'module pass 未自动装载写作示例: {required}')
+                        fail(f'module pass 未装载对象单元规范、样板或 scenes 卡: {required}')
                 for forbidden in (
-                    'prd-example-dashboard', 'prd-example-external-auto', 'prd-template', 'prd-profile',
-                    'prd-writing-versioning', 'prd-writing-glossary', 'prd-writing-structure',
-                    'prd-example-direct-data', 'prd-example-aggregate-data', 'prd-example-periodic-calculation',
-                    'prd-card-data',
+                    'prd-template', 'prd-profile', 'prd-writing-versioning',
+                    'prd-writing-glossary', 'prd-writing-structure', 'prd-card-data',
                 ):
                     if forbidden in section_ids:
                         fail(f'module pass 不应装载章节: {forbidden}')
-                if 'prd-example-workflow-calculation' in section_ids:
-                    fail('module pass 未显式请求时装载了长租金流程示例')
+                if any(section.startswith('prd-example-') for section in section_ids):
+                    fail('module pass 仍装载旧页面型示例')
             sections = module.build_sections(ROOT, manifest, stage, section_ids)
             if not sections:
                 fail(f'选择结果为空: {stage}.{pass_name}')
@@ -162,24 +160,18 @@ def check_selection(module) -> None:
                 if stale_check['valid']:
                     fail(f'manifest 变化未被陈旧检查识别: {stage}.{pass_name}')
 
-        # 验证数据口径卡与三类示例的正向与负向选择
+        # 数据口径卡按需装载；scenes 路径不应误装载 data 卡。
         _, prd_data_ids = module.resolve_selection(
-            manifest, 'prd', None, 'module', [], ['data'],
-            ['direct-data', 'aggregate-data', 'periodic-calculation'], None,
+            manifest, 'prd', None, 'module', [], ['data'], [], None,
         )
-        for req in ('prd-card-data', 'prd-example-direct-data', 'prd-example-aggregate-data', 'prd-example-periodic-calculation'):
-            if req not in prd_data_ids:
-                fail(f'PRD 数据口径按需未装载: {req}')
+        if 'prd-card-data' not in prd_data_ids:
+            fail('PRD 数据口径按需未装载 prd-card-data')
 
-        _, workflow_ids = module.resolve_selection(
-            manifest, 'prd', None, 'module', [], [], ['workflow-calculation'], None,
-        )
-        if 'prd-example-workflow-calculation' not in workflow_ids:
-            fail('workflow-calculation 按需未装载长流程示例')
-        _, prd_nodata_ids = module.resolve_selection(manifest, 'prd', None, 'module', [], ['scenes'], [], None)
-        for forb in ('prd-card-data', 'prd-example-direct-data', 'prd-example-aggregate-data', 'prd-example-periodic-calculation'):
-            if forb in prd_nodata_ids:
-                fail(f'PRD 非数据路径误装载数据章节: {forb}')
+        _, prd_scenes_ids = module.resolve_selection(manifest, 'prd', None, 'module', [], ['scenes'], [], None)
+        if 'prd-verification-scenes' not in prd_scenes_ids:
+            fail('PRD scenes 路径未装载 prd-verification-scenes')
+        if 'prd-card-data' in prd_scenes_ids:
+            fail('PRD 非数据路径误装载 prd-card-data')
 
         # 验证 D-8 applicability unknown 归一：unknown 不装载对应 card
         _, unknown_ids = module.resolve_selection(
