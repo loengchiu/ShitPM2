@@ -2,6 +2,8 @@
 
 > 本文件只保存 Design 专项检查项映射。通用审查结论、预检查、输出、独立性和停止规则见 [Review 公共执行契约](review-checklist.md)。详细解释按检查项读取 [Design 写作规则](../references/design-writing.md)、[Design 质量标准](../references/design-quality-rubric.md)、[状态定义格式](../references/design-state-format.md) 和 [业务流程格式](../references/design-flow-format.md)。
 >
+> 规则类型、验证包格式、`expected_source` 取值和独立性等级以 [规则验证包与预期来源规范](../references/verification-and-oracle.md) 为唯一权威定义，本文件只登记检查项，不复制定义。
+>
 > 当前 Design 的主要读者是产品经理。Design 正文是 PRD 和 Prototype 的唯一产品事实源。页面、区块、字段和操作按业务复杂度选择表达格式（复杂场景推荐八列/十列表格，简单场景使用紧凑清单或结构化段落），固定标题、八列表格和十列表格不再是所有新 Design 的默认硬门槛；只有格式造成事实遗漏、歧义或下游无法承接时才判定问题。旧版宽表和 metadata 只作为兼容材料，不构成当前产品事实源。
 
 ## 检查项映射
@@ -41,6 +43,9 @@
 | 31. 审查单元按业务闭环切分 | 按文件机械切分，或把一个模块文件自动当作一个单元，导致同一对象生命周期被拆散、跨模块交接无人审查 | [业务闭环规则](../references/design-business-closure.md) | P1 | `consistency` / 审查覆盖 |
 | 32. 关系实例逐项闭合 | 适用关系实例没有给出 pass/red/risk/decision/带正文依据的 excluded 结论；排除没有正文依据；或 cannot_extract 被静默通过 | [业务闭环规则](../references/design-business-closure.md) | P1 | `consistency` / 审查覆盖 |
 | 33. 每单元先做维度差集 | 本单元使用了未纳入核对面的维度（对象细分类型、属性集、单据类型等），或同类页面/对象存在整页、整列、整组属性或字段缺失 | [业务闭环规则](../references/design-business-closure.md) | P1 | `consistency` / 审查覆盖 |
+| 34. 高影响规则有验证条目 | 命中计算、状态、权限、事件、映射或生命周期类型的规则没有验证条目，或验证包缺失而正文未说明不适用 | [规则验证包与预期来源规范](../references/verification-and-oracle.md) | P1 | `content` / 规则位置 |
+| 35. 预期来源与独立性达标 | 高影响规则的验证条目全部只有 `ai_inference` 预期来源，或独立性全部为 `self_review` 与 `ai_inference` 组合，且没有 `evidence_gap` 记录 | [规则验证包与预期来源规范](../references/verification-and-oracle.md) | P1；高影响规则受影响时 P0 | `content` / 规则位置 |
+| 36. 验证包与 Design 一致 | 验证包中的规则描述、预期输出或来源与 Design 正文冲突；`stale` 条目被当作有效证据 | [规则验证包与预期来源规范](../references/verification-and-oracle.md) | P1 | `consistency` / 规则位置 |
 
 ## 审查覆盖要求
 
@@ -49,6 +54,7 @@
 - 每个单元先核对关系维度清单，确认是否有未纳入核对面的维度，维度缺口与实例缺口分别记录；
 - 已知关系类型下出现新的遗漏实例，按覆盖失败处理；出现未纳入的关系类型，按方法缺口记录；
 - 第二轮新增问题数只作参考指标，不作为通过条件；通过条件是覆盖闭合。
+- **验证包闭合条件**：高影响规则集合来自 Design 正文，是有限集合。集合内每条规则要么有验证条目，要么有显式 `evidence_gap`；满足该条件即视为本轮覆盖闭合，闭合后仍发现的问题按缺陷记录，不作为继续扩大审查范围或新增维度的理由。
 
 ## 横切能力、展示与生命周期专项检查
 

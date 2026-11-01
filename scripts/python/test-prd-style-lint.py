@@ -170,6 +170,34 @@ def main() -> int:
     if "STYLE013" not in codes(long_para_issues):
         raise AssertionError(f"超长自然段未识别为 STYLE013: {long_para_issues}")
 
+    # STYLE016 回归：叙述句超过 sentence_max_chars 报 warning，操作步骤句超过 step_max_chars 报 warning。
+    # 括号内的句末标点不切分句子（提示语原文、枚举值常含括号）。
+    long_sent = "## 总体说明\n订单：业务订单。\n\n## 功能需求\n### 订单处理业务闭环\n###### 订单列表\n服务区管理员在订单处于待服务区核对状态且完成与商户的线下核验后，在详情页核对区域选择核对结果并上传线下核对凭证，然后点击页面底部的提交按钮。\n"
+    s16 = [i for i in STYLE.run_lint(long_sent) if i.code == "STYLE016"]
+    if not s16 or s16[0].severity != "warning":
+        raise AssertionError(f"超长叙述句未识别为 STYLE016 warning: {s16}")
+    if "叙述句过长" not in s16[0].message:
+        raise AssertionError(f"STYLE016 未标注叙述句类型: {s16[0].message}")
+    # 合规短句不报
+    ok_sent = "## 总体说明\n订单：业务订单。\n\n## 功能需求\n### 订单处理业务闭环\n###### 订单列表\n服务区管理员提交核对。账单进入待区域审核。\n"
+    if any(i.code == "STYLE016" for i in STYLE.run_lint(ok_sent)):
+        raise AssertionError("合规短句不应报 STYLE016")
+    # 动作标题之后的正文按操作步骤句判定（阈值更低）
+    step_sample = ("## 总体说明\n订单：业务订单。\n\n## 功能需求\n### 订单处理业务闭环\n###### 订单列表\n"
+                   "**提交核对**\n\n服务区管理员在订单处于待服务区核对状态且完成与商户的线下核验后，在详情页核对区域选择核对结果。\n")
+    step16 = [i for i in STYLE.run_lint(step_sample) if i.code == "STYLE016"]
+    if not step16 or "操作步骤句过长" not in step16[0].message:
+        raise AssertionError(f"动作标题后正文应按操作步骤句判定: {step16}")
+    # 括号内标点不切分：条件前置的合规形态（含括号）不应因括号内逗号被误判为两句
+    paren_ok = "## 总体说明\n订单：业务订单。\n\n## 功能需求\n### 订单处理业务闭环\n###### 订单列表\n取高账单无论处于何种业务处理状态（含已关闭），系统均在本期租金账单卡片展示关联账单信息。\n"
+    paren16 = [i for i in STYLE.run_lint(paren_ok) if i.code == "STYLE016"]
+    if paren16:
+        raise AssertionError(f"括号内逗号不应被当作句读切分: {paren16}")
+    # 字段枚举句豁免：连续顿号并列的字段清单不判超长
+    enum_ok = "## 总体说明\n订单：业务订单。\n\n## 功能需求\n### 订单处理业务闭环\n###### 订单列表\n合同与账期区域展示账单编号、合同编号、商户名称、店铺名称、所属服务区、所属区域、所属服务中心、租期起始日、合同终止日、缴租周期、应交时间及计租起止日。\n"
+    if any(i.code == "STYLE016" for i in STYLE.run_lint(enum_ok)):
+        raise AssertionError("字段枚举句不应报 STYLE016")
+
     # test-fixture 固化反例片段断言
     fixture_neg = ROOT / "test-fixture/output/prd/prd-style-negative-cases.md"
     if fixture_neg.exists():

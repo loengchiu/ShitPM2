@@ -41,7 +41,6 @@ CANONICAL_FILES = {
 
 # 模型等级建议（来自 ShitPM PRD §6.2-6.3）
 # 不发明新等级，只复用批准稿矩阵
-MODEL_TIER_LIGHT = "轻量模型"
 MODEL_TIER_DEEP = "深度推理模型"
 MODEL_TIER_SCRIPT = "确定性脚本"
 MODEL_TIER_UNSURE = "无法判断（按深度推理模型处理）"
@@ -56,7 +55,7 @@ REASONING_DEPTH = {
     "spm-prd-review": "结构与一致性检查可浅；坏味道和语义挑战需深。",
     "spm-prototype-review": "结构检查可浅；交互主路径挑战需深。",
     "spm-fix": "范围明确可浅；跨模块或语义变更需深。",
-    "spm-prototype-mark": "默认浅；主动发现高影响问题时另行使用深度 Review。",
+    "spm-prototype-mark": "首次或复杂页面需深；只做已确认事实的简单增量可浅。",
 }
 
 # 各动作默认模型等级建议（ShitPM PRD §6.3）
@@ -69,7 +68,7 @@ DEFAULT_MODEL_TIER = {
     "spm-prd-review": MODEL_TIER_DEEP,
     "spm-prototype-review": MODEL_TIER_DEEP,
     "spm-fix": "根据变更影响判断",
-    "spm-prototype-mark": MODEL_TIER_LIGHT,
+    "spm-prototype-mark": "根据语义复杂度判断（复杂页面用深度推理模型，简单增量可用轻量模型）",
 }
 
 
@@ -356,7 +355,7 @@ def build_available_actions(
         actions.append({
             "action": "spm-prototype-mark",
             "available": True,
-            "reason": "保留标注能力，不修改原始 Prototype。",
+            "reason": "生成原型无法直接展示的实现/验收规格，不修改原始 Prototype。",
             **recommend_model_for_action("spm-prototype-mark"),
         })
     else:

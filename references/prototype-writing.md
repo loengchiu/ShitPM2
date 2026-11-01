@@ -77,7 +77,7 @@ Hash 地址可能带查询参数（例如 `#/demo-form?case=1`）；路由匹配
 
 | 语义组件名 | 内部实现 | 典型用途与说明 |
 | --- | --- | --- |
-| `PageHeader` | `TablerPageHeader` | 页面标题头部，支持 `prefix`（所属模块）、`title`、`subtitle`、`onBack`、`actions` |
+| `PageHeader` | `TablerPageHeader` | **仅内页使用**（详情 / 结果 / 异常等下钻页面），支持 `prefix`（所属模块）、`title`、`subtitle`、`onBack`、`actions`。一级页面（菜单 / 壳层页签可直达）不渲染页面级主标题、副标题与右上返回——页面名由壳层表达；判定与禁止项见 [prototype-page-types.md](prototype-page-types.md) §一「一级页面与内页的标题口径」 |
 | `SectionCard` | `TablerSectionCard` | 模块内容卡片容器，支持 `title`、`extra`、`children` |
 | `MetricCard` | `TablerMetricCard` | 看板/概览核心指标卡，支持 `title`、`value`、`suffix`、`trend` ("up"/"down")、`trendLabel`、`icon` |
 | `Toolbar` | `TablerToolbar` | 列表/内容区顶部工具栏，左侧 `children` 承载筛选/操作，右侧 `actions` 承载主按钮 |

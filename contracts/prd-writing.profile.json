@@ -4,6 +4,8 @@
   "metrics": {
     "paragraph_max_chars": 250,
     "dot_item_max_chars": 100,
+    "sentence_max_chars": 50,
+    "step_max_chars": 40,
     "functional_requirements_scope_keywords": [
       "功能需求"
     ],

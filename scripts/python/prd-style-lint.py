@@ -22,6 +22,7 @@
   STYLE013 - 块长形态退化（段落或列表项超长）
   STYLE014 - 模块编号层级错配（功能需求章节内 H3 编号非两级）
   STYLE015 - 编号标题跳级（功能需求章节内相邻编号标题层级跳跃 >1）
+  STYLE016 - 句长超限（叙述句 > sentence_max_chars，操作步骤句 > step_max_chars）
 """
 
 import json
@@ -49,6 +50,8 @@ _PROFILE_FORBIDDEN = _PROFILE.get("constraints", {}).get("forbidden_expressions"
 _PROFILE_METRICS = _PROFILE.get("metrics", {})
 MAX_PARAGRAPH_CHARS = _PROFILE_METRICS.get("paragraph_max_chars", 250)
 MAX_DOT_ITEM_CHARS = _PROFILE_METRICS.get("dot_item_max_chars", 100)
+MAX_SENTENCE_CHARS = _PROFILE_METRICS.get("sentence_max_chars", 50)
+MAX_STEP_SENTENCE_CHARS = _PROFILE_METRICS.get("step_max_chars", 40)
 SCOPE_FUNC_REQ_KEYWORDS = _PROFILE_METRICS.get("functional_requirements_scope_keywords", ["功能需求"])
 SCOPE_FUNC_REQ_PREFIX = _PROFILE_METRICS.get("functional_requirements_scope_prefix", "4.")
 
@@ -788,6 +791,120 @@ def check_heading_level_jumps(lines: list) -> list:
     return issues
 
 
+# 句读切分：中文句末标点。STE 6.3/5.1 的可判定形态（规则见 references/prd-writing-rules.md「自然语言硬约束与排版形态」）。
+# 括号内的句末标点不切分（提示语原文、枚举值常含括号），避免把「（含已关闭）」误判为句尾。
+# 实现方式：先把成对括号内容替换为等长占位符再切分，切分后不还原（只用于计数，不输出括号内文本）。
+_PAREN_PAIR = re.compile(r'（[^（）]*）')
+
+
+def _mask_parens(text: str) -> str:
+    return _PAREN_PAIR.sub(lambda m: "(" * len(m.group()), text)
+
+
+_SENT_SPLIT = re.compile(r'[。！？]')
+
+
+def check_sentence_length(lines: list) -> list:
+    """STYLE016: 句长超限（叙述句 > sentence_max_chars，操作步骤句 > step_max_chars）。
+
+    规则（references/prd-writing-rules.md「自然语言硬约束与排版形态」）：
+    - 只判定自然段正文，排除代码块、引用块、HTML 注释、表格行、标题与列表项（列表项由 STYLE013 管块长）；
+    - 动作标题（独占一行的无冒号粗体短语）不作为正文判定；
+    - 处于动作标题之后、下一个标题之前的正文按操作步骤判定（阈值 step_max_chars）；
+      其余正文按叙述句判定（阈值 sentence_max_chars）；
+    - 括号内的句末标点不切分句子，避免把提示语原文和枚举值误判为多句；
+    - 字段枚举句（连续顿号并列且无谓语动词）不判定：拆开反而更难读。
+    """
+    issues = []
+    in_fence = False
+    in_html_comment = False
+    cur_para = []
+    para_start = 0
+    in_step = False
+
+    def flush_para():
+        nonlocal cur_para, para_start
+        if not cur_para:
+            return
+        text = _mask_parens("".join(cur_para))
+        limit = MAX_STEP_SENTENCE_CHARS if in_step else MAX_SENTENCE_CHARS
+        kind = "操作步骤句" if in_step else "叙述句"
+        masked = _SENT_SPLIT.split(text)
+        originals = _SENT_SPLIT.split("".join(cur_para))
+        for seg, original in zip(masked, originals):
+            seg = seg.strip()
+            if len(seg) < 8:
+                continue
+            # 字段枚举句：连续顿号并列超过 5 处，属不可拆内容。
+            # 判据用顿号密度而非谓语动词：枚举句中常含"展示/标记"等动词，按动词判定会漏。
+            if seg.count("、") >= 5:
+                continue
+            if len(seg) > limit:
+                issues.append(Issue(
+                    code="STYLE016",
+                    severity="warning",
+                    line=para_start,
+                    message=f"{kind}过长（{len(original.strip())} 字，超过阈值 {limit} 字）：{original.strip()[:40]}",
+                    suggestion="按“角色或条件 → 动作 → 结果”拆成多个短句，单句只承载一个主要动作和一个条件分支",
+                ))
+        cur_para = []
+        para_start = 0
+
+    for i, line in enumerate(lines):
+        line_no = i + 1
+        stripped = line.strip()
+
+        if stripped.startswith("```"):
+            in_fence = not in_fence
+            flush_para()
+            continue
+        if in_fence:
+            continue
+
+        if "<!--" in stripped and "-->" in stripped:
+            continue
+        if "<!--" in stripped:
+            in_html_comment = True
+            flush_para()
+            continue
+        if "-->" in stripped:
+            in_html_comment = False
+            continue
+        if in_html_comment:
+            continue
+
+        if stripped.startswith(">"):
+            flush_para()
+            continue
+
+        if not stripped:
+            flush_para()
+            continue
+
+        # 动作标题：独占一行的无冒号粗体短语，其后正文按操作步骤判定（阈值更低）
+        if re.match(r'^\*\*[^*:]+\*\*$', stripped):
+            flush_para()
+            in_step = True
+            continue
+
+        if stripped.startswith(("#", "|", "---", "![")):
+            flush_para()
+            in_step = False
+            continue
+
+        # 列表项不参与句长判定（块长由 STYLE013 负责）
+        if stripped.startswith("·") or re.match(r'^[-*]\s+', stripped) or re.match(r'^\d+[.、)]', stripped):
+            flush_para()
+            continue
+
+        if not cur_para:
+            para_start = line_no
+        cur_para.append(stripped)
+
+    flush_para()
+    return issues
+
+
 ALL_CHECKS = [
     check_label_style,
     check_action_list,
@@ -804,6 +921,7 @@ ALL_CHECKS = [
     check_block_length,
     check_module_heading_level,
     check_heading_level_jumps,
+    check_sentence_length,
 ]
 
 

@@ -11,6 +11,7 @@ description: "同步修复：将变更影响沿事实链传播至唯一事实源
 
 - Design 是高影响产品事实体系（多文件集合）；目标、范围、建设方式、模块、页面、字段、规则、流程、状态、权限、异常和跨系统责任的语义变化必须回写对应 Design 文件。
 - PRD 和 Prototype 是 Design 的两个并列下游，各自独立存在与生成，不存在默认的 Design → PRD → Prototype 链路；只同步实际存在的下游。
+- `output/verification/` 是 Design 的第三个下游。规则变化必须同步验证包，未更新不算 Fix 完成；受影响条目标记 `stale` 并说明是规则变了还是预期来源变了，`stale` 条目重新验证前不得作为有效证据。纯组织变化不产生 `stale`。规则类型与 `stale` 判据见 `$BUNDLE/references/verification-and-oracle.md`。
 - Align 仅作 Design 输入参考，不是事实源；目标、范围和建设方式以 Design 为准，不经 Align 反向定源。
 - 纯格式、措辞、排版或视觉表现修改可以只改对应下游，不触发 Design 同步。
 - 纯格式/措辞/排版修改直接改 PRD 时，页面、动作和终端名称遵循 $BUNDLE/templates/prd.md 的当前格式：页面用 ###### 页面名称，动作用 **动作名称**，PC 页面不加（管理端）（PC端）后缀，特殊终端（移动端/小程序/自助终端）保留终端标识；格式只应用到被触达的页面或动作，不整篇迁移存量 PRD 格式。
@@ -34,11 +35,11 @@ description: "同步修复：将变更影响沿事实链传播至唯一事实源
 4. 读取 $BUNDLE/contracts/fix-propagation-rules.md，判定受影响的最深阶段和实际存在的下游分支。
 5. 修改对象是 Design 语义变化时，先按 `$BUNDLE/contracts/fix-propagation-rules.md` 第四节步骤 0 做**影响面枚举**：把每个问题改写为业务约束；先做约束类别差集（确认是否有整类约束从未进入核对面）；再建立"业务约束 × 承载面 × 对象（含细分类型）"三维影响表；检查整页、整列属性或整组字段是否缺失；搜索字面变体、统称下的细分类型、同类型对象和兄弟页面，但只修改确认受影响的位置。定义以 `$BUNDLE/references/design-business-closure.md` 为唯一权威来源。
 6. 修改 Design 时按事务写入：单文件用 design-set.py stage-single/commit-single，多文件用 begin/commit；检查失败或中断用 recover。纯组织变化只更新 ID/路径/指纹和依据，下游保持 current。**修改后逐位置回读，并检查新句与既有规则的冲突。**
-7. 计算受影响下游：用 design-set.py check-inputs --artifact prd|prototype 检查当前依据；返回 incomplete（provenance_missing）时说明下游产物存在但无依据记录，先补 record-inputs 再继续；用户明确修改事实时连续同步所有实际存在且受影响的 PRD / Prototype 模块，无确认停顿。
+7. 计算受影响下游：用 design-set.py check-inputs --artifact prd|prototype 检查当前依据；返回 incomplete（provenance_missing）时说明下游产物存在但无依据记录，先补 record-inputs 再继续；用户明确修改事实时连续同步所有实际存在且受影响的 PRD / Prototype 模块，无确认停顿。规则语义变化时同步 `output/verification/` 中受影响的验证包：更新或标记 `stale` 对应条目，并同步被这些条目引用的 PRD `4.x.9` 验收用例。
 8. 仅对实际存在且受影响的分支运行针对性检查：PRD 使用 `prd-consistency-check.py --module <模块名>`；Prototype 使用全量 `prototype-consistency-check.py --project-root .`。Prototype 的模块级判断由语义审查结合全量结果和对应 Design 模块完成。PRD 不存在时不伪造 PRD 检查，Prototype-only 项目仍需走合法原型检查路径。
 9. 针对性检查通过后更新下游依据：record-inputs 更新 design_inputs 指纹，status 置 current、check_status 置 passed、清空 affected_by；检查失败时保留 affected 或 incomplete，不得伪装通过。
 
-完成判据：修改对象与影响范围已判定；唯一事实归属已定位；Design 修改已按事务提交；所有实际存在且受影响的下游已同步；针对性检查已运行；下游依据与结果一致。
+完成判据：修改对象与影响范围已判定；唯一事实归属已定位；Design 修改已按事务提交；所有实际存在且受影响的下游已同步；规则语义变化时验证包已更新或已标记 `stale`；针对性检查已运行；下游依据与结果一致。
 
 ## Design 变化处理
 
@@ -54,7 +55,7 @@ Fix 完成后输出：
 
 - 实际修改的事实归属文件和文件。
 - 修改对象及影响范围。
-- 实际同步的下游模块（PRD / Prototype，如适用）。
+- 实际同步的下游模块（PRD / Prototype / 验证包，如适用）。
 - 实际运行的检查及结果。
 - 建议进入哪个 Review、检查哪些对象；不自动执行 Review。
 - **宣称与实际对照**：逐问题列出"宣称修改位置 ↔ 修改后正文实际内容"，供后续 Review 核对；不得用"已修改"概括。
@@ -80,6 +81,7 @@ Fix 完成后输出：
 - 不自动创建不存在的 PRD 或 Prototype。
 - 不把决策记录、metadata 或旧 Review 结果当作产品事实源。
 - 不整篇重写与修改无关的产物。
+- 不把 `stale` 验证条目当作有效证据，不用 `ai_inference` 冒充独立预期来源。
 - 不自动调用 spm-fix 自身形成循环，不自动推进阶段。
 
 - 不能据此宣布的结论：Fix 完成仅代表变更已按传播契约同步，不能宣布整个系统所有模块均已通过 Review。

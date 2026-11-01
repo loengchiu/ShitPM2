@@ -1,7 +1,7 @@
 # Prototype Mark 标注注入写法（Vite 源码工程版）
 
 > 只用于 `output/prototypemark/` 副本，不修改原始 `output/prototype/`。
-> 标注内容是 Design/PRD 内容的展示载体，不是新事实源。
+> 标注文本是选定事实源的展示载体，不新增来源之外的产品事实。
 
 ## 目录
 
@@ -15,31 +15,83 @@
 
 把标注系统注入到 `output/prototypemark/` 的 React 源码工程中：
 
-1. `src/shared/pm/annotations.js`：标注数据（编号 → 标题 + 内容）
+1. `src/shared/pm/annotations.js`：标注数据（编号 → 标题、按需 section、来源和状态）
 2. `src/shared/pm/MarkLayer.jsx`：角标 + 浮窗组件（见下）
-3. 业务页面 JSX 目标元素加 `data-pm-mark="N"`（或页面级 `data-pm-mark-page="N"`）
+3. 业务页面 JSX 的目标元素加 `data-pm-mark="N"`（整页规则使用 `data-pm-mark-page="N"`）
 4. `src/App.jsx` 挂载 `<MarkLayer />`
 5. 复制工程内运行 `npm ci` + `npm run build`，输出 `output/prototypemark/dist/`
 
-定位规则（与旧版一致）：
+定位时优先使用原型已有的语义锚点：
 
-- 列表/表格 → 标注容器（Card、Table 父 div），不标注每一行
-- 按钮/操作区 → 按钮组的父容器
-- 表单 → `<Form>` 或最外层 `<div>`
-- 页面级 → 页面容器加 `data-pm-mark-page="N"`
-- 只做 `data-pm-mark` 属性插入，不修改现有 class、结构、content
+- 页面：`data-page` 或路由登记项；
+- 区块：`data-block` / `data-section`；
+- 字段：`data-field`；
+- 操作：`data-operation`；
+- 状态：`data-state`。
+
+`data-pm-mark` 只承担角标编号，不替代业务语义锚点。优先标注最精确的容器：
+
+- 列表/表格 → 表格、卡片或所在区块容器，不标注每一行；
+- 按钮/操作区 → 操作组父容器或明确的操作区；
+- 表单 → `<Form>` 或字段所在区块；
+- 页面级规则 → 页面容器加 `data-pm-mark-page="N"`；
+- 只插入 `data-pm-mark`，不修改现有 class、结构或内容。
 
 ## 标注数据
 
 `src/shared/pm/annotations.js`：
 
 ```js
-// 内容字段用单引号包裹；内部中文引号保留原样；英文单引号用 \' 转义
 export const PM_ANNOTATIONS = {
-  1: { title: '筛选条件区', content: '所有筛选条件…' },
-  2: { title: '操作栏', content: '编辑/删除/查看…' },
+  1: {
+    title: '合同操作栏',
+    sections: [
+      {
+        title: '实现规则',
+        items: [
+          '仅草稿状态可编辑。',
+          '删除合同时同步删除关联账单；关联账单删除失败时整体回滚。',
+        ],
+      },
+      {
+        title: '权限与数据范围',
+        items: ['一线角色不显示删除；管理员仅能删除本服务区合同。'],
+      },
+      {
+        title: '验收判断',
+        items: ['审批中合同不显示编辑和删除；关联账单删除失败时合同与账单均保留。'],
+      },
+    ],
+    source: {
+      file: 'output/design/合同管理.md',
+      section: '合同列表 > 操作栏',
+    },
+    status: 'confirmed',
+  },
+  2: {
+    title: '盘点任务状态',
+    sections: [
+      {
+        title: '状态与操作',
+        items: ['盘点任务超过结束时间后进入超期状态，不允许继续录入。'],
+      },
+    ],
+    source: {
+      file: 'output/design/盘点管理.md',
+      section: '盘点任务 > 状态与业务规则',
+    },
+    status: 'pending',
+  },
 };
 ```
+
+数据约束：
+
+- `sections` 只放实际存在的内容，不生成空 section；
+- `items` 每条表达一个可执行条件、结果或验收判断；
+- `source.file` 使用项目相对路径，`source.section` 使用可回读的标题路径；
+- `status` 只使用 `confirmed` 或 `pending`，分别显示为“已确认”和“待确认”；
+- 一条标注只来自一个事实源，不混合 Design 与 PRD。
 
 ## MarkLayer 组件
 
@@ -52,6 +104,10 @@ import { PM_ANNOTATIONS } from './annotations.js';
 
 const BADGE_CLASS = 'pm-badge';
 const POPUP_CLASS = 'pm-popup';
+const STATUS_LABELS = {
+  confirmed: '已确认',
+  pending: '待确认',
+};
 
 function getContainerClass(target) {
   if (target.closest('.ant-drawer, [class*="drawer"]')) return 'pm-badge-in-drawer';
@@ -83,8 +139,8 @@ export default function MarkLayer() {
   useEffect(() => {
     renderMarks();
     const onResizeOrScroll = () => renderMarks();
+    const onDocumentClick = () => setOpenId(null);
     const observer = new MutationObserver(() => {
-      // 容器可见性状态：抽屉/弹窗打开时隐藏主页角标
       const drawer = document.querySelector('.ant-drawer-open');
       const modal = document.querySelector('.ant-modal-wrap');
       document.body.classList.toggle('pm-drawer-open', !!drawer);
@@ -97,10 +153,12 @@ export default function MarkLayer() {
       attributes: true,
       attributeFilter: ['class', 'style'],
     });
+    document.addEventListener('click', onDocumentClick);
     window.addEventListener('resize', onResizeOrScroll);
     window.addEventListener('scroll', onResizeOrScroll, true);
     return () => {
       observer.disconnect();
+      document.removeEventListener('click', onDocumentClick);
       window.removeEventListener('resize', onResizeOrScroll);
       window.removeEventListener('scroll', onResizeOrScroll, true);
     };
@@ -120,6 +178,8 @@ export default function MarkLayer() {
     setPopupPos({ top, left });
     setOpenId(id);
   };
+
+  const annotation = openId ? PM_ANNOTATIONS[openId] : null;
 
   return createPortal(
     <>
@@ -142,7 +202,7 @@ export default function MarkLayer() {
           </button>
         );
       })}
-      {openId && (
+      {annotation && (
         <div
           ref={popupRef}
           className={POPUP_CLASS}
@@ -151,12 +211,28 @@ export default function MarkLayer() {
         >
           <div className="pm-popup-head">
             <span className="pm-popup-title">
-              [{openId}] {PM_ANNOTATIONS[openId].title}
+              [{openId}] {annotation.title}
             </span>
             <span className="pm-popup-close" onClick={() => setOpenId(null)}>×</span>
           </div>
-          <div className="pm-popup-body">{PM_ANNOTATIONS[openId].content}</div>
-          <div className="pm-popup-source">内容来源：Design 文件或 prd.md（由标注时标注）</div>
+          <div className="pm-popup-body">
+            {annotation.sections.map((section) => (
+              <section className="pm-section" key={section.title}>
+                <div className="pm-section-title">{section.title}</div>
+                <ul className="pm-section-list">
+                  {section.items.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </section>
+            ))}
+          </div>
+          <div className={`pm-popup-source pm-source-${annotation.status}`}>
+            <span>内容来源：{annotation.source.file} / {annotation.source.section}</span>
+            <span className="pm-popup-status">
+              {STATUS_LABELS[annotation.status] || annotation.status}
+            </span>
+          </div>
         </div>
       )}
     </>,
@@ -217,11 +293,31 @@ export default function MarkLayer() {
   font-size: 13px;
   line-height: 1.6;
 }
+.pm-section + .pm-section {
+  margin-top: 12px;
+}
+.pm-section-title {
+  font-weight: 700;
+}
+.pm-section-list {
+  margin: 4px 0 0 18px;
+  padding: 0;
+}
 .pm-popup-source {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
   padding: 8px 12px;
   font-size: 11px;
   color: #8c8c8c;
   border-top: 1px solid #e0e0e0;
+}
+.pm-popup-status {
+  flex: none;
+  font-weight: 700;
+}
+.pm-source-pending .pm-popup-status {
+  color: #d46b08;
 }
 body.pm-drawer-open .pm-badge.pm-badge-in-page,
 body.pm-modal-open .pm-badge.pm-badge-in-page {
@@ -234,9 +330,9 @@ body.pm-modal-open .pm-badge.pm-badge-in-page {
 1. 角标一律 `position: fixed` + `document.body` 挂载（React `createPortal`）；禁止 `position: absolute`、禁止插入目标元素内部
 2. 坐标：`top = rect.top - 8`，`left = rect.right - 14`（角标右边缘对齐目标元素右边缘）
 3. 弹窗：点击角标打开（非 hover），再次点击同一角标关闭；X 按钮关闭；点击页面空白处关闭所有
-4. 浮窗默认 `top: badgeRect.bottom + 8; left: badgeRect.left`；右超左移、下超上移、不够贴顶 16px
+4. 浮窗默认 `top = targetRect.bottom + 8; left = targetRect.left`；右超左移、下超上移、不够贴顶 8px
 5. 抽屉/弹窗打开时隐藏主页角标（body class 控制），同一编号只能开一个浮窗
-6. 浮窗内容必须标注“内容来源：Design 文件”或“内容来源：prd.md”，不承诺脱离源文件后仍是权威规格
+6. 浮窗显示按需 section、具体来源文件和章节，以及“已确认/待确认”状态
 
 ## 硬规则
 

@@ -352,6 +352,7 @@ def extract_prd_pages(content: str, headings: list) -> list:
         "页面说明", "页面清单", "页面列表", "页面规划", "页面目录",
         "详细需求说明", "详细需求", "需求说明",
     }
+    page_section_containers = {"页面说明", "页面说明（按需）", "页面说明(按需)"}
 
     pages = []
     seen = set()
@@ -360,7 +361,7 @@ def extract_prd_pages(content: str, headings: list) -> list:
         name = clean_page_title(name).strip()
         if not name:
             return
-        if not ignore_blacklist and name in blacklist:
+        if not ignore_blacklist and (name in blacklist or name in page_section_containers):
             return
         if name not in seen:
             seen.add(name)

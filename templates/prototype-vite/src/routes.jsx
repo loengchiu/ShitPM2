@@ -44,6 +44,8 @@ export const routes = [
     placeholder: '租金清分页面（占位，按 Design 事实生成）',
   },
   {
+    // 内页样张：仅为样张可达性登记为菜单项。正式业务中内页从列表 / 详情下钻进入（menu: false），
+    // 只有内页才渲染 PageHeader 的页面级主标题 / 副标题 / 返回；一级页面由壳层表达页面名，不放大标题。
     path: '/detail',
     title: '商户详情',
     component: DetailDemo,
@@ -53,6 +55,7 @@ export const routes = [
     icon: <IconFileDescription size={16} />,
   },
   {
+    // 内页样张：同 /detail，仅登记为菜单项以便可达；内页标题口径见 prototype-page-types.md §一
     path: '/form-demo',
     title: '出库申请',
     component: FormDemo,

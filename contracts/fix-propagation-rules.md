@@ -1,7 +1,18 @@
 # 同步修复传播规则
 
+## 目录
+
+- [一、常见错误](#一常见错误)
+- [二、传播方向](#二传播方向)
+- [三、传播原则](#三传播原则)
+- [四、Design 变化后的处理流程](#四design-变化后的处理流程)
+- [五、修复完成后的 review 建议](#五修复完成后的-review-建议)
+
+---
+
 > 本文件是 fix skill 的执行依据。
 > ShitPM：Design 是唯一产品事实体系（多文件集合）；Fix 按用户指令连续完成 Design 修改与实际受影响下游的同步，无确认停顿。
+> `output/verification/` 是 Design 的第三个下游。规则语义变化必须同步验证包，未更新不算 Fix 完成。
 
 ## 一、常见错误
 
@@ -36,6 +47,7 @@ ShitPM 新时序：定位问题类型到找到正式事实归属到修改 Design
 | 纯格式/措辞/排版 | 对应下游 | 只改对应下游，不回写 Design | 无下游处理 |
 | Design 未变、下游错误 | 下游 | 只修错误下游 | 不修改 Design 和另一份下游 |
 | 外部未知修改 | Design | 当前任务触达时标记相关下游 affected | 不自动改写下游 |
+| 设计规则语义变化 | 设计 | 修改 Design 后同步 `output/verification/` 受影响验证包，再同步 PRD / Prototype | 受影响条目标记 `stale`，同步 PRD `4.x.9` 引用的规则 ID |
 
 ## 三、传播原则
 
@@ -50,6 +62,10 @@ ShitPM 新时序：定位问题类型到找到正式事实归属到修改 Design
 9. 纯组织变化（文件移动/拆分/排版）更新指纹和依据，下游保持 current
 10. **Align 不是事实源**：目标/范围/建设方式的事实源是 Design 集合；align.md 仅作为输入参考
 11. 高影响未知只询问具体业务问题（如"库存不足时是否允许部分扣减"），不询问确认 Design
+12. **验证包是 Design 下游**：规则语义变化必须更新 `output/verification/` 中受影响的验证包，未更新不算 Fix 完成；纯组织变化（文件移动、拆分、排版、措辞）不产生 `stale`
+13. **`stale` 必须可读**：标记时说明是规则本身变了还是预期来源变了；`stale` 条目在重新验证前不得作为有效证据
+14. **不伪造独立来源**：不得用 `ai_inference` 预期来源冒充 `contract`、`historical_data`、`independent_calculation`、`system_behavior` 或 `human_confirmation`
+15. **改名称不引入新约束**：修改页面名、区块名、按钮文案、字段名或状态名时，只做同名收敛、简化或按当前有效材料口径校正，不把适用条件、实现形态、方案代号或判定规则并入名称；需要表达条件的写入属性行、条件列或正文。命名规则见 [设计写法参考](../references/design-writing.md) 命名规范
 
 ## 四、Design 变化后的处理流程
 
@@ -65,7 +81,7 @@ ShitPM：不再有"确认 Design"或哈希确认。下游依据（provenance）�
 
 1. **用户明确说明改什么、改成什么**：
    - 定位唯一事实归属，修改对应 Design 文件（单文件或多文件事务）
-   - 计算受影响下游，同步所有实际存在且受影响的 PRD / Prototype 模块
+   - 计算受影响下游，同步所有实际存在且受影响的 PRD / Prototype 模块；规则语义变化时同步 `output/verification/` 中受影响的验证包
    - 运行针对性检查，更新下游依据（status=current, check_status=passed, 清空 affected_by）
 
 2. **Design 没变、下游不一致**：
@@ -90,6 +106,7 @@ fix 完成覆盖后，必须输出：
 ~~~text
 建议进入 [阶段] review，检查对象：[对象列表]
 已同步下游：[PRD/Prototype 模块列表]（如适用）
+已同步验证包：[业务闭环名]（如适用）
 ~~~
 
 不自动执行 review，由用户手动确认后触发。

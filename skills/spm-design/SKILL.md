@@ -77,6 +77,11 @@ python $BUNDLE/scripts/python/context-pack.py --bundle-root $BUNDLE --project-ro
 ~~~
 
 专项规则较多时，可用 `--applicability-json <path>` 代替重复的 `--card`。只选择当前 Design 实际适用的页面、流程、状态、字段、权限和跨系统规则。
+命中复杂规则时追加装载验证包规则（与 `--card` 组合使用，不新增 pass）：
+
+~~~text
+python $BUNDLE/scripts/python/context-pack.py --bundle-root $BUNDLE --project-root . --stage design --mode <simple|full> --pass writing --pack design-verification
+~~~
 
 完成条件：当前动作所需 pass 已成功装载；每个实际适用的专项规则均在规则包中，不适用项未机械展开。
 
@@ -141,6 +146,10 @@ Align → A → B → C → design-editor → 写作自检 → design-set check
 
 普通单步查询、简单只读展示和不改变业务结果的普通交互，不因页面数量或步骤数量被迫展开复杂异常、补偿、权限矩阵或状态机模型；不适用项简短声明，不填充空章节或大量“无/不适用”。
 
+命中复杂规则时，按 `$BUNDLE/references/verification-and-oracle.md` 判定规则类型（计算、状态、权限、事件、映射、生命周期），并在 Design 写作同一次动作内生成或更新 `output/verification/<业务闭环或模块名>.md`。验证包是 Design 的正式交付物，不新增独立阶段、不新增 Skill、不新增脚本。规则类型划分、`expected_source` 取值和独立性等级以该 reference 为唯一权威，本文件不复制。
+
+完成条件：每条高影响规则有验证条目或显式 `evidence_gap`；只有 `ai_inference` 的条目标记为候选，不计入 Design 完成；验证包与 Design 冲突时先修 Design 再重新验证。
+
 ### 5.3 高影响未知与局部阻塞
 涉及核心流程或系统边界、角色责任、操作权限或数据范围、审批/驳回/撤销/删除/恢复、对象生命周期、跨系统失败处理，以及任何会改变页面、字段、操作或验收的歧义，严禁静默拍板。
 
@@ -161,7 +170,8 @@ PRD 和 Prototype 只能承接 Design 正文中的已确认事实，不得自行
 
 ### 5.5 可推断值与高影响边界
 
-模型可以补充不改变以下内容的低影响表达细节：业务结果、责任、权限、数据范围、状态和验收（如默认值、排序、分页、逐字提示文案、标签颜色、低影响交互措辞）。每条推断值写明取值和一句话场景依据。
+模型可以补充不改变以下内容的低影响表达细节：业务结果、责任、权限、数据范围、状态和验收（如默认值、排序、分页、校验与空态提示文案、标签颜色、低影响交互措辞）。每条推断值写明取值和一句话场景依据。
+**页面名、区块名、按钮文案、字段名和状态名不属于推断值**，按 `$BUNDLE/references/design-writing.md` 命名规范确定：材料已有名称逐字沿用，名称中不放判定规则、实现形态、方案代号、适用条件或括号补充，同一对象/动作/状态全库同名。
 会改变上述内容的事实，必须来自用户或材料、由已确认事实明确推导，或者进入未决事项。不能仅因为“看起来合理”就写入 Design。
 
 完成条件：每个推断值都有业务场景和依据；每个高影响未知都进入拥有该事实的正式 Design 文件及设计集清单 decisions，未被推断值机制静默拍板。
@@ -223,9 +233,9 @@ python $BUNDLE/scripts/python/design-set.py recover --project-root .
 
 ## 7. 写作动作内自检
 
-simple-design 和 design-editor 各自只执行一次内部自检，不拆成独立任务、不生成检查 JSON、报告或回执。按 `$BUNDLE/references/design-writing.md` 的写作前后检查清单逐项回读，**并按 `$BUNDLE/references/design-business-closure.md` 3.6 的核心闭环最小回读集逐个核心闭环回读（统称对象先拆细分类型，同类页面对属性集做差集）**；结合 §5.4 横切能力四状态判断与 §5.5 推断值边界；重要数据结果依据 `$BUNDLE/references/data-definition-rules.md` 逐项回读四档口径责任并确认规则拥有者，禁止以“系统统计/计算”替代口径定义；涉及状态机时逐项满足 `$BUNDLE/references/design-state-format.md` 的闭环要求。发现 `red` 直接修正对应 Design 文件；不能决定的高影响事项写为 `decision`，保留在该文件未决事项。
+simple-design 和 design-editor 各自只执行一次内部自检，不拆成独立任务、不生成检查 JSON、报告或回执。按 `$BUNDLE/references/design-writing.md` 的写作前后检查清单逐项回读，**并按 `$BUNDLE/references/design-business-closure.md` 3.6 的核心闭环最小回读集逐个核心闭环回读（统称对象先拆细分类型，同类页面对属性集做差集）**；结合 §5.4 横切能力四状态判断与 §5.5 推断值边界；重要数据结果依据 `$BUNDLE/references/data-definition-rules.md` 逐项回读四档口径责任并确认规则拥有者，禁止以“系统统计/计算”替代口径定义；涉及状态机时逐项满足 `$BUNDLE/references/design-state-format.md` 的闭环要求。存在验证包时逐条回读其规则 ID、预期来源和独立性等级。发现 `red` 直接修正对应 Design 文件；不能决定的高影响事项写为 `decision`，保留在该文件未决事项。
 
-完成条件：写作清单中的每个适用项都有正文落点或明确未决；修改后的文件已重新回读；`design-set.py check` 结构检查通过；事实完整且没有未暴露的高影响问题。满足后才能告诉用户 Design 已完成。高影响未决事项保持 pending 状态并说明影响，不要求用户确认 Design 或确认哈希。Review 是按需的第二意见，不是首次生成前置。
+完成条件：写作清单中的每个适用项都有正文落点或明确未决；修改后的文件已重新回读；命中复杂规则的业务闭环已生成或更新验证包，且不存在仅有 `ai_inference` 预期来源却未被标记为候选的条目；`design-set.py check` 结构检查通过；事实完整且没有未暴露的高影响问题。满足后才能告诉用户 Design 已完成。高影响未决事项保持 pending 状态并说明影响，不要求用户确认 Design 或确认哈希。Review 是按需的第二意见，不是首次生成前置。
 
 ## 8. 禁止事项
 

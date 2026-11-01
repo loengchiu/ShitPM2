@@ -153,6 +153,8 @@ export default function App() {
       </div>
       <main className="content-wrap">
         <div className="page-content">
+          {/* 页面名由壳层（侧栏选中项 + 顶部页签）表达：一级页面内不再渲染页面级主标题 / 副标题 / 返回，
+              只有下钻进入的内页才用 shared/ui 的 PageHeader。判定见 references/prototype-page-types.md §一 */}
           <Page query={query} {...(activeRoute.placeholder ? { placeholder: activeRoute.placeholder } : {})} />
         </div>
       </main>

@@ -392,6 +392,91 @@ PRD_LEGACY_PERMISSION_SUMMARY = f"""# 订单 PRD
 - 财务人员：可查看
 """
 
+# 可选页面说明的两种最小形态：消费者必须按标题和实体工作，不依赖固定验收编号。
+PRD_WITHOUT_PAGE_SPEC = """# 订单 PRD
+
+## 功能需求
+
+### 订单管理
+
+#### 4.1.4 业务流程
+
+订单从待处理进入已完成。
+
+#### 4.1.5 业务规则
+
+订单编号是订单唯一标识。
+
+#### 4.1.6 功能说明
+
+##### 订单列表
+
+查看订单。
+
+##### 字段定义
+
+| 字段 | 类型 | 必填 | 取值约束 | 默认值 | 业务来源 | 说明 |
+|---|---|---|---|---|---|---|
+| 订单编号 | 字符串 | 是 | 无 | 无 | 订单服务 | 订单唯一编号 |
+| 状态 | 枚举 | 是 | 草稿、已完成 | 草稿 | 订单服务 | 订单处理状态 |
+
+#### 4.1.7 异常处理
+
+读取失败可重试。
+
+#### 4.1.8 验收标准
+
+订单编号一致，状态取值为草稿或已完成。
+
+#### 4.1.9 待确认事项
+
+无。
+"""
+
+PRD_WITH_PAGE_SPEC = """# 订单 PRD
+
+## 功能需求
+
+### 订单管理
+
+#### 4.1.4 业务流程
+
+订单从待处理进入已完成。
+
+#### 4.1.5 业务规则
+
+订单编号是订单唯一标识。
+
+#### 4.1.6 功能说明
+
+##### 订单列表
+
+查看订单。
+
+##### 字段定义
+
+| 字段 | 类型 | 必填 | 取值约束 | 默认值 | 业务来源 | 说明 |
+|---|---|---|---|---|---|---|
+| 订单编号 | 字符串 | 是 | 无 | 无 | 订单服务 | 订单唯一编号 |
+| 状态 | 枚举 | 是 | 草稿、已完成 | 草稿 | 订单服务 | 订单处理状态 |
+
+#### 4.1.7 页面说明
+
+列表与详情共用字段只读规格。
+
+#### 4.1.8 异常处理
+
+读取失败可重试。
+
+#### 4.1.9 验收标准
+
+订单编号一致，状态取值为草稿或已完成。
+
+#### 4.1.10 待确认事项
+
+无。
+"""
+
 
 def run_case(prd: str, design: str = DESIGN):
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -510,6 +595,30 @@ def main() -> int:
     if report["extracted"]["prd_fields_count"] != 2:
         raise AssertionError(f"分散字段表未合并读取: {report['extracted']}")
 
+    # 可选页面说明两种章节编号形态：现有消费者不依赖验收编号，两形态均应通过。
+    for label, fixture in (("无页面说明", PRD_WITHOUT_PAGE_SPEC), ("有页面说明", PRD_WITH_PAGE_SPEC)):
+        code, report = run_case(fixture)
+        if code != 0 or report.get("exit_reason") != "ok":
+            raise AssertionError(f"{label}样本应被现有消费者接受: {code}, {report.get('exit_reason')}\n{report.get('classification')}")
+        if report["extracted"]["prd_fields_count"] != 2:
+            raise AssertionError(f"{label}样本字段未被消费者提取: {report['extracted']}")
+
+    # 存量标题兼容：明确容器标题不得成为页面实体，真实业务页面的括号仍保留。
+    for label, title in (("全角括号", "页面说明（按需）"), ("半角括号", "页面说明(按需)")):
+        fixture = PRD_WITH_PAGE_SPEC.replace("#### 4.1.7 页面说明", f"#### 4.1.7 {title}")
+        code, report = run_case(fixture)
+        if code != 0 or report.get("exit_reason") != "ok":
+            raise AssertionError(f"{label}容器标题应按 ok/0 消费: {code}, {report.get('exit_reason')}\n{report.get('classification')}")
+        if report["extracted"]["prd_fields_count"] != 2:
+            raise AssertionError(f"{label}容器标题样本字段未被提取: {report['extracted']}")
+
+    # Review Skill 的自然语言入口必须按标题定位验收，不得硬绑可变编号。
+    review_skill = (ROOT / "skills/spm-prd-review/SKILL.md").read_text(encoding="utf-8-sig")
+    if "按“验收标准”标题核对规则 ID" not in review_skill:
+        raise AssertionError("spm-prd-review 未按验收标准标题定位规则 ID")
+    if "核对 `4.x.9` 引用的规则 ID" in review_skill:
+        raise AssertionError("spm-prd-review 仍硬绑 4.x.9 验收引用")
+
     # 回归：斜杠合并字段拆分后应匹配 Design 两侧字段，不再整体判为缺失或新增。
     code, report = run_case(SLASH_FIELD_PRD, design=SLASH_FIELD_DESIGN)
     if code != 0 or report.get("exit_reason") != "ok":
@@ -590,6 +699,15 @@ def main() -> int:
     if spec.loader is None:
         raise AssertionError("无法加载一致性脚本模块")
     spec.loader.exec_module(module)
+    business_page_fixture = PRD_WITH_PAGE_SPEC.replace(
+        "#### 4.1.7 页面说明\n\n列表与详情共用字段只读规格。",
+        "#### 4.1.7 页面说明\n\n##### 现场处置（移动端）\n\n列表与详情共用字段只读规格。",
+    )
+    headings = module.parse_headings(business_page_fixture)
+    pages = module.extract_prd_pages(business_page_fixture, headings)
+    if "现场处置（移动端）" not in pages:
+        raise AssertionError(f"真实业务页面的括号被容器兼容逻辑吞掉: {pages}")
+
     headings = module.parse_headings(PAGE_MAPPING_PRD)
     pages = module.extract_prd_pages(PAGE_MAPPING_PRD, headings)
     if pages != ["订单列表", "现场处置"]:

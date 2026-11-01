@@ -26,17 +26,18 @@ Prototype 直接下游于 Design 事实闭包：
 3. 读取 `$BUNDLE/references/prototype-writing.md`。**完成条件**：掌握组件 API、交互硬规则、源码目录与构建边界。普通页面直接执行以下常驻短规则，**不预读完整视觉规范**：
    - 事实输入完全来自 Design 事实闭包，不新增 Design 未定义事实；
    - 先判页面类型，命中即按对应标准结构落位；
+   - **一级页面（菜单 / 壳层页签可直达）不渲染页面级主标题、副标题与右上返回**，页面名由壳层表达；只有下钻进入的内页（详情 / 结果 / 异常）才用 `PageHeader`，且 `subtitle` 仅承载 Design 已定义的一句口径；官方 `layout.md` 的页面标题区要求不适用于一级页面；
    - 高频结构命中即直接复用 `src/shared/ui/` 共享语义组件（权威清单见 `src/shared/ui/index.jsx`，清单与用法见 `$BUNDLE/references/prototype-writing.md`），不复制其 DOM/CSS；
    - 颜色一律走 `src/theme/tablerTheme.ts` 主题 Token，不写死色值；
    - 结构、尺寸、间距、字体、阴影走 Ant Design 6 官方默认，主题不覆盖非颜色 token；
    - 图标一律经 `src/shared/icons/` 取用，图表走 `src/shared/charts/TablerChart.jsx`；
    - 空字段一律显示 `—`（`DetailList` 自动格式化；0 和 false 原样保留）；
    - 完成后按适用场景验证构建、路由、关键交互和 console。
-4. 按「页面分类与标准结构」路由表判定页面类型，**只读取命中的 `$BUNDLE/references/prototype-page-types.md` 章节**。**完成条件**：明确目标页面类型与对应标准结构。
+4. 按「页面分类与标准结构」路由表判定页面类型，**读取 `$BUNDLE/references/prototype-page-types.md` 的 §一 总则与命中的页型章节**（总则是全局裁决，含一级页面与内页的标题口径、存量让路口径，必读）。**完成条件**：明确目标页面类型与对应标准结构。
 5. **详细规范按条件触发读取（未命中不读取）**：
-   - **新增颜色、主题变更或修改/新建共享组件**：读取 `$BUNDLE/references/prototype-visual-spec.md` 对应完整章节；
+   - **新增颜色、主题变更或修改/新建共享组件**：读取 `$BUNDLE/references/prototype-visual-spec.md` 对应完整章节；读取过视觉规范时，交付前按该文件 §5 自检清单逐条核对；
    - **图表需求**：读取 `$BUNDLE/references/prototype-visual-spec.md` §2.1 图表适配与 `TablerChart.jsx`；
-   - **Portal、sticky、Sider 或特定响应式**：读取 `$BUNDLE/references/prototype-component-behavior.md` 对应小节；
+   - **组件选型、组合边界、Portal、sticky、Sider 或特定响应式**：读取 `$BUNDLE/references/prototype-component-behavior.md` 对应小节（§1 组件选择与组合判断 / §2 特定场景例外 / §3 跨层运行时契约）；
    - **页面含角色差异**：读取 `$BUNDLE/references/prototype-role-permission.md`；
    - **多页面 shell、导航、路由或白屏排查**：读取 `$BUNDLE/references/prototype-shell.md`。
 6. 如存在 `output/prototype/prototype-feedback.md`，读取并按 `$BUNDLE/templates/prototype-feedback-classification.md` 先归类。**完成条件**：每条反馈已分成表现问题、语义问题或待澄清项。
@@ -90,7 +91,7 @@ Prototype 直接下游于 Design 事实闭包：
 
 1. 用真实浏览器打开默认页和每个注册路由，检查浏览器 console 无错误；对项目实际存在的关键交互至少各操作一次，包括 Modal、Form、Select、角色切换和响应式状态。没有对应场景时明确记录“项目无此场景”，不能用静态检查代替浏览器验证。
 2. 检查加载、空数据、失败/重试、无权限、禁用/只读、选中和响应式状态可通过 UI 观察；列表/看板保留空态，配置操作使用真实 `Modal` + `Form`，状态机限制使用 `disabled`。
-3. 对照 `$BUNDLE/references/prototype-page-types.md` 命中章节逐条核对标准结构与必须项（含分页与总条数、筛选折叠、卡头徽章、空字段 `—`、长文本省略等让路与新增口径）；页面含角色差异时对照 `$BUNDLE/references/prototype-role-permission.md` §八 核对四级权限表达。图标统一通过 `src/shared/icons/` 取用官方图标，不直接 import 图标库；图表使用 `src/shared/charts/`。
+3. 对照 `$BUNDLE/references/prototype-page-types.md` §一 总则与命中章节逐条核对标准结构与必须项（含一级页面不放大标题、分页与总条数、筛选折叠、卡头徽章、空字段 `—`、长文本省略等让路与新增口径）；页面含角色差异时对照 `$BUNDLE/references/prototype-role-permission.md` §八 核对四级权限表达。图标统一通过 `src/shared/icons/` 取用官方图标，不直接 import 图标库；图表使用 `src/shared/charts/`。
 4. 对本任务命中的 page-types、role-permission 与 behavior 章节逐条核对对应规则；跨任务通用的完成门槛以本 Skill 为准，不通过交付前再次完整读取这些文档来替代。响应式按实际命中的断点和场景验收，不执行 390px 专项测试。
 5. 运行自检与一致性脚本：
 
@@ -118,9 +119,9 @@ python $BUNDLE/scripts/python/prototype-consistency-check.py --project-root .
 
 Review 使用 `spm-prototype-review`，不会由本 Skill 自动修复或推进。
 
-## 标注副本（prototypemark，按需）
+## 原型主规格标注（prototypemark，按需）
 
-仅当用户要求生成带编号角标 + 浮窗的设计/PRD 标注原型时，才读取 `$BUNDLE/references/prototype-mark-injection.md`，把标注系统注入 `output/prototypemark/`（`output/prototype/` 的副本）。该副本不进入 review 链路、不反写 Design/PRD、不生成 metadata；高影响意见按反馈分类转交 `spm-fix`。普通原型任务不读取本文件。
+仅当用户要求生成或更新带不可见规格浮窗的原型时，使用 `spm-prototype-mark`。Mark 只处理 `output/prototypemark/` 副本，承载原型无法直接展示、但影响研发实现和测试判断的规则；原型生成流程不在此重复维护标注内容规则或注入细节。
 
 ## 产物
 
